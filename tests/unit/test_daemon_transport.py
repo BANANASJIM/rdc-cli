@@ -66,6 +66,34 @@ def test_daemon_status_goto_and_shutdown() -> None:
         proc.terminate()
 
 
+def test_daemon_idle_timeout_exits() -> None:
+    port = _pick_port()
+    token = secrets.token_hex(8)
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "rdc.daemon_server",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--capture",
+            "capture.rdc",
+            "--token",
+            token,
+            "--idle-timeout",
+            "1",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    _wait_ready(port, token)
+    proc.wait(timeout=3)
+    assert proc.returncode == 0
+
+
 def test_daemon_rejects_invalid_token() -> None:
     port = _pick_port()
     token = secrets.token_hex(8)

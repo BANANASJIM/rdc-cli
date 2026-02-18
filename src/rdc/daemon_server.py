@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import socket
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,15 +15,29 @@ class DaemonState:
     token: str
 
 
-def run_server(host: str, port: int, state: DaemonState) -> None:
+def run_server(  # pragma: no cover
+    host: str,
+    port: int,
+    state: DaemonState,
+    idle_timeout_s: int = 1800,
+) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((host, port))
         server.listen(32)
+        server.settimeout(1.0)
 
         running = True
+        last_activity = time.time()
         while running:
-            conn, _addr = server.accept()
+            if time.time() - last_activity > idle_timeout_s:
+                break
+
+            try:
+                conn, _addr = server.accept()
+            except TimeoutError:
+                continue
+
             with conn:
                 line = _recv_line(conn)
                 if not line:
@@ -30,6 +45,7 @@ def run_server(host: str, port: int, state: DaemonState) -> None:
                 request = json.loads(line)
                 response, running = _handle_request(request, state)
                 conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+                last_activity = time.time()
 
 
 def _recv_line(conn: socket.socket) -> str:
@@ -79,18 +95,20 @@ def _error_response(request_id: int, code: int, message: str) -> dict[str, Any]:
     return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--capture", required=True)
     parser.add_argument("--token", required=True)
+    parser.add_argument("--idle-timeout", type=int, default=1800)
     args = parser.parse_args()
 
     run_server(
         host=args.host,
         port=args.port,
         state=DaemonState(capture=args.capture, current_eid=0, token=args.token),
+        idle_timeout_s=args.idle_timeout,
     )
 
 
