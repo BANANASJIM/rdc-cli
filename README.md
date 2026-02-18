@@ -31,3 +31,11 @@ make check
 ```bash
 uv build
 ```
+
+## Required CI checks
+
+- lint (ruff)
+- typecheck (mypy)
+- test (pytest, py3.10/3.11/3.12)
+- commitlint (Conventional Commits)
+
