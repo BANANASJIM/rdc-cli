@@ -26,6 +26,17 @@ uv run pytest
 make check
 ```
 
+## Development (pixi)
+
+```bash
+# one-time shell
+pixi shell
+
+# or run tasks directly
+pixi run sync
+pixi run check
+```
+
 ## Build / packaging
 
 ```bash
