@@ -1,0 +1,23 @@
+# tooling Specification
+
+## Purpose
+TBD - created by archiving change phase0-fixtures-docker. Update Purpose after archive.
+## Requirements
+### Requirement: Fixture and docker tooling
+The project MUST include tooling for fixture capture and reproducible Linux build environment.
+
+#### Scenario: Fixture helper script exists
+- **WHEN** a developer needs a capture fixture
+- **THEN** they can run a helper script that wraps `renderdoccmd capture`
+
+#### Scenario: Docker dev image exists
+- **WHEN** a developer needs clean Linux setup
+- **THEN** project provides Dockerfile with Python and uv toolchain
+
+### Requirement: Pixi dev environment
+The project MUST provide a pixi environment file for reproducible developer setup.
+
+#### Scenario: Contributor uses pixi tasks
+- **WHEN** a contributor runs `pixi run check`
+- **THEN** lint, typecheck, and tests run with project-pinned tooling
+

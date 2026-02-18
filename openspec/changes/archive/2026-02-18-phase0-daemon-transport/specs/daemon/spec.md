@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Session command skeleton
 Session commands MUST use daemon transport once Phase 0 daemon skeleton is available.

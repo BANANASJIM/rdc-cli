@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Environment bootstrap commands
 The CLI MUST provide baseline environment and capture bootstrap commands for Phase 0.
