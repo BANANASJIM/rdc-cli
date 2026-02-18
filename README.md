@@ -32,6 +32,23 @@ make check
 uv build
 ```
 
+## Fixture capture helper
+
+Generate a local fixture with RenderDoc:
+
+```bash
+./scripts/capture_fixture.sh triangle /path/to/your-app [args...]
+```
+
+This writes `tests/fixtures/triangle.rdc`.
+
+## Docker dev image
+
+```bash
+docker build -t rdc-cli-dev -f docker/Dockerfile .
+docker run --rm -it -v "$PWD":/workspace rdc-cli-dev bash
+```
+
 ## Required CI checks
 
 - lint (ruff)
