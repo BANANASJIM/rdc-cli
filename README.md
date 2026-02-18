@@ -11,7 +11,7 @@ Implemented skeleton commands:
 - `rdc doctor`
 - `rdc capture` (thin wrapper to `renderdoccmd capture`)
 - `rdc capture --list-apis`
-- `rdc open` / `rdc close` / `rdc status` / `rdc goto` (Phase 0 local session skeleton)
+- `rdc open` / `rdc close` / `rdc status` / `rdc goto` (Phase 0 daemon-transport skeleton)
 
 ## Development (uv)
 

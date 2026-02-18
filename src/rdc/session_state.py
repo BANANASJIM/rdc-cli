@@ -11,6 +11,10 @@ class SessionState:
     capture: str
     current_eid: int
     opened_at: str
+    host: str
+    port: int
+    token: str
+    pid: int
 
 
 def _session_dir() -> Path:
@@ -30,6 +34,10 @@ def load_session() -> SessionState | None:
         capture=data["capture"],
         current_eid=int(data["current_eid"]),
         opened_at=data["opened_at"],
+        host=data["host"],
+        port=int(data["port"]),
+        token=data["token"],
+        pid=int(data["pid"]),
     )
 
 
@@ -39,11 +47,21 @@ def save_session(state: SessionState) -> None:
     path.write_text(json.dumps(asdict(state), indent=2))
 
 
-def create_session(capture: str) -> SessionState:
+def create_session(
+    capture: str,
+    host: str,
+    port: int,
+    token: str,
+    pid: int,
+) -> SessionState:
     state = SessionState(
         capture=capture,
         current_eid=0,
         opened_at=datetime.now(timezone.utc).isoformat(),
+        host=host,
+        port=port,
+        token=token,
+        pid=pid,
     )
     save_session(state)
     return state
