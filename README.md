@@ -11,11 +11,21 @@ Implemented skeleton commands:
 - `rdc doctor`
 - `rdc capture` (thin wrapper to `renderdoccmd capture`)
 
-## Development
+## Development (uv)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-pytest
+# one-time
+uv sync --extra dev
+
+# run tests
+uv run pytest
+
+# run quality gates
+make check
+```
+
+## Build / packaging
+
+```bash
+uv build
 ```

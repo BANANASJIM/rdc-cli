@@ -1,17 +1,20 @@
-.PHONY: check lint format typecheck test
+.PHONY: sync check lint format typecheck test
+
+sync:
+	uv sync --extra dev
 
 check: lint typecheck test
 
 lint:
-	ruff check src tests
-	ruff format --check src tests
+	uv run ruff check src tests
+	uv run ruff format --check src tests
 
 format:
-	ruff format src tests
-	ruff check --fix src tests
+	uv run ruff format src tests
+	uv run ruff check --fix src tests
 
 typecheck:
-	mypy src
+	uv run mypy src
 
 test:
-	pytest tests -v --cov=rdc --cov-report=term-missing --cov-fail-under=80
+	uv run pytest tests -v --cov=rdc --cov-report=term-missing --cov-fail-under=80
