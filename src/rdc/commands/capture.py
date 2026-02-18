@@ -22,7 +22,10 @@ def _find_renderdoccmd() -> str | None:
     return None
 
 
-@click.command("capture", context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@click.command(
+    "capture",
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+)
 @click.option("--api", "api_name", type=str, help="Capture API (maps to --opt-api).")
 @click.option("-o", "--output", type=click.Path(path_type=Path), help="Output capture file path.")
 @click.pass_context

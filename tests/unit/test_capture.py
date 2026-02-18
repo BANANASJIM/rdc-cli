@@ -30,7 +30,10 @@ def test_capture_passthrough_args(monkeypatch) -> None:  # type: ignore[no-untyp
     monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
     monkeypatch.setattr("subprocess.run", fake_run)
 
-    result = CliRunner().invoke(capture_cmd, ["--api", "vulkan", "-o", "out.rdc", "--", "./app", "--foo"])
+    result = CliRunner().invoke(
+        capture_cmd,
+        ["--api", "vulkan", "-o", "out.rdc", "--", "./app", "--foo"],
+    )
     assert result.exit_code == 0
     assert captured["argv"] == [
         "/usr/bin/renderdoccmd",
