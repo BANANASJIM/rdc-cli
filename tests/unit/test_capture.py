@@ -47,6 +47,21 @@ def test_capture_passthrough_args(monkeypatch) -> None:  # type: ignore[no-untyp
     ]
 
 
+def test_capture_list_apis_mode(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(argv, check=False):  # type: ignore[no-untyped-def]
+        captured["argv"] = argv
+        return DummyResult(0)
+
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(capture_cmd, ["--list-apis"])
+    assert result.exit_code == 0
+    assert captured["argv"] == ["/usr/bin/renderdoccmd", "capture", "--list-apis"]
+
+
 def test_capture_propagates_subprocess_error(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
     monkeypatch.setattr("subprocess.run", lambda argv, check=False: DummyResult(42))

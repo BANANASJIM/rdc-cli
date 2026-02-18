@@ -28,8 +28,14 @@ def _find_renderdoccmd() -> str | None:
 )
 @click.option("--api", "api_name", type=str, help="Capture API (maps to --opt-api).")
 @click.option("-o", "--output", type=click.Path(path_type=Path), help="Output capture file path.")
+@click.option("--list-apis", is_flag=True, help="List capture APIs via renderdoccmd and exit.")
 @click.pass_context
-def capture_cmd(ctx: click.Context, api_name: str | None, output: Path | None) -> None:
+def capture_cmd(
+    ctx: click.Context,
+    api_name: str | None,
+    output: Path | None,
+    list_apis: bool,
+) -> None:
     """Thin wrapper around renderdoccmd capture."""
     bin_path = _find_renderdoccmd()
     if not bin_path:
@@ -37,16 +43,20 @@ def capture_cmd(ctx: click.Context, api_name: str | None, output: Path | None) -
         raise SystemExit(1)
 
     argv: list[str] = [bin_path, "capture"]
-    if api_name:
-        argv.extend(["--opt-api", api_name])
-    if output:
-        argv.extend(["--capture-file", str(output)])
-    argv.extend(ctx.args)
+
+    if list_apis:
+        argv.append("--list-apis")
+    else:
+        if api_name:
+            argv.extend(["--opt-api", api_name])
+        if output:
+            argv.extend(["--capture-file", str(output)])
+        argv.extend(ctx.args)
 
     result = subprocess.run(argv, check=False)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 
-    if output:
+    if output and not list_apis:
         click.echo(f"capture saved: {output}", err=True)
         click.echo(f"next: rdc open {output}", err=True)

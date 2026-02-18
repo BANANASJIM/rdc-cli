@@ -10,6 +10,7 @@ Implemented skeleton commands:
 - `rdc --version`
 - `rdc doctor`
 - `rdc capture` (thin wrapper to `renderdoccmd capture`)
+- `rdc capture --list-apis`
 
 ## Development (uv)
 
