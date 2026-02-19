@@ -1,4 +1,4 @@
-"""Commands: rdc info, rdc stats."""
+"""Commands: rdc info, rdc stats, rdc log."""
 
 from __future__ import annotations
 
@@ -90,3 +90,36 @@ def stats_cmd(use_json: bool, no_header: bool) -> None:
         header_d = ["EID", "MARKER", "TRIANGLES"]
         rows_d = [[d["eid"], d.get("marker", "-"), d["triangles"]] for d in top_draws]
         write_tsv(rows_d, header=header_d, no_header=no_header)
+
+
+@click.command("log")
+@click.option(
+    "--level",
+    default=None,
+    type=click.Choice(["HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"], case_sensitive=False),
+    help="Filter by severity.",
+)
+@click.option("--eid", default=None, type=int, help="Filter by event ID.")
+@click.option("--no-header", is_flag=True, help="Omit TSV header")
+@click.option("--json", "use_json", is_flag=True, help="JSON output")
+def log_cmd(level: str | None, eid: int | None, no_header: bool, use_json: bool) -> None:
+    """Show debug/validation messages from the capture."""
+    rpc_params: dict[str, Any] = {}
+    if level is not None:
+        rpc_params["level"] = level
+    if eid is not None:
+        rpc_params["eid"] = eid
+    result = _daemon_call("log", rpc_params if rpc_params else None)
+    messages = result.get("messages", [])
+    if use_json:
+        write_json(messages)
+        return
+
+    def _sanitize(text: str) -> str:
+        return text.replace("\t", " ").replace("\n", " ")
+
+    rows = [
+        [m.get("level", "-"), m.get("eid", 0), _sanitize(str(m.get("message", "-")))]
+        for m in messages
+    ]
+    write_tsv(rows, header=["LEVEL", "EID", "MESSAGE"], no_header=no_header)

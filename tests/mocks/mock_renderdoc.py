@@ -61,9 +61,23 @@ class FileType(IntEnum):
     JPG = 1
 
 
+class MessageSeverity(IntEnum):
+    High = 0
+    Medium = 1
+    Low = 2
+    Info = 3
+
+
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class DebugMessage:
+    eventId: int = 0
+    severity: MessageSeverity = MessageSeverity.Info
+    description: str = ""
 
 
 @dataclass
@@ -318,6 +332,7 @@ class MockReplayController:
         self._set_frame_event_calls: list[tuple[int, bool]] = []
         self._shutdown_called: bool = False
         self._structured_file: StructuredFile = StructuredFile()
+        self._debug_messages: list[DebugMessage] = []
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -337,6 +352,9 @@ class MockReplayController:
 
     def GetStructuredFile(self) -> StructuredFile:
         return self._structured_file
+
+    def GetDebugMessages(self) -> list[DebugMessage]:
+        return self._debug_messages
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

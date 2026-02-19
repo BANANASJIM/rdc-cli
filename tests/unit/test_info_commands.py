@@ -1,4 +1,4 @@
-"""Tests for rdc info/stats CLI commands."""
+"""Tests for rdc info/stats/log CLI commands."""
 
 from __future__ import annotations
 
@@ -136,3 +136,58 @@ def test_daemon_call_connection_error(monkeypatch) -> None:
     result = CliRunner().invoke(main, ["info"])
     assert result.exit_code == 1
     assert "daemon unreachable" in result.output
+
+
+def test_log_tsv(monkeypatch) -> None:
+    _patch_info(
+        monkeypatch,
+        {
+            "messages": [
+                {"level": "HIGH", "eid": 0, "message": "validation error"},
+                {"level": "INFO", "eid": 42, "message": "info msg"},
+            ]
+        },
+    )
+    result = CliRunner().invoke(main, ["log"])
+    assert result.exit_code == 0
+    assert "LEVEL" in result.output
+    assert "HIGH" in result.output
+    assert "validation error" in result.output
+
+
+def test_log_json(monkeypatch) -> None:
+    _patch_info(
+        monkeypatch,
+        {"messages": [{"level": "HIGH", "eid": 0, "message": "error"}]},
+    )
+    result = CliRunner().invoke(main, ["log", "--json"])
+    assert result.exit_code == 0
+    assert '"level": "HIGH"' in result.output
+
+
+def test_log_with_level_filter(monkeypatch) -> None:
+    _patch_info(monkeypatch, {"messages": []})
+    result = CliRunner().invoke(main, ["log", "--level", "HIGH"])
+    assert result.exit_code == 0
+
+
+def test_log_with_eid_filter(monkeypatch) -> None:
+    _patch_info(monkeypatch, {"messages": []})
+    result = CliRunner().invoke(main, ["log", "--eid", "42"])
+    assert result.exit_code == 0
+
+
+def test_log_empty(monkeypatch) -> None:
+    _patch_info(monkeypatch, {"messages": []})
+    result = CliRunner().invoke(main, ["log"])
+    assert result.exit_code == 0
+    assert "LEVEL" in result.output
+
+
+def test_log_no_session(monkeypatch) -> None:
+    import rdc.commands.info as mod
+
+    monkeypatch.setattr(mod, "load_session", lambda: None)
+    result = CliRunner().invoke(main, ["log"])
+    assert result.exit_code == 1
+    assert "no active session" in result.output

@@ -11,6 +11,9 @@ from typing import Any
 
 from rdc.adapter import RenderDocAdapter
 
+_LOG_SEVERITY_MAP: dict[int, str] = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"}
+_VALID_LOG_LEVELS: set[str] = {*_LOG_SEVERITY_MAP.values(), "UNKNOWN"}
+
 
 @dataclass
 class DaemonState:
@@ -343,6 +346,32 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             detail["color_targets"] = []
             detail["depth_target"] = None
         return _result_response(request_id, detail), True
+    if method == "log":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        controller = state.adapter.controller
+        level_filter = params.get("level")
+        if level_filter is not None:
+            level_filter = str(level_filter).upper()
+            if level_filter not in _VALID_LOG_LEVELS:
+                return _error_response(request_id, -32602, f"invalid level: {level_filter}"), True
+        eid_filter = params.get("eid")
+        if eid_filter is not None:
+            try:
+                eid_filter = int(eid_filter)
+            except (TypeError, ValueError):
+                return _error_response(request_id, -32602, "eid must be an integer"), True
+        msgs = controller.GetDebugMessages() if hasattr(controller, "GetDebugMessages") else []
+        log_rows: list[dict[str, Any]] = []
+        for m in msgs:
+            lvl = _LOG_SEVERITY_MAP.get(int(m.severity), "UNKNOWN")
+            if level_filter and lvl != level_filter:
+                continue
+            raw_eid = int(m.eventId)
+            if eid_filter is not None and raw_eid != eid_filter:
+                continue
+            log_rows.append({"level": lvl, "eid": raw_eid, "message": m.description})
+        return _result_response(request_id, {"messages": log_rows}), True
 
     if method == "shader_targets":
         if state.adapter is None:

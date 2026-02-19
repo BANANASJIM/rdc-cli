@@ -107,3 +107,8 @@ class TestDaemonHandlersReal:
         assert "triangles" in result
         assert "color_targets" in result
         assert "depth_target" in result
+
+    def test_log(self) -> None:
+        result = _call(self.state, "log")
+        assert "messages" in result
+        assert isinstance(result["messages"], list)
