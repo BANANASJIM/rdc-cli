@@ -354,3 +354,11 @@ class TestLogHandler:
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
         resp, _ = _handle_request(_req("log"), state)
         assert resp["error"]["code"] == -32002
+
+    def test_log_invalid_level(self):
+        resp, _ = _handle_request(_req("log", level="HIHG"), _make_log_state([]))
+        assert resp["error"]["code"] == -32602
+
+    def test_log_invalid_eid(self):
+        resp, _ = _handle_request(_req("log", eid="abc"), _make_log_state([]))
+        assert resp["error"]["code"] == -32602
