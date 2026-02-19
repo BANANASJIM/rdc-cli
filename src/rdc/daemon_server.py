@@ -202,6 +202,54 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         pipe_states = _collect_pipe_states(actions, state)
         rows = collect_shader_map(actions, pipe_states)
         return _result_response(request_id, {"rows": rows}), True
+    if method == "pipeline":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import pipeline_row
+
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        row = pipeline_row(state.current_eid, state.api_name, pipe_state)
+        return _result_response(request_id, {"row": row}), True
+    if method == "bindings":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import bindings_rows
+
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        rows = bindings_rows(state.current_eid, pipe_state)
+        return _result_response(request_id, {"rows": rows}), True
+    if method == "shader":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import shader_row
+
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        row = shader_row(state.current_eid, pipe_state, stage)
+        return _result_response(request_id, {"row": row}), True
+    if method == "shaders":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import shader_inventory
+
+        actions = state.adapter.get_root_actions()
+        pipe_states = _collect_pipe_states(actions, state)
+        rows = shader_inventory(pipe_states)
+        return _result_response(request_id, {"rows": rows}), True
     if method == "shutdown":
         if state.adapter is not None:
             state.adapter.shutdown()

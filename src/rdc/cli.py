@@ -5,6 +5,7 @@ import click
 from rdc import __version__
 from rdc.commands.capture import capture_cmd
 from rdc.commands.doctor import doctor_cmd
+from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 
@@ -23,6 +24,10 @@ main.add_command(status_cmd, name="status")
 main.add_command(goto_cmd, name="goto")
 main.add_command(count_cmd, name="count")
 main.add_command(shader_map_cmd, name="shader-map")
+main.add_command(pipeline_cmd, name="pipeline")
+main.add_command(bindings_cmd, name="bindings")
+main.add_command(shader_cmd, name="shader")
+main.add_command(shaders_cmd, name="shaders")
 
 
 if __name__ == "__main__":
