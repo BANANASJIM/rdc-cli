@@ -96,7 +96,7 @@ def stats_cmd(use_json: bool, no_header: bool) -> None:
 @click.option(
     "--level",
     default=None,
-    type=click.Choice(["HIGH", "MEDIUM", "LOW", "INFO"], case_sensitive=False),
+    type=click.Choice(["HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"], case_sensitive=False),
     help="Filter by severity.",
 )
 @click.option("--eid", default=None, type=int, help="Filter by event ID.")

@@ -346,6 +346,16 @@ class TestLogHandler:
         assert len(result) == 1
         assert result[0]["eid"] == 42
 
+    def test_log_filter_eid_zero(self):
+        msgs = [
+            SimpleNamespace(severity=0, eventId=0, description="global"),
+            SimpleNamespace(severity=1, eventId=42, description="at eid 42"),
+        ]
+        resp, _ = _handle_request(_req("log", eid=0), _make_log_state(msgs))
+        result = resp["result"]["messages"]
+        assert len(result) == 1
+        assert result[0]["message"] == "global"
+
     def test_log_empty(self):
         resp, _ = _handle_request(_req("log"), _make_log_state([]))
         assert resp["result"]["messages"] == []

@@ -12,7 +12,7 @@ from typing import Any
 from rdc.adapter import RenderDocAdapter
 
 _LOG_SEVERITY_MAP: dict[int, str] = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"}
-_VALID_LOG_LEVELS: set[str] = set(_LOG_SEVERITY_MAP.values())
+_VALID_LOG_LEVELS: set[str] = {*_LOG_SEVERITY_MAP.values(), "UNKNOWN"}
 
 
 @dataclass
@@ -367,10 +367,10 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             lvl = _LOG_SEVERITY_MAP.get(int(m.severity), "UNKNOWN")
             if level_filter and lvl != level_filter:
                 continue
-            if eid_filter is not None and int(m.eventId) != eid_filter:
+            raw_eid = int(m.eventId)
+            if eid_filter is not None and raw_eid != eid_filter:
                 continue
-            eid = int(m.eventId) if m.eventId > 0 else 0
-            log_rows.append({"level": lvl, "eid": eid, "message": m.description})
+            log_rows.append({"level": lvl, "eid": raw_eid, "message": m.description})
         return _result_response(request_id, {"messages": log_rows}), True
 
     if method == "shader_targets":
