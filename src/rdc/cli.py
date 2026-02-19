@@ -8,7 +8,7 @@ from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
 from rdc.commands.info import info_cmd, stats_cmd
 from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
-from rdc.commands.resources import passes_cmd, resource_cmd, resources_cmd
+from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 
@@ -40,6 +40,7 @@ main.add_command(shaders_cmd, name="shaders")
 main.add_command(resources_cmd, name="resources")
 main.add_command(resource_cmd, name="resource")
 main.add_command(passes_cmd, name="passes")
+main.add_command(pass_cmd, name="pass")
 
 
 if __name__ == "__main__":

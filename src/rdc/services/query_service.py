@@ -450,16 +450,21 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
 
 def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
     """Get render pass hierarchy from actions."""
+    enriched = _build_pass_list(actions, sf)
+    return {"passes": [{"name": p["name"], "draws": p["draws"]} for p in enriched]}
+
+
+def _build_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
+    """Build enriched pass list with begin/end EID, draws, dispatches, triangles."""
     passes: list[dict[str, Any]] = []
-    _build_pass_tree(actions, passes, None, 0, sf)
-    return {"passes": passes}
+    _build_pass_list_recursive(actions, passes, None, sf)
+    return passes
 
 
-def _build_pass_tree(
+def _build_pass_list_recursive(
     actions: list[Any],
     passes: list[dict[str, Any]],
     current_pass: dict[str, Any] | None,
-    depth: int,
     sf: Any = None,
 ) -> None:
     for a in actions:
@@ -468,16 +473,40 @@ def _build_pass_tree(
         if flags & _BEGIN_PASS:
             current_pass = {
                 "name": a.GetName(sf),
-                "children": [],
+                "begin_eid": a.eventId,
+                "end_eid": a.eventId,
                 "draws": 0,
+                "dispatches": 0,
+                "triangles": 0,
             }
             passes.append(current_pass)
 
-        if current_pass is not None and flags & _DRAWCALL:
-            current_pass["draws"] += 1
+        if current_pass is not None:
+            current_pass["end_eid"] = max(current_pass["end_eid"], a.eventId)
+            if flags & _DRAWCALL:
+                current_pass["draws"] += 1
+                current_pass["triangles"] += (a.numIndices // 3) * max(a.numInstances, 1)
+            elif flags & _DISPATCH:
+                current_pass["dispatches"] += 1
 
         if a.children:
-            _build_pass_tree(a.children, passes, current_pass, depth + 1, sf)
+            _build_pass_list_recursive(a.children, passes, current_pass, sf)
 
         if flags & _END_PASS:
             current_pass = None
+
+
+def get_pass_detail(
+    actions: list[Any],
+    sf: Any = None,
+    identifier: int | str = 0,
+) -> dict[str, Any] | None:
+    """Get detail for a single pass by index (int) or name (str)."""
+    passes = _build_pass_list(actions, sf)
+    if isinstance(identifier, int):
+        return passes[identifier] if 0 <= identifier < len(passes) else None
+    lower = identifier.lower()
+    for p in passes:
+        if p["name"].lower() == lower:
+            return p
+    return None

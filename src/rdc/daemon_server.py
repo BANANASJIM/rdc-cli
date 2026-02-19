@@ -311,6 +311,39 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         tree = get_pass_hierarchy(actions, state.structured_file)
         return _result_response(request_id, {"tree": tree}), True
 
+    if method == "pass":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import get_pass_detail
+
+        identifier: int | str
+        if "index" in params:
+            try:
+                identifier = int(params["index"])
+            except (TypeError, ValueError):
+                return _error_response(request_id, -32602, "index must be an integer"), True
+        elif "name" in params:
+            identifier = str(params["name"])
+        else:
+            return _error_response(request_id, -32602, "missing index or name"), True
+        actions = state.adapter.get_root_actions()
+        detail = get_pass_detail(actions, state.structured_file, identifier)
+        if detail is None:
+            return _error_response(request_id, -32001, "pass not found"), True
+        # Fetch attachment info at begin_eid
+        err = _set_frame_event(state, detail["begin_eid"])
+        if err is None:
+            pipe = state.adapter.get_pipeline_state()
+            detail["color_targets"] = [
+                {"id": int(t.resource)} for t in pipe.GetOutputTargets() if int(t.resource) != 0
+            ]
+            depth_id = int(pipe.GetDepthTarget().resource)
+            detail["depth_target"] = depth_id if depth_id != 0 else None
+        else:
+            detail["color_targets"] = []
+            detail["depth_target"] = None
+        return _result_response(request_id, detail), True
+
     if method == "shader_targets":
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True
