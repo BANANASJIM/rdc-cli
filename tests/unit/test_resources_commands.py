@@ -1,10 +1,10 @@
-"""Tests for rdc resources/resource CLI commands."""
+"""Tests for rdc resources/resource/passes/pass CLI commands."""
 
 from __future__ import annotations
 
 from click.testing import CliRunner
 
-from rdc.commands.resources import passes_cmd, resource_cmd, resources_cmd
+from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 
 
 def _patch_resources(monkeypatch, response):
@@ -140,4 +140,69 @@ def test_passes_no_session(monkeypatch) -> None:
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(passes_cmd, [])
+    assert result.exit_code == 1
+
+
+def test_pass_detail_tsv(monkeypatch) -> None:
+    _patch_resources(
+        monkeypatch,
+        {
+            "name": "Shadow",
+            "begin_eid": 10,
+            "end_eid": 50,
+            "draws": 3,
+            "dispatches": 0,
+            "triangles": 12000,
+            "color_targets": [{"id": 10}],
+            "depth_target": 20,
+        },
+    )
+    result = CliRunner().invoke(pass_cmd, ["0"])
+    assert result.exit_code == 0
+    assert "Shadow" in result.output
+    assert "10" in result.output
+    assert "12000" in result.output
+    assert "Color Targets:" in result.output
+    assert "Depth Target:" in result.output
+
+
+def test_pass_detail_by_name(monkeypatch) -> None:
+    _patch_resources(
+        monkeypatch,
+        {
+            "name": "GBuffer",
+            "begin_eid": 90,
+            "end_eid": 450,
+            "draws": 450,
+            "dispatches": 0,
+            "triangles": 4800000,
+        },
+    )
+    result = CliRunner().invoke(pass_cmd, ["GBuffer"])
+    assert result.exit_code == 0
+    assert "GBuffer" in result.output
+
+
+def test_pass_detail_json(monkeypatch) -> None:
+    _patch_resources(
+        monkeypatch,
+        {
+            "name": "Shadow",
+            "begin_eid": 10,
+            "end_eid": 50,
+            "draws": 3,
+            "dispatches": 0,
+            "triangles": 12000,
+        },
+    )
+    result = CliRunner().invoke(pass_cmd, ["0", "--json"])
+    assert result.exit_code == 0
+    assert '"name": "Shadow"' in result.output
+
+
+def test_pass_no_session(monkeypatch) -> None:
+    import rdc.commands.resources as mod
+
+    monkeypatch.setattr(mod, "load_session", lambda: None)
+    result = CliRunner().invoke(pass_cmd, ["0"])
     assert result.exit_code == 1

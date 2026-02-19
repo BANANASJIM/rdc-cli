@@ -244,12 +244,17 @@ class APIProperties:
 class MockPipeState:
     """Mock for controller.GetPipelineState()."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        output_targets: list[BoundResource] | None = None,
+        depth_target: BoundResource | None = None,
+    ) -> None:
         self._shaders: dict[ShaderStage, ResourceId] = {}
         self._reflections: dict[ShaderStage, ShaderReflection | None] = {}
         self._entry_points: dict[ShaderStage, str] = {}
-        self._output_targets: list[BoundResource] = []
-        self._depth_target: BoundResource = BoundResource()
+        self._output_targets: list[BoundResource] = output_targets or []
+        self._depth_target: BoundResource = depth_target or BoundResource()
         self._viewport: Viewport = Viewport()
         self._scissor: Scissor = Scissor()
 
