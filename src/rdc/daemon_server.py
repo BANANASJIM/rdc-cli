@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import secrets
 import socket
 import sys
 import time
@@ -126,7 +127,16 @@ def run_server(  # pragma: no cover
                 line = _recv_line(conn)
                 if not line:
                     continue
-                request = json.loads(line)
+                try:
+                    request = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    error_resp = {
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32700, "message": "parse error"},
+                        "id": None,
+                    }
+                    conn.sendall((json.dumps(error_resp) + "\n").encode("utf-8"))
+                    continue
                 response, running = _handle_request(request, state)
                 conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
                 last_activity = time.time()
@@ -150,7 +160,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     request_id = request.get("id", 0)
     params = request.get("params") or {}
     token = params.get("_token")
-    if token != state.token:
+    if token is None or not secrets.compare_digest(token, state.token):
         return _error_response(request_id, -32600, "invalid token"), True
 
     method = request.get("method")
@@ -230,6 +240,15 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             return _error_response(request_id, -32002, err), True
         pipe_state = state.adapter.get_pipeline_state()
         rows = bindings_rows(state.current_eid, pipe_state)
+
+        # Filter by descriptor set and binding index
+        descriptor_set = params.get("set")
+        binding_index = params.get("binding")
+        if descriptor_set is not None:
+            rows = [r for r in rows if r.get("set") == descriptor_set]
+        if binding_index is not None:
+            rows = [r for r in rows if r.get("slot") == binding_index]
+
         return _result_response(request_id, {"rows": rows}), True
     if method == "shader":
         if state.adapter is None:
