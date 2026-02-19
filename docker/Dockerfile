@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl git make cmake g++ pkg-config \
-    bison flex autoconf automake libtool m4 \
+    bison flex autoconf automake libtool m4 libpcre3-dev \
     python3.11 python3.11-dev python3.11-venv \
     libx11-dev libxcb1-dev libgl-dev libxcb-keysyms1-dev \
     && rm -rf /var/lib/apt/lists/*
