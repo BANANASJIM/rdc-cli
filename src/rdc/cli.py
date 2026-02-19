@@ -6,7 +6,7 @@ from rdc import __version__
 from rdc.commands.capture import capture_cmd
 from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
-from rdc.commands.info import info_cmd, stats_cmd
+from rdc.commands.info import info_cmd, log_cmd, stats_cmd
 from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
@@ -41,6 +41,7 @@ main.add_command(resources_cmd, name="resources")
 main.add_command(resource_cmd, name="resource")
 main.add_command(passes_cmd, name="passes")
 main.add_command(pass_cmd, name="pass")
+main.add_command(log_cmd, name="log")
 
 
 if __name__ == "__main__":
