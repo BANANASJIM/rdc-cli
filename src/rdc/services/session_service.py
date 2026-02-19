@@ -26,23 +26,36 @@ def pick_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _renderdoc_available() -> bool:
+    """Check if renderdoc module can be imported."""
+    try:
+        import renderdoc  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 def start_daemon(capture: str, port: int, token: str) -> subprocess.Popen[str]:
+    cmd = [
+        sys.executable,
+        "-m",
+        "rdc.daemon_server",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--capture",
+        capture,
+        "--token",
+        token,
+        "--idle-timeout",
+        "1800",
+    ]
+    if not _renderdoc_available():
+        cmd.append("--no-replay")
     return subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "rdc.daemon_server",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--capture",
-            capture,
-            "--token",
-            token,
-            "--idle-timeout",
-            "1800",
-        ],
+        cmd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         text=True,

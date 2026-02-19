@@ -42,3 +42,20 @@ def goto_request(token: str, eid: int, request_id: int = 1) -> dict[str, Any]:
 
 def shutdown_request(token: str, request_id: int = 1) -> dict[str, Any]:
     return _request("shutdown", request_id, {"_token": token}).to_dict()
+
+
+def count_request(
+    token: str,
+    what: str,
+    *,
+    pass_name: str | None = None,
+    request_id: int = 1,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {"_token": token, "what": what}
+    if pass_name is not None:
+        params["pass"] = pass_name
+    return _request("count", request_id, params).to_dict()
+
+
+def shader_map_request(token: str, request_id: int = 1) -> dict[str, Any]:
+    return _request("shader_map", request_id, {"_token": token}).to_dict()

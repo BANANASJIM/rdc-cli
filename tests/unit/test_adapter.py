@@ -24,3 +24,39 @@ def test_get_root_actions_falls_back_to_get_drawcalls() -> None:
     controller = SimpleNamespace(GetDrawcalls=lambda: ["draw"])
     adapter = RenderDocAdapter(controller=controller, version=(1, 31))
     assert adapter.get_root_actions() == ["draw"]
+
+
+def test_get_api_properties() -> None:
+    props = SimpleNamespace(pipelineType="Vulkan")
+    controller = SimpleNamespace(GetAPIProperties=lambda: props)
+    adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    assert adapter.get_api_properties().pipelineType == "Vulkan"
+
+
+def test_get_resources() -> None:
+    controller = SimpleNamespace(GetResources=lambda: ["res1", "res2"])
+    adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    assert adapter.get_resources() == ["res1", "res2"]
+
+
+def test_get_pipeline_state() -> None:
+    state = SimpleNamespace(name="pipe")
+    controller = SimpleNamespace(GetPipelineState=lambda: state)
+    adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    assert adapter.get_pipeline_state().name == "pipe"
+
+
+def test_set_frame_event() -> None:
+    calls: list[tuple[int, bool]] = []
+    controller = SimpleNamespace(SetFrameEvent=lambda eid, force: calls.append((eid, force)))
+    adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    adapter.set_frame_event(142)
+    assert calls == [(142, True)]
+
+
+def test_shutdown() -> None:
+    state = {"shutdown": False}
+    controller = SimpleNamespace(Shutdown=lambda: state.update(shutdown=True))
+    adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    adapter.shutdown()
+    assert state["shutdown"] is True
