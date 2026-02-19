@@ -17,7 +17,6 @@ _INDEXED = 0x0002
 _DISPATCH = 0x0010
 _CLEAR = 0x0020
 _COPY = 0x0040
-_PASS_BOUNDARY = 0x1000
 _BEGIN_PASS = 0x2000
 _END_PASS = 0x4000
 
@@ -127,11 +126,6 @@ def walk_actions(
             current_pass = "-"
 
     return result
-
-
-def flatten_actions(actions: list[Any], sf: Any = None) -> list[FlatAction]:
-    """Alias for walk_actions."""
-    return walk_actions(actions, sf)
 
 
 def filter_by_type(flat: list[FlatAction], action_type: str) -> list[FlatAction]:
@@ -453,10 +447,10 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def get_pass_hierarchy(actions: list[Any]) -> dict[str, Any]:
+def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
     """Get render pass hierarchy from actions."""
     passes: list[dict[str, Any]] = []
-    _build_pass_tree(actions, passes, None, 0)
+    _build_pass_tree(actions, passes, None, 0, sf)
     return {"passes": passes}
 
 
@@ -465,13 +459,14 @@ def _build_pass_tree(
     passes: list[dict[str, Any]],
     current_pass: dict[str, Any] | None,
     depth: int,
+    sf: Any = None,
 ) -> None:
     for a in actions:
         flags = int(a.flags)
 
         if flags & _BEGIN_PASS:
             current_pass = {
-                "name": a.GetName(None),
+                "name": a.GetName(sf),
                 "children": [],
                 "draws": 0,
             }
@@ -481,7 +476,7 @@ def _build_pass_tree(
             current_pass["draws"] += 1
 
         if a.children:
-            _build_pass_tree(a.children, passes, current_pass, depth + 1)
+            _build_pass_tree(a.children, passes, current_pass, depth + 1, sf)
 
         if flags & _END_PASS:
             current_pass = None

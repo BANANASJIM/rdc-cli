@@ -299,7 +299,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         from rdc.services.query_service import get_pass_hierarchy
 
         actions = state.adapter.get_root_actions()
-        tree = get_pass_hierarchy(actions)
+        tree = get_pass_hierarchy(actions, state.structured_file)
         return _result_response(request_id, {"tree": tree}), True
 
     if method == "shader_targets":
@@ -585,17 +585,27 @@ def _get_flat_actions(state: DaemonState) -> list[Any]:
 
 
 def _action_type_str(flags: int) -> str:
-    if flags & 0x0001:
-        return "DrawIndexed" if flags & 0x0002 else "Draw"
-    if flags & 0x0010:
+    from rdc.services.query_service import (
+        _BEGIN_PASS,
+        _CLEAR,
+        _COPY,
+        _DISPATCH,
+        _DRAWCALL,
+        _END_PASS,
+        _INDEXED,
+    )
+
+    if flags & _DRAWCALL:
+        return "DrawIndexed" if flags & _INDEXED else "Draw"
+    if flags & _DISPATCH:
         return "Dispatch"
-    if flags & 0x0020:
+    if flags & _CLEAR:
         return "Clear"
-    if flags & 0x0040:
+    if flags & _COPY:
         return "Copy"
-    if flags & 0x2000:
+    if flags & _BEGIN_PASS:
         return "BeginPass"
-    if flags & 0x4000:
+    if flags & _END_PASS:
         return "EndPass"
     return "Other"
 
@@ -686,8 +696,9 @@ def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -
         return _error_response(request_id, -32002, "no replay loaded")
     from rdc.services.query_service import aggregate_stats, filter_by_pass, filter_by_type
 
-    flat = _get_flat_actions(state)
-    flat = filter_by_type(flat, "draw")
+    all_flat = _get_flat_actions(state)
+    all_stats = aggregate_stats(all_flat)
+    flat = filter_by_type(all_flat, "draw")
     pass_name = params.get("pass")
     if pass_name:
         flat = filter_by_pass(flat, pass_name)
@@ -708,8 +719,6 @@ def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -
         }
         for a in flat
     ]
-    all_flat = _get_flat_actions(state)
-    all_stats = aggregate_stats(all_flat)
     summary = (
         f"{all_stats.total_draws} draw calls "
         f"({all_stats.indexed_draws} indexed, "
