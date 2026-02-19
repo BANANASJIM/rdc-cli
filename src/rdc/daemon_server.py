@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import secrets
 import socket
 import sys
 import time
@@ -126,7 +127,16 @@ def run_server(  # pragma: no cover
                 line = _recv_line(conn)
                 if not line:
                     continue
-                request = json.loads(line)
+                try:
+                    request = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    error_resp = {
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32700, "message": "parse error"},
+                        "id": None,
+                    }
+                    conn.sendall((json.dumps(error_resp) + "\n").encode("utf-8"))
+                    continue
                 response, running = _handle_request(request, state)
                 conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
                 last_activity = time.time()
@@ -150,7 +160,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     request_id = request.get("id", 0)
     params = request.get("params") or {}
     token = params.get("_token")
-    if token != state.token:
+    if token is None or not secrets.compare_digest(token, state.token):
         return _error_response(request_id, -32600, "invalid token"), True
 
     method = request.get("method")
@@ -202,6 +212,345 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         pipe_states = _collect_pipe_states(actions, state)
         rows = collect_shader_map(actions, pipe_states)
         return _result_response(request_id, {"rows": rows}), True
+    if method == "pipeline":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import pipeline_row
+
+        eid = int(params.get("eid", state.current_eid))
+        section = params.get("section")
+        if section is not None:
+            section = str(section).lower()
+            if section not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+                return _error_response(request_id, -32602, "invalid section"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        row = pipeline_row(state.current_eid, state.api_name, pipe_state, section=section)
+        return _result_response(request_id, {"row": row}), True
+    if method == "bindings":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import bindings_rows
+
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        rows = bindings_rows(state.current_eid, pipe_state)
+
+        # Filter by binding index (descriptor set filtering not yet implemented)
+        binding_index = params.get("binding")
+        if binding_index is not None:
+            rows = [r for r in rows if r.get("slot") == binding_index]
+
+        return _result_response(request_id, {"rows": rows}), True
+    if method == "shader":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import shader_row
+
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        row = shader_row(state.current_eid, pipe_state, stage)
+        return _result_response(request_id, {"row": row}), True
+    if method == "shaders":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import shader_inventory
+
+        actions = state.adapter.get_root_actions()
+        pipe_states = _collect_pipe_states(actions, state)
+        rows = shader_inventory(pipe_states)
+        return _result_response(request_id, {"rows": rows}), True
+    if method == "resources":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import get_resources
+
+        rows = get_resources(state.adapter)
+        return _result_response(request_id, {"rows": rows}), True
+
+    if method == "resource":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import get_resource_detail
+
+        resid = int(params.get("id", 0))
+        detail = get_resource_detail(state.adapter, resid)
+        if detail is None:
+            return _error_response(request_id, -32001, "resource not found"), True
+        return _result_response(request_id, {"resource": detail}), True
+
+    if method == "passes":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import get_pass_hierarchy
+
+        actions = state.adapter.get_root_actions()
+        tree = get_pass_hierarchy(actions, state.structured_file)
+        return _result_response(request_id, {"tree": tree}), True
+
+    if method == "shader_targets":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        controller = state.adapter.controller
+        if hasattr(controller, "GetDisassemblyTargets"):
+            targets = controller.GetDisassemblyTargets()
+            target_list = [str(t) for t in targets]
+        else:
+            # Fallback for older RenderDoc versions
+            target_list = ["DXIL", "DX", "SPIR-V", "GLSL"]
+        return _result_response(request_id, {"targets": target_list}), True
+
+    if method == "shader_reflect":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        refl = pipe_state.GetShaderReflection(stage_val)
+
+        if refl is None:
+            return _error_response(request_id, -32001, "no reflection available"), True
+
+        # Extract input/output signatures and constant blocks
+        input_sig = []
+        output_sig = []
+        constant_blocks = []
+
+        for sig in getattr(refl, "inputSig", []):
+            input_sig.append(
+                {
+                    "name": sig.name,
+                    "semantic": getattr(sig, "semantic", ""),
+                    "location": getattr(sig, "location", 0),
+                    "component": getattr(sig, "component", 0),
+                    "type": str(getattr(sig, "varType", "")),
+                }
+            )
+
+        for sig in getattr(refl, "outputSig", []):
+            output_sig.append(
+                {
+                    "name": sig.name,
+                    "semantic": getattr(sig, "semantic", ""),
+                    "location": getattr(sig, "location", 0),
+                    "component": getattr(sig, "component", 0),
+                    "type": str(getattr(sig, "varType", "")),
+                }
+            )
+
+        for cb in getattr(refl, "constantBlocks", []):
+            constant_blocks.append(
+                {
+                    "name": cb.name,
+                    "bind_point": getattr(cb, "bindPoint", 0),
+                    "size": getattr(cb, "bufferSize", 0),
+                    "variables": len(getattr(cb, "variables", [])),
+                }
+            )
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "input_sig": input_sig,
+                "output_sig": output_sig,
+                "constant_blocks": constant_blocks,
+            },
+        ), True
+
+    if method == "shader_constants":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        refl = pipe_state.GetShaderReflection(stage_val)
+
+        if refl is None:
+            return _error_response(request_id, -32001, "no reflection available"), True
+
+        # Get constant buffer values
+        controller = state.adapter.controller
+        constants = []
+
+        for cb in getattr(refl, "constantBlocks", []):
+            bind_point = getattr(cb, "bindPoint", 0)
+            # Get the constant buffer data
+            if hasattr(controller, "GetConstantBuffer"):
+                cbuf_data = controller.GetConstantBuffer(stage_val, bind_point)
+                if cbuf_data:
+                    data_bytes = getattr(cbuf_data, "data", b"")
+                    constants.append(
+                        {
+                            "name": cb.name,
+                            "bind_point": bind_point,
+                            "size": len(data_bytes),
+                            "data": data_bytes.hex() if data_bytes else "",
+                        }
+                    )
+            else:
+                # Fallback: just report metadata
+                constants.append(
+                    {
+                        "name": cb.name,
+                        "bind_point": bind_point,
+                        "size": getattr(cb, "bufferSize", 0),
+                        "data": "",
+                    }
+                )
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "constants": constants,
+            },
+        ), True
+
+    if method == "shader_source":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        controller = state.adapter.controller
+
+        source = ""
+        has_debug_info = False
+
+        # Try to get debug source
+        if hasattr(controller, "GetDebugSource"):
+            source = controller.GetDebugSource(stage_val)
+            has_debug_info = bool(source)
+
+        # Fallback to disassembly if no debug source
+        if not source:
+            if hasattr(controller, "GetDisassembly"):
+                source = controller.GetDisassembly(stage_val)
+            elif hasattr(controller, "GetShaderDisassembly"):
+                source = controller.GetShaderDisassembly(stage_val)
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "source": source,
+                "has_debug_info": has_debug_info,
+            },
+        ), True
+
+    if method == "shader_disasm":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        target = str(params.get("target", ""))
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        controller = state.adapter.controller
+
+        disasm = ""
+        if hasattr(controller, "GetDisassembly"):
+            if target and hasattr(controller, "GetDisassemblyForTarget"):
+                disasm = controller.GetDisassemblyForTarget(stage_val, target)
+            else:
+                disasm = controller.GetDisassembly(stage_val)
+        elif hasattr(controller, "GetShaderDisassembly"):
+            disasm = controller.GetShaderDisassembly(stage_val)
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "target": target,
+                "disasm": disasm,
+            },
+        ), True
+
+    if method == "shader_all":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stages = ["vs", "hs", "ds", "gs", "ps", "cs"]
+        stage_val_map = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+
+        result_stages = []
+        for stage in stages:
+            stage_val = stage_val_map[stage]
+            sid = pipe_state.GetShader(stage_val)
+            sidv = getattr(sid, "value", 0)
+            if sidv == 0:
+                continue
+
+            refl = pipe_state.GetShaderReflection(stage_val)
+            entry = pipe_state.GetShaderEntryPoint(stage_val)
+
+            result_stages.append(
+                {
+                    "stage": stage,
+                    "shader": sidv,
+                    "entry": entry,
+                    "ro": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
+                    "rw": len(getattr(refl, "readWriteResources", [])) if refl else 0,
+                    "cbuffers": len(getattr(refl, "constantBlocks", [])) if refl else 0,
+                }
+            )
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stages": result_stages,
+            },
+        ), True
+
     if method == "info":
         return _handle_info(request_id, state), True
     if method == "stats":
@@ -233,17 +582,27 @@ def _get_flat_actions(state: DaemonState) -> list[Any]:
 
 
 def _action_type_str(flags: int) -> str:
-    if flags & 0x0001:
-        return "DrawIndexed" if flags & 0x0002 else "Draw"
-    if flags & 0x0010:
+    from rdc.services.query_service import (
+        _BEGIN_PASS,
+        _CLEAR,
+        _COPY,
+        _DISPATCH,
+        _DRAWCALL,
+        _END_PASS,
+        _INDEXED,
+    )
+
+    if flags & _DRAWCALL:
+        return "DrawIndexed" if flags & _INDEXED else "Draw"
+    if flags & _DISPATCH:
         return "Dispatch"
-    if flags & 0x0020:
+    if flags & _CLEAR:
         return "Clear"
-    if flags & 0x0040:
+    if flags & _COPY:
         return "Copy"
-    if flags & 0x2000:
+    if flags & _BEGIN_PASS:
         return "BeginPass"
-    if flags & 0x4000:
+    if flags & _END_PASS:
         return "EndPass"
     return "Other"
 
@@ -334,8 +693,9 @@ def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -
         return _error_response(request_id, -32002, "no replay loaded")
     from rdc.services.query_service import aggregate_stats, filter_by_pass, filter_by_type
 
-    flat = _get_flat_actions(state)
-    flat = filter_by_type(flat, "draw")
+    all_flat = _get_flat_actions(state)
+    all_stats = aggregate_stats(all_flat)
+    flat = filter_by_type(all_flat, "draw")
     pass_name = params.get("pass")
     if pass_name:
         flat = filter_by_pass(flat, pass_name)
@@ -356,8 +716,6 @@ def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -
         }
         for a in flat
     ]
-    all_flat = _get_flat_actions(state)
-    all_stats = aggregate_stats(all_flat)
     summary = (
         f"{all_stats.total_draws} draw calls "
         f"({all_stats.indexed_draws} indexed, "
@@ -385,7 +743,7 @@ def _handle_event_method(
         )
     sf = state.structured_file
     api_call = "-"
-    params_dict = {}
+    params_dict: dict[str, Any] = {}
     if action.events and sf and hasattr(sf, "chunks"):
         for evt in action.events:
             idx = evt.chunkIndex
@@ -396,7 +754,7 @@ def _handle_event_method(
                     val = child.data.basic.value if child.data and child.data.basic else "-"
                     params_dict[child.name] = val
                 break
-    result = {"EID": eid, "API Call": api_call}
+    result: dict[str, Any] = {"EID": eid, "API Call": api_call}
     if params_dict:
         param_str = chr(10).join(f"  {k:<20}{v}" for k, v in params_dict.items())
         result["Parameters"] = chr(10) + param_str

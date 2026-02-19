@@ -128,6 +128,33 @@ class TestHandleRequest:
         assert running is True
         assert resp["error"]["code"] == -32601
 
+    def test_resources_no_adapter(self) -> None:
+        """Test resources handler without adapter."""
+        state = self._state()  # No adapter
+        resp, running = _handle_request(
+            {"id": 1, "method": "resources", "params": {"_token": "tok"}}, state
+        )
+        assert "error" in resp
+        assert resp["error"]["code"] == -32002
+
+    def test_resource_no_adapter(self) -> None:
+        """Test resource handler without adapter."""
+        state = self._state()
+        resp, running = _handle_request(
+            {"id": 1, "method": "resource", "params": {"_token": "tok", "id": 1}}, state
+        )
+        assert "error" in resp
+        assert resp["error"]["code"] == -32002
+
+    def test_passes_no_adapter(self) -> None:
+        """Test passes handler without adapter."""
+        state = self._state()
+        resp, running = _handle_request(
+            {"id": 1, "method": "passes", "params": {"_token": "tok"}}, state
+        )
+        assert "error" in resp
+        assert resp["error"]["code"] == -32002
+
 
 class TestLoadReplay:
     """Test _load_replay with mock renderdoc module (P1 fix)."""
