@@ -149,3 +149,100 @@ def _collect_recursive(
                 rows.append(row)
         if a.children:
             _collect_recursive(a.children, pipe_states, rows)
+
+
+_STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+
+
+def pipeline_row(
+    eid: int,
+    api_name: str,
+    pipe_state: Any,
+    *,
+    section: str | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "eid": eid,
+        "api": api_name,
+        "topology": str(pipe_state.GetPrimitiveTopology()),
+        "graphics_pipeline": _rid(pipe_state.GetGraphicsPipelineObject()),
+        "compute_pipeline": _rid(pipe_state.GetComputePipelineObject()),
+    }
+    if section is not None and section in _STAGE_MAP:
+        row["section"] = section
+        row["section_detail"] = shader_row(eid, pipe_state, section)
+    return row
+
+
+def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for stage_name, stage_val in _STAGE_MAP.items():
+        refl = pipe_state.GetShaderReflection(stage_val)
+        if refl is None:
+            continue
+        for r in getattr(refl, "readOnlyResources", []):
+            rows.append(
+                {
+                    "eid": eid,
+                    "stage": stage_name,
+                    "kind": "ro",
+                    "slot": r.bindPoint,
+                    "name": r.name,
+                }
+            )
+        for r in getattr(refl, "readWriteResources", []):
+            rows.append(
+                {
+                    "eid": eid,
+                    "stage": stage_name,
+                    "kind": "rw",
+                    "slot": r.bindPoint,
+                    "name": r.name,
+                }
+            )
+    return rows
+
+
+def shader_row(eid: int, pipe_state: Any, stage_name: str) -> dict[str, Any]:
+    stage_val = _STAGE_MAP[stage_name]
+    sid = pipe_state.GetShader(stage_val)
+    refl = pipe_state.GetShaderReflection(stage_val)
+    return {
+        "eid": eid,
+        "stage": stage_name,
+        "shader": _rid(sid),
+        "entry": pipe_state.GetShaderEntryPoint(stage_val),
+        "ro": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
+        "rw": len(getattr(refl, "readWriteResources", [])) if refl else 0,
+        "cbuffers": len(getattr(refl, "constantBlocks", [])) if refl else 0,
+    }
+
+
+def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
+    inv: dict[int, dict[str, Any]] = {}
+    for _eid, state in pipe_states.items():
+        for stage_name, stage_val in _STAGE_MAP.items():
+            sid = state.GetShader(stage_val)
+            sidv = getattr(sid, "value", 0)
+            if sidv == 0:
+                continue
+            if sidv not in inv:
+                inv[sidv] = {"shader": sidv, "stages": set(), "uses": 0}
+            inv[sidv]["stages"].add(stage_name)
+            inv[sidv]["uses"] += 1
+
+    rows: list[dict[str, Any]] = []
+    for sidv in sorted(inv):
+        row = inv[sidv]
+        rows.append(
+            {
+                "shader": sidv,
+                "stages": ",".join(sorted(row["stages"])),
+                "uses": row["uses"],
+            }
+        )
+    return rows
+
+
+def _rid(value: Any) -> int:
+    return int(getattr(value, "value", 0))

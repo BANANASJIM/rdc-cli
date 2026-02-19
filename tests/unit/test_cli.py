@@ -18,3 +18,5 @@ def test_help_shows_core_commands() -> None:
     assert result.exit_code == 0
     assert "doctor" in result.output
     assert "capture" in result.output
+    assert "pipeline" in result.output
+    assert "shader" in result.output
