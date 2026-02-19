@@ -6,6 +6,7 @@ from rdc import __version__
 from rdc.commands.capture import capture_cmd
 from rdc.commands.doctor import doctor_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
+from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -20,6 +21,8 @@ main.add_command(open_cmd, name="open")
 main.add_command(close_cmd, name="close")
 main.add_command(status_cmd, name="status")
 main.add_command(goto_cmd, name="goto")
+main.add_command(count_cmd, name="count")
+main.add_command(shader_map_cmd, name="shader-map")
 
 
 if __name__ == "__main__":
