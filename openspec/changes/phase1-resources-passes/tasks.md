@@ -1,12 +1,12 @@
 # Tasks: phase1-resources-passes
 
-- [ ] Add spec delta for `resources`, `resource`, `passes` handlers.
-- [ ] Implement `query_service.get_all_resources()`.
-- [ ] Implement `query_service.get_resource_details(id)`.
-- [ ] Implement `query_service.get_pass_hierarchy()`.
-- [ ] Add Daemon JSON-RPC handlers (`resources`, `resource`, `passes`).
-- [ ] Add CLI command `rdc resources` (with `--json`).
-- [ ] Add CLI command `rdc resource <id>` (with `--json`).
+- [x] Add spec delta for `resources`, `resource`, `passes` handlers.
+- [x] Implement `query_service.get_all_resources()`.
+- [x] Implement `query_service.get_resource_details(id)`.
+- [x] Implement `query_service.get_pass_hierarchy()`.
+- [x] Add Daemon JSON-RPC handlers (`resources`, `resource`, `passes`).
+- [x] Add CLI command `rdc resources` (with `--json`).
+- [x] Add CLI command `rdc resource <id>` (with `--json`).
 - [ ] Add CLI command `rdc passes` (with `--json`).
-- [ ] Add unit tests for query service and CLI.
-- [ ] Verify with `make check`.
+- [x] Add unit tests for query service and CLI.
+- [x] Verify with `make check`.
