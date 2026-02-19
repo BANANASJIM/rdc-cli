@@ -1,15 +1,25 @@
-"""Query service helpers for daemon handlers."""
+"""Query service for action tree traversal and stats aggregation.
+
+Provides helpers for walking the RenderDoc action tree, filtering
+events by type/pass/pattern, and aggregating per-pass statistics.
+Also includes count, shader-map, pipeline, resource and pass helpers.
+"""
 
 from __future__ import annotations
 
+import fnmatch
+from dataclasses import dataclass, field
 from typing import Any
 
-# Flag constants matching renderdoc ActionFlags
-_FLAG_DRAWCALL = 0x0001
-_FLAG_DISPATCH = 0x0010
-_FLAG_CLEAR = 0x0020
-_FLAG_BEGIN_PASS = 0x2000
-_FLAG_END_PASS = 0x4000
+# ActionFlags constants (matching renderdoc)
+_DRAWCALL = 0x0001
+_INDEXED = 0x0002
+_DISPATCH = 0x0010
+_CLEAR = 0x0020
+_COPY = 0x0040
+_PASS_BOUNDARY = 0x1000
+_BEGIN_PASS = 0x2000
+_END_PASS = 0x4000
 
 _STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
 
@@ -23,6 +33,209 @@ def _rid(value: Any) -> int:
     return int(getattr(value, "value", 0))
 
 
+# ---------------------------------------------------------------------------
+# Action tree walking / filtering / stats
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class FlatAction:
+    """Flattened action with computed metadata."""
+
+    eid: int
+    name: str
+    flags: int
+    num_indices: int = 0
+    num_instances: int = 1
+    depth: int = 0
+    parent_marker: str = "-"
+    pass_name: str = "-"
+    events: list[Any] = field(default_factory=list)
+
+
+@dataclass
+class PassStats:
+    """Per-pass statistics."""
+
+    name: str
+    draws: int = 0
+    dispatches: int = 0
+    triangles: int = 0
+    rt_w: int = 0
+    rt_h: int = 0
+    attachments: int = 0
+
+
+@dataclass
+class CaptureStats:
+    """Aggregated capture statistics."""
+
+    total_draws: int = 0
+    indexed_draws: int = 0
+    non_indexed_draws: int = 0
+    dispatches: int = 0
+    clears: int = 0
+    copies: int = 0
+    barriers: int = 0
+    total_triangles: int = 0
+    per_pass: list[PassStats] = field(default_factory=list)
+
+
+def walk_actions(
+    actions: list[Any],
+    sf: Any = None,
+    *,
+    depth: int = 0,
+    current_pass: str = "-",
+    parent_marker: str = "-",
+) -> list[FlatAction]:
+    """Walk action tree and return flattened list with metadata."""
+    result = []
+    for a in actions:
+        name = a.GetName(sf) if sf is not None else getattr(a, "_name", "")
+        flags = int(a.flags)
+
+        if flags & _BEGIN_PASS:
+            current_pass = name
+
+        flat = FlatAction(
+            eid=a.eventId,
+            name=name,
+            flags=flags,
+            num_indices=a.numIndices,
+            num_instances=max(a.numInstances, 1),
+            depth=depth,
+            parent_marker=parent_marker,
+            pass_name=current_pass,
+            events=list(a.events) if a.events else [],
+        )
+        result.append(flat)
+
+        if a.children:
+            marker = name if not (flags & _BEGIN_PASS) else parent_marker
+            result.extend(
+                walk_actions(
+                    a.children,
+                    sf,
+                    depth=depth + 1,
+                    current_pass=current_pass,
+                    parent_marker=marker,
+                )
+            )
+
+        if flags & _END_PASS:
+            current_pass = "-"
+
+    return result
+
+
+def flatten_actions(actions: list[Any], sf: Any = None) -> list[FlatAction]:
+    """Alias for walk_actions."""
+    return walk_actions(actions, sf)
+
+
+def filter_by_type(flat: list[FlatAction], action_type: str) -> list[FlatAction]:
+    """Filter flattened actions by type string (draw/dispatch/clear/copy)."""
+    type_map = {"draw": _DRAWCALL, "dispatch": _DISPATCH, "clear": _CLEAR, "copy": _COPY}
+    flag = type_map.get(action_type.lower())
+    if flag is None:
+        return []
+    return [a for a in flat if a.flags & flag]
+
+
+def filter_by_pass(flat: list[FlatAction], pass_name: str) -> list[FlatAction]:
+    """Filter flattened actions by pass name (case-insensitive)."""
+    lower = pass_name.lower()
+    return [a for a in flat if a.pass_name.lower() == lower]
+
+
+def filter_by_pattern(flat: list[FlatAction], pattern: str) -> list[FlatAction]:
+    """Filter flattened actions by name glob pattern."""
+    return [a for a in flat if fnmatch.fnmatch(a.name, pattern)]
+
+
+def find_action_by_eid(actions: list[Any], target_eid: int) -> Any | None:
+    """Find an action by event ID in the action tree."""
+    for a in actions:
+        if a.eventId == target_eid:
+            return a
+        if a.children:
+            found = find_action_by_eid(a.children, target_eid)
+            if found is not None:
+                return found
+    return None
+
+
+def _triangles_for_action(a: FlatAction) -> int:
+    """Compute triangle count for a draw call."""
+    if not (a.flags & _DRAWCALL):
+        return 0
+    return (a.num_indices // 3) * a.num_instances
+
+
+def aggregate_stats(flat: list[FlatAction]) -> CaptureStats:
+    """Aggregate statistics from flattened action list."""
+    stats = CaptureStats()
+    pass_map: dict[str, PassStats] = {}
+
+    for a in flat:
+        if a.flags & _DRAWCALL:
+            stats.total_draws += 1
+            tris = _triangles_for_action(a)
+            stats.total_triangles += tris
+            if a.flags & _INDEXED:
+                stats.indexed_draws += 1
+            else:
+                stats.non_indexed_draws += 1
+            if a.pass_name != "-":
+                ps = pass_map.setdefault(a.pass_name, PassStats(name=a.pass_name))
+                ps.draws += 1
+                ps.triangles += tris
+        elif a.flags & _DISPATCH:
+            stats.dispatches += 1
+            if a.pass_name != "-":
+                ps = pass_map.setdefault(a.pass_name, PassStats(name=a.pass_name))
+                ps.dispatches += 1
+        elif a.flags & _CLEAR:
+            stats.clears += 1
+        elif a.flags & _COPY:
+            stats.copies += 1
+
+    stats.per_pass = list(pass_map.values())
+    return stats
+
+
+def get_top_draws(flat: list[FlatAction], limit: int = 3) -> list[FlatAction]:
+    """Return top draw calls by triangle count."""
+    draws = [a for a in flat if a.flags & _DRAWCALL]
+    draws.sort(key=_triangles_for_action, reverse=True)
+    return draws[:limit]
+
+
+# ---------------------------------------------------------------------------
+# count / shader-map helpers (used by rdc count, rdc shader-map)
+# ---------------------------------------------------------------------------
+
+
+def _count_events_recursive(actions: list[Any]) -> int:
+    count = 0
+    for a in actions:
+        count += 1
+        if a.children:
+            count += _count_events_recursive(a.children)
+    return count
+
+
+def _count_passes(actions: list[Any]) -> int:
+    count = 0
+    for a in actions:
+        if int(a.flags) & _BEGIN_PASS:
+            count += 1
+        if a.children:
+            count += _count_passes(a.children)
+    return count
+
+
 def count_from_actions(
     actions: list[Any],
     what: str,
@@ -32,35 +245,36 @@ def count_from_actions(
     """Count items from the action tree.
 
     Args:
-        actions: Root action list from controller.GetRootActions().
-        what: Target to count (draws, events, triangles, passes, dispatches, clears).
-        pass_name: Optional render pass name filter.
-
-    Returns:
-        Integer count.
+        actions: Root action list from ReplayController.
+        what: One of draws, events, triangles, dispatches, clears, passes.
+        pass_name: Optional pass filter.
 
     Raises:
-        ValueError: If *what* is not a recognised target.
+        ValueError: If what is not a recognized target.
     """
-    if what == "resources":
-        msg = "use count_resources() for resource counting"
-        raise ValueError(msg)
     if what not in _VALID_COUNT_TARGETS:
-        msg = f"unknown count target: {what}"
-        raise ValueError(msg)
+        raise ValueError(
+            f"unknown count target {what!r}, expected one of {sorted(_VALID_COUNT_TARGETS)}"
+        )
 
-    counter = _CountWalker()
-    counter.walk(actions, pass_name)
+    if what == "events":
+        return _count_events_recursive(actions)
+    if what == "passes":
+        return _count_passes(actions)
 
-    lookup = {
-        "draws": counter.draws,
-        "events": counter.events,
-        "triangles": counter.triangles,
-        "passes": counter.passes,
-        "dispatches": counter.dispatches,
-        "clears": counter.clears,
-    }
-    return lookup[what]
+    flat = walk_actions(actions)
+    if pass_name:
+        flat = filter_by_pass(flat, pass_name)
+
+    if what == "draws":
+        return len(filter_by_type(flat, "draw"))
+    if what == "triangles":
+        return sum(_triangles_for_action(a) for a in filter_by_type(flat, "draw"))
+    if what == "dispatches":
+        return len(filter_by_type(flat, "dispatch"))
+    if what == "clears":
+        return len(filter_by_type(flat, "clear"))
+    return 0
 
 
 def count_resources(resources: list[Any]) -> int:
@@ -68,67 +282,11 @@ def count_resources(resources: list[Any]) -> int:
     return len(resources)
 
 
-class _CountWalker:
-    """Walk an action tree and tally counts."""
-
-    def __init__(self) -> None:
-        self.draws = 0
-        self.events = 0
-        self.triangles = 0
-        self.passes = 0
-        self.dispatches = 0
-        self.clears = 0
-
-    def walk(self, actions: list[Any], pass_name: str | None) -> None:
-        self._walk(actions, pass_name, None)
-
-    def _walk(
-        self,
-        actions: list[Any],
-        pass_name: str | None,
-        current_pass: str | None,
-    ) -> str | None:
-        for a in actions:
-            self.events += 1
-            flags = int(a.flags)
-
-            if flags & _FLAG_BEGIN_PASS:
-                current_pass = a.GetName(None)
-                self.passes += 1
-
-            in_target = pass_name is None or current_pass == pass_name
-
-            if flags & _FLAG_DRAWCALL and in_target:
-                self.draws += 1
-                tris = a.numIndices // 3 if a.numIndices else 0
-                self.triangles += tris * max(a.numInstances, 1)
-            elif flags & _FLAG_DISPATCH and in_target:
-                self.dispatches += 1
-            elif flags & _FLAG_CLEAR and in_target:
-                self.clears += 1
-
-            if a.children:
-                current_pass = self._walk(a.children, pass_name, current_pass)
-
-            if flags & _FLAG_END_PASS:
-                current_pass = None
-
-        return current_pass
-
-
 def collect_shader_map(
     actions: list[Any],
     pipe_states: dict[int, Any],
 ) -> list[dict[str, Any]]:
-    """Collect shader-map rows from draw/dispatch actions.
-
-    Args:
-        actions: Flat or nested action list.
-        pipe_states: Mapping of EID -> PipeState for each draw/dispatch.
-
-    Returns:
-        List of dicts with keys: eid, vs, hs, ds, gs, ps, cs.
-    """
+    """Collect shader-map rows from draw/dispatch actions."""
     rows: list[dict[str, Any]] = []
     _collect_recursive(actions, pipe_states, rows)
     return rows
@@ -142,7 +300,7 @@ def _collect_recursive(
     stage_cols = {0: "vs", 1: "hs", 2: "ds", 3: "gs", 4: "ps", 5: "cs"}
     for a in actions:
         flags = int(a.flags)
-        if (flags & _FLAG_DRAWCALL) or (flags & _FLAG_DISPATCH):
+        if (flags & _DRAWCALL) or (flags & _DISPATCH):
             eid = a.eventId
             state = pipe_states.get(eid)
             if state is not None:
@@ -156,6 +314,11 @@ def _collect_recursive(
                 rows.append(row)
         if a.children:
             _collect_recursive(a.children, pipe_states, rows)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline / shader helpers (used by daemon pipeline/shader/bindings handlers)
+# ---------------------------------------------------------------------------
 
 
 def pipeline_row(
@@ -252,6 +415,11 @@ def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+# ---------------------------------------------------------------------------
+# Resource helpers (used by daemon resources/resource handlers)
+# ---------------------------------------------------------------------------
+
+
 def _resource_row(r: Any) -> dict[str, Any]:
     fmt = getattr(r, "format", None)
     return {
@@ -268,10 +436,7 @@ def _resource_row(r: Any) -> dict[str, Any]:
 def get_resources(adapter: Any) -> list[dict[str, Any]]:
     """Get all resources from the capture."""
     resources = adapter.get_resources()
-    rows: list[dict[str, Any]] = []
-    for r in resources:
-        rows.append(_resource_row(r))
-    return rows
+    return [_resource_row(r) for r in resources]
 
 
 def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
@@ -281,6 +446,11 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
         if _rid(getattr(r, "resourceId", 0)) == resid:
             return _resource_row(r)
     return None
+
+
+# ---------------------------------------------------------------------------
+# Pass hierarchy (used by daemon passes handler)
+# ---------------------------------------------------------------------------
 
 
 def get_pass_hierarchy(actions: list[Any]) -> dict[str, Any]:
@@ -299,7 +469,7 @@ def _build_pass_tree(
     for a in actions:
         flags = int(a.flags)
 
-        if flags & _FLAG_BEGIN_PASS:
+        if flags & _BEGIN_PASS:
             current_pass = {
                 "name": a.GetName(None),
                 "children": [],
@@ -307,11 +477,11 @@ def _build_pass_tree(
             }
             passes.append(current_pass)
 
-        if current_pass is not None and flags & _FLAG_DRAWCALL:
+        if current_pass is not None and flags & _DRAWCALL:
             current_pass["draws"] += 1
 
         if a.children:
             _build_pass_tree(a.children, passes, current_pass, depth + 1)
 
-        if flags & _FLAG_END_PASS:
+        if flags & _END_PASS:
             current_pass = None
