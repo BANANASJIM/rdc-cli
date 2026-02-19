@@ -361,7 +361,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             except (TypeError, ValueError):
                 return _error_response(request_id, -32602, "eid must be an integer"), True
         msgs = controller.GetDebugMessages() if hasattr(controller, "GetDebugMessages") else []
-        rows: list[dict[str, Any]] = []
+        log_rows: list[dict[str, Any]] = []
         for m in msgs:
             lvl = severity_map.get(int(m.severity), "UNKNOWN")
             eid = int(m.eventId) if m.eventId > 0 else 0
@@ -369,8 +369,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 continue
             if eid_filter is not None and eid != eid_filter:
                 continue
-            rows.append({"level": lvl, "eid": eid, "message": m.description})
-        return _result_response(request_id, {"messages": rows}), True
+            log_rows.append({"level": lvl, "eid": eid, "message": m.description})
+        return _result_response(request_id, {"messages": log_rows}), True
 
     if method == "shader_targets":
         if state.adapter is None:
