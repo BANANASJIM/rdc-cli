@@ -197,3 +197,126 @@ def test_cli_pipeline_replay_unavailable(monkeypatch) -> None:  # type: ignore[n
     runner = CliRunner()
     result = runner.invoke(main, ["pipeline"])
     assert result.exit_code == 1
+
+
+def test_query_service_resources() -> None:
+    """Test get_resources and get_resource_detail."""
+    from rdc.services.query_service import get_resource_detail, get_resources
+
+    ctrl = rd.MockReplayController()
+    # Add some resources
+    res1 = rd.ResourceDescription(
+        resourceId=rd.ResourceId(1), name="Texture0", type=rd.ResourceType.Texture2D
+    )
+    res2 = rd.ResourceDescription(
+        resourceId=rd.ResourceId(2), name="Buffer0", type=rd.ResourceType.Buffer
+    )
+    ctrl._resources = [res1, res2]
+
+    from rdc.adapter import RenderDocAdapter
+
+    adapter = RenderDocAdapter(controller=ctrl, version=(1, 33))
+
+    rows = get_resources(adapter)
+    assert len(rows) == 2
+    assert rows[0]["id"] == 1
+    assert rows[0]["name"] == "Texture0"
+    assert rows[1]["id"] == 2
+
+    # Test get_resource_detail
+    detail = get_resource_detail(adapter, 1)
+    assert detail is not None
+    assert detail["id"] == 1
+    assert detail["name"] == "Texture0"
+
+    # Test non-existent resource
+    detail = get_resource_detail(adapter, 999)
+    assert detail is None
+
+
+def test_query_service_pass_hierarchy() -> None:
+    """Test get_pass_hierarchy."""
+    from rdc.services.query_service import get_pass_hierarchy
+
+    # Create actions with pass markers
+    begin_pass = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.BeginPass)
+    begin_pass._name = "Pass1"
+    draw = rd.ActionDescription(eventId=11, flags=rd.ActionFlags.Drawcall)
+    end_pass = rd.ActionDescription(eventId=12, flags=rd.ActionFlags.EndPass)
+    end_pass._name = "Pass1"
+
+    actions = [begin_pass, draw, end_pass]
+    tree = get_pass_hierarchy(actions)
+
+    assert "passes" in tree
+    assert len(tree["passes"]) == 1
+    assert tree["passes"][0]["name"] == "Pass1"
+    assert tree["passes"][0]["draws"] == 1
+
+
+def test_daemon_resources_handler() -> None:
+    """Test daemon handler for resources method."""
+    state = _state_with_adapter()
+    # Add resources to mock
+    res1 = rd.ResourceDescription(
+        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture2D
+    )
+    state.adapter.controller._resources = [res1]
+
+    request = {"jsonrpc": "2.0", "id": 1, "method": "resources", "params": {"_token": "tok"}}
+    resp, _ = _handle_request(request, state)
+
+    assert "result" in resp
+    assert "rows" in resp["result"]
+    assert len(resp["result"]["rows"]) == 1
+
+
+def test_daemon_resource_handler() -> None:
+    """Test daemon handler for resource method."""
+    state = _state_with_adapter()
+    res1 = rd.ResourceDescription(
+        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture2D
+    )
+    state.adapter.controller._resources = [res1]
+
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "resource",
+        "params": {"_token": "tok", "id": 1},
+    }
+    resp, _ = _handle_request(request, state)
+
+    assert "result" in resp
+    assert "resource" in resp["result"]
+    assert resp["result"]["resource"]["id"] == 1
+
+    # Test resource not found
+    request = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "resource",
+        "params": {"_token": "tok", "id": 999},
+    }
+    resp, _ = _handle_request(request, state)
+    assert "error" in resp
+
+
+def test_daemon_passes_handler() -> None:
+    """Test daemon handler for passes method."""
+    state = _state_with_adapter()
+    # Add pass-marked actions
+    begin_pass = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.BeginPass)
+    begin_pass._name = "Pass1"
+    draw = rd.ActionDescription(eventId=11, flags=rd.ActionFlags.Drawcall)
+    end_pass = rd.ActionDescription(eventId=12, flags=rd.ActionFlags.EndPass)
+    end_pass._name = "Pass1"
+    state.adapter.controller._actions = [begin_pass, draw, end_pass]
+
+    request = {"jsonrpc": "2.0", "id": 1, "method": "passes", "params": {"_token": "tok"}}
+    resp, _ = _handle_request(request, state)
+
+    assert "result" in resp
+    assert "tree" in resp["result"]
+    assert len(resp["result"]["tree"]["passes"]) == 1
+    assert resp["result"]["tree"]["passes"][0]["draws"] == 1

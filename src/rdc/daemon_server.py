@@ -270,16 +270,16 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         # Let's pass the controller.
         # state.adapter.controller is available?
         # Adapter wraps controller.
-        
+
         # Actually, let's look at adapter.py again.
         # It has get_resources().
         # I should probably update query_service.get_resources to take the list of resources,
         # or pass the adapter.
-        
+
         # Current query_service.get_resources implementation:
         # def get_resources(controller: Any) -> list[dict[str, Any]]:
         #    resources = controller.GetResources()
-        
+
         # It expects an object with GetResources(). Adapter has it.
         rows = get_resources(state.adapter)
         return _result_response(request_id, {"rows": rows}), True
@@ -305,6 +305,260 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         # get_pass_hierarchy takes list[Action]
         tree = get_pass_hierarchy(actions)
         return _result_response(request_id, {"tree": tree}), True
+
+    # === Phase 2: Shader Extended Handlers ===
+    if method == "shader_targets":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        # Get available disassembly targets from the controller
+        controller = state.adapter.controller
+        if hasattr(controller, "GetDisassemblyTargets"):
+            targets = controller.GetDisassemblyTargets()
+            target_list = [str(t) for t in targets]
+        else:
+            # Fallback for older RenderDoc versions
+            target_list = ["DXIL", "DX", "SPIRBC-V", "GLSL"]
+        return _result_response(request_id, {"targets": target_list}), True
+
+    if method == "shader_reflect":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        refl = pipe_state.GetShaderReflection(stage_val)
+
+        if refl is None:
+            return _error_response(request_id, -32001, "no reflection available"), True
+
+        # Extract input/output signatures and constant blocks
+        input_sig = []
+        output_sig = []
+        constant_blocks = []
+
+        for sig in getattr(refl, "inputSig", []):
+            input_sig.append(
+                {
+                    "name": sig.name,
+                    "semantic": getattr(sig, "semantic", ""),
+                    "location": getattr(sig, "location", 0),
+                    "component": getattr(sig, "component", 0),
+                    "type": str(getattr(sig, "varType", "")),
+                }
+            )
+
+        for sig in getattr(refl, "outputSig", []):
+            output_sig.append(
+                {
+                    "name": sig.name,
+                    "semantic": getattr(sig, "semantic", ""),
+                    "location": getattr(sig, "location", 0),
+                    "component": getattr(sig, "component", 0),
+                    "type": str(getattr(sig, "varType", "")),
+                }
+            )
+
+        for cb in getattr(refl, "constantBlocks", []):
+            constant_blocks.append(
+                {
+                    "name": cb.name,
+                    "bind_point": getattr(cb, "bindPoint", 0),
+                    "size": getattr(cb, "bufferSize", 0),
+                    "variables": len(getattr(cb, "variables", [])),
+                }
+            )
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "input_sig": input_sig,
+                "output_sig": output_sig,
+                "constant_blocks": constant_blocks,
+            },
+        ), True
+
+    if method == "shader_constants":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        refl = pipe_state.GetShaderReflection(stage_val)
+
+        if refl is None:
+            return _error_response(request_id, -32001, "no reflection available"), True
+
+        # Get constant buffer values
+        controller = state.adapter.controller
+        constants = []
+
+        for cb in getattr(refl, "constantBlocks", []):
+            bind_point = getattr(cb, "bindPoint", 0)
+            # Get the constant buffer data
+            if hasattr(controller, "GetConstantBuffer"):
+                cbuf_data = controller.GetConstantBuffer(stage_val, bind_point)
+                if cbuf_data:
+                    data_bytes = getattr(cbuf_data, "data", b"")
+                    constants.append(
+                        {
+                            "name": cb.name,
+                            "bind_point": bind_point,
+                            "size": len(data_bytes),
+                            "data": data_bytes.hex() if data_bytes else "",
+                        }
+                    )
+            else:
+                # Fallback: just report metadata
+                constants.append(
+                    {
+                        "name": cb.name,
+                        "bind_point": bind_point,
+                        "size": getattr(cb, "bufferSize", 0),
+                        "data": "",
+                    }
+                )
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "constants": constants,
+            },
+        ), True
+
+    if method == "shader_source":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        controller = state.adapter.controller
+
+        source = ""
+        has_debug_info = False
+
+        # Try to get debug source
+        if hasattr(controller, "GetDebugSource"):
+            source = controller.GetDebugSource(stage_val)
+            has_debug_info = bool(source)
+
+        # Fallback to disassembly if no debug source
+        if not source:
+            if hasattr(controller, "GetDisassembly"):
+                source = controller.GetDisassembly(stage_val)
+            elif hasattr(controller, "GetShaderDisassembly"):
+                source = controller.GetShaderDisassembly(stage_val)
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "source": source,
+                "has_debug_info": has_debug_info,
+            },
+        ), True
+
+    if method == "shader_disasm":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        stage = str(params.get("stage", "ps")).lower()
+        target = str(params.get("target", ""))
+        if stage not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            return _error_response(request_id, -32602, "invalid stage"), True
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        controller = state.adapter.controller
+
+        disasm = ""
+        if hasattr(controller, "GetDisassembly"):
+            if target and hasattr(controller, "GetDisassemblyForTarget"):
+                disasm = controller.GetDisassemblyForTarget(stage_val, target)
+            else:
+                disasm = controller.GetDisassembly(stage_val)
+        elif hasattr(controller, "GetShaderDisassembly"):
+            disasm = controller.GetShaderDisassembly(stage_val)
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stage": stage,
+                "target": target,
+                "disasm": disasm,
+            },
+        ), True
+
+    if method == "shader_all":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+
+        pipe_state = state.adapter.get_pipeline_state()
+        stages = ["vs", "hs", "ds", "gs", "ps", "cs"]
+        stage_val_map = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+
+        result_stages = []
+        for stage in stages:
+            stage_val = stage_val_map[stage]
+            sid = pipe_state.GetShader(stage_val)
+            sidv = getattr(sid, "value", 0)
+            if sidv == 0:
+                continue
+
+            refl = pipe_state.GetShaderReflection(stage_val)
+            entry = pipe_state.GetShaderEntryPoint(stage_val)
+
+            result_stages.append(
+                {
+                    "stage": stage,
+                    "shader": sidv,
+                    "entry": entry,
+                    "ro": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
+                    "rw": len(getattr(refl, "readWriteResources", [])) if refl else 0,
+                    "cbuffers": len(getattr(refl, "constantBlocks", [])) if refl else 0,
+                }
+            )
+
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "stages": result_stages,
+            },
+        ), True
 
     if method == "shutdown":
         if state.adapter is not None:
