@@ -241,11 +241,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         pipe_state = state.adapter.get_pipeline_state()
         rows = bindings_rows(state.current_eid, pipe_state)
 
-        # Filter by descriptor set and binding index
-        descriptor_set = params.get("set")
+        # Filter by binding index (descriptor set filtering not yet implemented)
         binding_index = params.get("binding")
-        if descriptor_set is not None:
-            rows = [r for r in rows if r.get("set") == descriptor_set]
         if binding_index is not None:
             rows = [r for r in rows if r.get("slot") == binding_index]
 
