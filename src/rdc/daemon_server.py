@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import socket
+import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from rdc.adapter import RenderDocAdapter
 
 
 @dataclass
@@ -13,6 +16,87 @@ class DaemonState:
     capture: str
     current_eid: int
     token: str
+    adapter: RenderDocAdapter | None = None
+    cap: Any = None
+    structured_file: Any = None
+    api_name: str = ""
+    event_count: int = 0
+    _eid_cache: int = field(default=-1, repr=False)
+
+
+def _detect_version(rd: Any) -> tuple[int, int]:
+    """Detect RenderDoc version from module."""
+    from rdc.adapter import parse_version_tuple
+
+    try:
+        return parse_version_tuple(rd.GetVersionString())
+    except (AttributeError, TypeError):
+        return (0, 0)
+
+
+def _load_replay(state: DaemonState) -> str | None:
+    """Load renderdoc module and open capture. Returns error string or None."""
+    try:
+        import renderdoc as rd  # noqa: F811
+    except ImportError:
+        return "failed to import renderdoc module"
+
+    try:
+        rd.InitialiseReplay(rd.GlobalEnvironment(), [])
+    except Exception as exc:  # noqa: BLE001
+        return f"InitialiseReplay failed: {exc}"
+
+    cap = rd.OpenCaptureFile()
+    result = cap.OpenFile(state.capture, "", None)
+    if result != rd.ResultCode.Succeeded:
+        cap.Shutdown()
+        return f"OpenFile failed: {result}"
+
+    if cap.LocalReplaySupport() != rd.ReplaySupport.Supported:
+        cap.Shutdown()
+        return "local replay not supported on this platform"
+
+    result, controller = cap.OpenCapture(rd.ReplayOptions(), None)
+    if result != rd.ResultCode.Succeeded:
+        cap.Shutdown()
+        return f"OpenCapture failed: {result}"
+
+    state.cap = cap
+    version = _detect_version(rd)
+    state.adapter = RenderDocAdapter(controller=controller, version=version)
+    state.structured_file = cap.GetStructuredData()
+
+    api_props = state.adapter.get_api_properties()
+    state.api_name = str(getattr(api_props, "pipelineType", "Unknown"))
+
+    root_actions = state.adapter.get_root_actions()
+    state.event_count = _count_events(root_actions)
+
+    return None
+
+
+def _count_events(actions: list[Any]) -> int:
+    """Count total events in action tree."""
+    count = 0
+    for a in actions:
+        count += 1
+        if a.children:
+            count += _count_events(a.children)
+    return count
+
+
+def _set_frame_event(state: DaemonState, eid: int) -> str | None:
+    """Set frame event with caching. Returns error string or None."""
+    if eid < 0:
+        return "eid must be >= 0"
+    if state.event_count > 0 and eid > state.event_count:
+        return f"eid {eid} out of range (max: {state.event_count})"
+    if state.adapter is not None:
+        if state._eid_cache != eid:
+            state.adapter.set_frame_event(eid)
+            state._eid_cache = eid
+    state.current_eid = eid
+    return None
 
 
 def run_server(  # pragma: no cover
@@ -75,16 +159,312 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     if method == "status":
         return _result_response(
             request_id,
-            {"capture": state.capture, "current_eid": state.current_eid},
+            {
+                "capture": state.capture,
+                "current_eid": state.current_eid,
+                "api": state.api_name,
+                "event_count": state.event_count,
+            },
         ), True
     if method == "goto":
         eid = int(params.get("eid", 0))
-        state.current_eid = eid
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
         return _result_response(request_id, {"current_eid": state.current_eid}), True
+    if method == "count":
+        what = params.get("what", "")
+        pass_name = params.get("pass")
+        if what == "resources":
+            if state.adapter is None:
+                return _error_response(request_id, -32002, "no replay loaded"), True
+            from rdc.services.query_service import count_resources
+
+            resources = state.adapter.get_resources()
+            value = count_resources(resources)
+            return _result_response(request_id, {"value": value}), True
+        try:
+            if state.adapter is None:
+                return _error_response(request_id, -32002, "no replay loaded"), True
+            from rdc.services.query_service import count_from_actions
+
+            actions = state.adapter.get_root_actions()
+            value = count_from_actions(actions, what, pass_name=pass_name)
+            return _result_response(request_id, {"value": value}), True
+        except ValueError as exc:
+            return _error_response(request_id, -32602, str(exc)), True
+    if method == "shader_map":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import collect_shader_map
+
+        actions = state.adapter.get_root_actions()
+        pipe_states = _collect_pipe_states(actions, state)
+        rows = collect_shader_map(actions, pipe_states)
+        return _result_response(request_id, {"rows": rows}), True
+    if method == "info":
+        return _handle_info(request_id, state), True
+    if method == "stats":
+        return _handle_stats(request_id, state), True
+    if method == "events":
+        return _handle_events(request_id, params, state), True
+    if method == "draws":
+        return _handle_draws(request_id, params, state), True
+    if method == "event":
+        return _handle_event_method(request_id, params, state), True
+    if method == "draw":
+        return _handle_draw_method(request_id, params, state), True
     if method == "shutdown":
+        if state.adapter is not None:
+            state.adapter.shutdown()
+        if state.cap is not None:
+            state.cap.Shutdown()
         return _result_response(request_id, {"ok": True}), False
 
     return _error_response(request_id, -32601, "method not found"), True
+
+
+def _get_flat_actions(state: DaemonState) -> list[Any]:
+    if state.adapter is None:
+        return []
+    from rdc.services.query_service import walk_actions
+
+    return walk_actions(state.adapter.get_root_actions(), state.structured_file)
+
+
+def _action_type_str(flags: int) -> str:
+    if flags & 0x0001:
+        return "DrawIndexed" if flags & 0x0002 else "Draw"
+    if flags & 0x0010:
+        return "Dispatch"
+    if flags & 0x0020:
+        return "Clear"
+    if flags & 0x0040:
+        return "Copy"
+    if flags & 0x2000:
+        return "BeginPass"
+    if flags & 0x4000:
+        return "EndPass"
+    return "Other"
+
+
+def _handle_info(request_id: int, state: DaemonState) -> dict[str, Any]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded")
+    from rdc.services.query_service import aggregate_stats
+
+    flat = _get_flat_actions(state)
+    stats = aggregate_stats(flat)
+    return _result_response(
+        request_id,
+        {
+            "Capture": state.capture,
+            "API": state.api_name,
+            "Events": state.event_count,
+            "Draw Calls": (
+                f"{stats.total_draws} "
+                f"({stats.indexed_draws} indexed, "
+                f"{stats.non_indexed_draws} non-indexed, "
+                f"{stats.dispatches} dispatches)"
+            ),
+            "Clears": stats.clears,
+            "Copies": stats.copies,
+        },
+    )
+
+
+def _handle_stats(request_id: int, state: DaemonState) -> dict[str, Any]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded")
+    from rdc.services.query_service import aggregate_stats, get_top_draws
+
+    flat = _get_flat_actions(state)
+    stats = aggregate_stats(flat)
+    top = get_top_draws(flat, limit=3)
+    per_pass = [
+        {
+            "name": ps.name,
+            "draws": ps.draws,
+            "dispatches": ps.dispatches,
+            "triangles": ps.triangles,
+            "rt_w": ps.rt_w or "-",
+            "rt_h": ps.rt_h or "-",
+            "attachments": ps.attachments,
+        }
+        for ps in stats.per_pass
+    ]
+    top_draws = [
+        {
+            "eid": a.eid,
+            "marker": a.parent_marker,
+            "triangles": (a.num_indices // 3) * a.num_instances,
+        }
+        for a in top
+    ]
+    return _result_response(request_id, {"per_pass": per_pass, "top_draws": top_draws})
+
+
+def _handle_events(request_id: int, params: dict[str, Any], state: DaemonState) -> dict[str, Any]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded")
+    from rdc.services.query_service import filter_by_pattern, filter_by_type
+
+    flat = _get_flat_actions(state)
+    event_type = params.get("type")
+    if event_type:
+        flat = filter_by_type(flat, event_type)
+    pattern = params.get("filter")
+    if pattern:
+        flat = filter_by_pattern(flat, pattern)
+    eid_range = params.get("range")
+    if eid_range and ":" in str(eid_range):
+        parts = str(eid_range).split(":", 1)
+        lo = int(parts[0]) if parts[0] else 0
+        hi = int(parts[1]) if parts[1] else 999999999
+        flat = [a for a in flat if lo <= a.eid <= hi]
+    limit = params.get("limit")
+    if limit is not None:
+        flat = flat[: int(limit)]
+    events = [{"eid": a.eid, "type": _action_type_str(a.flags), "name": a.name} for a in flat]
+    return _result_response(request_id, {"events": events})
+
+
+def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -> dict[str, Any]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded")
+    from rdc.services.query_service import aggregate_stats, filter_by_pass, filter_by_type
+
+    flat = _get_flat_actions(state)
+    flat = filter_by_type(flat, "draw")
+    pass_name = params.get("pass")
+    if pass_name:
+        flat = filter_by_pass(flat, pass_name)
+    sort_field = params.get("sort")
+    if sort_field == "triangles":
+        flat.sort(key=lambda a: (a.num_indices // 3) * a.num_instances, reverse=True)
+    limit = params.get("limit")
+    if limit is not None:
+        flat = flat[: int(limit)]
+    draws = [
+        {
+            "eid": a.eid,
+            "type": _action_type_str(a.flags),
+            "triangles": (a.num_indices // 3) * a.num_instances,
+            "instances": a.num_instances,
+            "pass": a.pass_name,
+            "marker": a.parent_marker,
+        }
+        for a in flat
+    ]
+    all_flat = _get_flat_actions(state)
+    all_stats = aggregate_stats(all_flat)
+    summary = (
+        f"{all_stats.total_draws} draw calls "
+        f"({all_stats.indexed_draws} indexed, "
+        f"{all_stats.dispatches} dispatches, "
+        f"{all_stats.clears} clears)"
+    )
+    return _result_response(request_id, {"draws": draws, "summary": summary})
+
+
+def _handle_event_method(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> dict[str, Any]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded")
+    eid = params.get("eid")
+    if eid is None:
+        return _error_response(request_id, -32602, "missing eid parameter")
+    from rdc.services.query_service import find_action_by_eid
+
+    eid = int(eid)
+    action = find_action_by_eid(state.adapter.get_root_actions(), eid)
+    if action is None:
+        return _error_response(
+            request_id, -32002, f"eid {eid} out of range (max: {state.event_count})"
+        )
+    sf = state.structured_file
+    api_call = "-"
+    params_dict = {}
+    if action.events and sf and hasattr(sf, "chunks"):
+        for evt in action.events:
+            idx = evt.chunkIndex
+            if 0 <= idx < len(sf.chunks):
+                chunk = sf.chunks[idx]
+                api_call = chunk.name
+                for child in chunk.children:
+                    val = child.data.basic.value if child.data and child.data.basic else "-"
+                    params_dict[child.name] = val
+                break
+    result = {"EID": eid, "API Call": api_call}
+    if params_dict:
+        param_str = chr(10).join(f"  {k:<20}{v}" for k, v in params_dict.items())
+        result["Parameters"] = chr(10) + param_str
+    else:
+        result["Parameters"] = "-"
+    result["Duration"] = "-"
+    return _result_response(request_id, result)
+
+
+def _handle_draw_method(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> dict[str, Any]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded")
+    from rdc.services.query_service import find_action_by_eid, walk_actions
+
+    eid = params.get("eid")
+    if eid is None:
+        eid = state.current_eid
+    eid = int(eid)
+    root_actions = state.adapter.get_root_actions()
+    action = find_action_by_eid(root_actions, eid)
+    if action is None:
+        return _error_response(
+            request_id, -32002, f"eid {eid} out of range (max: {state.event_count})"
+        )
+    sf = state.structured_file
+    flat = walk_actions(root_actions, sf)
+    flat_match = [a for a in flat if a.eid == eid]
+    name = action.GetName(sf) if sf else getattr(action, "_name", "-")
+    marker = flat_match[0].parent_marker if flat_match else "-"
+    tris = (action.numIndices // 3) * max(action.numInstances, 1)
+    return _result_response(
+        request_id,
+        {
+            "Event": eid,
+            "Type": name,
+            "Marker": marker,
+            "Triangles": tris,
+            "Instances": max(action.numInstances, 1),
+        },
+    )
+
+
+def _collect_pipe_states(
+    actions: list[Any],
+    state: DaemonState,
+) -> dict[int, Any]:
+    """Collect pipeline state for each draw/dispatch action."""
+    result: dict[int, Any] = {}
+    _collect_pipe_states_recursive(actions, state, result)
+    return result
+
+
+def _collect_pipe_states_recursive(
+    actions: list[Any],
+    state: DaemonState,
+    result: dict[int, Any],
+) -> None:
+    for a in actions:
+        flags = int(a.flags)
+        is_draw = bool(flags & 0x0001)
+        is_dispatch = bool(flags & 0x0010)
+        if (is_draw or is_dispatch) and state.adapter is not None:
+            _set_frame_event(state, a.eventId)
+            result[a.eventId] = state.adapter.get_pipeline_state()
+        if a.children:
+            _collect_pipe_states_recursive(a.children, state, result)
 
 
 def _result_response(request_id: int, result: dict[str, Any]) -> dict[str, Any]:
@@ -102,12 +482,21 @@ def main() -> None:  # pragma: no cover
     parser.add_argument("--capture", required=True)
     parser.add_argument("--token", required=True)
     parser.add_argument("--idle-timeout", type=int, default=1800)
+    parser.add_argument("--no-replay", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    state = DaemonState(capture=args.capture, current_eid=0, token=args.token)
+
+    if not args.no_replay:
+        err = _load_replay(state)
+        if err:
+            sys.stderr.write(f"error: {err}\n")
+            sys.exit(1)
 
     run_server(
         host=args.host,
         port=args.port,
-        state=DaemonState(capture=args.capture, current_eid=0, token=args.token),
+        state=state,
         idle_timeout_s=args.idle_timeout,
     )
 

@@ -15,7 +15,7 @@ def parse_version_tuple(value: str) -> tuple[int, int]:
 
 @dataclass(frozen=True)
 class RenderDocAdapter:
-    """Minimal compatibility adapter for RenderDoc API changes."""
+    """Compatibility adapter for RenderDoc API changes across versions."""
 
     controller: Any
     version: tuple[int, int]
@@ -27,3 +27,27 @@ class RenderDocAdapter:
         if hasattr(self.controller, "GetDrawcalls"):
             return self.controller.GetDrawcalls()
         raise AttributeError("controller has neither GetRootActions nor GetDrawcalls")
+
+    def get_api_properties(self) -> Any:
+        """Return API properties from the controller."""
+        return self.controller.GetAPIProperties()
+
+    def get_resources(self) -> Any:
+        """Return all resources from the controller."""
+        return self.controller.GetResources()
+
+    def get_pipeline_state(self) -> Any:
+        """Return current pipeline state."""
+        return self.controller.GetPipelineState()
+
+    def get_structured_file(self) -> Any:
+        """Return structured file from the controller."""
+        return self.controller.GetStructuredFile()
+
+    def set_frame_event(self, eid: int, force: bool = True) -> None:
+        """Move the replay to the given event ID."""
+        self.controller.SetFrameEvent(eid, force)
+
+    def shutdown(self) -> None:
+        """Shutdown the replay controller."""
+        self.controller.Shutdown()
