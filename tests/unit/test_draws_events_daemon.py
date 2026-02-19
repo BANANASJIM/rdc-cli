@@ -1,0 +1,207 @@
+"""Tests for daemon JSON-RPC handlers: info, stats, events, draws, event, draw."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
+
+from mock_renderdoc import (
+    ActionDescription,
+    ActionFlags,
+    APIEvent,
+    SDBasic,
+    SDChunk,
+    SDData,
+    SDObject,
+    StructuredFile,
+)
+
+from rdc.adapter import RenderDocAdapter
+from rdc.daemon_server import DaemonState, _handle_request
+
+
+def _build_actions():
+    shadow_begin = ActionDescription(
+        eventId=10,
+        flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+        _name="Shadow",
+    )
+    draw1 = ActionDescription(
+        eventId=42,
+        flags=ActionFlags.Drawcall | ActionFlags.Indexed,
+        numIndices=3600,
+        numInstances=1,
+        _name="vkCmdDrawIndexed",
+        events=[APIEvent(eventId=42, chunkIndex=0)],
+    )
+    shadow_marker = ActionDescription(
+        eventId=41,
+        flags=ActionFlags.NoFlags,
+        _name="Shadow/Terrain",
+        children=[draw1],
+    )
+    shadow_end = ActionDescription(
+        eventId=50,
+        flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+        _name="EndPass",
+    )
+    dispatch = ActionDescription(eventId=300, flags=ActionFlags.Dispatch, _name="vkCmdDispatch")
+    return [shadow_begin, shadow_marker, shadow_end, dispatch]
+
+
+def _build_sf():
+    return StructuredFile(
+        chunks=[
+            SDChunk(
+                name="vkCmdDrawIndexed",
+                children=[
+                    SDObject(name="indexCount", data=SDData(basic=SDBasic(value=3600))),
+                    SDObject(name="instanceCount", data=SDData(basic=SDBasic(value=1))),
+                ],
+            ),
+        ]
+    )
+
+
+def _make_state():
+    actions = _build_actions()
+    sf = _build_sf()
+    controller = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: SimpleNamespace(),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        Shutdown=lambda: None,
+    )
+    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    state.structured_file = sf
+    state.api_name = "Vulkan"
+    state.event_count = 300
+    return state
+
+
+def _req(method, **params):
+    p = {"_token": "tok"}
+    p.update(params)
+    return {"id": 1, "method": method, "params": p}
+
+
+class TestInfoHandler:
+    def test_info_metadata(self):
+        resp, _ = _handle_request(_req("info"), _make_state())
+        assert resp["result"]["Capture"] == "test.rdc"
+        assert resp["result"]["API"] == "Vulkan"
+
+    def test_info_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(_req("info"), state)
+        assert resp["error"]["code"] == -32002
+
+
+class TestStatsHandler:
+    def test_stats_per_pass(self):
+        resp, _ = _handle_request(_req("stats"), _make_state())
+        assert len(resp["result"]["per_pass"]) > 0
+
+    def test_stats_top_draws(self):
+        resp, _ = _handle_request(_req("stats"), _make_state())
+        assert len(resp["result"]["top_draws"]) >= 1
+
+    def test_stats_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(_req("stats"), state)
+        assert resp["error"]["code"] == -32002
+
+
+class TestEventsHandler:
+    def test_events_list(self):
+        resp, _ = _handle_request(_req("events"), _make_state())
+        assert len(resp["result"]["events"]) > 0
+
+    def test_events_filter_type(self):
+        resp, _ = _handle_request(_req("events", type="draw"), _make_state())
+        assert all(e["type"] in ("Draw", "DrawIndexed") for e in resp["result"]["events"])
+
+    def test_events_filter_name(self):
+        resp, _ = _handle_request(_req("events", filter="Shadow*"), _make_state())
+        assert any("Shadow" in e["name"] for e in resp["result"]["events"])
+
+    def test_events_limit(self):
+        resp, _ = _handle_request(_req("events", limit=2), _make_state())
+        assert len(resp["result"]["events"]) <= 2
+
+    def test_events_range(self):
+        resp, _ = _handle_request(_req("events", range="40:50"), _make_state())
+        assert all(40 <= e["eid"] <= 50 for e in resp["result"]["events"])
+
+    def test_events_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(_req("events"), state)
+        assert resp["error"]["code"] == -32002
+
+
+class TestDrawsHandler:
+    def test_draws_list(self):
+        resp, _ = _handle_request(_req("draws"), _make_state())
+        assert len(resp["result"]["draws"]) >= 1
+        assert "summary" in resp["result"]
+
+    def test_draws_filter_pass(self):
+        resp, _ = _handle_request(_req("draws", **{"pass": "Shadow"}), _make_state())
+        assert all(d["pass"] == "Shadow" for d in resp["result"]["draws"])
+
+    def test_draws_sort_triangles(self):
+        resp, _ = _handle_request(_req("draws", sort="triangles"), _make_state())
+        tris = [d["triangles"] for d in resp["result"]["draws"]]
+        assert tris == sorted(tris, reverse=True)
+
+    def test_draws_limit(self):
+        resp, _ = _handle_request(_req("draws", limit=1), _make_state())
+        assert len(resp["result"]["draws"]) <= 1
+
+    def test_draws_empty_pass(self):
+        resp, _ = _handle_request(_req("draws", **{"pass": "NonExistent"}), _make_state())
+        assert len(resp["result"]["draws"]) == 0
+
+
+class TestEventHandler:
+    def test_event_detail(self):
+        resp, _ = _handle_request(_req("event", eid=42), _make_state())
+        assert resp["result"]["EID"] == 42
+        assert resp["result"]["API Call"] == "vkCmdDrawIndexed"
+
+    def test_event_params(self):
+        resp, _ = _handle_request(_req("event", eid=42), _make_state())
+        assert "indexCount" in str(resp["result"]["Parameters"])
+
+    def test_event_not_found(self):
+        resp, _ = _handle_request(_req("event", eid=99999), _make_state())
+        assert resp["error"]["code"] == -32002
+
+    def test_event_missing_eid(self):
+        resp, _ = _handle_request(_req("event"), _make_state())
+        assert resp["error"]["code"] == -32602
+
+
+class TestDrawHandler:
+    def test_draw_detail(self):
+        resp, _ = _handle_request(_req("draw", eid=42), _make_state())
+        assert resp["result"]["Event"] == 42
+        assert resp["result"]["Triangles"] == 1200
+        assert resp["result"]["Instances"] == 1
+
+    def test_draw_current_eid(self):
+        state = _make_state()
+        state.current_eid = 42
+        resp, _ = _handle_request(_req("draw"), state)
+        assert resp["result"]["Event"] == 42
+
+    def test_draw_not_found(self):
+        resp, _ = _handle_request(_req("draw", eid=99999), _make_state())
+        assert resp["error"]["code"] == -32002
