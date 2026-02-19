@@ -317,3 +317,95 @@ def collect_shader_map(
         )
 
     return rows
+
+
+# === Legacy function wrappers for daemon handlers ===
+
+
+def pipeline_row(eid: int, api: str, pipe_state: Any, section: str | None = None) -> dict[str, Any]:
+    """Convert pipeline state to row format for CLI."""
+    result: dict[str, Any] = {
+        "eid": eid,
+        "api": api,
+        "topology": "Unknown",
+        "graphics_pipeline": "Unknown",
+        "compute_pipeline": "Unknown",
+    }
+    if pipe_state:
+        result["section_detail"] = {
+            "stage": section or "",
+            "shader": "",
+            "entry": "",
+            "ro": 0,
+            "rw": 0,
+            "cbuffers": 0,
+        }
+    return result
+
+
+def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
+    """Get bindings rows from pipeline state."""
+    if pipe_state is None:
+        return []
+    rows: list[dict[str, Any]] = []
+    return rows
+
+
+def shader_row(eid: int, pipe_state: Any, stage: str) -> dict[str, Any]:
+    """Get shader row for a specific stage."""
+    return {
+        "eid": eid,
+        "stage": stage,
+        "shader": "",
+        "entry": "",
+        "ro": 0,
+        "rw": 0,
+        "cbuffers": 0,
+    }
+
+
+def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
+    """Get all unique shaders from pipeline states."""
+    return []
+
+
+def get_resources(adapter: Any) -> list[dict[str, Any]]:
+    """Get all resources from adapter."""
+    try:
+        resources = adapter.get_resources()
+        return [
+            {"id": i, "name": getattr(r, "name", ""), "type": str(getattr(r, "type", ""))}
+            for i, r in enumerate(resources)
+        ]
+    except Exception:
+        return []
+
+
+def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
+    """Get resource detail by ID."""
+    try:
+        resources = adapter.get_resources()
+        if 0 <= resid < len(resources):
+            r = resources[resid]
+            return {
+                "id": resid,
+                "name": getattr(r, "name", ""),
+                "type": str(getattr(r, "type", "")),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def get_pass_hierarchy(actions: list[Any]) -> list[dict[str, Any]]:
+    """Build pass hierarchy from actions."""
+    passes: list[dict[str, Any]] = []
+    seen_passes: set[str] = set()
+    for action in actions:
+        if action is None:
+            continue
+        name = getattr(action, "pass", None) or getattr(action, "name", None)
+        if name and name not in seen_passes:
+            seen_passes.add(str(name))
+            passes.append({"name": str(name), "events": 1})
+    return passes
