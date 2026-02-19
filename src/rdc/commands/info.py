@@ -93,7 +93,12 @@ def stats_cmd(use_json: bool, no_header: bool) -> None:
 
 
 @click.command("log")
-@click.option("--level", default=None, help="Filter by severity (HIGH/MEDIUM/LOW/INFO).")
+@click.option(
+    "--level",
+    default=None,
+    type=click.Choice(["HIGH", "MEDIUM", "LOW", "INFO"], case_sensitive=False),
+    help="Filter by severity.",
+)
 @click.option("--eid", default=None, type=int, help="Filter by event ID.")
 @click.option("--no-header", is_flag=True, help="Omit TSV header")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
@@ -109,5 +114,12 @@ def log_cmd(level: str | None, eid: int | None, no_header: bool, use_json: bool)
     if use_json:
         write_json(messages)
         return
-    rows = [[m.get("level", "-"), m.get("eid", 0), m.get("message", "-")] for m in messages]
+
+    def _sanitize(text: str) -> str:
+        return text.replace("\t", " ").replace("\n", " ")
+
+    rows = [
+        [m.get("level", "-"), m.get("eid", 0), _sanitize(str(m.get("message", "-")))]
+        for m in messages
+    ]
     write_tsv(rows, header=["LEVEL", "EID", "MESSAGE"], no_header=no_header)

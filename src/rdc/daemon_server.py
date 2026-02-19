@@ -11,6 +11,9 @@ from typing import Any
 
 from rdc.adapter import RenderDocAdapter
 
+_LOG_SEVERITY_MAP: dict[int, str] = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"}
+_VALID_LOG_LEVELS: set[str] = set(_LOG_SEVERITY_MAP.values())
+
 
 @dataclass
 class DaemonState:
@@ -346,13 +349,11 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     if method == "log":
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True
-        _valid_levels = {"HIGH", "MEDIUM", "LOW", "INFO"}
         controller = state.adapter.controller
-        severity_map = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"}
         level_filter = params.get("level")
         if level_filter is not None:
             level_filter = str(level_filter).upper()
-            if level_filter not in _valid_levels:
+            if level_filter not in _VALID_LOG_LEVELS:
                 return _error_response(request_id, -32602, f"invalid level: {level_filter}"), True
         eid_filter = params.get("eid")
         if eid_filter is not None:
@@ -363,12 +364,12 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         msgs = controller.GetDebugMessages() if hasattr(controller, "GetDebugMessages") else []
         log_rows: list[dict[str, Any]] = []
         for m in msgs:
-            lvl = severity_map.get(int(m.severity), "UNKNOWN")
-            eid = int(m.eventId) if m.eventId > 0 else 0
+            lvl = _LOG_SEVERITY_MAP.get(int(m.severity), "UNKNOWN")
             if level_filter and lvl != level_filter:
                 continue
-            if eid_filter is not None and eid != eid_filter:
+            if eid_filter is not None and int(m.eventId) != eid_filter:
                 continue
+            eid = int(m.eventId) if m.eventId > 0 else 0
             log_rows.append({"level": lvl, "eid": eid, "message": m.description})
         return _result_response(request_id, {"messages": log_rows}), True
 
