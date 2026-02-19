@@ -318,7 +318,10 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
 
         identifier: int | str
         if "index" in params:
-            identifier = int(params["index"])
+            try:
+                identifier = int(params["index"])
+            except (TypeError, ValueError):
+                return _error_response(request_id, -32602, "index must be an integer"), True
         elif "name" in params:
             identifier = str(params["name"])
         else:

@@ -276,6 +276,10 @@ class TestPassHandler:
         resp, _ = _handle_request(_req("pass"), _make_pass_state())
         assert resp["error"]["code"] == -32602
 
+    def test_pass_invalid_index(self):
+        resp, _ = _handle_request(_req("pass", index="abc"), _make_pass_state())
+        assert resp["error"]["code"] == -32602
+
     def test_pass_color_targets(self):
         resp, _ = _handle_request(_req("pass", index=0), _make_pass_state())
         result = resp["result"]
