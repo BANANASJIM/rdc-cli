@@ -2,68 +2,35 @@
 
 Unix-friendly CLI for RenderDoc `.rdc` captures.
 
-## Current status
-
-Phase 0 bootstrap in progress.
-
-Implemented skeleton commands:
-- `rdc --version`
-- `rdc doctor`
-- `rdc capture` (thin wrapper to `renderdoccmd capture`)
-- `rdc capture --list-apis`
-- `rdc open` / `rdc close` / `rdc status` / `rdc goto` (Phase 0 daemon-transport skeleton)
-
-## Development (uv)
+## Install
 
 ```bash
-# one-time
+pip install rdc-cli
+```
+
+## Usage
+
+```bash
+rdc doctor                    # Check environment
+rdc open capture.rdc          # Open capture
+rdc info                     # Capture metadata
+rdc draws                    # List draw calls
+rdc events                   # List all events
+rdc pipeline 142            # Pipeline state at event 142
+rdc shader 142 ps             # Shader disassembly
+rdc resources                # List resources
+rdc passes                   # List render passes
+```
+
+## Development
+
+```bash
 uv sync --extra dev
-
-# run tests
-uv run pytest
-
-# run quality gates
 make check
 ```
 
-## Development (pixi)
-
-```bash
-# one-time shell
-pixi shell
-
-# or run tasks directly
-pixi run sync
-pixi run check
-```
-
-## Build / packaging
-
-```bash
-uv build
-```
-
-## Fixture capture helper
-
-Generate a local fixture with RenderDoc:
-
-```bash
-./scripts/capture_fixture.sh triangle /path/to/your-app [args...]
-```
-
-This writes `tests/fixtures/triangle.rdc`.
-
-## Docker dev image
+## Docker
 
 ```bash
 docker build -t rdc-cli-dev -f docker/Dockerfile .
-docker run --rm -it -v "$PWD":/workspace rdc-cli-dev bash
 ```
-
-## Required CI checks
-
-- lint (ruff)
-- typecheck (mypy)
-- test (pytest, py3.10/3.11/3.12)
-- commitlint (Conventional Commits)
-
