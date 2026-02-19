@@ -21,7 +21,7 @@ class DaemonState:
     cap: Any = None
     structured_file: Any = None
     api_name: str = ""
-    event_count: int = 0
+    max_eid: int = 0
     _eid_cache: int = field(default=-1, repr=False)
 
 
@@ -37,9 +37,10 @@ def _detect_version(rd: Any) -> tuple[int, int]:
 
 def _load_replay(state: DaemonState) -> str | None:
     """Load renderdoc module and open capture. Returns error string or None."""
-    try:
-        import renderdoc as rd  # noqa: F811
-    except ImportError:
+    from rdc.discover import find_renderdoc
+
+    rd = find_renderdoc()
+    if rd is None:
         return "failed to import renderdoc module"
 
     try:
@@ -68,16 +69,27 @@ def _load_replay(state: DaemonState) -> str | None:
     state.structured_file = cap.GetStructuredData()
 
     api_props = state.adapter.get_api_properties()
-    state.api_name = str(getattr(api_props, "pipelineType", "Unknown"))
+    pt = getattr(api_props, "pipelineType", "Unknown")
+    state.api_name = getattr(pt, "name", str(pt))
 
     root_actions = state.adapter.get_root_actions()
-    state.event_count = _count_events(root_actions)
+    state.max_eid = _max_eid(root_actions)
 
     return None
 
 
+def _max_eid(actions: list[Any]) -> int:
+    """Return the maximum eventId in the action tree."""
+    result = 0
+    for a in actions:
+        result = max(result, a.eventId)
+        if a.children:
+            result = max(result, _max_eid(a.children))
+    return result
+
+
 def _count_events(actions: list[Any]) -> int:
-    """Count total events in action tree."""
+    """Count total events in action tree (for display only)."""
     count = 0
     for a in actions:
         count += 1
@@ -90,8 +102,8 @@ def _set_frame_event(state: DaemonState, eid: int) -> str | None:
     """Set frame event with caching. Returns error string or None."""
     if eid < 0:
         return "eid must be >= 0"
-    if state.event_count > 0 and eid > state.event_count:
-        return f"eid {eid} out of range (max: {state.event_count})"
+    if state.max_eid > 0 and eid > state.max_eid:
+        return f"eid {eid} out of range (max: {state.max_eid})"
     if state.adapter is not None:
         if state._eid_cache != eid:
             state.adapter.set_frame_event(eid)
@@ -173,7 +185,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 "capture": state.capture,
                 "current_eid": state.current_eid,
                 "api": state.api_name,
-                "event_count": state.event_count,
+                "event_count": state.max_eid,
             },
         ), True
     if method == "goto":
@@ -525,7 +537,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         for stage in stages:
             stage_val = stage_val_map[stage]
             sid = pipe_state.GetShader(stage_val)
-            sidv = getattr(sid, "value", 0)
+            sidv = int(sid)
             if sidv == 0:
                 continue
 
@@ -619,7 +631,7 @@ def _handle_info(request_id: int, state: DaemonState) -> dict[str, Any]:
         {
             "Capture": state.capture,
             "API": state.api_name,
-            "Events": state.event_count,
+            "Events": len(flat),
             "Draw Calls": (
                 f"{stats.total_draws} "
                 f"({stats.indexed_draws} indexed, "
@@ -738,9 +750,7 @@ def _handle_event_method(
     eid = int(eid)
     action = find_action_by_eid(state.adapter.get_root_actions(), eid)
     if action is None:
-        return _error_response(
-            request_id, -32002, f"eid {eid} out of range (max: {state.event_count})"
-        )
+        return _error_response(request_id, -32002, f"eid {eid} out of range (max: {state.max_eid})")
     sf = state.structured_file
     api_call = "-"
     params_dict: dict[str, Any] = {}
@@ -778,9 +788,7 @@ def _handle_draw_method(
     root_actions = state.adapter.get_root_actions()
     action = find_action_by_eid(root_actions, eid)
     if action is None:
-        return _error_response(
-            request_id, -32002, f"eid {eid} out of range (max: {state.event_count})"
-        )
+        return _error_response(request_id, -32002, f"eid {eid} out of range (max: {state.max_eid})")
     sf = state.structured_file
     flat = walk_actions(root_actions, sf)
     flat_match = [a for a in flat if a.eid == eid]
@@ -816,8 +824,8 @@ def _collect_pipe_states_recursive(
 ) -> None:
     for a in actions:
         flags = int(a.flags)
-        is_draw = bool(flags & 0x0001)
-        is_dispatch = bool(flags & 0x0010)
+        is_draw = bool(flags & 0x0002)
+        is_dispatch = bool(flags & 0x0004)
         if (is_draw or is_dispatch) and state.adapter is not None:
             _set_frame_event(state, a.eventId)
             result[a.eventId] = state.adapter.get_pipeline_state()

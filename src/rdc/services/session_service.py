@@ -28,12 +28,9 @@ def pick_port() -> int:
 
 def _renderdoc_available() -> bool:
     """Check if renderdoc module can be imported."""
-    try:
-        import renderdoc  # noqa: F401
+    from rdc.discover import find_renderdoc
 
-        return True
-    except ImportError:
-        return False
+    return find_renderdoc() is not None
 
 
 def start_daemon(capture: str, port: int, token: str) -> subprocess.Popen[str]:

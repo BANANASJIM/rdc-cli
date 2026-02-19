@@ -31,7 +31,7 @@ def _state_with_adapter() -> DaemonState:
     state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 33))
     state.api_name = "Vulkan"
-    state.event_count = 100
+    state.max_eid = 100
     return state
 
 

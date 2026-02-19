@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import platform
 import shutil
 import sys
@@ -8,6 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import click
+
+from rdc.discover import find_renderdoc
 
 
 @dataclass(frozen=True)
@@ -31,10 +32,9 @@ def _check_platform() -> CheckResult:
 
 
 def _import_renderdoc() -> tuple[Any | None, CheckResult]:
-    try:
-        module = importlib.import_module("renderdoc")
-    except Exception as exc:  # noqa: BLE001
-        return None, CheckResult("renderdoc-module", False, f"import failed: {exc}")
+    module = find_renderdoc()
+    if module is None:
+        return None, CheckResult("renderdoc-module", False, "not found in search paths")
 
     version = getattr(module, "GetVersionString", lambda: "unknown")()
     return module, CheckResult("renderdoc-module", True, f"version={version}")
