@@ -87,22 +87,16 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
 
 @click.command("bindings")
 @click.argument("eid", required=False, type=int)
-@click.option("--set", "descriptor_set", type=int, help="Filter by descriptor set number.")
 @click.option("--binding", "binding_index", type=int, help="Filter by binding index.")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def bindings_cmd(
-    eid: int | None, descriptor_set: int | None, binding_index: int | None, as_json: bool
-) -> None:
+def bindings_cmd(eid: int | None, binding_index: int | None, as_json: bool) -> None:
     """Show bound resources per shader stage.
 
-    EID is the event ID. Use --set to filter by descriptor set,
-    --binding to filter by binding index.
+    EID is the event ID. Use --binding to filter by binding index.
     """
     params: dict[str, Any] = {}
     if eid is not None:
         params["eid"] = eid
-    if descriptor_set is not None:
-        params["set"] = descriptor_set
     if binding_index is not None:
         params["binding"] = binding_index
 
