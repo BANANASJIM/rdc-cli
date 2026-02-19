@@ -108,6 +108,8 @@ def pass_cmd(identifier: str, as_json: bool) -> None:
 
 
 def _format_pass_detail(data: dict[str, Any]) -> None:
+    color_ids = [str(t["id"]) for t in data.get("color_targets", [])]
+    depth = data.get("depth_target")
     kv = {
         "Pass": data.get("name", "-"),
         "Begin EID": data.get("begin_eid", "-"),
@@ -115,6 +117,8 @@ def _format_pass_detail(data: dict[str, Any]) -> None:
         "Draw Calls": data.get("draws", 0),
         "Dispatches": data.get("dispatches", 0),
         "Triangles": data.get("triangles", 0),
+        "Color Targets": ", ".join(color_ids) if color_ids else "-",
+        "Depth Target": depth if depth else "-",
     }
     max_key = max(len(k) for k in kv)
     for key, value in kv.items():

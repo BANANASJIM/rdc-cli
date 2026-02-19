@@ -162,6 +162,8 @@ def test_pass_detail_tsv(monkeypatch) -> None:
     assert "Shadow" in result.output
     assert "10" in result.output
     assert "12000" in result.output
+    assert "Color Targets:" in result.output
+    assert "Depth Target:" in result.output
 
 
 def test_pass_detail_by_name(monkeypatch) -> None:
