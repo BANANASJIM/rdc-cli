@@ -252,18 +252,25 @@ def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _resource_row(r: Any) -> dict[str, Any]:
+    fmt = getattr(r, "format", None)
+    return {
+        "id": _rid(getattr(r, "resourceId", 0)),
+        "name": getattr(r, "name", ""),
+        "type": str(getattr(r, "type", "")),
+        "width": getattr(r, "width", 0),
+        "height": getattr(r, "height", 0),
+        "depth": getattr(r, "depth", 0),
+        "format": getattr(fmt, "name", "") if fmt else "",
+    }
+
+
 def get_resources(adapter: Any) -> list[dict[str, Any]]:
     """Get all resources from the capture."""
     resources = adapter.get_resources()
     rows: list[dict[str, Any]] = []
     for r in resources:
-        rows.append(
-            {
-                "id": _rid(getattr(r, "resourceId", 0)),
-                "name": getattr(r, "name", ""),
-                "type": str(getattr(r, "type", "")),
-            }
-        )
+        rows.append(_resource_row(r))
     return rows
 
 
@@ -272,11 +279,7 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
     resources = adapter.get_resources()
     for r in resources:
         if _rid(getattr(r, "resourceId", 0)) == resid:
-            return {
-                "id": _rid(getattr(r, "resourceId", 0)),
-                "name": getattr(r, "name", ""),
-                "type": str(getattr(r, "type", "")),
-            }
+            return _resource_row(r)
     return None
 
 

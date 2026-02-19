@@ -20,7 +20,7 @@ Phase 1 Week 5 requires full shader inspection capabilities: reflection, constan
 - Add `rdc pipeline [eid] [section]` - show pipeline state (ia/vs/hs/ds/gs/rs/ps/om/cs)
 
 ### Bindings Commands
-- Add `rdc bindings [eid] [--set N] [--binding N]` - descriptor set details
+- Add `rdc bindings [eid] [--binding N]` - bound resource details
 
 ### Backend
 - Add daemon JSON-RPC handlers for new queries

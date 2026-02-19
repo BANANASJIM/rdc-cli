@@ -28,8 +28,8 @@ Validate extended shader, pipeline, and bindings inspection features across serv
 8. `rdc shaders` returns all unique shaders in frame
 9. `rdc pipeline` returns full pipeline state
 10. `rdc pipeline <eid> vs` returns VS stage only
-11. `rdc bindings` returns all descriptor sets
-12. `rdc bindings --set 0` returns set 0 only
+11. `rdc bindings` returns all bindings
+12. `rdc bindings --binding 0` returns binding 0 only
 
 ## Failure Cases
 1. No active session -> error + nonzero exit
@@ -38,7 +38,7 @@ Validate extended shader, pipeline, and bindings inspection features across serv
 4. No debug info for --source -> fallback to disasm
 5. Invalid --target format -> error with available formats
 6. Invalid pipeline section -> error with available sections
-7. Invalid --set value -> error
+7. Invalid --binding value -> error
 
 ## Assertions
 - Output format matches design doc examples

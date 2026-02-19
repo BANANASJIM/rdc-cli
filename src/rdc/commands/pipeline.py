@@ -190,19 +190,19 @@ def shader_cmd(
     # Handle list_targets specially - just show available targets and return
     if list_targets:
         result = _call("shader_targets", {})
-        targets_list: list[dict[str, Any]] = result.get("targets", [])
+        targets_list: list[str] = result.get("targets", [])
         if as_json:
             write_json(targets_list)
             return
-        click.echo(format_row(["TARGET", "DESCRIPTION"]))
+        click.echo(format_row(["TARGET"]))
         for t in targets_list:
-            click.echo(format_row([t.get("name", "-"), t.get("description", "-")]))
+            click.echo(format_row([t]))
         return
 
     # Handle --all - get all shaders
     if get_all:
         result = _call("shader_all", params)
-        rows: list[dict[str, Any]] = result.get("rows", [])
+        rows: list[dict[str, Any]] = result.get("stages", [])
         if as_json:
             write_json(rows)
             return

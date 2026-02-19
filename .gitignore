@@ -11,3 +11,4 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+CLAUDE.md

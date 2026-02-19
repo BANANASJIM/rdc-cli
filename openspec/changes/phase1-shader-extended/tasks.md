@@ -19,7 +19,6 @@
   - `section` (argument, optional)
 - [ ] 1.4 Add new command `rdc bindings` with options:
   - `eid` (argument)
-  - `--set` (option)
   - `--binding` (option)
 - [ ] 1.5 Update CLI handler to pass new options to daemon
 

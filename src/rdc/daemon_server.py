@@ -279,27 +279,6 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             return _error_response(request_id, -32002, "no replay loaded"), True
         from rdc.services.query_service import get_resources
 
-        # get_resources needs raw controller because it calls GetResources()
-        # Adapter exposes get_resources() too.
-        # Let's check adapter.py
-        resources = state.adapter.get_resources()  # This returns list[ResourceDescription]
-        # But query_service.get_resources takes controller.
-        # I should update query_service to take list[ResourceDescription] or adapter.
-        # Actually query_service.get_resources calls controller.GetResources().
-        # Let's pass the controller.
-        # state.adapter.controller is available?
-        # Adapter wraps controller.
-
-        # Actually, let's look at adapter.py again.
-        # It has get_resources().
-        # I should probably update query_service.get_resources to take the list of resources,
-        # or pass the adapter.
-
-        # Current query_service.get_resources implementation:
-        # def get_resources(controller: Any) -> list[dict[str, Any]]:
-        #    resources = controller.GetResources()
-
-        # It expects an object with GetResources(). Adapter has it.
         rows = get_resources(state.adapter)
         return _result_response(request_id, {"rows": rows}), True
 
@@ -309,7 +288,6 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         from rdc.services.query_service import get_resource_detail
 
         resid = int(params.get("id", 0))
-        # Same here, expects object with GetResources()
         detail = get_resource_detail(state.adapter, resid)
         if detail is None:
             return _error_response(request_id, -32001, "resource not found"), True
@@ -321,22 +299,19 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         from rdc.services.query_service import get_pass_hierarchy
 
         actions = state.adapter.get_root_actions()
-        # get_pass_hierarchy takes list[Action]
         tree = get_pass_hierarchy(actions)
         return _result_response(request_id, {"tree": tree}), True
 
-    # === Phase 2: Shader Extended Handlers ===
     if method == "shader_targets":
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True
-        # Get available disassembly targets from the controller
         controller = state.adapter.controller
         if hasattr(controller, "GetDisassemblyTargets"):
             targets = controller.GetDisassemblyTargets()
             target_list = [str(t) for t in targets]
         else:
             # Fallback for older RenderDoc versions
-            target_list = ["DXIL", "DX", "SPIRBC-V", "GLSL"]
+            target_list = ["DXIL", "DX", "SPIR-V", "GLSL"]
         return _result_response(request_id, {"targets": target_list}), True
 
     if method == "shader_reflect":
