@@ -3,6 +3,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from click.testing import CliRunner
+
+from rdc.cli import main
 from rdc.daemon_server import DaemonState, _handle_request
 from rdc.services.query_service import bindings_rows, pipeline_row, shader_inventory, shader_row
 
@@ -111,3 +114,58 @@ def test_daemon_shader_invalid_stage() -> None:
         state,
     )
     assert resp["error"]["code"] == -32602
+
+
+def test_cli_pipeline_no_session(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import rdc.commands.pipeline as pipeline_mod
+
+    monkeypatch.setattr(pipeline_mod, "load_session", lambda: None)
+    runner = CliRunner()
+    result = runner.invoke(main, ["pipeline"])
+    assert result.exit_code == 1
+
+
+def test_cli_pipeline_json_output(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import rdc.commands.pipeline as pipeline_mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(pipeline_mod, "load_session", lambda: session)
+    monkeypatch.setattr(
+        pipeline_mod,
+        "send_request",
+        lambda _h, _p, _payload: {"result": {"row": {"eid": 10, "api": "Vulkan"}}},
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["pipeline", "--json"])
+    assert result.exit_code == 0
+    assert '"eid": 10' in result.output
+
+
+def test_cli_shader_invalid_stage(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import rdc.commands.pipeline as pipeline_mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(pipeline_mod, "load_session", lambda: session)
+    monkeypatch.setattr(
+        pipeline_mod,
+        "send_request",
+        lambda _h, _p, _payload: {"error": {"message": "invalid stage"}},
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["shader", "1", "ps"])
+    assert result.exit_code == 1
+
+
+def test_cli_pipeline_replay_unavailable(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    import rdc.commands.pipeline as pipeline_mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(pipeline_mod, "load_session", lambda: session)
+    monkeypatch.setattr(
+        pipeline_mod,
+        "send_request",
+        lambda _h, _p, _payload: {"error": {"message": "no replay loaded"}},
+    )
+    runner = CliRunner()
+    result = runner.invoke(main, ["pipeline"])
+    assert result.exit_code == 1

@@ -7,6 +7,7 @@ from typing import Any, cast
 import click
 
 from rdc.daemon_client import send_request
+from rdc.formatters.json_fmt import write_json
 from rdc.formatters.tsv import format_row
 from rdc.protocol import _request
 from rdc.session_state import load_session
@@ -35,7 +36,8 @@ def _call(method: str, params: dict[str, Any]) -> dict[str, Any]:
 @click.command("pipeline")
 @click.argument("eid", required=False, type=int)
 @click.argument("section", required=False)
-def pipeline_cmd(eid: int | None, section: str | None) -> None:
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
     """Show pipeline summary for current or specified EID."""
     params: dict[str, Any] = {}
     if eid is not None:
@@ -45,6 +47,9 @@ def pipeline_cmd(eid: int | None, section: str | None) -> None:
 
     result = _call("pipeline", params)
     row = result.get("row", {})
+    if as_json:
+        write_json(row)
+        return
     click.echo(format_row(["EID", "API", "TOPOLOGY", "GFX_PIPE", "COMP_PIPE"]))
     click.echo(
         format_row(
@@ -61,13 +66,17 @@ def pipeline_cmd(eid: int | None, section: str | None) -> None:
 
 @click.command("bindings")
 @click.argument("eid", required=False, type=int)
-def bindings_cmd(eid: int | None) -> None:
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+def bindings_cmd(eid: int | None, as_json: bool) -> None:
     """Show bound resources per shader stage."""
     params: dict[str, Any] = {}
     if eid is not None:
         params["eid"] = eid
     result = _call("bindings", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
+    if as_json:
+        write_json(rows)
+        return
 
     click.echo(format_row(["EID", "STAGE", "KIND", "SLOT", "NAME"]))
     for row in rows:
@@ -87,7 +96,8 @@ def bindings_cmd(eid: int | None) -> None:
 @click.command("shader")
 @click.argument("eid", required=False, type=int)
 @click.argument("stage", required=False, type=click.Choice(_STAGE_CHOICES, case_sensitive=False))
-def shader_cmd(eid: int | None, stage: str | None) -> None:
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+def shader_cmd(eid: int | None, stage: str | None, as_json: bool) -> None:
     """Show shader metadata for a stage at EID."""
     params: dict[str, Any] = {}
     if eid is not None:
@@ -97,6 +107,9 @@ def shader_cmd(eid: int | None, stage: str | None) -> None:
 
     result = _call("shader", params)
     row = result.get("row", {})
+    if as_json:
+        write_json(row)
+        return
     click.echo(format_row(["EID", "STAGE", "SHADER", "ENTRY", "RO", "RW", "CBUFFERS"]))
     click.echo(
         format_row(
@@ -114,10 +127,14 @@ def shader_cmd(eid: int | None, stage: str | None) -> None:
 
 
 @click.command("shaders")
-def shaders_cmd() -> None:
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+def shaders_cmd(as_json: bool) -> None:
     """List unique shaders in capture."""
     result = _call("shaders", {})
     rows: list[dict[str, Any]] = result.get("rows", [])
+    if as_json:
+        write_json(rows)
+        return
     click.echo(format_row(["SHADER", "STAGES", "USES"]))
     for row in rows:
         click.echo(format_row([row.get("shader", "-"), row.get("stages", "-"), row.get("uses", 0)]))
