@@ -82,7 +82,7 @@ def _make_state():
     state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
     state.structured_file = sf
     state.api_name = "Vulkan"
-    state.event_count = 300
+    state.max_eid = 300
     return state
 
 

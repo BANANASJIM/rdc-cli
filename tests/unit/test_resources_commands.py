@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
-from rdc.commands.resources import resource_cmd, resources_cmd
+from rdc.commands.resources import passes_cmd, resource_cmd, resources_cmd
 
 
 def _patch_resources(monkeypatch, response):
@@ -111,4 +111,33 @@ def test_resource_error(monkeypatch) -> None:
         mod, "send_request", lambda _h, _p, _payload: {"error": {"message": "resource not found"}}
     )
     result = CliRunner().invoke(resource_cmd, ["999"])
+    assert result.exit_code == 1
+
+
+def test_passes_tsv(monkeypatch) -> None:
+    _patch_resources(
+        monkeypatch,
+        {"tree": {"passes": [{"name": "Shadow", "draws": 3}, {"name": "Main", "draws": 12}]}},
+    )
+    result = CliRunner().invoke(passes_cmd, [])
+    assert result.exit_code == 0
+    assert "Shadow" in result.output
+    assert "Main" in result.output
+
+
+def test_passes_json(monkeypatch) -> None:
+    _patch_resources(
+        monkeypatch,
+        {"tree": {"passes": [{"name": "Shadow", "draws": 3}]}},
+    )
+    result = CliRunner().invoke(passes_cmd, ["--json"])
+    assert result.exit_code == 0
+    assert '"Shadow"' in result.output
+
+
+def test_passes_no_session(monkeypatch) -> None:
+    import rdc.commands.resources as mod
+
+    monkeypatch.setattr(mod, "load_session", lambda: None)
+    result = CliRunner().invoke(passes_cmd, [])
     assert result.exit_code == 1

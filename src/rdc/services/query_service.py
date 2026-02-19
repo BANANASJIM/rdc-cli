@@ -11,14 +11,14 @@ import fnmatch
 from dataclasses import dataclass, field
 from typing import Any
 
-# ActionFlags constants (matching renderdoc)
-_DRAWCALL = 0x0001
-_INDEXED = 0x0002
-_DISPATCH = 0x0010
-_CLEAR = 0x0020
-_COPY = 0x0040
-_BEGIN_PASS = 0x2000
-_END_PASS = 0x4000
+# ActionFlags constants (matching renderdoc v1.41)
+_CLEAR = 0x0001
+_DRAWCALL = 0x0002
+_DISPATCH = 0x0004
+_COPY = 0x0400
+_INDEXED = 0x10000
+_BEGIN_PASS = 0x400000
+_END_PASS = 0x800000
 
 _STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
 
@@ -29,7 +29,7 @@ _VALID_COUNT_TARGETS = frozenset(
 
 def _rid(value: Any) -> int:
     """Extract resource ID from a renderdoc object."""
-    return int(getattr(value, "value", 0))
+    return int(value)
 
 
 # ---------------------------------------------------------------------------
@@ -301,10 +301,11 @@ def _collect_recursive(
                 row: dict[str, Any] = {"eid": eid}
                 for stage_val, col in stage_cols.items():
                     sid = state.GetShader(stage_val)
-                    if getattr(sid, "value", 0) == 0:
+                    sid_int = int(sid)
+                    if sid_int == 0:
                         row[col] = "-"
                     else:
-                        row[col] = sid.value
+                        row[col] = sid_int
                 rows.append(row)
         if a.children:
             _collect_recursive(a.children, pipe_states, rows)
@@ -349,7 +350,7 @@ def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
                     "eid": eid,
                     "stage": stage_name,
                     "kind": "ro",
-                    "slot": r.bindPoint,
+                    "slot": getattr(r, "fixedBindNumber", getattr(r, "bindPoint", 0)),
                     "name": r.name,
                 }
             )
@@ -359,7 +360,7 @@ def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
                     "eid": eid,
                     "stage": stage_name,
                     "kind": "rw",
-                    "slot": r.bindPoint,
+                    "slot": getattr(r, "fixedBindNumber", getattr(r, "bindPoint", 0)),
                     "name": r.name,
                 }
             )
@@ -388,7 +389,7 @@ def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
     for _eid, state in pipe_states.items():
         for stage_name, stage_val in _STAGE_MAP.items():
             sid = state.GetShader(stage_val)
-            sidv = getattr(sid, "value", 0)
+            sidv = int(sid)
             if sidv == 0:
                 continue
             if sidv not in inv:
