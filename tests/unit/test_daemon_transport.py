@@ -16,6 +16,28 @@ def _pick_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _start_daemon(
+    port: int, token: str, *, idle_timeout: int | None = None
+) -> subprocess.Popen[bytes]:
+    cmd = [
+        sys.executable,
+        "-m",
+        "rdc.daemon_server",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--capture",
+        "capture.rdc",
+        "--token",
+        token,
+        "--no-replay",
+    ]
+    if idle_timeout is not None:
+        cmd += ["--idle-timeout", str(idle_timeout)]
+    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def _wait_ready(port: int, token: str, timeout_s: float = 2.0) -> None:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -31,23 +53,7 @@ def _wait_ready(port: int, token: str, timeout_s: float = 2.0) -> None:
 def test_daemon_status_goto_and_shutdown() -> None:
     port = _pick_port()
     token = secrets.token_hex(8)
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "rdc.daemon_server",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--capture",
-            "capture.rdc",
-            "--token",
-            token,
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    proc = _start_daemon(port, token)
 
     try:
         _wait_ready(port, token)
@@ -69,25 +75,7 @@ def test_daemon_status_goto_and_shutdown() -> None:
 def test_daemon_idle_timeout_exits() -> None:
     port = _pick_port()
     token = secrets.token_hex(8)
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "rdc.daemon_server",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--capture",
-            "capture.rdc",
-            "--token",
-            token,
-            "--idle-timeout",
-            "1",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    proc = _start_daemon(port, token, idle_timeout=1)
 
     _wait_ready(port, token)
     proc.wait(timeout=3)
@@ -97,23 +85,7 @@ def test_daemon_idle_timeout_exits() -> None:
 def test_daemon_rejects_invalid_token() -> None:
     port = _pick_port()
     token = secrets.token_hex(8)
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "rdc.daemon_server",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--capture",
-            "capture.rdc",
-            "--token",
-            token,
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    proc = _start_daemon(port, token)
 
     try:
         _wait_ready(port, token)
