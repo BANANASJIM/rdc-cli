@@ -76,6 +76,7 @@ def _make_state():
         GetPipelineState=lambda: SimpleNamespace(),
         SetFrameEvent=lambda eid, force: None,
         GetStructuredFile=lambda: sf,
+        GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
     state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
@@ -242,6 +243,29 @@ def _make_pass_state():
     return state
 
 
+def _make_log_state(messages=None):
+    """State with debug messages for log handler tests."""
+    actions = _build_actions()
+    sf = _build_sf()
+    msgs = messages or []
+    controller = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: SimpleNamespace(),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        GetDebugMessages=lambda: msgs,
+        Shutdown=lambda: None,
+    )
+    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    state.structured_file = sf
+    state.api_name = "Vulkan"
+    state.max_eid = 300
+    return state
+
+
 class TestPassHandler:
     def test_pass_by_index(self):
         resp, _ = _handle_request(_req("pass", index=0), _make_pass_state())
@@ -286,3 +310,47 @@ class TestPassHandler:
         assert len(result["color_targets"]) == 1
         assert result["color_targets"][0]["id"] == 10
         assert result["depth_target"] == 20
+
+
+class TestLogHandler:
+    def test_log_messages(self):
+        msgs = [
+            SimpleNamespace(severity=0, eventId=0, description="validation error"),
+            SimpleNamespace(severity=3, eventId=42, description="info message"),
+        ]
+        resp, _ = _handle_request(_req("log"), _make_log_state(msgs))
+        result = resp["result"]["messages"]
+        assert len(result) == 2
+        assert result[0]["level"] == "HIGH"
+        assert result[0]["eid"] == 0
+        assert result[1]["level"] == "INFO"
+        assert result[1]["eid"] == 42
+
+    def test_log_filter_level(self):
+        msgs = [
+            SimpleNamespace(severity=0, eventId=0, description="error"),
+            SimpleNamespace(severity=3, eventId=10, description="info"),
+        ]
+        resp, _ = _handle_request(_req("log", level="HIGH"), _make_log_state(msgs))
+        result = resp["result"]["messages"]
+        assert len(result) == 1
+        assert result[0]["level"] == "HIGH"
+
+    def test_log_filter_eid(self):
+        msgs = [
+            SimpleNamespace(severity=0, eventId=0, description="global"),
+            SimpleNamespace(severity=1, eventId=42, description="at eid 42"),
+        ]
+        resp, _ = _handle_request(_req("log", eid=42), _make_log_state(msgs))
+        result = resp["result"]["messages"]
+        assert len(result) == 1
+        assert result[0]["eid"] == 42
+
+    def test_log_empty(self):
+        resp, _ = _handle_request(_req("log"), _make_log_state([]))
+        assert resp["result"]["messages"] == []
+
+    def test_log_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(_req("log"), state)
+        assert resp["error"]["code"] == -32002

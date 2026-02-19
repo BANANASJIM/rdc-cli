@@ -343,6 +343,24 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             detail["color_targets"] = []
             detail["depth_target"] = None
         return _result_response(request_id, detail), True
+    if method == "log":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        controller = state.adapter.controller
+        severity_map = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"}
+        level_filter = params.get("level")
+        eid_filter = params.get("eid")
+        msgs = controller.GetDebugMessages() if hasattr(controller, "GetDebugMessages") else []
+        rows: list[dict[str, Any]] = []
+        for m in msgs:
+            lvl = severity_map.get(int(m.severity), "UNKNOWN")
+            eid = int(m.eventId) if m.eventId > 0 else 0
+            if level_filter and lvl != str(level_filter).upper():
+                continue
+            if eid_filter is not None and eid != int(eid_filter):
+                continue
+            rows.append({"level": lvl, "eid": eid, "message": m.description})
+        return _result_response(request_id, {"messages": rows}), True
 
     if method == "shader_targets":
         if state.adapter is None:

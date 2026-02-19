@@ -1,4 +1,4 @@
-"""Commands: rdc info, rdc stats."""
+"""Commands: rdc info, rdc stats, rdc log."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import click
 
 from rdc.daemon_client import send_request
 from rdc.formatters.json_fmt import write_json
-from rdc.formatters.tsv import write_tsv
+from rdc.formatters.tsv import format_row, write_tsv
 from rdc.session_state import load_session
 
 
@@ -90,3 +90,24 @@ def stats_cmd(use_json: bool, no_header: bool) -> None:
         header_d = ["EID", "MARKER", "TRIANGLES"]
         rows_d = [[d["eid"], d.get("marker", "-"), d["triangles"]] for d in top_draws]
         write_tsv(rows_d, header=header_d, no_header=no_header)
+
+
+@click.command("log")
+@click.option("--level", default=None, help="Filter by severity (HIGH/MEDIUM/LOW/INFO).")
+@click.option("--eid", default=None, type=int, help="Filter by event ID.")
+@click.option("--json", "use_json", is_flag=True, help="JSON output")
+def log_cmd(level: str | None, eid: int | None, use_json: bool) -> None:
+    """Show debug/validation messages from the capture."""
+    rpc_params: dict[str, Any] = {}
+    if level is not None:
+        rpc_params["level"] = level
+    if eid is not None:
+        rpc_params["eid"] = eid
+    result = _daemon_call("log", rpc_params if rpc_params else None)
+    messages = result.get("messages", [])
+    if use_json:
+        write_json(messages)
+        return
+    click.echo(format_row(["LEVEL", "EID", "MESSAGE"]))
+    for m in messages:
+        click.echo(format_row([m.get("level", "-"), m.get("eid", 0), m.get("message", "-")]))
