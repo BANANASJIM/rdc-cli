@@ -1,4 +1,4 @@
-"""Tests for daemon JSON-RPC handlers: info, stats, events, draws, event, draw."""
+"""Tests for daemon JSON-RPC handlers: info, stats, events, draws, event, draw, pass."""
 
 from __future__ import annotations
 
@@ -205,3 +205,80 @@ class TestDrawHandler:
     def test_draw_not_found(self):
         resp, _ = _handle_request(_req("draw", eid=99999), _make_state())
         assert resp["error"]["code"] == -32002
+
+
+class _IntLike:
+    """Helper that supports int() conversion for resource IDs."""
+
+    def __init__(self, val: int) -> None:
+        self._val = val
+
+    def __int__(self) -> int:
+        return self._val
+
+
+def _make_pass_state():
+    """State with output targets on pipeline for pass detail tests."""
+    actions = _build_actions()
+    sf = _build_sf()
+    pipe = SimpleNamespace(
+        GetOutputTargets=lambda: [SimpleNamespace(resource=_IntLike(10))],
+        GetDepthTarget=lambda: SimpleNamespace(resource=_IntLike(20)),
+    )
+    controller = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: pipe,
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        Shutdown=lambda: None,
+    )
+    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    state.structured_file = sf
+    state.api_name = "Vulkan"
+    state.max_eid = 300
+    return state
+
+
+class TestPassHandler:
+    def test_pass_by_index(self):
+        resp, _ = _handle_request(_req("pass", index=0), _make_pass_state())
+        result = resp["result"]
+        assert result["name"] == "Shadow"
+        assert result["begin_eid"] == 10
+        assert result["draws"] == 1
+        assert result["triangles"] == 1200
+
+    def test_pass_by_name(self):
+        resp, _ = _handle_request(_req("pass", name="Shadow"), _make_pass_state())
+        assert resp["result"]["name"] == "Shadow"
+
+    def test_pass_by_name_case_insensitive(self):
+        resp, _ = _handle_request(_req("pass", name="shadow"), _make_pass_state())
+        assert resp["result"]["name"] == "Shadow"
+
+    def test_pass_not_found_index(self):
+        resp, _ = _handle_request(_req("pass", index=999), _make_pass_state())
+        assert resp["error"]["code"] == -32001
+
+    def test_pass_not_found_name(self):
+        resp, _ = _handle_request(_req("pass", name="NoSuch"), _make_pass_state())
+        assert resp["error"]["code"] == -32001
+
+    def test_pass_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(_req("pass", index=0), state)
+        assert resp["error"]["code"] == -32002
+
+    def test_pass_missing_params(self):
+        resp, _ = _handle_request(_req("pass"), _make_pass_state())
+        assert resp["error"]["code"] == -32602
+
+    def test_pass_color_targets(self):
+        resp, _ = _handle_request(_req("pass", index=0), _make_pass_state())
+        result = resp["result"]
+        assert len(result["color_targets"]) == 1
+        assert result["color_targets"][0]["id"] == 10
+        assert result["depth_target"] == 20

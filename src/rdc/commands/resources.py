@@ -88,3 +88,35 @@ def passes_cmd(as_json: bool) -> None:
     click.echo(format_row(["NAME", "DRAWS"]))
     for p in passes:
         click.echo(format_row([p.get("name", "-"), p.get("draws", 0)]))
+
+
+@click.command("pass")
+@click.argument("identifier")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+def pass_cmd(identifier: str, as_json: bool) -> None:
+    """Show detail for a single render pass by index or name."""
+    params: dict[str, Any] = {}
+    try:
+        params["index"] = int(identifier)
+    except ValueError:
+        params["name"] = identifier
+    result = _call("pass", params)
+    if as_json:
+        write_json(result)
+        return
+    _format_pass_detail(result)
+
+
+def _format_pass_detail(data: dict[str, Any]) -> None:
+    kv = {
+        "Pass": data.get("name", "-"),
+        "Begin EID": data.get("begin_eid", "-"),
+        "End EID": data.get("end_eid", "-"),
+        "Draw Calls": data.get("draws", 0),
+        "Dispatches": data.get("dispatches", 0),
+        "Triangles": data.get("triangles", 0),
+    }
+    max_key = max(len(k) for k in kv)
+    for key, value in kv.items():
+        label = key + ":"
+        click.echo(f"{label:<{max_key + 2}}{value}")

@@ -97,3 +97,11 @@ class TestDaemonHandlersReal:
         result = _call(self.state, "passes")
         tree = result["tree"]
         assert len(tree["passes"]) >= 1
+
+    def test_pass_detail(self) -> None:
+        result = _call(self.state, "pass", {"index": 0})
+        assert "name" in result
+        assert "begin_eid" in result
+        assert "end_eid" in result
+        assert "draws" in result
+        assert result["draws"] >= 0
