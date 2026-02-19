@@ -19,6 +19,7 @@ from rdc.services.query_service import (
     filter_by_pattern,
     filter_by_type,
     find_action_by_eid,
+    get_pass_detail,
     get_top_draws,
     walk_actions,
 )
@@ -220,3 +221,40 @@ class TestGetTopDraws:
 
     def test_top_is_largest(self):
         assert get_top_draws(walk_actions(_build_action_tree()), limit=1)[0].eid == 142
+
+
+class TestGetPassDetail:
+    def test_by_index(self):
+        result = get_pass_detail(_build_action_tree(), None, 0)
+        assert result is not None
+        assert result["name"] == "Shadow"
+        assert result["begin_eid"] == 10
+        assert result["draws"] == 2
+
+    def test_by_name(self):
+        result = get_pass_detail(_build_action_tree(), None, "GBuffer")
+        assert result is not None
+        assert result["name"] == "GBuffer"
+
+    def test_by_name_case_insensitive(self):
+        assert get_pass_detail(_build_action_tree(), None, "gbuffer") is not None
+
+    def test_index_out_of_range(self):
+        assert get_pass_detail(_build_action_tree(), None, 999) is None
+
+    def test_name_not_found(self):
+        assert get_pass_detail(_build_action_tree(), None, "NoSuch") is None
+
+    def test_empty_actions(self):
+        assert get_pass_detail([], None, 0) is None
+
+    def test_end_eid_includes_children(self):
+        result = get_pass_detail(_build_action_tree(), None, 0)
+        assert result is not None
+        assert result["end_eid"] >= 50
+
+    def test_triangles_counted(self):
+        result = get_pass_detail(_build_action_tree(), None, 0)
+        assert result is not None
+        # shadow has draws with numIndices=3600 and 2400 → 1200+800 tris
+        assert result["triangles"] == 2000

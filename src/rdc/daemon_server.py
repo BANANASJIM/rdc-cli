@@ -331,13 +331,14 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         err = _set_frame_event(state, detail["begin_eid"])
         if err is None:
             pipe = state.adapter.get_pipeline_state()
-            color_targets = [
+            detail["color_targets"] = [
                 {"id": int(t.resource)} for t in pipe.GetOutputTargets() if int(t.resource) != 0
             ]
-            depth_res = pipe.GetDepthTarget()
-            depth_id = int(depth_res.resource)
-            detail["color_targets"] = color_targets
+            depth_id = int(pipe.GetDepthTarget().resource)
             detail["depth_target"] = depth_id if depth_id != 0 else None
+        else:
+            detail["color_targets"] = []
+            detail["depth_target"] = None
         return _result_response(request_id, detail), True
 
     if method == "shader_targets":

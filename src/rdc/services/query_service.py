@@ -527,8 +527,8 @@ def _build_pass_list_recursive(
 
 def get_pass_detail(
     actions: list[Any],
-    sf: Any,
-    identifier: int | str,
+    sf: Any = None,
+    identifier: int | str = 0,
 ) -> dict[str, Any] | None:
     """Get detail for a single pass by index (int) or name (str)."""
     passes = _build_pass_list(actions, sf)
