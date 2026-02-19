@@ -2,7 +2,7 @@
 
 Provides helpers for walking the RenderDoc action tree, filtering
 events by type/pass/pattern, and aggregating per-pass statistics.
-Also includes count and shader-map helpers for rdc count / rdc shader-map.
+Also includes count, shader-map, pipeline, resource and pass helpers.
 """
 
 from __future__ import annotations
@@ -10,6 +10,31 @@ from __future__ import annotations
 import fnmatch
 from dataclasses import dataclass, field
 from typing import Any
+
+# ActionFlags constants (matching renderdoc)
+_DRAWCALL = 0x0001
+_INDEXED = 0x0002
+_DISPATCH = 0x0010
+_CLEAR = 0x0020
+_COPY = 0x0040
+_BEGIN_PASS = 0x2000
+_END_PASS = 0x4000
+
+_STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+
+_VALID_COUNT_TARGETS = frozenset(
+    {"draws", "events", "resources", "triangles", "passes", "dispatches", "clears"}
+)
+
+
+def _rid(value: Any) -> int:
+    """Extract resource ID from a renderdoc object."""
+    return int(getattr(value, "value", 0))
+
+
+# ---------------------------------------------------------------------------
+# Action tree walking / filtering / stats
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -53,21 +78,6 @@ class CaptureStats:
     barriers: int = 0
     total_triangles: int = 0
     per_pass: list[PassStats] = field(default_factory=list)
-
-
-# ActionFlags constants (matching mock_renderdoc)
-_DRAWCALL = 0x0001
-_INDEXED = 0x0002
-_DISPATCH = 0x0010
-_CLEAR = 0x0020
-_COPY = 0x0040
-_PASS_BOUNDARY = 0x1000
-_BEGIN_PASS = 0x2000
-_END_PASS = 0x4000
-
-_VALID_COUNT_TARGETS = frozenset(
-    {"draws", "events", "resources", "triangles", "passes", "dispatches", "clears"}
-)
 
 
 def walk_actions(
@@ -116,11 +126,6 @@ def walk_actions(
             current_pass = "-"
 
     return result
-
-
-def flatten_actions(actions: list[Any], sf: Any = None) -> list[FlatAction]:
-    """Alias for walk_actions."""
-    return walk_actions(actions, sf)
 
 
 def filter_by_type(flat: list[FlatAction], action_type: str) -> list[FlatAction]:
@@ -275,45 +280,203 @@ def collect_shader_map(
     actions: list[Any],
     pipe_states: dict[int, Any],
 ) -> list[dict[str, Any]]:
-    """Build EID -> shader ID mapping table.
+    """Collect shader-map rows from draw/dispatch actions."""
+    rows: list[dict[str, Any]] = []
+    _collect_recursive(actions, pipe_states, rows)
+    return rows
 
-    Args:
-        actions: Root action list.
-        pipe_states: Dict mapping eid to pipeline state object.
 
-    Returns:
-        List of dicts with keys: eid, vs, ps, cs.
-    """
-    flat = walk_actions(actions)
-    draws = [a for a in flat if a.flags & (_DRAWCALL | _DISPATCH)]
-    rows = []
+def _collect_recursive(
+    actions: list[Any],
+    pipe_states: dict[int, Any],
+    rows: list[dict[str, Any]],
+) -> None:
+    stage_cols = {0: "vs", 1: "hs", 2: "ds", 3: "gs", 4: "ps", 5: "cs"}
+    for a in actions:
+        flags = int(a.flags)
+        if (flags & _DRAWCALL) or (flags & _DISPATCH):
+            eid = a.eventId
+            state = pipe_states.get(eid)
+            if state is not None:
+                row: dict[str, Any] = {"eid": eid}
+                for stage_val, col in stage_cols.items():
+                    sid = state.GetShader(stage_val)
+                    if getattr(sid, "value", 0) == 0:
+                        row[col] = "-"
+                    else:
+                        row[col] = sid.value
+                rows.append(row)
+        if a.children:
+            _collect_recursive(a.children, pipe_states, rows)
 
-    for a in draws:
-        state = pipe_states.get(a.eid)
-        if state is None:
+
+# ---------------------------------------------------------------------------
+# Pipeline / shader helpers (used by daemon pipeline/shader/bindings handlers)
+# ---------------------------------------------------------------------------
+
+
+def pipeline_row(
+    eid: int,
+    api_name: str,
+    pipe_state: Any,
+    *,
+    section: str | None = None,
+) -> dict[str, Any]:
+    """Get pipeline state row for an event."""
+    row: dict[str, Any] = {
+        "eid": eid,
+        "api": api_name,
+        "topology": str(pipe_state.GetPrimitiveTopology()),
+        "graphics_pipeline": _rid(pipe_state.GetGraphicsPipelineObject()),
+        "compute_pipeline": _rid(pipe_state.GetComputePipelineObject()),
+    }
+    if section is not None and section in _STAGE_MAP:
+        row["section"] = section
+        row["section_detail"] = shader_row(eid, pipe_state, section)
+    return row
+
+
+def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
+    """Get descriptor binding rows for all shader stages."""
+    rows: list[dict[str, Any]] = []
+    for stage_name, stage_val in _STAGE_MAP.items():
+        refl = pipe_state.GetShaderReflection(stage_val)
+        if refl is None:
             continue
+        for r in getattr(refl, "readOnlyResources", []):
+            rows.append(
+                {
+                    "eid": eid,
+                    "stage": stage_name,
+                    "kind": "ro",
+                    "slot": r.bindPoint,
+                    "name": r.name,
+                }
+            )
+        for r in getattr(refl, "readWriteResources", []):
+            rows.append(
+                {
+                    "eid": eid,
+                    "stage": stage_name,
+                    "kind": "rw",
+                    "slot": r.bindPoint,
+                    "name": r.name,
+                }
+            )
+    return rows
 
-        def _shader_id(stage: int, _state: Any = state) -> Any:
-            try:
-                rid = _state.GetShader(stage)
-                if rid is None or (hasattr(rid, "value") and rid.value == 0):
-                    return "-"
-                if hasattr(rid, "value"):
-                    return rid.value
-                return rid
-            except Exception:
-                return "-"
 
+def shader_row(eid: int, pipe_state: Any, stage_name: str) -> dict[str, Any]:
+    """Get shader metadata row for a specific stage."""
+    stage_val = _STAGE_MAP[stage_name]
+    sid = pipe_state.GetShader(stage_val)
+    refl = pipe_state.GetShaderReflection(stage_val)
+    return {
+        "eid": eid,
+        "stage": stage_name,
+        "shader": _rid(sid),
+        "entry": pipe_state.GetShaderEntryPoint(stage_val),
+        "ro": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
+        "rw": len(getattr(refl, "readWriteResources", [])) if refl else 0,
+        "cbuffers": len(getattr(refl, "constantBlocks", [])) if refl else 0,
+    }
+
+
+def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
+    """Get inventory of unique shaders in the frame."""
+    inv: dict[int, dict[str, Any]] = {}
+    for _eid, state in pipe_states.items():
+        for stage_name, stage_val in _STAGE_MAP.items():
+            sid = state.GetShader(stage_val)
+            sidv = getattr(sid, "value", 0)
+            if sidv == 0:
+                continue
+            if sidv not in inv:
+                inv[sidv] = {"shader": sidv, "stages": set(), "uses": 0}
+            inv[sidv]["stages"].add(stage_name)
+            inv[sidv]["uses"] += 1
+
+    rows: list[dict[str, Any]] = []
+    for sidv in sorted(inv):
+        row = inv[sidv]
         rows.append(
             {
-                "eid": a.eid,
-                "vs": _shader_id(0),
-                "hs": _shader_id(1),
-                "ds": _shader_id(2),
-                "gs": _shader_id(3),
-                "ps": _shader_id(4),
-                "cs": _shader_id(5),
+                "shader": sidv,
+                "stages": ",".join(sorted(row["stages"])),
+                "uses": row["uses"],
             }
         )
-
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Resource helpers (used by daemon resources/resource handlers)
+# ---------------------------------------------------------------------------
+
+
+def _resource_row(r: Any) -> dict[str, Any]:
+    fmt = getattr(r, "format", None)
+    return {
+        "id": _rid(getattr(r, "resourceId", 0)),
+        "name": getattr(r, "name", ""),
+        "type": str(getattr(r, "type", "")),
+        "width": getattr(r, "width", 0),
+        "height": getattr(r, "height", 0),
+        "depth": getattr(r, "depth", 0),
+        "format": getattr(fmt, "name", "") if fmt else "",
+    }
+
+
+def get_resources(adapter: Any) -> list[dict[str, Any]]:
+    """Get all resources from the capture."""
+    resources = adapter.get_resources()
+    return [_resource_row(r) for r in resources]
+
+
+def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
+    """Get detailed info for a specific resource."""
+    resources = adapter.get_resources()
+    for r in resources:
+        if _rid(getattr(r, "resourceId", 0)) == resid:
+            return _resource_row(r)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Pass hierarchy (used by daemon passes handler)
+# ---------------------------------------------------------------------------
+
+
+def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
+    """Get render pass hierarchy from actions."""
+    passes: list[dict[str, Any]] = []
+    _build_pass_tree(actions, passes, None, 0, sf)
+    return {"passes": passes}
+
+
+def _build_pass_tree(
+    actions: list[Any],
+    passes: list[dict[str, Any]],
+    current_pass: dict[str, Any] | None,
+    depth: int,
+    sf: Any = None,
+) -> None:
+    for a in actions:
+        flags = int(a.flags)
+
+        if flags & _BEGIN_PASS:
+            current_pass = {
+                "name": a.GetName(sf),
+                "children": [],
+                "draws": 0,
+            }
+            passes.append(current_pass)
+
+        if current_pass is not None and flags & _DRAWCALL:
+            current_pass["draws"] += 1
+
+        if a.children:
+            _build_pass_tree(a.children, passes, current_pass, depth + 1, sf)
+
+        if flags & _END_PASS:
+            current_pass = None
