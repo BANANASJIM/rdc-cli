@@ -172,6 +172,36 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if err:
             return _error_response(request_id, -32002, err), True
         return _result_response(request_id, {"current_eid": state.current_eid}), True
+    if method == "count":
+        what = params.get("what", "")
+        pass_name = params.get("pass")
+        if what == "resources":
+            if state.adapter is None:
+                return _error_response(request_id, -32002, "no replay loaded"), True
+            from rdc.services.query_service import count_resources
+
+            resources = state.adapter.get_resources()
+            value = count_resources(resources)
+            return _result_response(request_id, {"value": value}), True
+        try:
+            if state.adapter is None:
+                return _error_response(request_id, -32002, "no replay loaded"), True
+            from rdc.services.query_service import count_from_actions
+
+            actions = state.adapter.get_root_actions()
+            value = count_from_actions(actions, what, pass_name=pass_name)
+            return _result_response(request_id, {"value": value}), True
+        except ValueError as exc:
+            return _error_response(request_id, -32602, str(exc)), True
+    if method == "shader_map":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.services.query_service import collect_shader_map
+
+        actions = state.adapter.get_root_actions()
+        pipe_states = _collect_pipe_states(actions, state)
+        rows = collect_shader_map(actions, pipe_states)
+        return _result_response(request_id, {"rows": rows}), True
     if method == "shutdown":
         if state.adapter is not None:
             state.adapter.shutdown()
@@ -180,6 +210,32 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         return _result_response(request_id, {"ok": True}), False
 
     return _error_response(request_id, -32601, "method not found"), True
+
+
+def _collect_pipe_states(
+    actions: list[Any],
+    state: DaemonState,
+) -> dict[int, Any]:
+    """Collect pipeline state for each draw/dispatch action."""
+    result: dict[int, Any] = {}
+    _collect_pipe_states_recursive(actions, state, result)
+    return result
+
+
+def _collect_pipe_states_recursive(
+    actions: list[Any],
+    state: DaemonState,
+    result: dict[int, Any],
+) -> None:
+    for a in actions:
+        flags = int(a.flags)
+        is_draw = bool(flags & 0x0001)
+        is_dispatch = bool(flags & 0x0010)
+        if (is_draw or is_dispatch) and state.adapter is not None:
+            _set_frame_event(state, a.eventId)
+            result[a.eventId] = state.adapter.get_pipeline_state()
+        if a.children:
+            _collect_pipe_states_recursive(a.children, state, result)
 
 
 def _result_response(request_id: int, result: dict[str, Any]) -> dict[str, Any]:
