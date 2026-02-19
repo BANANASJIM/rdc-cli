@@ -101,7 +101,9 @@ class TestDaemonHandlersReal:
     def test_pass_detail(self) -> None:
         result = _call(self.state, "pass", {"index": 0})
         assert "name" in result
-        assert "begin_eid" in result
-        assert "end_eid" in result
-        assert "draws" in result
+        assert result["begin_eid"] > 0
+        assert result["end_eid"] >= result["begin_eid"]
         assert result["draws"] >= 0
+        assert "triangles" in result
+        assert "color_targets" in result
+        assert "depth_target" in result

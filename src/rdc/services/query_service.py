@@ -450,37 +450,8 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
 
 def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
     """Get render pass hierarchy from actions."""
-    passes: list[dict[str, Any]] = []
-    _build_pass_tree(actions, passes, None, 0, sf)
-    return {"passes": passes}
-
-
-def _build_pass_tree(
-    actions: list[Any],
-    passes: list[dict[str, Any]],
-    current_pass: dict[str, Any] | None,
-    depth: int,
-    sf: Any = None,
-) -> None:
-    for a in actions:
-        flags = int(a.flags)
-
-        if flags & _BEGIN_PASS:
-            current_pass = {
-                "name": a.GetName(sf),
-                "children": [],
-                "draws": 0,
-            }
-            passes.append(current_pass)
-
-        if current_pass is not None and flags & _DRAWCALL:
-            current_pass["draws"] += 1
-
-        if a.children:
-            _build_pass_tree(a.children, passes, current_pass, depth + 1, sf)
-
-        if flags & _END_PASS:
-            current_pass = None
+    enriched = _build_pass_list(actions, sf)
+    return {"passes": [{"name": p["name"], "draws": p["draws"]} for p in enriched]}
 
 
 def _build_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
