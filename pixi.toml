@@ -1,15 +1,17 @@
-[project]
+[workspace]
 name = "rdc-cli"
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64", "osx-64"]
 
 [dependencies]
-python = "3.10.*"
+python = "3.14.*"
 uv = ">=0.5"
 
 [tasks]
 sync = "uv sync --extra dev"
 lint = "uv run ruff check src tests && uv run ruff format --check src tests"
 typecheck = "uv run mypy src"
-test = "uv run pytest tests -v --cov=rdc --cov-report=term-missing --cov-fail-under=80"
+test = "uv run pytest tests/unit -v --cov=rdc --cov-report=term-missing --cov-fail-under=80"
+test-gpu = "uv run pytest tests -v -m gpu --no-header"
+test-all = "uv run pytest tests -v --cov=rdc --cov-report=term-missing"
 check = "pixi run lint && pixi run typecheck && pixi run test"

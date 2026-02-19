@@ -13,6 +13,7 @@ def _session_file(home: Path) -> Path:
 
 def test_open_status_goto_close_flow(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()
 
     result_open = runner.invoke(main, ["open", "capture.rdc"])
@@ -54,6 +55,7 @@ def test_close_without_session_fails(monkeypatch, tmp_path: Path) -> None:  # ty
 
 def test_goto_rejects_negative_eid(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()
 
     runner.invoke(main, ["open", "capture.rdc"])

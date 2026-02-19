@@ -72,3 +72,19 @@ def resource_cmd(resid: int, as_json: bool) -> None:
     click.echo(format_row(["PROPERTY", "VALUE"]))
     for k, v in res.items():
         click.echo(format_row([str(k).upper(), str(v)]))
+
+
+@click.command("passes")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+def passes_cmd(as_json: bool) -> None:
+    """List render passes."""
+    result = _call("passes", {})
+    tree: dict[str, Any] = result.get("tree", {})
+    if as_json:
+        write_json(tree)
+        return
+
+    passes = tree.get("passes", [])
+    click.echo(format_row(["NAME", "DRAWS"]))
+    for p in passes:
+        click.echo(format_row([p.get("name", "-"), p.get("draws", 0)]))

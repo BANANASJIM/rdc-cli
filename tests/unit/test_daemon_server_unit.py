@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request, _load_replay, _set_frame_event
@@ -15,7 +16,7 @@ class TestHandleRequest:
     def _state(self) -> DaemonState:
         return DaemonState(capture="capture.rdc", current_eid=0, token="tok")
 
-    def _state_with_adapter(self, *, event_count: int = 1000) -> DaemonState:
+    def _state_with_adapter(self, *, max_eid: int = 1000) -> DaemonState:
         calls: list[tuple[int, bool]] = []
         controller = SimpleNamespace(
             SetFrameEvent=lambda eid, force: calls.append((eid, force)),
@@ -23,7 +24,7 @@ class TestHandleRequest:
         )
         state = self._state()
         state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-        state.event_count = event_count
+        state.max_eid = max_eid
         state._set_frame_calls = calls  # type: ignore[attr-defined]
         return state
 
@@ -38,7 +39,7 @@ class TestHandleRequest:
     def test_status_returns_metadata(self) -> None:
         state = self._state()
         state.api_name = "Vulkan"
-        state.event_count = 500
+        state.max_eid = 500
         resp, running = _handle_request(
             {"id": 2, "method": "status", "params": {"_token": "tok"}}, state
         )
@@ -73,7 +74,7 @@ class TestHandleRequest:
         assert calls[1] == (200, True)
 
     def test_goto_out_of_range(self) -> None:
-        state = self._state_with_adapter(event_count=500)
+        state = self._state_with_adapter(max_eid=500)
         resp, running = _handle_request(
             {"id": 3, "method": "goto", "params": {"_token": "tok", "eid": 9999}}, state
         )
@@ -81,7 +82,7 @@ class TestHandleRequest:
         assert resp["error"]["code"] == -32002
 
     def test_goto_negative_eid(self) -> None:
-        state = self._state_with_adapter(event_count=500)
+        state = self._state_with_adapter(max_eid=500)
         err = _set_frame_event(state, -1)
         assert err is not None
         assert "eid must be >= 0" in err
@@ -173,8 +174,8 @@ class TestLoadReplay:
         finally:
             sys.modules.pop("renderdoc", None)
 
-    def test_load_replay_import_failure(self) -> None:
-        sys.modules.pop("renderdoc", None)
+    def test_load_replay_import_failure(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: None)
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
         err = _load_replay(state)
         assert err is not None

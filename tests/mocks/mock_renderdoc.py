@@ -37,14 +37,15 @@ class ShaderStage(IntEnum):
 
 class ActionFlags(IntFlag):
     NoFlags = 0
-    Drawcall = 0x0001
-    Indexed = 0x0002
-    Dispatch = 0x0010
-    Clear = 0x0020
-    Copy = 0x0040
-    PassBoundary = 0x1000
-    BeginPass = 0x2000
-    EndPass = 0x4000
+    Clear = 0x0001
+    Drawcall = 0x0002
+    Dispatch = 0x0004
+    Copy = 0x0400
+    PassBoundary = 0x2000
+    Indexed = 0x10000
+    Instanced = 0x20000
+    BeginPass = 0x400000
+    EndPass = 0x800000
 
 
 class ResourceType(IntEnum):
@@ -68,6 +69,9 @@ class FileType(IntEnum):
 @dataclass
 class ResourceId:
     value: int = 0
+
+    def __int__(self) -> int:
+        return self.value
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, ResourceId):
