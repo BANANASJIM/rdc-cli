@@ -78,7 +78,7 @@ def _try_import_from(directory: str) -> ModuleType | None:
     try:
         mod = importlib.import_module("renderdoc")
     except Exception:  # noqa: BLE001
-        sys.path.remove(directory)
+        sys.path.pop(0)
         return None
     log.debug("renderdoc found at %s", directory)
     return mod

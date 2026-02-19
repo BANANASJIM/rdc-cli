@@ -45,7 +45,7 @@ def _req(method: str, params: dict | None = None) -> dict:
 def test_shader_targets() -> None:
     state = _state_with_adapter()
     ctrl = state.adapter.controller
-    ctrl.GetDisassemblyTargets = lambda: ["SPIR-V", "GLSL"]  # type: ignore[attr-defined]
+    ctrl.GetDisassemblyTargets = lambda _with_pipeline: ["SPIR-V", "GLSL"]  # type: ignore[attr-defined]
 
     resp, running = _handle_request(_req("shader_targets"), state)
     assert running

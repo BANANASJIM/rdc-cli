@@ -316,7 +316,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             return _error_response(request_id, -32002, "no replay loaded"), True
         controller = state.adapter.controller
         if hasattr(controller, "GetDisassemblyTargets"):
-            targets = controller.GetDisassemblyTargets()
+            targets = controller.GetDisassemblyTargets(True)
             target_list = [str(t) for t in targets]
         else:
             # Fallback for older RenderDoc versions

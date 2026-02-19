@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from rdc.adapter import RenderDocAdapter, parse_version_tuple
-from rdc.daemon_server import DaemonState, _handle_request
+from rdc.daemon_server import DaemonState, _handle_request, _max_eid
 
 pytestmark = pytest.mark.gpu
 
@@ -33,15 +33,6 @@ def _make_state(
     root_actions = adapter.get_root_actions()
     state.max_eid = _max_eid(root_actions)
     return state
-
-
-def _max_eid(actions: list[Any]) -> int:
-    result = 0
-    for a in actions:
-        result = max(result, a.eventId)
-        if a.children:
-            result = max(result, _max_eid(a.children))
-    return result
 
 
 def _call(state: DaemonState, method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
