@@ -154,14 +154,24 @@ def _collect_recursive(
 _STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
 
 
-def pipeline_row(eid: int, api_name: str, pipe_state: Any) -> dict[str, Any]:
-    return {
+def pipeline_row(
+    eid: int,
+    api_name: str,
+    pipe_state: Any,
+    *,
+    section: str | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
         "eid": eid,
         "api": api_name,
         "topology": str(pipe_state.GetPrimitiveTopology()),
         "graphics_pipeline": _rid(pipe_state.GetGraphicsPipelineObject()),
         "compute_pipeline": _rid(pipe_state.GetComputePipelineObject()),
     }
+    if section is not None and section in _STAGE_MAP:
+        row["section"] = section
+        row["section_detail"] = shader_row(eid, pipe_state, section)
+    return row
 
 
 def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:

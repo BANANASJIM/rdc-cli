@@ -62,6 +62,22 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
             ]
         )
     )
+    section_detail = row.get("section_detail")
+    if isinstance(section_detail, dict):
+        click.echo()
+        click.echo(format_row(["SECTION", "SHADER", "ENTRY", "RO", "RW", "CBUFFERS"]))
+        click.echo(
+            format_row(
+                [
+                    section_detail.get("stage", "-"),
+                    section_detail.get("shader", "-"),
+                    section_detail.get("entry", "-"),
+                    section_detail.get("ro", 0),
+                    section_detail.get("rw", 0),
+                    section_detail.get("cbuffers", 0),
+                ]
+            )
+        )
 
 
 @click.command("bindings")

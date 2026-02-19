@@ -56,6 +56,10 @@ def test_query_service_rows() -> None:
     assert prow["eid"] == 10
     assert prow["api"] == "Vulkan"
 
+    prow_sec = pipeline_row(10, "Vulkan", ctrl.GetPipelineState(), section="ps")
+    assert prow_sec["section"] == "ps"
+    assert isinstance(prow_sec["section_detail"], dict)
+
     brows = bindings_rows(10, ctrl.GetPipelineState())
     assert len(brows) == 2
 
@@ -84,6 +88,17 @@ def test_daemon_pipeline_bindings_shader_shaders() -> None:
     assert resp["result"]["row"]["eid"] == 10
 
     resp, _ = _handle_request(
+        {
+            "id": 1,
+            "method": "pipeline",
+            "params": {"_token": "tok", "eid": 10, "section": "ps"},
+        },
+        state,
+    )
+    assert resp["result"]["row"]["section"] == "ps"
+    assert isinstance(resp["result"]["row"]["section_detail"], dict)
+
+    resp, _ = _handle_request(
         {"id": 1, "method": "bindings", "params": {"_token": "tok", "eid": 10}},
         state,
     )
@@ -110,6 +125,19 @@ def test_daemon_shader_invalid_stage() -> None:
             "id": 1,
             "method": "shader",
             "params": {"_token": "tok", "stage": "bad"},
+        },
+        state,
+    )
+    assert resp["error"]["code"] == -32602
+
+
+def test_daemon_pipeline_invalid_section() -> None:
+    state = _state_with_adapter()
+    resp, _ = _handle_request(
+        {
+            "id": 1,
+            "method": "pipeline",
+            "params": {"_token": "tok", "section": "bad"},
         },
         state,
     )

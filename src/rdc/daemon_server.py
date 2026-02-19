@@ -208,11 +208,16 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         from rdc.services.query_service import pipeline_row
 
         eid = int(params.get("eid", state.current_eid))
+        section = params.get("section")
+        if section is not None:
+            section = str(section).lower()
+            if section not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+                return _error_response(request_id, -32602, "invalid section"), True
         err = _set_frame_event(state, eid)
         if err:
             return _error_response(request_id, -32002, err), True
         pipe_state = state.adapter.get_pipeline_state()
-        row = pipeline_row(state.current_eid, state.api_name, pipe_state)
+        row = pipeline_row(state.current_eid, state.api_name, pipe_state, section=section)
         return _result_response(request_id, {"row": row}), True
     if method == "bindings":
         if state.adapter is None:
