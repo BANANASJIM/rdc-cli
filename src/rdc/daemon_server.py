@@ -34,6 +34,8 @@ class DaemonState:
     tex_map: dict[int, Any] = field(default_factory=dict)
     buf_map: dict[int, Any] = field(default_factory=dict)
     res_names: dict[int, str] = field(default_factory=dict)
+    res_types: dict[int, str] = field(default_factory=dict)
+    res_rid_map: dict[int, Any] = field(default_factory=dict)
     rd: Any = None
     disasm_cache: dict[int, str] = field(default_factory=dict)
     shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -100,6 +102,11 @@ def _load_replay(state: DaemonState) -> str | None:
     state.tex_map = {int(t.resourceId): t for t in textures}
     state.buf_map = {int(b.resourceId): b for b in buffers}
     state.res_names = {int(r.resourceId): r.name for r in resources}
+    state.res_types = {
+        int(r.resourceId): getattr(getattr(r, "type", None), "name", str(getattr(r, "type", "")))
+        for r in resources
+    }
+    state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
 
     state.vfs_tree = build_vfs_skeleton(
         root_actions, resources, textures, buffers, state.structured_file
@@ -354,6 +361,41 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if detail is None:
             return _error_response(request_id, -32001, "resource not found"), True
         return _result_response(request_id, {"resource": detail}), True
+
+    if method == "usage":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        resid = int(params.get("id", 0))
+        if resid not in state.res_names:
+            return _error_response(request_id, -32001, f"resource {resid} not found"), True
+        rid_obj = state.res_rid_map.get(resid, resid)
+        usage_list = state.adapter.controller.GetUsage(rid_obj)
+        entries = [
+            {"eid": u.eventId, "usage": u.usage.name if hasattr(u.usage, "name") else str(u.usage)}
+            for u in usage_list
+        ]
+        result_data: dict[str, Any] = {"id": resid, "entries": entries}
+        if params.get("resolve_names", True):
+            result_data["name"] = state.res_names.get(resid, "")
+        return _result_response(request_id, result_data), True
+
+    if method == "usage_all":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        type_filter = params.get("type")
+        usage_filter = params.get("usage")
+        usage_rows: list[dict[str, Any]] = []
+        for resid, name in state.res_names.items():
+            if type_filter and state.res_types.get(resid, "") != type_filter:
+                continue
+            rid_obj = state.res_rid_map.get(resid, resid)
+            usage_list = state.adapter.controller.GetUsage(rid_obj)
+            for u in usage_list:
+                uname = u.usage.name if hasattr(u.usage, "name") else str(u.usage)
+                if usage_filter and uname != usage_filter:
+                    continue
+                usage_rows.append({"id": resid, "name": name, "eid": u.eventId, "usage": uname})
+        return _result_response(request_id, {"rows": usage_rows, "total": len(usage_rows)}), True
 
     if method == "passes":
         if state.adapter is None:

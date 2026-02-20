@@ -214,8 +214,11 @@ class TestBuildVfsSkeleton:
         assert "10" in res.children
 
     def test_resource_has_info(self, skeleton: VfsTree) -> None:
-        assert skeleton.static["/resources/5"].children == ["info"]
+        assert skeleton.static["/resources/5"].children == ["info", "usage"]
         assert skeleton.static["/resources/5/info"].kind == "leaf"
+
+    def test_resource_has_usage(self, skeleton: VfsTree) -> None:
+        assert skeleton.static["/resources/5/usage"].kind == "leaf"
 
     def test_current_is_alias(self, skeleton: VfsTree) -> None:
         assert skeleton.static["/current"].kind == "alias"

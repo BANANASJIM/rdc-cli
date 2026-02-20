@@ -54,6 +54,9 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
     "buf_info": lambda r: _kv_text(r),
     "shader_list_info": lambda r: _kv_text(r),
     "shader_list_disasm": lambda r: r.get("disasm", ""),
+    "usage": lambda r: (
+        "EID\tUSAGE\n" + "\n".join(f"{e['eid']}\t{e['usage']}" for e in r.get("entries", []))
+    ),
 }
 
 

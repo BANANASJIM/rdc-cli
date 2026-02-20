@@ -129,6 +129,7 @@ _r(r"/passes/(?P<name>[^/]+)/attachments", "dir")
 _r("/resources", "dir")
 _r(r"/resources/(?P<id>\d+)", "dir", None, [("id", int)])
 _r(r"/resources/(?P<id>\d+)/info", "leaf", "resource", [("id", int)])
+_r(r"/resources/(?P<id>\d+)/usage", "leaf", "usage", [("id", int)])
 
 # top-level dirs / aliases
 _r("/shaders", "dir")
