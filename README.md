@@ -55,6 +55,7 @@ rdc events --type draw        # Filter by type
 rdc draws                     # List draw calls
 rdc draw 142                  # Draw detail at EID
 rdc event 42                  # API call detail at EID
+rdc log                       # API validation messages
 ```
 
 ### GPU state
@@ -73,6 +74,34 @@ rdc shader-map                # EID-to-shader TSV mapping
 rdc resources                 # List all resources
 rdc resource 42               # Resource detail by ID
 rdc passes                    # List render passes
+rdc usage 42                  # Resource usage across frame
+rdc usage --all               # Full resource usage matrix
+```
+
+### Export (binary)
+
+```bash
+rdc texture 5 -o out.png      # Export texture as PNG
+rdc rt 142 -o color0.png      # Render target at EID
+rdc buffer 3 -o data.bin      # Raw buffer data
+```
+
+### Search and counters
+
+```bash
+rdc search "gl_Position"      # Grep across all shaders
+rdc counters --list           # Available GPU counters
+rdc counters                  # Fetch counter values
+rdc counters --eid 142        # Counters at specific event
+```
+
+### VFS (virtual filesystem)
+
+```bash
+rdc ls /                      # List VFS root
+rdc ls /draws/142/            # List draw subnodes
+rdc cat /draws/142/pipeline   # Read VFS leaf
+rdc tree /draws/142 --depth 3 # Tree view
 ```
 
 ### Unix helpers
@@ -93,7 +122,7 @@ pixi install
 pixi run sync                 # Install Python deps
 pixi run lint                 # ruff check + format
 pixi run typecheck            # mypy
-pixi run test                 # Unit tests (262 tests, 91% coverage)
+pixi run test                 # Unit tests (637 tests, 92% coverage)
 pixi run check                # lint + typecheck + test
 ```
 
@@ -103,7 +132,7 @@ Requires a real renderdoc module and a GPU:
 
 ```bash
 export RENDERDOC_PYTHON_PATH=/path/to/renderdoc/build/lib
-pixi run test-gpu             # 18 integration tests
+pixi run test-gpu             # 150 GPU integration tests
 pixi run test-all             # Full suite
 ```
 
