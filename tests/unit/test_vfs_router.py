@@ -357,3 +357,34 @@ def test_draws_targets_depth_png() -> None:
 )
 def test_phase2_invalid_paths_return_none(path: str) -> None:
     assert resolve_path(path) is None
+
+
+# ── Pipeline state routes (Phase 2) ────────────────────────────────
+
+
+class TestPipelineStateRoutes:
+    @pytest.mark.parametrize(
+        "sub,handler",
+        [
+            ("topology", "pipe_topology"),
+            ("viewport", "pipe_viewport"),
+            ("scissor", "pipe_scissor"),
+            ("blend", "pipe_blend"),
+            ("stencil", "pipe_stencil"),
+            ("vertex-inputs", "pipe_vinputs"),
+            ("samplers", "pipe_samplers"),
+            ("vbuffers", "pipe_vbuffers"),
+            ("ibuffer", "pipe_ibuffer"),
+        ],
+    )
+    def test_pipeline_sub_routes(self, sub: str, handler: str) -> None:
+        m = resolve_path(f"/draws/42/pipeline/{sub}")
+        assert m is not None
+        assert m.handler == handler
+        assert m.args["eid"] == 42
+
+    def test_postvs_route(self) -> None:
+        m = resolve_path("/draws/42/postvs")
+        assert m is not None
+        assert m.handler == "postvs"
+        assert m.args["eid"] == 42
