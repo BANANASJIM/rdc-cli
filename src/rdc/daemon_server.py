@@ -1341,6 +1341,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         pattern = str(params.get("pattern", ""))
         if not pattern:
             return _error_response(request_id, -32602, "missing pattern"), True
+        if len(pattern) > 500:
+            return _error_response(request_id, -32602, "pattern too long (max 500)"), True
         stage_filter = params.get("stage")
         if stage_filter is not None:
             stage_filter = str(stage_filter).lower()

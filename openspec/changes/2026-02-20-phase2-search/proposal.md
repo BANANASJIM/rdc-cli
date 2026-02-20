@@ -14,8 +14,7 @@ each shader one at a time via `rdc shader <eid> <stage>`. With hundreds of
 unique shaders in a production capture, this is impractical.
 
 `rdc search` provides unix `grep`-like semantics: regex pattern → matching
-lines with context (shader ID, stage, line number, first-use EID). Output is
-TSV, pipeable to `sort`, `awk`, `wc -l`.
+lines with context (shader ID, stages, line number, first-use EID).
 
 ## Design
 
@@ -26,13 +25,13 @@ CLI: rdc search <pattern>
   → daemon JSON-RPC: "search" {pattern, stage?, target?}
     → build disassembly cache (lazy, first call only)
     → regex search across cached disassembly text
-    → return [{shader_id, stage, eid, line_no, text}]
+    → return [{shader, stages, first_eid, line, text}]
 ```
 
 ### Daemon handler: `search`
 
 **Params:**
-- `pattern` (string, required) — regex pattern (Python `re` syntax)
+- `pattern` (string, required) — regex pattern (Python `re` syntax, max 500 chars)
 - `stage` (string, optional) — filter by stage (vs/ps/cs/...)
 - `target` (string, optional) — disassembly target (SPIR-V/GLSL/DXIL)
 - `case_sensitive` (bool, default false) — case-sensitive matching
@@ -45,24 +44,26 @@ CLI: rdc search <pattern>
   "matches": [
     {
       "shader": 42,
-      "stage": "ps",
-      "eid": 150,
+      "stages": ["ps"],
+      "first_eid": 150,
       "line": 37,
-      "text": "  %result = OpFMul %float %a %b"
+      "text": "  %result = OpFMul %float %a %b",
+      "context_before": [],
+      "context_after": []
     }
   ],
-  "total_shaders": 15,
-  "searched_shaders": 15,
   "truncated": false
 }
 ```
 
 ### Disassembly cache
 
-New field on `DaemonState`:
+New fields on `DaemonState`:
 
 ```python
-disasm_cache: dict[int, str]  # shader_id → disassembly text
+disasm_cache: dict[int, str]           # shader_id → disassembly text
+shader_meta: dict[int, dict[str, Any]] # shader_id → {stages, uses, first_eid, entry}
+_shader_cache_built: bool              # sentinel to avoid re-walk
 ```
 
 Built lazily on first `search` call by iterating unique shaders:
@@ -87,27 +88,34 @@ Currently `/shaders/` is a placeholder dir. This OpenSpec populates it:
 ```
 
 VFS population reuses the same disassembly cache. Tree cache gets a
-`_shader_subtrees` LRU cache similar to `_draw_subtrees`.
+`populate_shaders_subtree` helper called as a side effect of cache build.
 
 ### CLI: `rdc search`
 
 ```
-rdc search <pattern> [--stage STAGE] [--target TARGET] [-i] [--limit N] [-C N]
+rdc search <pattern> [--stage STAGE] [-i] [--limit N] [-C N] [--json]
 ```
 
-Output format (TSV):
+Output format (grep-style, colon-delimited):
 ```
-SHADER  STAGE  EID    LINE  TEXT
-42      ps     150    37    %result = OpFMul %float %a %b
-42      ps     150    42    %color = OpCompositeConstruct %v4float ...
-88      vs     200    15    %pos = OpAccessChain %_ptr_Input_v4float ...
+shader:42[ps]:37:  %result = OpFMul %float %a %b
+shader:42[ps]:42:  %color = OpCompositeConstruct %v4float ...
+shader:88[vs]:15:  %pos = OpAccessChain %_ptr_Input_v4float ...
+```
+
+With `-C 1`, context lines use `-` separator:
+```
+shader:42[ps]:37-  %a = OpLoad %float ...
+shader:42[ps]:37:  %result = OpFMul %float %a %b
+shader:42[ps]:37-  OpStore %out %result
 ```
 
 ### Error handling
 
 - Invalid regex → `-32602` (invalid params)
+- Pattern too long (>500 chars) → `-32602` (invalid params)
 - No shaders found → empty matches list (not an error)
-- Disassembly fails for a shader → skip, log warning, continue
+- Disassembly fails for a shader → skip, store empty string, continue
 
 ## Scope
 

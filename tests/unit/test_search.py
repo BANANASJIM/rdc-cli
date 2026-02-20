@@ -222,6 +222,11 @@ class TestSearchHandler:
         assert resp["error"]["code"] == -32602
         assert "invalid regex" in resp["error"]["message"]
 
+    def test_pattern_too_long(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(_req("search", pattern="a" * 501), state)
+        assert resp["error"]["code"] == -32602
+        assert "too long" in resp["error"]["message"]
+
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
         resp, _ = _handle_request(_req("search", pattern="foo"), s)
