@@ -117,7 +117,7 @@
    "resource_id": <int>, "format": <str>, "byte_size": <int>,
    "sampler": {"address_u": <str>, "address_v": <str>, "address_w": <str>,
                "filter": <str>, "compare_function": <str>, "min_lod": <float>,
-               "max_lod": <float>, "mip_bias": <float>, "max_anisotropy": <int>}}
+               "max_lod": <float>, "mip_bias": <float>, "max_anisotropy": <float>}}
 ]}
 ```
 - `descriptors` is always a list (empty is valid)

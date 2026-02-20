@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -700,7 +700,7 @@ class SamplerDescriptor:
 class DescriptorAccess:
     """Mock for DescriptorAccess from GetAllUsedDescriptors."""
 
-    NoShaderBinding: int = 65535
+    NoShaderBinding: ClassVar[int] = 65535
     stage: ShaderStage = ShaderStage.Vertex
     type: DescriptorType = DescriptorType.ConstantBuffer
     index: int = 0

@@ -1508,18 +1508,19 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 "byte_size": getattr(desc, "byteSize", 0),
             }
             if type_name in ("Sampler", "ImageSampler"):
-                s = ud.sampler
-                d_row["sampler"] = {
-                    "address_u": str(getattr(s, "addressU", "")),
-                    "address_v": str(getattr(s, "addressV", "")),
-                    "address_w": str(getattr(s, "addressW", "")),
-                    "filter": str(getattr(s, "filter", "")),
-                    "compare_function": str(getattr(s, "compareFunction", "")),
-                    "min_lod": float(getattr(s, "minLOD", 0.0)),
-                    "max_lod": float(getattr(s, "maxLOD", 0.0)),
-                    "mip_bias": float(getattr(s, "mipBias", 0.0)),
-                    "max_anisotropy": float(getattr(s, "maxAnisotropy", 0)),
-                }
+                s = getattr(ud, "sampler", None)
+                if s is not None:
+                    d_row["sampler"] = {
+                        "address_u": str(getattr(s, "addressU", "")),
+                        "address_v": str(getattr(s, "addressV", "")),
+                        "address_w": str(getattr(s, "addressW", "")),
+                        "filter": str(getattr(s, "filter", "")),
+                        "compare_function": str(getattr(s, "compareFunction", "")),
+                        "min_lod": float(getattr(s, "minLOD", 0.0)),
+                        "max_lod": float(getattr(s, "maxLOD", 0.0)),
+                        "mip_bias": float(getattr(s, "mipBias", 0.0)),
+                        "max_anisotropy": float(getattr(s, "maxAnisotropy", 0)),
+                    }
             desc_rows.append(d_row)
         return _result_response(request_id, {"eid": eid, "descriptors": desc_rows}), True
 
