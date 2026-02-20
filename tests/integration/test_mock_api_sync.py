@@ -97,6 +97,9 @@ STRUCT_PAIRS = [
     ("ShaderResource", "ShaderResource"),
     ("ConstantBlock", "ConstantBlock"),
     ("Descriptor", "Descriptor"),
+    ("Viewport", "Viewport"),
+    ("Scissor", "Scissor"),
+    ("MeshFormat", "MeshFormat"),
 ]
 
 
