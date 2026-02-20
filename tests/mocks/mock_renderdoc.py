@@ -467,6 +467,16 @@ class MeshFormat:
 
 
 @dataclass
+class ShaderVariable:
+    name: str = ""
+    type: str = ""
+    rows: int = 0
+    columns: int = 0
+    value: Any = None
+    members: list[ShaderVariable] = field(default_factory=list)
+
+
+@dataclass
 class SigParameter:
     varName: str = ""
     semanticName: str = ""
@@ -686,6 +696,7 @@ class MockReplayController:
         self._shutdown_called: bool = False
         self._structured_file: StructuredFile = StructuredFile()
         self._debug_messages: list[DebugMessage] = []
+        self._cbuffer_variables: dict[tuple[int, int], list[ShaderVariable]] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -728,6 +739,20 @@ class MockReplayController:
     def GetBufferData(self, resource_id: Any, offset: int, length: int) -> bytes:
         """Mock GetBufferData -- returns dummy buffer bytes."""
         return b"\xab\xcd" * 256
+
+    def GetCBufferVariableContents(
+        self,
+        pipeline: Any,
+        shader: Any,
+        stage: Any,
+        entry: str,
+        idx: int,
+        resource: Any,
+        offset: int,
+        size: int,
+    ) -> list[ShaderVariable]:
+        """Mock GetCBufferVariableContents."""
+        return self._cbuffer_variables.get((int(stage), idx), [])
 
     def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
         """Mock GetPostVSData -- returns dummy mesh format."""

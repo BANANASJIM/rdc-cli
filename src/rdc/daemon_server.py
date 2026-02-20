@@ -1117,6 +1117,190 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             },
         ), True
 
+    if method == "cbuffer_decode":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        cb_set = int(params.get("set", 0))
+        cb_binding = int(params.get("binding", 0))
+        stage_name = str(params.get("stage", "ps"))
+        stage_map = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+        stage_val = stage_map.get(stage_name, 4)
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        refl = pipe_state.GetShaderReflection(stage_val)
+        if refl is None:
+            return _error_response(
+                request_id, -32001, f"no reflection for stage {stage_name}"
+            ), True
+        blocks = getattr(refl, "constantBlocks", [])
+        target_block = None
+        target_idx = 0
+        for i, cb in enumerate(blocks):
+            s = getattr(cb, "fixedBindSetOrSpace", 0)
+            b = getattr(cb, "fixedBindNumber", 0)
+            if s == cb_set and b == cb_binding:
+                target_block = cb
+                target_idx = i
+                break
+        if target_block is None:
+            return _error_response(
+                request_id,
+                -32001,
+                f"no constant block at set={cb_set} binding={cb_binding}",
+            ), True
+        controller = state.adapter.controller
+        pipeline = pipe_state.GetGraphicsPipelineObject()
+        shader = pipe_state.GetShader(stage_val)
+        variables = controller.GetCBufferVariableContents(
+            pipeline,
+            shader,
+            stage_val,
+            "",
+            target_idx,
+            shader,
+            0,
+            0,
+        )
+
+        def _flatten_vars(
+            vs: list[Any],
+            prefix: str = "",
+        ) -> list[dict[str, Any]]:
+            rows: list[dict[str, Any]] = []
+            for v in vs:
+                name = f"{prefix}{getattr(v, 'name', '')}"
+                members = getattr(v, "members", [])
+                if members:
+                    rows.extend(_flatten_vars(members, f"{name}."))
+                else:
+                    rows.append(
+                        {
+                            "name": name,
+                            "type": getattr(v, "type", ""),
+                            "value": getattr(v, "value", None),
+                        }
+                    )
+            return rows
+
+        flat = _flatten_vars(variables)
+        return _result_response(
+            request_id, {"eid": eid, "set": cb_set, "binding": cb_binding, "variables": flat}
+        ), True
+
+    if method == "vbuffer_decode":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        inputs = pipe_state.GetVertexInputs()
+        vbuffers = pipe_state.GetVBuffers()
+        if not inputs:
+            return _result_response(request_id, {"eid": eid, "columns": [], "vertices": []}), True
+        controller = state.adapter.controller
+        # Build column names from vertex inputs
+        columns: list[str] = []
+        col_defs: list[dict[str, Any]] = []
+        for vi in inputs:
+            fmt = getattr(vi, "format", None)
+            comp_count = getattr(fmt, "compCount", 1) if fmt else 1
+            attr_name = getattr(vi, "name", "attr")
+            if comp_count == 1:
+                columns.append(attr_name)
+            else:
+                suffixes = ["x", "y", "z", "w"][:comp_count]
+                columns.extend(f"{attr_name}.{s}" for s in suffixes)
+            col_defs.append(
+                {
+                    "name": attr_name,
+                    "vbSlot": getattr(vi, "vertexBuffer", 0),
+                    "byteOffset": getattr(vi, "byteOffset", 0),
+                    "compCount": comp_count,
+                    "compByteWidth": getattr(fmt, "compByteWidth", 4) if fmt else 4,
+                }
+            )
+        # Fetch buffer data
+        buf_data: dict[int, bytes] = {}
+        for i, vb in enumerate(vbuffers):
+            rid = getattr(vb, "resourceId", None)
+            if rid is not None and int(rid) != 0:
+                size = getattr(vb, "byteSize", 0)
+                offset = getattr(vb, "byteOffset", 0)
+                buf_data[i] = controller.GetBufferData(rid, offset, size)
+        # Determine vertex count from draw action or buffer size
+        num_verts = int(params.get("count", 0))
+        if num_verts == 0 and vbuffers:
+            vb0 = vbuffers[0]
+            stride = getattr(vb0, "byteStride", 0)
+            if stride > 0:
+                data_len = len(buf_data.get(0, b""))
+                num_verts = data_len // stride
+        # Decode vertices
+        import struct
+
+        vertices: list[list[float]] = []
+        for vi_idx in range(num_verts):
+            vtx_row: list[float] = []
+            for cd in col_defs:
+                slot = cd["vbSlot"]
+                data = buf_data.get(slot, b"")
+                vb = vbuffers[slot] if slot < len(vbuffers) else None
+                stride = getattr(vb, "byteStride", 0) if vb else 0
+                base = vi_idx * stride + cd["byteOffset"]
+                for c in range(cd["compCount"]):
+                    off = base + c * cd["compByteWidth"]
+                    if off + cd["compByteWidth"] <= len(data):
+                        if cd["compByteWidth"] == 4:
+                            vtx_row.append(struct.unpack_from("<f", data, off)[0])
+                        elif cd["compByteWidth"] == 2:
+                            vtx_row.append(struct.unpack_from("<e", data, off)[0])
+                        elif cd["compByteWidth"] == 1:
+                            vtx_row.append(data[off] / 255.0)
+                        else:
+                            vtx_row.append(0.0)
+                    else:
+                        vtx_row.append(0.0)
+            vertices.append(vtx_row)
+        return _result_response(
+            request_id, {"eid": eid, "columns": columns, "vertices": vertices}
+        ), True
+
+    if method == "ibuffer_decode":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        ib = pipe_state.GetIBuffer()
+        rid = getattr(ib, "resourceId", None)
+        if rid is None or int(rid) == 0:
+            return _result_response(request_id, {"eid": eid, "format": "none", "indices": []}), True
+        import struct
+
+        controller = state.adapter.controller
+        stride = getattr(ib, "byteStride", 2)
+        offset = getattr(ib, "byteOffset", 0)
+        size = getattr(ib, "byteSize", 0)
+        data = controller.GetBufferData(rid, offset, size)
+        fmt_str = "<H" if stride == 2 else "<I"
+        count = len(data) // stride if stride > 0 else 0
+        indices: list[int] = []
+        for i in range(count):
+            off = i * stride
+            if off + stride <= len(data):
+                indices.append(struct.unpack_from(fmt_str, data, off)[0])
+        fmt_name = "uint16" if stride == 2 else "uint32"
+        return _result_response(
+            request_id, {"eid": eid, "format": fmt_name, "indices": indices}
+        ), True
+
     if method == "shutdown":
         if state.temp_dir is not None:
             import shutil
