@@ -154,6 +154,8 @@ _r("/buffers", "dir")
 _r(r"/buffers/(?P<id>\d+)", "dir", None, [("id", int)])
 _r(r"/buffers/(?P<id>\d+)/info", "leaf", "buf_info", [("id", int)])
 _r(r"/buffers/(?P<id>\d+)/data", "leaf_bin", "buf_raw", [("id", int)])
+_r("/counters", "dir")
+_r("/counters/list", "leaf", "counter_list")
 _r("/current", "alias")
 
 
