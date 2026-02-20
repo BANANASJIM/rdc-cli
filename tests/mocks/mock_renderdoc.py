@@ -716,6 +716,7 @@ class MockReplayController:
         self._structured_file: StructuredFile = StructuredFile()
         self._debug_messages: list[DebugMessage] = []
         self._cbuffer_variables: dict[tuple[int, int], list[ShaderVariable]] = {}
+        self._disasm_text: dict[int, str] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -776,6 +777,11 @@ class MockReplayController:
     def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
         """Mock GetPostVSData -- returns dummy mesh format."""
         return MeshFormat()
+
+    def DisassembleShader(self, pipeline: Any, refl: Any, target: str) -> str:
+        """Mock DisassembleShader -- returns cached disasm text by shader id."""
+        rid = int(getattr(refl, "resourceId", 0))
+        return self._disasm_text.get(rid, "")
 
     def Shutdown(self) -> None:
         self._shutdown_called = True
