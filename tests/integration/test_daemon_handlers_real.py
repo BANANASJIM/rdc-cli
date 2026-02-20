@@ -202,6 +202,43 @@ class TestDaemonHandlersReal:
         names = [c["name"] for c in result["children"]]
         assert "usage" in names
 
+    def test_counter_list(self) -> None:
+        """counter_list returns built-in counters with valid schema."""
+        result = _call(self.state, "counter_list")
+        assert result["total"] >= 13
+        for c in result["counters"]:
+            assert isinstance(c["id"], int)
+            assert isinstance(c["name"], str) and len(c["name"]) > 0
+            assert isinstance(c["unit"], str)
+            assert isinstance(c["type"], str)
+            assert isinstance(c["category"], str)
+
+    def test_counter_fetch(self) -> None:
+        """counter_fetch returns values for draw events."""
+        result = _call(self.state, "counter_fetch")
+        assert result["total"] > 0
+        for r in result["rows"]:
+            assert isinstance(r["eid"], int)
+            assert isinstance(r["counter"], str)
+            assert isinstance(r["unit"], str)
+        # GPU Duration should be > 0
+        durations = [r for r in result["rows"] if r["counter"] == "GPU Duration"]
+        if durations:
+            assert durations[0]["value"] > 0
+
+    def test_counter_fetch_eid_filter(self) -> None:
+        """counter_fetch with eid filter returns only matching event."""
+        events = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events["events"][0]["eid"]
+        result = _call(self.state, "counter_fetch", {"eid": draw_eid})
+        assert all(r["eid"] == draw_eid for r in result["rows"])
+
+    def test_vfs_counters_list(self) -> None:
+        """VFS /counters/list resolves."""
+        result = _call(self.state, "vfs_ls", {"path": "/counters"})
+        names = [c["name"] for c in result["children"]]
+        assert "list" in names
+
 
 class TestBinaryHandlersReal:
     """Integration tests for Phase 2 binary export handlers."""

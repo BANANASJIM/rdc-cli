@@ -425,3 +425,16 @@ class TestPipelineStateRoutes:
 def test_resources_id_usage() -> None:
     m = resolve_path("/resources/97/usage")
     assert m == PathMatch(kind="leaf", handler="usage", args={"id": 97})
+
+
+# ── Counters ─────────────────────────────────────────────────────────
+
+
+def test_counters_dir() -> None:
+    m = resolve_path("/counters")
+    assert m == PathMatch(kind="dir", handler=None, args={})
+
+
+def test_counters_list_leaf() -> None:
+    m = resolve_path("/counters/list")
+    assert m == PathMatch(kind="leaf", handler="counter_list", args={})
