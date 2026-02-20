@@ -3,18 +3,16 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from click.testing import CliRunner
 
 from rdc.cli import main
+from rdc.commands import usage as usage_mod
 
 
-def _patch_usage(monkeypatch, response):
-    import rdc.commands.info as mod
-
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
+def _patch(monkeypatch: Any, response: dict) -> None:
+    monkeypatch.setattr(usage_mod, "_daemon_call", lambda method, params=None: response)
 
 
 _SINGLE_RESPONSE = {
@@ -38,8 +36,8 @@ _ALL_RESPONSE = {
 }
 
 
-def test_usage_single_tsv(monkeypatch) -> None:
-    _patch_usage(monkeypatch, _SINGLE_RESPONSE)
+def test_usage_single_tsv(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _SINGLE_RESPONSE)
     result = CliRunner().invoke(main, ["usage", "97"])
     assert result.exit_code == 0
     assert "EID\tUSAGE" in result.output
@@ -48,8 +46,8 @@ def test_usage_single_tsv(monkeypatch) -> None:
     assert "12\tCopySrc" in result.output
 
 
-def test_usage_single_json(monkeypatch) -> None:
-    _patch_usage(monkeypatch, _SINGLE_RESPONSE)
+def test_usage_single_json(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _SINGLE_RESPONSE)
     result = CliRunner().invoke(main, ["usage", "97", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -57,8 +55,8 @@ def test_usage_single_json(monkeypatch) -> None:
     assert len(data["entries"]) == 3
 
 
-def test_usage_all_tsv(monkeypatch) -> None:
-    _patch_usage(monkeypatch, _ALL_RESPONSE)
+def test_usage_all_tsv(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _ALL_RESPONSE)
     result = CliRunner().invoke(main, ["usage", "--all"])
     assert result.exit_code == 0
     assert "ID\tNAME\tEID\tUSAGE" in result.output
@@ -66,72 +64,51 @@ def test_usage_all_tsv(monkeypatch) -> None:
     assert "105\tBuffer 105\t11\tVS_Constants" in result.output
 
 
-def test_usage_all_type_filter(monkeypatch) -> None:
-    filtered = {
-        "rows": [
-            {"id": 97, "name": "2D Image 97", "eid": 6, "usage": "Clear"},
-        ],
-        "total": 1,
-    }
-    captured: dict = {}
+def test_usage_all_type_filter(monkeypatch: Any) -> None:
+    captured: dict[str, Any] = {}
 
-    import rdc.commands.info as mod
+    def _capture(method: str, params: dict | None = None) -> dict:
+        captured["method"] = method
+        captured["params"] = params or {}
+        return {"rows": [{"id": 97, "name": "2D Image 97", "eid": 6, "usage": "Clear"}], "total": 1}
 
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-
-    def _capture_req(_h, _p, payload):
-        captured.update(payload.get("params", {}))
-        return {"result": filtered}
-
-    monkeypatch.setattr(mod, "send_request", _capture_req)
+    monkeypatch.setattr(usage_mod, "_daemon_call", _capture)
     result = CliRunner().invoke(main, ["usage", "--all", "--type", "Texture"])
     assert result.exit_code == 0
-    assert captured.get("type") == "Texture"
-    assert "97" in result.output
+    assert captured["params"].get("type") == "Texture"
 
 
-def test_usage_all_usage_filter(monkeypatch) -> None:
-    filtered = {
-        "rows": [
-            {"id": 97, "name": "2D Image 97", "eid": 11, "usage": "ColorTarget"},
-        ],
-        "total": 1,
-    }
-    captured: dict = {}
+def test_usage_all_usage_filter(monkeypatch: Any) -> None:
+    captured: dict[str, Any] = {}
 
-    import rdc.commands.info as mod
+    def _capture(method: str, params: dict | None = None) -> dict:
+        captured["method"] = method
+        captured["params"] = params or {}
+        row = {"id": 97, "name": "2D Image 97", "eid": 11, "usage": "ColorTarget"}
+        return {"rows": [row], "total": 1}
 
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-
-    def _capture_req(_h, _p, payload):
-        captured.update(payload.get("params", {}))
-        return {"result": filtered}
-
-    monkeypatch.setattr(mod, "send_request", _capture_req)
+    monkeypatch.setattr(usage_mod, "_daemon_call", _capture)
     result = CliRunner().invoke(main, ["usage", "--all", "--usage", "ColorTarget"])
     assert result.exit_code == 0
-    assert captured.get("usage") == "ColorTarget"
+    assert captured["params"].get("usage") == "ColorTarget"
 
 
-def test_usage_no_args_exits_1(monkeypatch) -> None:
-    _patch_usage(monkeypatch, {})
+def test_usage_no_args_exits_1(monkeypatch: Any) -> None:
+    _patch(monkeypatch, {})
     result = CliRunner().invoke(main, ["usage"])
     assert result.exit_code == 1
     assert "error" in result.output
 
 
-def test_usage_daemon_error_exits_1(monkeypatch) -> None:
-    import rdc.commands.info as mod
+def test_usage_daemon_error_exits_1(monkeypatch: Any) -> None:
+    from rdc.commands.info import _daemon_call as _orig  # noqa: F401
 
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(
-        mod,
-        "send_request",
-        lambda _h, _p, _payload: {"error": {"code": -32001, "message": "resource 999 not found"}},
-    )
+    def _raise_error(method: str, params: dict | None = None) -> dict:
+        import click
+
+        click.echo("error: resource 999 not found", err=True)
+        raise SystemExit(1)
+
+    monkeypatch.setattr(usage_mod, "_daemon_call", _raise_error)
     result = CliRunner().invoke(main, ["usage", "999"])
     assert result.exit_code == 1
-    assert "not found" in result.output

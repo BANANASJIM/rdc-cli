@@ -37,10 +37,12 @@ def _state_with_usage() -> DaemonState:
         ],
         200: [],
     }
+    resources = ctrl._resources
     state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 33))
-    state.res_names = {97: "2D Image 97", 105: "Buffer 105", 200: "Empty Res"}
-    state.res_types = {97: "Texture", 105: "Buffer", 200: "Texture"}
+    state.res_names = {int(r.resourceId): r.name for r in resources}
+    state.res_types = {int(r.resourceId): r.type.name for r in resources}
+    state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
     return state
 
 
