@@ -423,7 +423,7 @@ class BoundVBuffer:
 class VertexInputAttribute:
     name: str = ""
     vertexBuffer: int = 0
-    relativeByteOffset: int = 0
+    byteOffset: int = 0
     perInstance: bool = False
     instanceRate: int = 0
     format: ResourceFormat = field(default_factory=ResourceFormat)
@@ -444,6 +444,13 @@ class SamplerData:
     minLOD: float = 0.0
     mipBias: float = 0.0
     seamlessCubeMap: bool = False
+
+
+@dataclass
+class UsedSampler:
+    """Mimics UsedDescriptor wrapping a SamplerDescriptor."""
+
+    sampler: SamplerData = field(default_factory=SamplerData)
 
 
 @dataclass
@@ -637,8 +644,8 @@ class MockPipeState:
     def GetVertexInputs(self) -> list[VertexInputAttribute]:
         return self._vertex_inputs
 
-    def GetSamplers(self, stage: ShaderStage, only_used: bool = True) -> list[SamplerData]:
-        return self._samplers.get(stage, [])
+    def GetSamplers(self, stage: ShaderStage, only_used: bool = True) -> list[UsedSampler]:
+        return [UsedSampler(sampler=s) for s in self._samplers.get(stage, [])]
 
     def GetVBuffers(self) -> list[BoundVBuffer]:
         return self._vbuffers

@@ -1010,7 +1010,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 {
                     "name": getattr(vi, "name", ""),
                     "vertexBuffer": getattr(vi, "vertexBuffer", 0),
-                    "relativeByteOffset": getattr(vi, "relativeByteOffset", 0),
+                    "byteOffset": getattr(vi, "byteOffset", 0),
                     "perInstance": getattr(vi, "perInstance", False),
                     "instanceRate": getattr(vi, "instanceRate", 0),
                     "format": fmt.Name()
@@ -1038,18 +1038,19 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             else:
                 samplers = []
             for i, s in enumerate(samplers):
+                sd = getattr(s, "sampler", s)
                 all_samplers.append(
                     {
                         "stage": stage_name,
                         "slot": i,
-                        "addressU": getattr(s, "addressU", ""),
-                        "addressV": getattr(s, "addressV", ""),
-                        "addressW": getattr(s, "addressW", ""),
-                        "filter": getattr(s, "filter", ""),
-                        "maxAnisotropy": getattr(s, "maxAnisotropy", 0),
-                        "minLOD": getattr(s, "minLOD", 0.0),
-                        "maxLOD": getattr(s, "maxLOD", 0.0),
-                        "mipBias": getattr(s, "mipBias", 0.0),
+                        "addressU": getattr(sd, "addressU", ""),
+                        "addressV": getattr(sd, "addressV", ""),
+                        "addressW": getattr(sd, "addressW", ""),
+                        "filter": getattr(sd, "filter", ""),
+                        "maxAnisotropy": getattr(sd, "maxAnisotropy", 0),
+                        "minLOD": getattr(sd, "minLOD", 0.0),
+                        "maxLOD": getattr(sd, "maxLOD", 0.0),
+                        "mipBias": getattr(sd, "mipBias", 0.0),
                     }
                 )
         return _result_response(request_id, {"eid": eid, "samplers": all_samplers}), True
@@ -1104,7 +1105,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if err:
             return _error_response(request_id, -32002, err), True
         controller = state.adapter.controller
-        mesh = controller.GetPostVSData(0, 0, 0)  # 0 = VSOut stage
+        mesh = controller.GetPostVSData(0, 0, 1)  # 1 = MeshDataStage.VSOut
         return _result_response(
             request_id,
             {

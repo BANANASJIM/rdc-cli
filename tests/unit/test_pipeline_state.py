@@ -82,7 +82,7 @@ def state(tmp_path: Path) -> DaemonState:
         VertexInputAttribute(
             name="TEXCOORD",
             vertexBuffer=0,
-            relativeByteOffset=12,
+            byteOffset=12,
             format=ResourceFormat(name="R32G32_FLOAT", compByteWidth=4, compCount=2),
         ),
     ]
