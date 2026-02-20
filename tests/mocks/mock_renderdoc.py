@@ -103,11 +103,12 @@ class DescriptorType(IntEnum):
     Sampler = 2
     ImageSampler = 3
     Image = 4
-    TypeBuffer = 5
-    ReadWriteImage = 6
-    ReadWriteBuffer = 7
+    Buffer = 5
+    TypedBuffer = 6
+    ReadWriteImage = 7
     ReadWriteTypedBuffer = 8
-    InputAttachment = 9
+    ReadWriteBuffer = 9
+    AccelerationStructure = 10
 
 
 class AddressMode(IntEnum):
@@ -116,6 +117,43 @@ class AddressMode(IntEnum):
     MirrorOnce = 2
     ClampEdge = 3
     ClampBorder = 4
+
+
+class FilterMode(IntEnum):
+    NoFilter = 0
+    Point = 1
+    Linear = 2
+    Cubic = 3
+    Anisotropic = 4
+
+
+class CompareFunction(IntEnum):
+    Never = 0
+    AlwaysTrue = 1
+    Less = 2
+    LessEqual = 3
+    Greater = 4
+    GreaterEqual = 5
+    Equal = 6
+    NotEqual = 7
+
+
+class ChromaSampleLocation(IntEnum):
+    CositedEven = 0
+    Midpoint = 1
+
+
+class YcbcrConversion(IntEnum):
+    Raw = 0
+    RangeOnly = 1
+    BT709 = 2
+    BT601 = 3
+    BT2020 = 4
+
+
+class YcbcrRange(IntEnum):
+    ITUFull = 0
+    ITUNarrow = 1
 
 
 class TextureType(IntEnum):
@@ -612,27 +650,57 @@ class UsedSampler:
 
 
 @dataclass
+class PixelValue:
+    """Stub for PixelValue (SWIG opaque type)."""
+
+    floatValue: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0, 0.0])
+
+
+@dataclass
+class TextureFilter:
+    """Stub for TextureFilter (SWIG opaque type)."""
+
+    minify: FilterMode = FilterMode.Linear
+    magnify: FilterMode = FilterMode.Linear
+    mip: FilterMode = FilterMode.Linear
+
+
+@dataclass
 class SamplerDescriptor:
     """Mock for SamplerDescriptor from GetAllUsedDescriptors."""
 
     addressU: AddressMode = AddressMode.Wrap
     addressV: AddressMode = AddressMode.Wrap
     addressW: AddressMode = AddressMode.Wrap
-    filter: str = "Linear"
-    compareFunction: str = ""
+    borderColorType: CompType = CompType.Float
+    borderColorValue: PixelValue = field(default_factory=PixelValue)
+    chromaFilter: FilterMode = FilterMode.NoFilter
+    compareFunction: CompareFunction = CompareFunction.AlwaysTrue
+    creationTimeConstant: bool = False
+    filter: TextureFilter = field(default_factory=TextureFilter)
+    forceExplicitReconstruction: bool = False
+    maxAnisotropy: float = 0.0
+    maxLOD: float = 0.0
     minLOD: float = 0.0
-    maxLOD: float = 1000.0
     mipBias: float = 0.0
-    maxAnisotropy: float = 1.0
-    seamlessCubeMap: bool = False
-    maxLODClamp: float = 0.0
-    borderColor: FloatVector = field(default_factory=FloatVector)
+    object: ResourceId = field(default_factory=ResourceId)
+    seamlessCubemaps: bool = True
+    srgbBorder: bool = False
+    swizzle: TextureSwizzle4 = field(default_factory=TextureSwizzle4)
+    type: DescriptorType = DescriptorType.Unknown
+    unnormalized: bool = False
+    xChromaOffset: ChromaSampleLocation = ChromaSampleLocation.CositedEven
+    yChromaOffset: ChromaSampleLocation = ChromaSampleLocation.CositedEven
+    ycbcrModel: YcbcrConversion = YcbcrConversion.Raw
+    ycbcrRange: YcbcrRange = YcbcrRange.ITUFull
+    ycbcrSampler: ResourceId = field(default_factory=ResourceId)
 
 
 @dataclass
 class DescriptorAccess:
     """Mock for DescriptorAccess from GetAllUsedDescriptors."""
 
+    NoShaderBinding: int = 65535
     stage: ShaderStage = ShaderStage.Vertex
     type: DescriptorType = DescriptorType.ConstantBuffer
     index: int = 0
