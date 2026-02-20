@@ -64,6 +64,13 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
             for c in r.get("counters", [])
         )
     ),
+    "descriptors": lambda r: (
+        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\n"
+        + "\n".join(
+            f"{d['stage']}\t{d['type']}\t{d['index']}\t{d['array_element']}\t{d['resource_id']}\t{d['format']}\t{d['byte_size']}"
+            for d in r.get("descriptors", [])
+        )
+    ),
 }
 
 

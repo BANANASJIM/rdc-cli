@@ -44,6 +44,7 @@ _DRAW_CHILDREN = [
     "cbuffer",
     "vbuffer",
     "ibuffer",
+    "descriptors",
 ]
 _PIPELINE_CHILDREN = [
     "summary",
@@ -163,6 +164,7 @@ def build_vfs_skeleton(
         tree.static[f"{prefix}/cbuffer"] = VfsNode("cbuffer", "dir")
         tree.static[f"{prefix}/vbuffer"] = VfsNode("vbuffer", "leaf")
         tree.static[f"{prefix}/ibuffer"] = VfsNode("ibuffer", "leaf")
+        tree.static[f"{prefix}/descriptors"] = VfsNode("descriptors", "leaf")
 
     # /passes — sanitize names containing "/" to avoid path corruption
     safe_pass_names = [n.replace("/", "_") for n in pass_names]

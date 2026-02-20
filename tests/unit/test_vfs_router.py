@@ -438,3 +438,14 @@ def test_counters_dir() -> None:
 def test_counters_list_leaf() -> None:
     m = resolve_path("/counters/list")
     assert m == PathMatch(kind="leaf", handler="counter_list", args={})
+
+
+# ── Descriptors ───────────────────────────────────────────────────────
+
+
+def test_descriptors_route() -> None:
+    m = resolve_path("/draws/42/descriptors")
+    assert m is not None
+    assert m.kind == "leaf"
+    assert m.handler == "descriptors"
+    assert m.args == {"eid": 42}

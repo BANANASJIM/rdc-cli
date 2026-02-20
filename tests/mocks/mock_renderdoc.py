@@ -97,6 +97,27 @@ class ResourceType(IntEnum):
     DescriptorStore = 19
 
 
+class DescriptorType(IntEnum):
+    Unknown = 0
+    ConstantBuffer = 1
+    Sampler = 2
+    ImageSampler = 3
+    Image = 4
+    TypeBuffer = 5
+    ReadWriteImage = 6
+    ReadWriteBuffer = 7
+    ReadWriteTypedBuffer = 8
+    InputAttachment = 9
+
+
+class AddressMode(IntEnum):
+    Wrap = 0
+    Mirror = 1
+    MirrorOnce = 2
+    ClampEdge = 3
+    ClampBorder = 4
+
+
 class TextureType(IntEnum):
     Unknown = 0
     Buffer = 1
@@ -591,6 +612,47 @@ class UsedSampler:
 
 
 @dataclass
+class SamplerDescriptor:
+    """Mock for SamplerDescriptor from GetAllUsedDescriptors."""
+
+    addressU: AddressMode = AddressMode.Wrap
+    addressV: AddressMode = AddressMode.Wrap
+    addressW: AddressMode = AddressMode.Wrap
+    filter: str = "Linear"
+    compareFunction: str = ""
+    minLOD: float = 0.0
+    maxLOD: float = 1000.0
+    mipBias: float = 0.0
+    maxAnisotropy: float = 1.0
+    seamlessCubeMap: bool = False
+    maxLODClamp: float = 0.0
+    borderColor: FloatVector = field(default_factory=FloatVector)
+
+
+@dataclass
+class DescriptorAccess:
+    """Mock for DescriptorAccess from GetAllUsedDescriptors."""
+
+    stage: ShaderStage = ShaderStage.Vertex
+    type: DescriptorType = DescriptorType.ConstantBuffer
+    index: int = 0
+    arrayElement: int = 0
+    descriptorStore: ResourceId = field(default_factory=ResourceId)
+    byteOffset: int = 0
+    byteSize: int = 0
+    staticallyUnused: bool = False
+
+
+@dataclass
+class UsedDescriptor:
+    """Mock for UsedDescriptor from GetAllUsedDescriptors."""
+
+    access: DescriptorAccess = field(default_factory=DescriptorAccess)
+    descriptor: Descriptor = field(default_factory=Descriptor)
+    sampler: SamplerDescriptor = field(default_factory=SamplerDescriptor)
+
+
+@dataclass
 class MeshFormat:
     allowRestart: bool = False
     baseVertex: int = 0
@@ -783,6 +845,7 @@ class MockPipeState:
         self._vbuffers: list[BoundVBuffer] = []
         self._ibuffer: BoundVBuffer = BoundVBuffer()
         self._cbuffer_descriptors: dict[tuple[int, int], Descriptor] = {}
+        self._used_descriptors: list[UsedDescriptor] = []
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
@@ -840,6 +903,12 @@ class MockPipeState:
     ) -> Descriptor:
         """Mock GetConstantBlock — returns descriptor with cbuffer resource."""
         return self._cbuffer_descriptors.get((stage, slot), Descriptor())
+
+    def GetAllUsedDescriptors(self, only_used: bool = True) -> list[UsedDescriptor]:
+        """Mock GetAllUsedDescriptors — returns configured used descriptors."""
+        if only_used:
+            return [d for d in self._used_descriptors if not d.access.staticallyUnused]
+        return list(self._used_descriptors)
 
     def IsCaptureVK(self) -> bool:
         return True
