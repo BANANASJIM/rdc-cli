@@ -12,10 +12,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
+    BufferDescription,
+    Descriptor,
     MockPipeState,
     ResourceDescription,
     ResourceId,
     ShaderReflection,
+    TextureDescription,
 )
 
 from rdc.vfs.formatter import render_ls, render_tree_root
@@ -143,7 +146,7 @@ class TestBuildVfsSkeleton:
     def test_draw_node_structure(self, skeleton: VfsTree) -> None:
         node = skeleton.static["/draws/10"]
         assert node.kind == "dir"
-        assert node.children == ["pipeline", "shader", "bindings"]
+        assert node.children == ["pipeline", "shader", "bindings", "targets"]
 
     def test_draw_pipeline_children(self, skeleton: VfsTree) -> None:
         pipe = skeleton.static["/draws/10/pipeline"]
@@ -191,10 +194,183 @@ class TestBuildVfsSkeleton:
         assert skeleton.static["/current"].kind == "alias"
 
     def test_placeholder_dirs(self, skeleton: VfsTree) -> None:
-        for name in ("by-marker", "textures", "buffers", "shaders"):
+        for name in ("by-marker", "shaders"):
             node = skeleton.static[f"/{name}"]
             assert node.kind == "dir"
             assert node.children == []
+
+    def test_textures_buffers_empty_when_not_provided(self, skeleton: VfsTree) -> None:
+        """No textures/buffers passed produces empty dirs."""
+        assert skeleton.static["/textures"].kind == "dir"
+        assert skeleton.static["/textures"].children == []
+        assert skeleton.static["/buffers"].kind == "dir"
+        assert skeleton.static["/buffers"].children == []
+
+
+# ---------------------------------------------------------------------------
+# Texture / Buffer skeleton tests
+# ---------------------------------------------------------------------------
+
+
+def _make_typed_resources() -> list[ResourceDescription]:
+    return [
+        ResourceDescription(resourceId=ResourceId(5), name="Albedo"),
+        ResourceDescription(resourceId=ResourceId(10), name="Normal"),
+        ResourceDescription(resourceId=ResourceId(20), name="VtxBuf"),
+    ]
+
+
+def _make_textures() -> list[TextureDescription]:
+    return [
+        TextureDescription(resourceId=ResourceId(5), width=512, height=512, mips=4),
+        TextureDescription(resourceId=ResourceId(10), width=256, height=256, mips=1),
+    ]
+
+
+def _make_buffers() -> list[BufferDescription]:
+    return [
+        BufferDescription(resourceId=ResourceId(20), length=4096),
+    ]
+
+
+class TestTextureBufferSkeleton:
+    @pytest.fixture
+    def typed_skeleton(self) -> VfsTree:
+        return build_vfs_skeleton(
+            _make_actions(),
+            _make_typed_resources(),
+            textures=_make_textures(),
+            buffers=_make_buffers(),
+        )
+
+    def test_textures_children(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/textures"].children == ["5", "10"]
+
+    def test_texture_node_structure(self, typed_skeleton: VfsTree) -> None:
+        node = typed_skeleton.static["/textures/5"]
+        assert node.kind == "dir"
+        assert node.children == ["info", "image.png", "mips", "data"]
+
+    def test_texture_info_leaf(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/textures/5/info"].kind == "leaf"
+
+    def test_texture_image_leaf_bin(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/textures/5/image.png"].kind == "leaf_bin"
+
+    def test_texture_data_leaf_bin(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/textures/5/data"].kind == "leaf_bin"
+
+    def test_texture_mips_4(self, typed_skeleton: VfsTree) -> None:
+        mips = typed_skeleton.static["/textures/5/mips"]
+        assert mips.kind == "dir"
+        assert mips.children == ["0.png", "1.png", "2.png", "3.png"]
+
+    def test_texture_mip_leaf_bin(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/textures/5/mips/0.png"].kind == "leaf_bin"
+
+    def test_texture_mips_1(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/textures/10/mips"].children == ["0.png"]
+
+    def test_buffers_children(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/buffers"].children == ["20"]
+
+    def test_buffer_node_structure(self, typed_skeleton: VfsTree) -> None:
+        node = typed_skeleton.static["/buffers/20"]
+        assert node.kind == "dir"
+        assert node.children == ["info", "data"]
+
+    def test_buffer_info_leaf(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/buffers/20/info"].kind == "leaf"
+
+    def test_buffer_data_leaf_bin(self, typed_skeleton: VfsTree) -> None:
+        assert typed_skeleton.static["/buffers/20/data"].kind == "leaf_bin"
+
+    def test_unknown_resources_excluded(self) -> None:
+        """Resources not in textures/buffers lists produce empty dirs."""
+        resources = [
+            ResourceDescription(resourceId=ResourceId(99), name="Mystery"),
+        ]
+        tree = build_vfs_skeleton(_make_actions(), resources)
+        assert tree.static["/textures"].children == []
+        assert tree.static["/buffers"].children == []
+
+
+# ---------------------------------------------------------------------------
+# Draw targets subtree tests
+# ---------------------------------------------------------------------------
+
+
+def _make_pipe_with_targets() -> MockPipeState:
+    pipe = MockPipeState(
+        output_targets=[
+            Descriptor(resource=ResourceId(300)),
+            Descriptor(resource=ResourceId(400)),
+        ],
+        depth_target=Descriptor(resource=ResourceId(500)),
+    )
+    pipe._shaders[0] = ResourceId(100)  # VS
+    pipe._shaders[4] = ResourceId(200)  # PS
+    return pipe
+
+
+class TestDrawTargetsSubtree:
+    @pytest.fixture
+    def skel(self) -> VfsTree:
+        return build_vfs_skeleton(_make_actions(), _make_resources())
+
+    def test_targets_in_draw_children(self, skel: VfsTree) -> None:
+        assert "targets" in skel.static["/draws/10"].children
+
+    def test_targets_dir_exists(self, skel: VfsTree) -> None:
+        assert skel.static["/draws/10/targets"].kind == "dir"
+
+    def test_targets_populated(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_targets()
+        populate_draw_subtree(skel, 10, pipe)
+        assert skel.static["/draws/10/targets"].children == [
+            "color0.png",
+            "color1.png",
+            "depth.png",
+        ]
+
+    def test_target_color_leaf_bin(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_targets()
+        populate_draw_subtree(skel, 10, pipe)
+        assert skel.static["/draws/10/targets/color0.png"].kind == "leaf_bin"
+
+    def test_target_depth_leaf_bin(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_targets()
+        populate_draw_subtree(skel, 10, pipe)
+        assert skel.static["/draws/10/targets/depth.png"].kind == "leaf_bin"
+
+    def test_no_targets(self, skel: VfsTree) -> None:
+        pipe = MockPipeState()
+        populate_draw_subtree(skel, 10, pipe)
+        assert skel.static["/draws/10/targets"].children == []
+
+    def test_color_only_no_depth(self, skel: VfsTree) -> None:
+        pipe = MockPipeState(
+            output_targets=[Descriptor(resource=ResourceId(300))],
+        )
+        populate_draw_subtree(skel, 10, pipe)
+        assert skel.static["/draws/10/targets"].children == ["color0.png"]
+
+    def test_lru_eviction_cleans_target_nodes(self) -> None:
+        skel = build_vfs_skeleton(_make_actions(), _make_resources())
+        skel._lru_capacity = 1
+        pipe = _make_pipe_with_targets()
+
+        populate_draw_subtree(skel, 10, pipe)
+        assert "/draws/10/targets/color0.png" in skel.static
+
+        # Evict eid 10 by populating eid 20
+        populate_draw_subtree(skel, 20, pipe)
+        assert skel.get_draw_subtree(10) is None
+        assert "/draws/10/targets/color0.png" not in skel.static
+        assert "/draws/10/targets/depth.png" not in skel.static
+        assert skel.static["/draws/10/targets"].children == []
+        # Eid 20 targets still present
+        assert "/draws/20/targets/color0.png" in skel.static
 
 
 # ---------------------------------------------------------------------------

@@ -48,6 +48,14 @@ class RenderDocAdapter:
         """Move the replay to the given event ID."""
         self.controller.SetFrameEvent(eid, force)
 
+    def get_textures(self) -> Any:
+        """Return all texture descriptions from the controller."""
+        return self.controller.GetTextures()
+
+    def get_buffers(self) -> Any:
+        """Return all buffer descriptions from the controller."""
+        return self.controller.GetBuffers()
+
     def shutdown(self) -> None:
         """Shutdown the replay controller."""
         self.controller.Shutdown()

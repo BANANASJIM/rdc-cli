@@ -26,9 +26,9 @@ def _state_with_adapter() -> DaemonState:
     ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
     ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
         resourceId=ps_id,
-        readOnlyResources=[rd.ShaderResource(name="albedo", bindPoint=0)],
-        readWriteResources=[rd.ShaderResource(name="rwbuf", bindPoint=1)],
-        constantBlocks=[rd.ConstantBlock(name="Globals", bindPoint=0)],
+        readOnlyResources=[rd.ShaderResource(name="albedo", fixedBindNumber=0)],
+        readWriteResources=[rd.ShaderResource(name="rwbuf", fixedBindNumber=1)],
+        constantBlocks=[rd.ConstantBlock(name="Globals", fixedBindNumber=0)],
     )
 
     from rdc.adapter import RenderDocAdapter
@@ -47,9 +47,9 @@ def test_query_service_rows() -> None:
     ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
     ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
         resourceId=ps_id,
-        readOnlyResources=[rd.ShaderResource(name="albedo", bindPoint=0)],
-        readWriteResources=[rd.ShaderResource(name="rwbuf", bindPoint=1)],
-        constantBlocks=[rd.ConstantBlock(name="Globals", bindPoint=0)],
+        readOnlyResources=[rd.ShaderResource(name="albedo", fixedBindNumber=0)],
+        readWriteResources=[rd.ShaderResource(name="rwbuf", fixedBindNumber=1)],
+        constantBlocks=[rd.ConstantBlock(name="Globals", fixedBindNumber=0)],
     )
 
     prow = pipeline_row(10, "Vulkan", ctrl.GetPipelineState())
@@ -206,7 +206,7 @@ def test_query_service_resources() -> None:
     ctrl = rd.MockReplayController()
     # Add some resources
     res1 = rd.ResourceDescription(
-        resourceId=rd.ResourceId(1), name="Texture0", type=rd.ResourceType.Texture2D
+        resourceId=rd.ResourceId(1), name="Texture0", type=rd.ResourceType.Texture
     )
     res2 = rd.ResourceDescription(
         resourceId=rd.ResourceId(2), name="Buffer0", type=rd.ResourceType.Buffer
@@ -259,7 +259,7 @@ def test_daemon_resources_handler() -> None:
     state = _state_with_adapter()
     # Add resources to mock
     res1 = rd.ResourceDescription(
-        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture2D
+        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture
     )
     state.adapter.controller._resources = [res1]
 
@@ -275,7 +275,7 @@ def test_daemon_resource_handler() -> None:
     """Test daemon handler for resource method."""
     state = _state_with_adapter()
     res1 = rd.ResourceDescription(
-        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture2D
+        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture
     )
     state.adapter.controller._resources = [res1]
 

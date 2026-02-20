@@ -23,9 +23,9 @@ def _state_with_adapter() -> DaemonState:
     ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
     ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
         resourceId=ps_id,
-        readOnlyResources=[rd.ShaderResource(name="albedo", bindPoint=0)],
-        readWriteResources=[rd.ShaderResource(name="rwbuf", bindPoint=1)],
-        constantBlocks=[rd.ConstantBlock(name="Globals", bindPoint=0)],
+        readOnlyResources=[rd.ShaderResource(name="albedo", fixedBindNumber=0)],
+        readWriteResources=[rd.ShaderResource(name="rwbuf", fixedBindNumber=1)],
+        constantBlocks=[rd.ConstantBlock(name="Globals", fixedBindNumber=0)],
     )
 
     state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
@@ -204,7 +204,7 @@ def test_shader_all_no_adapter() -> None:
 def test_count_resources_handler() -> None:
     state = _state_with_adapter()
     res = rd.ResourceDescription(
-        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture2D
+        resourceId=rd.ResourceId(1), name="Tex", type=rd.ResourceType.Texture
     )
     state.adapter.controller._resources = [res]
     resp, _ = _handle_request(_req("count", {"what": "resources"}), state)

@@ -65,5 +65,5 @@ def test_resource_id_equality() -> None:
 
 
 def test_version_string() -> None:
-    assert rd.GetVersionString() == "v1.33"
+    assert rd.GetVersionString() == "v1.41"
     assert rd.GetCommitHash() == "abc123"

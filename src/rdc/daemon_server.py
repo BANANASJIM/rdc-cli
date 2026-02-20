@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from rdc.adapter import RenderDocAdapter
@@ -28,6 +29,11 @@ class DaemonState:
     max_eid: int = 0
     vfs_tree: Any = field(default=None, repr=False)
     _eid_cache: int = field(default=-1, repr=False)
+    temp_dir: Path | None = None
+    tex_map: dict[int, Any] = field(default_factory=dict)
+    buf_map: dict[int, Any] = field(default_factory=dict)
+    res_names: dict[int, str] = field(default_factory=dict)
+    rd: Any = None
 
 
 def _detect_version(rd: Any) -> tuple[int, int]:
@@ -69,6 +75,7 @@ def _load_replay(state: DaemonState) -> str | None:
         return f"OpenCapture failed: {result}"
 
     state.cap = cap
+    state.rd = rd
     version = _detect_version(rd)
     state.adapter = RenderDocAdapter(controller=controller, version=version)
     state.structured_file = cap.GetStructuredData()
@@ -83,9 +90,41 @@ def _load_replay(state: DaemonState) -> str | None:
     from rdc.vfs.tree_cache import build_vfs_skeleton
 
     resources = state.adapter.get_resources()
-    state.vfs_tree = build_vfs_skeleton(root_actions, resources, state.structured_file)
+    textures = state.adapter.get_textures()
+    buffers = state.adapter.get_buffers()
+
+    state.tex_map = {int(t.resourceId): t for t in textures}
+    state.buf_map = {int(b.resourceId): b for b in buffers}
+    state.res_names = {int(r.resourceId): r.name for r in resources}
+
+    state.vfs_tree = build_vfs_skeleton(
+        root_actions, resources, textures, buffers, state.structured_file
+    )
+
+    import tempfile
+
+    state.temp_dir = Path(tempfile.mkdtemp(prefix=f"rdc-{state.token[:8]}-"))
 
     return None
+
+
+def _make_texsave(rd: Any, resource_id: Any, mip: int = 0) -> Any:
+    """Create a TextureSave object using the renderdoc module."""
+    ts = rd.TextureSave()
+    ts.resourceId = resource_id
+    ts.mip = mip
+    ts.slice = rd.TextureSliceMapping()
+    ts.destType = rd.FileType.PNG
+    return ts
+
+
+def _make_subresource(rd: Any, mip: int = 0) -> Any:
+    """Create a Subresource object using the renderdoc module."""
+    sub = rd.Subresource()
+    sub.mip = mip
+    sub.slice = 0
+    sub.sample = 0
+    return sub
 
 
 def _max_eid(actions: list[Any]) -> int:
@@ -419,25 +458,25 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         output_sig = []
         constant_blocks = []
 
-        for sig in getattr(refl, "inputSig", []):
+        for sig in getattr(refl, "inputSignature", []):
             input_sig.append(
                 {
-                    "name": sig.name,
-                    "semantic": getattr(sig, "semantic", ""),
-                    "location": getattr(sig, "location", 0),
-                    "component": getattr(sig, "component", 0),
-                    "type": str(getattr(sig, "varType", "")),
+                    "name": getattr(sig, "varName", ""),
+                    "semantic": getattr(sig, "semanticName", ""),
+                    "location": getattr(sig, "regIndex", 0),
+                    "component": getattr(sig, "compCount", 0),
+                    "type": str(getattr(sig, "compType", "")),
                 }
             )
 
-        for sig in getattr(refl, "outputSig", []):
+        for sig in getattr(refl, "outputSignature", []):
             output_sig.append(
                 {
-                    "name": sig.name,
-                    "semantic": getattr(sig, "semantic", ""),
-                    "location": getattr(sig, "location", 0),
-                    "component": getattr(sig, "component", 0),
-                    "type": str(getattr(sig, "varType", "")),
+                    "name": getattr(sig, "varName", ""),
+                    "semantic": getattr(sig, "semanticName", ""),
+                    "location": getattr(sig, "regIndex", 0),
+                    "component": getattr(sig, "compCount", 0),
+                    "type": str(getattr(sig, "compType", "")),
                 }
             )
 
@@ -445,8 +484,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             constant_blocks.append(
                 {
                     "name": cb.name,
-                    "bind_point": getattr(cb, "bindPoint", 0),
-                    "size": getattr(cb, "bufferSize", 0),
+                    "bind_point": getattr(cb, "fixedBindNumber", getattr(cb, "bindPoint", 0)),
+                    "size": getattr(cb, "byteSize", 0),
                     "variables": len(getattr(cb, "variables", [])),
                 }
             )
@@ -485,8 +524,9 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         constants = []
 
         for cb in getattr(refl, "constantBlocks", []):
-            bind_point = getattr(cb, "bindPoint", 0)
-            # Get the constant buffer data
+            bind_point = getattr(cb, "fixedBindNumber", getattr(cb, "bindPoint", 0))
+            # TODO: GetConstantBuffer does not exist in renderdoc API;
+            # phase2-buffer-decode will use GetCBufferVariableContents instead
             if hasattr(controller, "GetConstantBuffer"):
                 cbuf_data = controller.GetConstantBuffer(stage_val, bind_point)
                 if cbuf_data:
@@ -505,7 +545,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                     {
                         "name": cb.name,
                         "bind_point": bind_point,
-                        "size": getattr(cb, "bufferSize", 0),
+                        "size": getattr(cb, "byteSize", 0),
                         "data": "",
                     }
                 )
@@ -661,7 +701,196 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         depth = int(params.get("depth", 2))
         return _handle_vfs_tree(request_id, path, depth, state), True
 
+    if method == "tex_info":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        res_id = int(params.get("id", 0))
+        tex = state.tex_map.get(res_id)
+        if tex is None:
+            return _error_response(request_id, -32001, f"texture {res_id} not found"), True
+        fmt = getattr(tex, "format", None)
+        fmt_name = fmt.Name() if fmt and hasattr(fmt, "Name") else getattr(fmt, "name", "")
+        return _result_response(
+            request_id,
+            {
+                "id": res_id,
+                "name": state.res_names.get(res_id, ""),
+                "type": str(getattr(tex, "type", "")),
+                "dimension": getattr(tex, "dimension", 0),
+                "width": tex.width,
+                "height": tex.height,
+                "depth": getattr(tex, "depth", 1),
+                "mips": tex.mips,
+                "array_size": getattr(tex, "arraysize", 1),
+                "format": fmt_name,
+                "byte_size": getattr(tex, "byteSize", 0),
+                "creation_flags": int(getattr(tex, "creationFlags", 0)),
+                "cubemap": getattr(tex, "cubemap", False),
+                "ms_samp": getattr(tex, "msSamp", 1),
+            },
+        ), True
+
+    if method == "tex_export":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.rd is None:
+            return _error_response(request_id, -32002, "renderdoc module not available"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        res_id = int(params.get("id", 0))
+        mip = int(params.get("mip", 0))
+        tex = state.tex_map.get(res_id)
+        if tex is None:
+            return _error_response(request_id, -32001, f"texture {res_id} not found"), True
+        if mip < 0 or mip >= tex.mips:
+            return _error_response(
+                request_id, -32001, f"mip {mip} out of range (max: {tex.mips - 1})"
+            ), True
+        temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}.png"
+        controller = state.adapter.controller
+        texsave = _make_texsave(state.rd, tex.resourceId, mip)
+        success = controller.SaveTexture(texsave, str(temp_path))
+        if not success or not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": temp_path.stat().st_size,
+            },
+        ), True
+
+    if method == "tex_raw":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.rd is None:
+            return _error_response(request_id, -32002, "renderdoc module not available"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        res_id = int(params.get("id", 0))
+        tex = state.tex_map.get(res_id)
+        if tex is None:
+            return _error_response(request_id, -32001, f"texture {res_id} not found"), True
+        controller = state.adapter.controller
+        sub = _make_subresource(state.rd)
+        raw_data = controller.GetTextureData(tex.resourceId, sub)
+        temp_path = state.temp_dir / f"tex_{res_id}.raw"
+        temp_path.write_bytes(raw_data)
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": len(raw_data),
+            },
+        ), True
+
+    if method == "buf_info":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        res_id = int(params.get("id", 0))
+        buf = state.buf_map.get(res_id)
+        if buf is None:
+            return _error_response(request_id, -32001, f"buffer {res_id} not found"), True
+        return _result_response(
+            request_id,
+            {
+                "id": res_id,
+                "name": state.res_names.get(res_id, ""),
+                "length": buf.length,
+                "creation_flags": int(getattr(buf, "creationFlags", 0)),
+                "gpu_address": getattr(buf, "gpuAddress", 0),
+            },
+        ), True
+
+    if method == "buf_raw":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        res_id = int(params.get("id", 0))
+        buf = state.buf_map.get(res_id)
+        if buf is None:
+            return _error_response(request_id, -32001, f"buffer {res_id} not found"), True
+        controller = state.adapter.controller
+        raw_data = controller.GetBufferData(buf.resourceId, 0, 0)
+        temp_path = state.temp_dir / f"buf_{res_id}.bin"
+        temp_path.write_bytes(raw_data)
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": len(raw_data),
+            },
+        ), True
+
+    if method == "rt_export":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.rd is None:
+            return _error_response(request_id, -32002, "renderdoc module not available"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        eid = int(params.get("eid", state.current_eid))
+        target_idx = int(params.get("target", 0))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe = state.adapter.get_pipeline_state()
+        targets = pipe.GetOutputTargets()
+        non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
+        if not non_null:
+            return _error_response(request_id, -32001, f"no color targets at eid {eid}"), True
+        match = [t for i, t in non_null if i == target_idx]
+        if not match:
+            return _error_response(
+                request_id, -32001, f"target index {target_idx} out of range"
+            ), True
+        temp_path = state.temp_dir / f"rt_{eid}_color{target_idx}.png"
+        texsave = _make_texsave(state.rd, match[0].resource)
+        success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+        if not success or not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": temp_path.stat().st_size,
+            },
+        ), True
+
+    if method == "rt_depth":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.rd is None:
+            return _error_response(request_id, -32002, "renderdoc module not available"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe = state.adapter.get_pipeline_state()
+        depth = pipe.GetDepthTarget()
+        if int(depth.resource) == 0:
+            return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
+        temp_path = state.temp_dir / f"rt_{eid}_depth.png"
+        texsave = _make_texsave(state.rd, depth.resource)
+        success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+        if not success or not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": temp_path.stat().st_size,
+            },
+        ), True
+
     if method == "shutdown":
+        if state.temp_dir is not None:
+            import shutil
+
+            shutil.rmtree(state.temp_dir, ignore_errors=True)
         if state.adapter is not None:
             state.adapter.shutdown()
         if state.cap is not None:
@@ -893,7 +1122,7 @@ def _handle_draw_method(
     )
 
 
-_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/shader(?:/|$)")
+_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/(?:shader|targets)(?:/|$)")
 
 
 def _resolve_vfs_path(path: str, state: DaemonState) -> tuple[str, str | None]:
