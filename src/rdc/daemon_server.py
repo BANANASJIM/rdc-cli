@@ -428,6 +428,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                         else str(desc.resultType)
                     ),
                     "byte_width": desc.resultByteWidth,
+                    "uuid": getattr(desc, "uuid", ""),
                 }
             )
         return (
@@ -452,6 +453,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 "name": desc.name,
                 "unit": desc.unit.name if hasattr(desc.unit, "name") else str(desc.unit),
                 "result_type": desc.resultType,
+                "byte_width": desc.resultByteWidth,
             }
         name_filter = params.get("name")
         if name_filter:
@@ -464,22 +466,28 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         fetch_counter_objs = [c for c in raw_counters if int(c) in counter_info]
         results = controller.FetchCounters(fetch_counter_objs)
         eid_filter = params.get("eid")
+        if eid_filter is not None:
+            try:
+                eid_filter = int(eid_filter)
+            except (TypeError, ValueError):
+                return _error_response(request_id, -32602, "eid must be an integer"), True
         fetch_rows: list[dict[str, Any]] = []
         for r in results:
-            if eid_filter is not None and r.eventId != int(eid_filter):
+            if eid_filter is not None and r.eventId != eid_filter:
                 continue
             cid = int(r.counter)
             info = counter_info.get(cid)
             if info is None:
                 continue
             rt = info["result_type"]
+            bw = info["byte_width"]
             rt_name = rt.name if hasattr(rt, "name") else str(rt)
             if rt_name == "Float":
-                val: int | float = r.value.d
-            elif rt_name == "UInt":
-                val = r.value.u64
+                val: int | float = r.value.f if bw == 4 else r.value.d
+            elif rt_name in ("UInt", "UNorm"):
+                val = r.value.u32 if bw == 4 else r.value.u64
             else:
-                val = r.value.u32
+                val = r.value.u32 if bw == 4 else r.value.u64
             fetch_rows.append(
                 {
                     "eid": r.eventId,

@@ -227,3 +227,36 @@ def test_counter_fetch_no_match_name_filter() -> None:
     resp, _ = _handle_request(_req("counter_fetch", {"name": "NonExistent"}), state)
     assert resp["result"]["total"] == 0
     assert resp["result"]["rows"] == []
+
+
+def test_counter_list_empty() -> None:
+    ctrl = rd.MockReplayController()
+    ctrl._counter_descriptions = {}
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    resp, _ = _handle_request(_req("counter_list"), state)
+    assert resp["result"]["counters"] == []
+    assert resp["result"]["total"] == 0
+
+
+def test_counter_fetch_empty() -> None:
+    ctrl = rd.MockReplayController()
+    ctrl._counter_descriptions = {}
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    resp, _ = _handle_request(_req("counter_fetch"), state)
+    assert resp["result"]["rows"] == []
+    assert resp["result"]["total"] == 0
+
+
+def test_counter_fetch_invalid_eid() -> None:
+    state = _state_with_counters()
+    resp, _ = _handle_request(_req("counter_fetch", {"eid": "abc"}), state)
+    assert resp["error"]["code"] == -32602
+
+
+def test_counter_list_has_uuid() -> None:
+    state = _state_with_counters()
+    resp, _ = _handle_request(_req("counter_list"), state)
+    for c in resp["result"]["counters"]:
+        assert "uuid" in c
