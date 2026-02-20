@@ -92,6 +92,8 @@ class VfsTree:
 def build_vfs_skeleton(
     actions: list[Any],
     resources: list[Any],
+    textures: list[Any] | None = None,
+    buffers: list[Any] | None = None,
     sf: Any = None,
 ) -> VfsTree:
     """Build the static VFS skeleton from capture data.
@@ -99,6 +101,8 @@ def build_vfs_skeleton(
     Args:
         actions: Root action list from ReplayController.
         resources: Resource list from ReplayController.
+        textures: TextureDescription list from GetTextures().
+        buffers: BufferDescription list from GetBuffers().
         sf: Optional StructuredFile for action name resolution.
     """
     tree = VfsTree()
@@ -153,33 +157,31 @@ def build_vfs_skeleton(
         tree.static[f"/resources/{rid}"] = VfsNode(rid, "dir", ["info"])
         tree.static[f"/resources/{rid}/info"] = VfsNode("info", "leaf")
 
-    # Classify resources
-    texture_types = {2, 3, 4}  # Texture1D, Texture2D, Texture3D
-    texture_resources = [r for r in resources if int(getattr(r, "type", 0)) in texture_types]
-    buffer_resources = [r for r in resources if int(getattr(r, "type", 0)) == 1]  # Buffer
+    _textures = textures or []
+    _buffers = buffers or []
 
     # /textures
-    tex_ids = [str(int(getattr(r, "resourceId", 0))) for r in texture_resources]
+    tex_ids = [str(int(getattr(t, "resourceId", 0))) for t in _textures]
     tree.static["/textures"] = VfsNode("textures", "dir", list(tex_ids))
-    for r in texture_resources:
-        rid = str(int(getattr(r, "resourceId", 0)))
+    for t in _textures:
+        rid = str(int(getattr(t, "resourceId", 0)))
         prefix = f"/textures/{rid}"
         tex_children = ["info", "image.png", "mips", "data"]
         tree.static[prefix] = VfsNode(rid, "dir", list(tex_children))
         tree.static[f"{prefix}/info"] = VfsNode("info", "leaf")
         tree.static[f"{prefix}/image.png"] = VfsNode("image.png", "leaf_bin")
         tree.static[f"{prefix}/data"] = VfsNode("data", "leaf_bin")
-        mip_count = getattr(r, "mips", 1)
+        mip_count = getattr(t, "mips", 1)
         mip_children = [f"{i}.png" for i in range(mip_count)]
         tree.static[f"{prefix}/mips"] = VfsNode("mips", "dir", list(mip_children))
         for i in range(mip_count):
             tree.static[f"{prefix}/mips/{i}.png"] = VfsNode(f"{i}.png", "leaf_bin")
 
     # /buffers
-    buf_ids = [str(int(getattr(r, "resourceId", 0))) for r in buffer_resources]
+    buf_ids = [str(int(getattr(b, "resourceId", 0))) for b in _buffers]
     tree.static["/buffers"] = VfsNode("buffers", "dir", list(buf_ids))
-    for r in buffer_resources:
-        rid = str(int(getattr(r, "resourceId", 0)))
+    for b in _buffers:
+        rid = str(int(getattr(b, "resourceId", 0)))
         prefix = f"/buffers/{rid}"
         buf_children = ["info", "data"]
         tree.static[prefix] = VfsNode(rid, "dir", list(buf_children))

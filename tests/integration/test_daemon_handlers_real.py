@@ -37,7 +37,15 @@ def _make_state(
     from rdc.vfs.tree_cache import build_vfs_skeleton
 
     resources = adapter.get_resources()
-    state.vfs_tree = build_vfs_skeleton(root_actions, resources, sf)
+    textures = adapter.get_textures()
+    buffers = adapter.get_buffers()
+
+    state.tex_map = {int(t.resourceId): t for t in textures}
+    state.buf_map = {int(b.resourceId): b for b in buffers}
+    state.res_names = {int(r.resourceId): r.name for r in resources}
+
+    state.rd = rd_module
+    state.vfs_tree = build_vfs_skeleton(root_actions, resources, textures, buffers, sf)
     return state
 
 
@@ -163,20 +171,14 @@ class TestBinaryHandlersReal:
 
     def _first_texture_id(self) -> int:
         """Find the first texture resource ID."""
-        resources = self.state.adapter.get_resources()
-        for r in resources:
-            rtype = int(getattr(r, "type", 0))
-            if rtype in {2, 3, 4}:  # Texture1D, 2D, 3D
-                return int(r.resourceId)
+        if self.state.tex_map:
+            return next(iter(self.state.tex_map))
         pytest.skip("no texture resources in capture")
 
     def _first_buffer_id(self) -> int:
         """Find the first buffer resource ID."""
-        resources = self.state.adapter.get_resources()
-        for r in resources:
-            rtype = int(getattr(r, "type", 0))
-            if rtype == 1:  # Buffer
-                return int(r.resourceId)
+        if self.state.buf_map:
+            return next(iter(self.state.buf_map))
         pytest.skip("no buffer resources in capture")
 
     def _first_draw_eid(self) -> int:
@@ -212,6 +214,9 @@ class TestBinaryHandlersReal:
         assert result["width"] > 0
         assert result["height"] > 0
         assert result["mips"] >= 1
+        assert "format" in result
+        assert "type" in result
+        assert "byte_size" in result
 
     def test_tex_export_png(self) -> None:
         tex_id = self._first_texture_id()
@@ -237,7 +242,8 @@ class TestBinaryHandlersReal:
         result = _call(self.state, "buf_info", {"id": buf_id})
         assert result["id"] == buf_id
         assert "name" in result
-        assert "size" in result
+        assert "length" in result
+        assert "creation_flags" in result
 
     def test_buf_raw(self) -> None:
         buf_id = self._first_buffer_id()
@@ -287,6 +293,10 @@ class TestBinaryHandlersReal:
         temp_dir = self.state.temp_dir
         assert temp_dir.exists()
         (temp_dir / "test.bin").write_bytes(b"data")
+        # Clear adapter/cap so shutdown handler only tests temp cleanup,
+        # not the shared session-scoped controller (avoids double-shutdown segfault).
+        self.state.adapter = None
+        self.state.cap = None
         req = {"id": 1, "method": "shutdown", "params": {"_token": self.state.token}}
         resp, running = _handle_request(req, self.state)
         assert resp["result"]["ok"] is True

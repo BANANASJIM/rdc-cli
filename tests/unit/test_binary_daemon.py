@@ -8,15 +8,17 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 
+import mock_renderdoc as mock_rd
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
-    BoundResource,
+    BufferDescription,
+    Descriptor,
     MockPipeState,
     ResourceDescription,
     ResourceId,
-    ResourceType,
     ShaderStage,
+    TextureDescription,
 )
 
 from rdc.adapter import RenderDocAdapter
@@ -104,19 +106,27 @@ class TestTempDirLifecycle:
 
 def _build_typed_resources():
     return [
-        ResourceDescription(
+        ResourceDescription(resourceId=ResourceId(42), name="Albedo"),
+        ResourceDescription(resourceId=ResourceId(7), name="VtxBuf"),
+    ]
+
+
+def _build_textures():
+    return [
+        TextureDescription(
             resourceId=ResourceId(42),
-            name="Albedo",
-            type=ResourceType.Texture2D,
             width=512,
             height=512,
             mips=4,
         ),
-        ResourceDescription(
+    ]
+
+
+def _build_buffers():
+    return [
+        BufferDescription(
             resourceId=ResourceId(7),
-            name="VtxBuf",
-            type=ResourceType.Buffer,
-            width=4096,
+            length=4096,
         ),
     ]
 
@@ -129,12 +139,14 @@ def _make_handler_state(tmp_path: Path):
     """Create DaemonState with typed resources and a pipe state with targets."""
     actions = _build_actions()
     resources = _build_typed_resources()
+    textures = _build_textures()
+    buffers = _build_buffers()
     pipe = MockPipeState(
         output_targets=[
-            BoundResource(resource=ResourceId(300)),
-            BoundResource(resource=ResourceId(400)),
+            Descriptor(resource=ResourceId(300)),
+            Descriptor(resource=ResourceId(400)),
         ],
-        depth_target=BoundResource(resource=ResourceId(500)),
+        depth_target=Descriptor(resource=ResourceId(500)),
     )
     pipe._shaders[ShaderStage.Vertex] = ResourceId(100)
     pipe._shaders[ShaderStage.Pixel] = ResourceId(200)
@@ -159,7 +171,11 @@ def _make_handler_state(tmp_path: Path):
     state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
     state.api_name = "Vulkan"
     state.max_eid = 10
-    state.vfs_tree = build_vfs_skeleton(actions, resources)
+    state.tex_map = {int(t.resourceId): t for t in textures}
+    state.buf_map = {int(b.resourceId): b for b in buffers}
+    state.res_names = {int(r.resourceId): r.name for r in resources}
+    state.rd = mock_rd
+    state.vfs_tree = build_vfs_skeleton(actions, resources, textures, buffers)
     state.temp_dir = tmp_path
     return state
 
@@ -176,6 +192,10 @@ class TestTexInfo:
         assert r["mips"] == 4
         assert "format" in r
         assert "array_size" in r
+        assert "type" in r
+        assert "byte_size" in r
+        assert "dimension" in r
+        assert "creation_flags" in r
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
@@ -221,6 +241,7 @@ class TestTexExport:
         state.adapter = RenderDocAdapter(
             controller=SimpleNamespace(GetResources=lambda: []), version=(1, 33)
         )
+        state.rd = mock_rd
         resp, _ = _handle_request(_req("tex_export", id=42), state)
         assert resp["error"]["code"] == -32002
         assert "temp" in resp["error"]["message"]
@@ -245,6 +266,7 @@ class TestTexRaw:
         state.adapter = RenderDocAdapter(
             controller=SimpleNamespace(GetResources=lambda: []), version=(1, 33)
         )
+        state.rd = mock_rd
         resp, _ = _handle_request(_req("tex_raw", id=42), state)
         assert resp["error"]["code"] == -32002
         assert "temp" in resp["error"]["message"]
@@ -257,8 +279,9 @@ class TestBufInfo:
         r = resp["result"]
         assert r["id"] == 7
         assert r["name"] == "VtxBuf"
-        assert "size" in r
-        assert "usage" in r
+        assert "length" in r
+        assert "creation_flags" in r
+        assert "gpu_address" in r
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
@@ -340,7 +363,7 @@ class TestRtDepth:
     def test_no_depth_target(self, tmp_path):
         state = _make_handler_state(tmp_path)
         pipe = MockPipeState(
-            output_targets=[BoundResource(resource=ResourceId(300))],
+            output_targets=[Descriptor(resource=ResourceId(300))],
         )
         state.adapter = RenderDocAdapter(
             controller=SimpleNamespace(

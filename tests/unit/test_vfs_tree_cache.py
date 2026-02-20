@@ -12,12 +12,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
-    BoundResource,
+    BufferDescription,
+    Descriptor,
     MockPipeState,
     ResourceDescription,
     ResourceId,
-    ResourceType,
     ShaderReflection,
+    TextureDescription,
 )
 
 from rdc.vfs.formatter import render_ls, render_tree_root
@@ -198,8 +199,8 @@ class TestBuildVfsSkeleton:
             assert node.kind == "dir"
             assert node.children == []
 
-    def test_textures_buffers_empty_for_unknown_resources(self, skeleton: VfsTree) -> None:
-        """Resources with type=Unknown produce empty textures/buffers dirs."""
+    def test_textures_buffers_empty_when_not_provided(self, skeleton: VfsTree) -> None:
+        """No textures/buffers passed produces empty dirs."""
         assert skeleton.static["/textures"].kind == "dir"
         assert skeleton.static["/textures"].children == []
         assert skeleton.static["/buffers"].kind == "dir"
@@ -213,30 +214,34 @@ class TestBuildVfsSkeleton:
 
 def _make_typed_resources() -> list[ResourceDescription]:
     return [
-        ResourceDescription(
-            resourceId=ResourceId(5),
-            name="Albedo",
-            type=ResourceType.Texture2D,
-            mips=4,
-        ),
-        ResourceDescription(
-            resourceId=ResourceId(10),
-            name="Normal",
-            type=ResourceType.Texture2D,
-            mips=1,
-        ),
-        ResourceDescription(
-            resourceId=ResourceId(20),
-            name="VtxBuf",
-            type=ResourceType.Buffer,
-        ),
+        ResourceDescription(resourceId=ResourceId(5), name="Albedo"),
+        ResourceDescription(resourceId=ResourceId(10), name="Normal"),
+        ResourceDescription(resourceId=ResourceId(20), name="VtxBuf"),
+    ]
+
+
+def _make_textures() -> list[TextureDescription]:
+    return [
+        TextureDescription(resourceId=ResourceId(5), width=512, height=512, mips=4),
+        TextureDescription(resourceId=ResourceId(10), width=256, height=256, mips=1),
+    ]
+
+
+def _make_buffers() -> list[BufferDescription]:
+    return [
+        BufferDescription(resourceId=ResourceId(20), length=4096),
     ]
 
 
 class TestTextureBufferSkeleton:
     @pytest.fixture
     def typed_skeleton(self) -> VfsTree:
-        return build_vfs_skeleton(_make_actions(), _make_typed_resources())
+        return build_vfs_skeleton(
+            _make_actions(),
+            _make_typed_resources(),
+            textures=_make_textures(),
+            buffers=_make_buffers(),
+        )
 
     def test_textures_children(self, typed_skeleton: VfsTree) -> None:
         assert typed_skeleton.static["/textures"].children == ["5", "10"]
@@ -281,12 +286,9 @@ class TestTextureBufferSkeleton:
         assert typed_skeleton.static["/buffers/20/data"].kind == "leaf_bin"
 
     def test_unknown_resources_excluded(self) -> None:
+        """Resources not in textures/buffers lists produce empty dirs."""
         resources = [
-            ResourceDescription(
-                resourceId=ResourceId(99),
-                name="Mystery",
-                type=ResourceType.Unknown,
-            ),
+            ResourceDescription(resourceId=ResourceId(99), name="Mystery"),
         ]
         tree = build_vfs_skeleton(_make_actions(), resources)
         assert tree.static["/textures"].children == []
@@ -301,10 +303,10 @@ class TestTextureBufferSkeleton:
 def _make_pipe_with_targets() -> MockPipeState:
     pipe = MockPipeState(
         output_targets=[
-            BoundResource(resource=ResourceId(300)),
-            BoundResource(resource=ResourceId(400)),
+            Descriptor(resource=ResourceId(300)),
+            Descriptor(resource=ResourceId(400)),
         ],
-        depth_target=BoundResource(resource=ResourceId(500)),
+        depth_target=Descriptor(resource=ResourceId(500)),
     )
     pipe._shaders[0] = ResourceId(100)  # VS
     pipe._shaders[4] = ResourceId(200)  # PS
@@ -348,7 +350,7 @@ class TestDrawTargetsSubtree:
 
     def test_color_only_no_depth(self, skel: VfsTree) -> None:
         pipe = MockPipeState(
-            output_targets=[BoundResource(resource=ResourceId(300))],
+            output_targets=[Descriptor(resource=ResourceId(300))],
         )
         populate_draw_subtree(skel, 10, pipe)
         assert skel.static["/draws/10/targets"].children == ["color0.png"]

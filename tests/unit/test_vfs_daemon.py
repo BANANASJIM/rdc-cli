@@ -106,7 +106,7 @@ def _make_state(pipe_state=None):
     state.structured_file = sf
     state.api_name = "Vulkan"
     state.max_eid = 300
-    state.vfs_tree = build_vfs_skeleton(actions, resources, sf)
+    state.vfs_tree = build_vfs_skeleton(actions, resources, sf=sf)
     return state
 
 

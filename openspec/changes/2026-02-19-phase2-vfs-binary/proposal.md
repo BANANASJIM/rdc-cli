@@ -113,12 +113,13 @@ _r(r"/draws/(?P<eid>\d+)/targets/depth\.png", "leaf_bin", "rt_depth", [("eid", i
 
 **Static skeleton changes:**
 
-- `/textures/` children populated from resources filtered by type (textures have
-  `TextureResource` type or dimensionality > 0)
-- `/buffers/` children populated from resources filtered by type (buffers have
-  `BufferResource` type or byte size > 0 with no dimensionality)
+- `build_vfs_skeleton()` accepts `textures` (from `GetTextures()`) and `buffers`
+  (from `GetBuffers()`) lists directly — **not** classified from `ResourceDescription.type`
+- Resource names obtained via `res_names: dict[int, str]` built from `GetResources()`
+- `/textures/` children populated from `TextureDescription[]` by resourceId
+- `/buffers/` children populated from `BufferDescription[]` by resourceId
 - Each `/textures/<id>/` gets children `["info", "image.png", "mips", "data"]`
-- Each `/textures/<id>/mips/` children populated from resource mip count: `["0.png", "1.png", ...]`
+- Each `/textures/<id>/mips/` children populated from `TextureDescription.mips`
 - Each `/buffers/<id>/` gets children `["info", "data"]`
 
 **Dynamic draw subtree expansion (`populate_draw_subtree`):**
