@@ -34,7 +34,7 @@ _ROOT_CHILDREN = [
     "current",
 ]
 
-_DRAW_CHILDREN = ["pipeline", "shader", "bindings"]
+_DRAW_CHILDREN = ["pipeline", "shader", "bindings", "targets"]
 _PIPELINE_CHILDREN = ["summary"]
 _PASS_CHILDREN = ["info", "draws", "attachments"]
 _SHADER_STAGE_CHILDREN = ["disasm", "source", "reflect", "constants"]
@@ -132,6 +132,7 @@ def build_vfs_skeleton(
             tree.static[f"{prefix}/pipeline/{child}"] = VfsNode(child, "leaf")
         tree.static[f"{prefix}/shader"] = VfsNode("shader", "dir")
         tree.static[f"{prefix}/bindings"] = VfsNode("bindings", "dir")
+        tree.static[f"{prefix}/targets"] = VfsNode("targets", "dir")
 
     # /passes — sanitize names containing "/" to avoid path corruption
     safe_pass_names = [n.replace("/", "_") for n in pass_names]
@@ -152,8 +153,41 @@ def build_vfs_skeleton(
         tree.static[f"/resources/{rid}"] = VfsNode(rid, "dir", ["info"])
         tree.static[f"/resources/{rid}/info"] = VfsNode("info", "leaf")
 
-    # Placeholder dirs
-    for name in ("by-marker", "textures", "buffers", "shaders"):
+    # Classify resources
+    texture_types = {2, 3, 4}  # Texture1D, Texture2D, Texture3D
+    texture_resources = [r for r in resources if int(getattr(r, "type", 0)) in texture_types]
+    buffer_resources = [r for r in resources if int(getattr(r, "type", 0)) == 1]  # Buffer
+
+    # /textures
+    tex_ids = [str(int(getattr(r, "resourceId", 0))) for r in texture_resources]
+    tree.static["/textures"] = VfsNode("textures", "dir", list(tex_ids))
+    for r in texture_resources:
+        rid = str(int(getattr(r, "resourceId", 0)))
+        prefix = f"/textures/{rid}"
+        tex_children = ["info", "image.png", "mips", "data"]
+        tree.static[prefix] = VfsNode(rid, "dir", list(tex_children))
+        tree.static[f"{prefix}/info"] = VfsNode("info", "leaf")
+        tree.static[f"{prefix}/image.png"] = VfsNode("image.png", "leaf_bin")
+        tree.static[f"{prefix}/data"] = VfsNode("data", "leaf_bin")
+        mip_count = getattr(r, "mips", 1)
+        mip_children = [f"{i}.png" for i in range(mip_count)]
+        tree.static[f"{prefix}/mips"] = VfsNode("mips", "dir", list(mip_children))
+        for i in range(mip_count):
+            tree.static[f"{prefix}/mips/{i}.png"] = VfsNode(f"{i}.png", "leaf_bin")
+
+    # /buffers
+    buf_ids = [str(int(getattr(r, "resourceId", 0))) for r in buffer_resources]
+    tree.static["/buffers"] = VfsNode("buffers", "dir", list(buf_ids))
+    for r in buffer_resources:
+        rid = str(int(getattr(r, "resourceId", 0)))
+        prefix = f"/buffers/{rid}"
+        buf_children = ["info", "data"]
+        tree.static[prefix] = VfsNode(rid, "dir", list(buf_children))
+        tree.static[f"{prefix}/info"] = VfsNode("info", "leaf")
+        tree.static[f"{prefix}/data"] = VfsNode("data", "leaf_bin")
+
+    # Remaining placeholder dirs
+    for name in ("by-marker", "shaders"):
         tree.static[f"/{name}"] = VfsNode(name, "dir")
 
     # /current alias
@@ -201,6 +235,23 @@ def populate_draw_subtree(
         for child in _SHADER_STAGE_CHILDREN:
             child_path = f"{stage_path}/{child}"
             tree.static[child_path] = VfsNode(child, "leaf")
+
+    # Populate targets subtree
+    targets_path = f"{prefix}/targets"
+    target_children: list[str] = []
+    for i, t in enumerate(pipe_state.GetOutputTargets()):
+        if int(t.resource) != 0:
+            name = f"color{i}.png"
+            target_children.append(name)
+            tree.static[f"{targets_path}/{name}"] = VfsNode(name, "leaf_bin")
+
+    depth = pipe_state.GetDepthTarget()
+    if int(depth.resource) != 0:
+        target_children.append("depth.png")
+        tree.static[f"{targets_path}/depth.png"] = VfsNode("depth.png", "leaf_bin")
+
+    tree.static[targets_path].children = list(target_children)
+    subtree[targets_path] = list(target_children)
 
     tree.set_draw_subtree(eid, subtree)
     return subtree

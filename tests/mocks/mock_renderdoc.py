@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
+from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -59,6 +60,13 @@ class ResourceType(IntEnum):
 class FileType(IntEnum):
     PNG = 0
     JPG = 1
+
+
+@dataclass
+class TextureSave:
+    mip: int = 0
+    slice: int = 0
+    destType: FileType = FileType.PNG
 
 
 class MessageSeverity(IntEnum):
@@ -355,6 +363,20 @@ class MockReplayController:
 
     def GetDebugMessages(self) -> list[DebugMessage]:
         return self._debug_messages
+
+    def SaveTexture(self, texsave: Any, path: str) -> bool:
+        """Mock SaveTexture -- writes dummy PNG-like bytes to path."""
+        assert hasattr(texsave, "resourceId"), "texsave must have resourceId"
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        return True
+
+    def GetTextureData(self, resource_id: Any, sub: Any) -> bytes:
+        """Mock GetTextureData -- returns dummy raw bytes."""
+        return b"\x00\xff" * 512
+
+    def GetBufferData(self, resource_id: Any, offset: int, length: int) -> bytes:
+        """Mock GetBufferData -- returns dummy buffer bytes."""
+        return b"\xab\xcd" * 256
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from rdc.adapter import RenderDocAdapter
@@ -28,6 +29,7 @@ class DaemonState:
     max_eid: int = 0
     vfs_tree: Any = field(default=None, repr=False)
     _eid_cache: int = field(default=-1, repr=False)
+    temp_dir: Path | None = None
 
 
 def _detect_version(rd: Any) -> tuple[int, int]:
@@ -85,6 +87,10 @@ def _load_replay(state: DaemonState) -> str | None:
     resources = state.adapter.get_resources()
     state.vfs_tree = build_vfs_skeleton(root_actions, resources, state.structured_file)
 
+    import tempfile
+
+    state.temp_dir = Path(tempfile.mkdtemp(prefix=f"rdc-{state.token[:8]}-"))
+
     return None
 
 
@@ -119,6 +125,16 @@ def _set_frame_event(state: DaemonState, eid: int) -> str | None:
             state.adapter.set_frame_event(eid)
             state._eid_cache = eid
     state.current_eid = eid
+    return None
+
+
+def _find_resource_by_id(state: DaemonState, resource_id: int) -> Any | None:
+    """Find a resource by its integer ID."""
+    if state.adapter is None:
+        return None
+    for r in state.adapter.get_resources():
+        if int(getattr(r, "resourceId", 0)) == resource_id:
+            return r
     return None
 
 
@@ -661,7 +677,206 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         depth = int(params.get("depth", 2))
         return _handle_vfs_tree(request_id, path, depth, state), True
 
+    if method == "tex_info":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        res_id = int(params.get("id", 0))
+        resource = _find_resource_by_id(state, res_id)
+        if resource is None:
+            return _error_response(request_id, -32001, f"resource {res_id} not found"), True
+        return _result_response(
+            request_id,
+            {
+                "id": res_id,
+                "name": getattr(resource, "name", ""),
+                "format": getattr(getattr(resource, "format", None), "name", ""),
+                "width": getattr(resource, "width", 0),
+                "height": getattr(resource, "height", 0),
+                "depth": getattr(resource, "depth", 0),
+                "mips": getattr(resource, "mips", 1),
+                "array_size": getattr(resource, "arraysize", 1),
+            },
+        ), True
+
+    if method == "tex_export":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        res_id = int(params.get("id", 0))
+        mip = int(params.get("mip", 0))
+        resource = _find_resource_by_id(state, res_id)
+        if resource is None:
+            return _error_response(request_id, -32001, f"resource {res_id} not found"), True
+        max_mip = getattr(resource, "mips", 1)
+        if mip >= max_mip:
+            return _error_response(
+                request_id, -32001, f"mip {mip} out of range (max: {max_mip - 1})"
+            ), True
+        temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}.png"
+        controller = state.adapter.controller
+        texsave = type(
+            "TextureSave",
+            (),
+            {
+                "resourceId": resource.resourceId,
+                "mip": mip,
+                "slice": 0,
+                "destType": 0,
+            },
+        )()
+        controller.SaveTexture(texsave, str(temp_path))
+        if not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": temp_path.stat().st_size,
+            },
+        ), True
+
+    if method == "tex_raw":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        res_id = int(params.get("id", 0))
+        resource = _find_resource_by_id(state, res_id)
+        if resource is None:
+            return _error_response(request_id, -32001, f"resource {res_id} not found"), True
+        controller = state.adapter.controller
+        raw_data = controller.GetTextureData(resource.resourceId, None)
+        temp_path = state.temp_dir / f"tex_{res_id}.raw"
+        temp_path.write_bytes(raw_data)
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": len(raw_data),
+            },
+        ), True
+
+    if method == "buf_info":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        res_id = int(params.get("id", 0))
+        resource = _find_resource_by_id(state, res_id)
+        if resource is None:
+            return _error_response(request_id, -32001, f"resource {res_id} not found"), True
+        return _result_response(
+            request_id,
+            {
+                "id": res_id,
+                "name": getattr(resource, "name", ""),
+                "size": getattr(resource, "width", 0),  # RenderDoc stores buffer byte size in width
+                "usage": getattr(resource, "creationFlags", 0),
+            },
+        ), True
+
+    if method == "buf_raw":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        res_id = int(params.get("id", 0))
+        resource = _find_resource_by_id(state, res_id)
+        if resource is None:
+            return _error_response(request_id, -32001, f"resource {res_id} not found"), True
+        controller = state.adapter.controller
+        raw_data = controller.GetBufferData(resource.resourceId, 0, 0)
+        temp_path = state.temp_dir / f"buf_{res_id}.bin"
+        temp_path.write_bytes(raw_data)
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": len(raw_data),
+            },
+        ), True
+
+    if method == "rt_export":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        eid = int(params.get("eid", state.current_eid))
+        target_idx = int(params.get("target", 0))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe = state.adapter.get_pipeline_state()
+        targets = pipe.GetOutputTargets()
+        non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
+        if not non_null:
+            return _error_response(request_id, -32001, f"no color targets at eid {eid}"), True
+        match = [t for i, t in non_null if i == target_idx]
+        if not match:
+            return _error_response(
+                request_id, -32001, f"target index {target_idx} out of range"
+            ), True
+        temp_path = state.temp_dir / f"rt_{eid}_color{target_idx}.png"
+        texsave = type(
+            "TextureSave",
+            (),
+            {
+                "resourceId": match[0].resource,
+                "mip": 0,
+                "slice": 0,
+                "destType": 0,
+            },
+        )()
+        state.adapter.controller.SaveTexture(texsave, str(temp_path))
+        if not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": temp_path.stat().st_size,
+            },
+        ), True
+
+    if method == "rt_depth":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        if state.temp_dir is None:
+            return _error_response(request_id, -32002, "temp directory not available"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe = state.adapter.get_pipeline_state()
+        depth = pipe.GetDepthTarget()
+        if int(depth.resource) == 0:
+            return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
+        temp_path = state.temp_dir / f"rt_{eid}_depth.png"
+        texsave = type(
+            "TextureSave",
+            (),
+            {
+                "resourceId": depth.resource,
+                "mip": 0,
+                "slice": 0,
+                "destType": 0,
+            },
+        )()
+        state.adapter.controller.SaveTexture(texsave, str(temp_path))
+        if not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {
+                "path": str(temp_path),
+                "size": temp_path.stat().st_size,
+            },
+        ), True
+
     if method == "shutdown":
+        if state.temp_dir is not None:
+            import shutil
+
+            shutil.rmtree(state.temp_dir, ignore_errors=True)
         if state.adapter is not None:
             state.adapter.shutdown()
         if state.cap is not None:
@@ -893,7 +1108,7 @@ def _handle_draw_method(
     )
 
 
-_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/shader(?:/|$)")
+_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/(?:shader|targets)(?:/|$)")
 
 
 def _resolve_vfs_path(path: str, state: DaemonState) -> tuple[str, str | None]:
