@@ -32,6 +32,11 @@ def _make_state(
 
     root_actions = adapter.get_root_actions()
     state.max_eid = _max_eid(root_actions)
+
+    from rdc.vfs.tree_cache import build_vfs_skeleton
+
+    resources = adapter.get_resources()
+    state.vfs_tree = build_vfs_skeleton(root_actions, resources, sf)
     return state
 
 
@@ -112,3 +117,31 @@ class TestDaemonHandlersReal:
         result = _call(self.state, "log")
         assert "messages" in result
         assert isinstance(result["messages"], list)
+
+    def test_vfs_ls_root(self) -> None:
+        result = _call(self.state, "vfs_ls", {"path": "/"})
+        names = [c["name"] for c in result["children"]]
+        assert "draws" in names
+        assert "info" in names
+        assert "events" in names
+
+    def test_vfs_ls_draws(self) -> None:
+        result = _call(self.state, "vfs_ls", {"path": "/draws"})
+        assert len(result["children"]) >= 1
+        assert all(c["kind"] == "dir" for c in result["children"])
+
+    def test_vfs_ls_draw_shader(self) -> None:
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "vfs_ls", {"path": f"/draws/{draw_eid}/shader"})
+        stages = [c["name"] for c in result["children"]]
+        assert len(stages) >= 1
+        assert all(s in ("vs", "hs", "ds", "gs", "ps", "cs") for s in stages)
+
+    def test_vfs_tree_root(self) -> None:
+        result = _call(self.state, "vfs_tree", {"path": "/", "depth": 1})
+        tree = result["tree"]
+        assert tree["name"] == "/"
+        child_names = [c["name"] for c in tree["children"]]
+        assert "draws" in child_names
+        assert "info" in child_names

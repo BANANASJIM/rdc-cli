@@ -27,10 +27,17 @@ def rd_module() -> Any:
 
 
 @pytest.fixture(scope="session")
-def vkcube_replay(rd_module: Any) -> Generator[tuple[Any, Any, Any], None, None]:
+def rd_init(rd_module: Any) -> Generator[Any, None, None]:
+    """Initialise renderdoc replay once per session."""
+    rd_module.InitialiseReplay(rd_module.GlobalEnvironment(), [])
+    yield rd_module
+    rd_module.ShutdownReplay()
+
+
+@pytest.fixture(scope="session")
+def vkcube_replay(rd_init: Any) -> Generator[tuple[Any, Any, Any], None, None]:
     """Open vkcube.rdc and yield (cap, controller, structured_file)."""
-    rd = rd_module
-    rd.InitialiseReplay(rd.GlobalEnvironment(), [])
+    rd = rd_init
 
     cap = rd.OpenCaptureFile()
     rdc_path = str(FIXTURES_DIR / "vkcube.rdc")
@@ -46,7 +53,6 @@ def vkcube_replay(rd_module: Any) -> Generator[tuple[Any, Any, Any], None, None]
 
     controller.Shutdown()
     cap.Shutdown()
-    rd.ShutdownReplay()
 
 
 @pytest.fixture(scope="session")

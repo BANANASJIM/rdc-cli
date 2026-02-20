@@ -11,6 +11,7 @@ from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shader
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
+from rdc.commands.vfs import cat_cmd, complete_cmd, ls_cmd, tree_cmd
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -42,6 +43,10 @@ main.add_command(resource_cmd, name="resource")
 main.add_command(passes_cmd, name="passes")
 main.add_command(pass_cmd, name="pass")
 main.add_command(log_cmd, name="log")
+main.add_command(ls_cmd, name="ls")
+main.add_command(cat_cmd, name="cat")
+main.add_command(tree_cmd, name="tree")
+main.add_command(complete_cmd, name="_complete")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import secrets
 import socket
 import sys
@@ -25,6 +26,7 @@ class DaemonState:
     structured_file: Any = None
     api_name: str = ""
     max_eid: int = 0
+    vfs_tree: Any = field(default=None, repr=False)
     _eid_cache: int = field(default=-1, repr=False)
 
 
@@ -77,6 +79,11 @@ def _load_replay(state: DaemonState) -> str | None:
 
     root_actions = state.adapter.get_root_actions()
     state.max_eid = _max_eid(root_actions)
+
+    from rdc.vfs.tree_cache import build_vfs_skeleton
+
+    resources = state.adapter.get_resources()
+    state.vfs_tree = build_vfs_skeleton(root_actions, resources, state.structured_file)
 
     return None
 
@@ -326,7 +333,11 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             except (TypeError, ValueError):
                 return _error_response(request_id, -32602, "index must be an integer"), True
         elif "name" in params:
-            identifier = str(params["name"])
+            name = str(params["name"])
+            # Reverse VFS pass name sanitization (e.g. "Shadow_Terrain" → "Shadow/Terrain")
+            if state.vfs_tree and name in state.vfs_tree.pass_name_map:
+                name = state.vfs_tree.pass_name_map[name]
+            identifier = name
         else:
             return _error_response(request_id, -32602, "missing index or name"), True
         actions = state.adapter.get_root_actions()
@@ -637,6 +648,19 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         return _handle_event_method(request_id, params, state), True
     if method == "draw":
         return _handle_draw_method(request_id, params, state), True
+    if method == "vfs_ls":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        path = str(params.get("path", "/"))
+        return _handle_vfs_ls(request_id, path, state), True
+
+    if method == "vfs_tree":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        path = str(params.get("path", "/"))
+        depth = int(params.get("depth", 2))
+        return _handle_vfs_tree(request_id, path, depth, state), True
+
     if method == "shutdown":
         if state.adapter is not None:
             state.adapter.shutdown()
@@ -867,6 +891,102 @@ def _handle_draw_method(
             "Instances": max(action.numInstances, 1),
         },
     )
+
+
+_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/shader(?:/|$)")
+
+
+def _resolve_vfs_path(path: str, state: DaemonState) -> tuple[str, str | None]:
+    """Normalize VFS path: strip trailing slash, resolve /current alias.
+
+    Returns:
+        (resolved_path, error_message_or_None)
+    """
+    path = path.rstrip("/") or "/"
+    if path.startswith("/current"):
+        if state.current_eid == 0:
+            return path, "no current eid set"
+        path = f"/draws/{state.current_eid}" + path[len("/current") :]
+    return path, None
+
+
+def _ensure_shader_populated(
+    request_id: int, path: str, state: DaemonState
+) -> dict[str, Any] | None:
+    """Trigger dynamic shader subtree population if needed.
+
+    Returns error response or None on success.
+    """
+    m = _SHADER_PATH_RE.match(path)
+    if m and state.vfs_tree.get_draw_subtree(int(m.group(1))) is None:
+        from rdc.vfs.tree_cache import populate_draw_subtree
+
+        eid = int(m.group(1))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err)
+        pipe = state.adapter.get_pipeline_state()  # type: ignore[union-attr]
+        populate_draw_subtree(state.vfs_tree, eid, pipe)
+    return None
+
+
+def _handle_vfs_ls(request_id: int, path: str, state: DaemonState) -> dict[str, Any]:
+    path, err = _resolve_vfs_path(path, state)
+    if err:
+        return _error_response(request_id, -32002, err)
+
+    if state.vfs_tree is None:
+        return _error_response(request_id, -32002, "vfs tree not built")
+
+    pop_err = _ensure_shader_populated(request_id, path, state)
+    if pop_err:
+        return pop_err
+
+    node = state.vfs_tree.static.get(path)
+    if node is None:
+        return _error_response(request_id, -32001, f"not found: {path}")
+
+    parent = path.rstrip("/")
+    children = []
+    for c in node.children:
+        child_path = f"{parent}/{c}" if parent != "/" else f"/{c}"
+        child_node = state.vfs_tree.static.get(child_path)
+        children.append({"name": c, "kind": child_node.kind if child_node else "dir"})
+
+    return _result_response(request_id, {"path": path, "kind": node.kind, "children": children})
+
+
+def _handle_vfs_tree(request_id: int, path: str, depth: int, state: DaemonState) -> dict[str, Any]:
+    path, err = _resolve_vfs_path(path, state)
+    if err:
+        return _error_response(request_id, -32002, err)
+
+    if state.vfs_tree is None:
+        return _error_response(request_id, -32002, "vfs tree not built")
+
+    if depth < 1 or depth > 8:
+        return _error_response(request_id, -32602, "depth must be 1-8")
+
+    node = state.vfs_tree.static.get(path)
+    if node is None:
+        return _error_response(request_id, -32001, f"not found: {path}")
+
+    tree = state.vfs_tree
+
+    def _subtree(p: str, d: int) -> dict[str, Any]:
+        _ensure_shader_populated(request_id, p, state)
+        n = tree.static.get(p)
+        if n is None:
+            return {"name": p.rsplit("/", 1)[-1] or "/", "kind": "dir", "children": []}
+        result: dict[str, Any] = {"name": n.name, "kind": n.kind, "children": []}
+        if d > 0 and n.children:
+            parent = p.rstrip("/")
+            for c in n.children:
+                child_path = f"{parent}/{c}" if parent != "/" else f"/{c}"
+                result["children"].append(_subtree(child_path, d - 1))
+        return result
+
+    return _result_response(request_id, {"path": path, "tree": _subtree(path, depth)})
 
 
 def _collect_pipe_states(
