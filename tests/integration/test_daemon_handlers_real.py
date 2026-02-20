@@ -290,7 +290,9 @@ class TestBinaryHandlersReal:
 
     def test_search_basic(self) -> None:
         """Search for a common SPIR-V instruction across all shaders."""
-        result = _call(self.state, "search", {"pattern": "OpCapability"})
+        # RenderDoc's built-in disassembler uses "Capability(Shader);"
+        # not the standard "OpCapability Shader" syntax.
+        result = _call(self.state, "search", {"pattern": "Capability"})
         matches = result["matches"]
         assert len(matches) > 0
         m = matches[0]
@@ -298,19 +300,19 @@ class TestBinaryHandlersReal:
         assert "stages" in m
         assert "line" in m
         assert "text" in m
-        assert "OpCapability" in m["text"]
+        assert "Capability" in m["text"]
 
     def test_search_no_matches(self) -> None:
         result = _call(self.state, "search", {"pattern": "XYZZY_IMPOSSIBLE_TOKEN_42"})
         assert result["matches"] == []
 
     def test_search_limit(self) -> None:
-        result = _call(self.state, "search", {"pattern": "Op", "limit": 2})
+        result = _call(self.state, "search", {"pattern": "main", "limit": 2})
         assert len(result["matches"]) <= 2
 
     def test_shader_list_info(self) -> None:
         """Build cache then query a shader's info."""
-        _call(self.state, "search", {"pattern": "Op", "limit": 1})
+        _call(self.state, "search", {"pattern": "main", "limit": 1})
         assert len(self.state.shader_meta) > 0
         sid = next(iter(self.state.shader_meta))
         result = _call(self.state, "shader_list_info", {"id": sid})
@@ -320,7 +322,7 @@ class TestBinaryHandlersReal:
 
     def test_shader_list_disasm(self) -> None:
         """Build cache then query a shader's disassembly."""
-        _call(self.state, "search", {"pattern": "Op", "limit": 1})
+        _call(self.state, "search", {"pattern": "main", "limit": 1})
         sid = next(iter(self.state.disasm_cache))
         result = _call(self.state, "shader_list_disasm", {"id": sid})
         assert result["id"] == sid
@@ -328,7 +330,7 @@ class TestBinaryHandlersReal:
 
     def test_vfs_ls_shaders(self) -> None:
         """After cache build, /shaders/ should list shader IDs."""
-        _call(self.state, "search", {"pattern": "Op", "limit": 1})
+        _call(self.state, "search", {"pattern": "main", "limit": 1})
         result = _call(self.state, "vfs_ls", {"path": "/shaders"})
         assert result["kind"] == "dir"
         assert len(result["children"]) > 0

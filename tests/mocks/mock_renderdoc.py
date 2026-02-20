@@ -455,15 +455,36 @@ class UsedSampler:
 
 @dataclass
 class MeshFormat:
-    vertexResourceId: ResourceId = field(default_factory=ResourceId)
-    vertexByteStride: int = 0
-    vertexByteOffset: int = 0
-    indexResourceId: ResourceId = field(default_factory=ResourceId)
-    indexByteStride: int = 0
-    indexByteOffset: int = 0
-    numIndices: int = 0
-    topology: str = "TriangleList"
+    allowRestart: bool = False
+    baseVertex: int = 0
+    dispatchSize: tuple[int, int, int] = (0, 0, 0)
+    farPlane: float = 1.0
+    flipY: bool = False
     format: ResourceFormat = field(default_factory=ResourceFormat)
+    indexByteOffset: int = 0
+    indexByteSize: int = 0
+    indexByteStride: int = 0
+    indexResourceId: ResourceId = field(default_factory=ResourceId)
+    instStepRate: int = 1
+    instanced: bool = False
+    meshColor: FloatVector = field(default_factory=FloatVector)
+    meshletIndexOffset: int = 0
+    meshletOffset: int = 0
+    meshletSizes: tuple[int, int, int] = (0, 0, 0)
+    nearPlane: float = 0.1
+    numIndices: int = 0
+    perPrimitiveOffset: int = 0
+    perPrimitiveStride: int = 0
+    restartIndex: int = 0xFFFFFFFF
+    showAlpha: bool = False
+    status: str = ""
+    taskSizes: tuple[int, int, int] = (0, 0, 0)
+    topology: str = "TriangleList"
+    unproject: bool = False
+    vertexByteOffset: int = 0
+    vertexByteSize: int = 0
+    vertexByteStride: int = 0
+    vertexResourceId: ResourceId = field(default_factory=ResourceId)
 
 
 @dataclass
@@ -481,6 +502,7 @@ class ShaderVariable:
     type: str = ""
     rows: int = 0
     columns: int = 0
+    flags: int = 0
     value: Any = None
     members: list[ShaderVariable] = field(default_factory=list)
 
