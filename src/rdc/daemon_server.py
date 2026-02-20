@@ -5,6 +5,7 @@ import json
 import re
 import secrets
 import socket
+import struct
 import sys
 import time
 from dataclasses import dataclass, field
@@ -1274,8 +1275,6 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 data_len = len(buf_data.get(0, b""))
                 num_verts = data_len // stride
         # Decode vertices
-        import struct
-
         vertices: list[list[float]] = []
         for vi_idx in range(num_verts):
             vtx_row: list[float] = []
@@ -1315,8 +1314,6 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         rid = getattr(ib, "resourceId", None)
         if rid is None or int(rid) == 0:
             return _result_response(request_id, {"eid": eid, "format": "none", "indices": []}), True
-        import struct
-
         controller = state.adapter.controller
         raw_stride = getattr(ib, "byteStride", 0)
         stride = raw_stride if raw_stride in (2, 4) else 2
