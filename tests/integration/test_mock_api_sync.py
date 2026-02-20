@@ -58,6 +58,7 @@ ENUM_PAIRS = [
     ("ShaderStage", "ShaderStage"),
     ("ActionFlags", "ActionFlags"),
     ("MessageSeverity", "MessageSeverity"),
+    ("ResourceUsage", "ResourceUsage"),
 ]
 
 
@@ -101,6 +102,7 @@ STRUCT_PAIRS = [
     ("Scissor", "Scissor"),
     ("MeshFormat", "MeshFormat"),
     ("ShaderVariable", "ShaderVariable"),
+    ("EventUsage", "EventUsage"),
 ]
 
 
