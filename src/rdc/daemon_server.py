@@ -1510,12 +1510,16 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             if type_name in ("Sampler", "ImageSampler"):
                 s = getattr(ud, "sampler", None)
                 if s is not None:
+                    au = getattr(s, "addressU", "")
+                    av = getattr(s, "addressV", "")
+                    aw = getattr(s, "addressW", "")
+                    cf = getattr(s, "compareFunction", "")
                     d_row["sampler"] = {
-                        "address_u": str(getattr(s, "addressU", "")),
-                        "address_v": str(getattr(s, "addressV", "")),
-                        "address_w": str(getattr(s, "addressW", "")),
+                        "address_u": au.name if hasattr(au, "name") else str(au),
+                        "address_v": av.name if hasattr(av, "name") else str(av),
+                        "address_w": aw.name if hasattr(aw, "name") else str(aw),
                         "filter": str(getattr(s, "filter", "")),
-                        "compare_function": str(getattr(s, "compareFunction", "")),
+                        "compare_function": cf.name if hasattr(cf, "name") else str(cf),
                         "min_lod": float(getattr(s, "minLOD", 0.0)),
                         "max_lod": float(getattr(s, "maxLOD", 0.0)),
                         "mip_bias": float(getattr(s, "mipBias", 0.0)),

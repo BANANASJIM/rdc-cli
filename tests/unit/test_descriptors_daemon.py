@@ -173,6 +173,10 @@ def test_descriptors_mixed_types() -> None:
         "mip_bias",
         "max_anisotropy",
     }
+    # Verify enum serialization uses bare names, not qualified (e.g. "Wrap" not "AddressMode.Wrap")
+    assert s["address_u"] == "ClampEdge"
+    assert s["address_v"] == "Wrap"
+    assert s["address_w"] == "Mirror"
 
     for entry in non_sampler_entries:
         assert "sampler" not in entry
