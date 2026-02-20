@@ -1487,6 +1487,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if err:
             return _error_response(request_id, -32002, err), True
         pipe_state = state.adapter.get_pipeline_state()
+        if not hasattr(pipe_state, "GetAllUsedDescriptors"):
+            return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
         used = pipe_state.GetAllUsedDescriptors(True)
         desc_rows: list[dict[str, Any]] = []
         for ud in used:

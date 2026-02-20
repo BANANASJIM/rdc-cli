@@ -25,39 +25,6 @@ from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
-def _make_state(**overrides: object) -> DaemonState:
-    """Create a minimal DaemonState for testing."""
-    pipe = MockPipeState()
-    ctrl = SimpleNamespace(
-        GetRootActions=lambda: [],
-        GetResources=lambda: [],
-        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
-        SetFrameEvent=lambda eid, force: None,
-        GetStructuredFile=lambda: SimpleNamespace(chunks=[]),
-        GetPipelineState=lambda: pipe,
-        GetTextures=lambda: [],
-        GetBuffers=lambda: [],
-        GetDebugMessages=lambda: [],
-        Shutdown=lambda: None,
-    )
-    adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    defaults: dict[str, object] = {
-        "capture": "test.rdc",
-        "current_eid": 0,
-        "token": "test-token",
-        "adapter": adapter,
-        "rd": rd,
-        "api_name": "Vulkan",
-        "max_eid": 100,
-    }
-    defaults.update(overrides)
-    # pipe must be accessible via adapter for most tests
-    if "_pipe" in overrides:
-        pipe = overrides.pop("_pipe")  # type: ignore[assignment]
-    state = DaemonState(**defaults)  # type: ignore[arg-type]
-    return state
-
-
 def _make_state_with_pipe(pipe: MockPipeState, **overrides: object) -> DaemonState:
     """Create DaemonState using the given pipe."""
     ctrl = SimpleNamespace(
