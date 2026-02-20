@@ -886,6 +886,237 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             },
         ), True
 
+    if method == "pipe_topology":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        return _result_response(
+            request_id, {"eid": eid, "topology": str(pipe_state.GetPrimitiveTopology())}
+        ), True
+
+    if method == "pipe_viewport":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        vp = pipe_state.GetViewport(0)
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "x": vp.x,
+                "y": vp.y,
+                "width": vp.width,
+                "height": vp.height,
+                "minDepth": getattr(vp, "minDepth", 0.0),
+                "maxDepth": getattr(vp, "maxDepth", 1.0),
+            },
+        ), True
+
+    if method == "pipe_scissor":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        sc = pipe_state.GetScissor(0)
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "x": sc.x,
+                "y": sc.y,
+                "width": sc.width,
+                "height": sc.height,
+                "enabled": getattr(sc, "enabled", True),
+            },
+        ), True
+
+    if method == "pipe_blend":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        blends = pipe_state.GetColorBlends()
+        blend_rows: list[dict[str, Any]] = []
+        for i, b in enumerate(blends):
+            cb = getattr(b, "colorBlend", None)
+            ab = getattr(b, "alphaBlend", None)
+            blend_rows.append(
+                {
+                    "rt": i,
+                    "enabled": getattr(b, "enabled", False),
+                    "srcColor": getattr(cb, "source", "") if cb else "",
+                    "dstColor": getattr(cb, "destination", "") if cb else "",
+                    "colorOp": getattr(cb, "operation", "") if cb else "",
+                    "srcAlpha": getattr(ab, "source", "") if ab else "",
+                    "dstAlpha": getattr(ab, "destination", "") if ab else "",
+                    "alphaOp": getattr(ab, "operation", "") if ab else "",
+                    "writeMask": getattr(b, "writeMask", 0),
+                }
+            )
+        return _result_response(request_id, {"eid": eid, "blends": blend_rows}), True
+
+    if method == "pipe_stencil":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        front, back = pipe_state.GetStencilFaces()
+
+        def _face(f: Any) -> dict[str, Any]:
+            return {
+                "failOperation": getattr(f, "failOperation", ""),
+                "depthFailOperation": getattr(f, "depthFailOperation", ""),
+                "passOperation": getattr(f, "passOperation", ""),
+                "function": getattr(f, "function", ""),
+                "reference": getattr(f, "reference", 0),
+                "compareMask": getattr(f, "compareMask", 0),
+                "writeMask": getattr(f, "writeMask", 0),
+            }
+
+        return _result_response(
+            request_id, {"eid": eid, "front": _face(front), "back": _face(back)}
+        ), True
+
+    if method == "pipe_vinputs":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        inputs = pipe_state.GetVertexInputs()
+        rows = []
+        for vi in inputs:
+            fmt = getattr(vi, "format", None)
+            rows.append(
+                {
+                    "name": getattr(vi, "name", ""),
+                    "vertexBuffer": getattr(vi, "vertexBuffer", 0),
+                    "byteOffset": getattr(vi, "byteOffset", 0),
+                    "perInstance": getattr(vi, "perInstance", False),
+                    "instanceRate": getattr(vi, "instanceRate", 0),
+                    "format": fmt.Name()
+                    if fmt and hasattr(fmt, "Name")
+                    else str(fmt)
+                    if fmt
+                    else "",
+                }
+            )
+        return _result_response(request_id, {"eid": eid, "inputs": rows}), True
+
+    if method == "pipe_samplers":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_map = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+        all_samplers: list[dict[str, Any]] = []
+        for stage_name, stage_val in stage_map.items():
+            if hasattr(pipe_state, "GetSamplers"):
+                samplers = pipe_state.GetSamplers(stage_val, True)
+            else:
+                samplers = []
+            for i, s in enumerate(samplers):
+                sd = getattr(s, "sampler", s)
+                all_samplers.append(
+                    {
+                        "stage": stage_name,
+                        "slot": i,
+                        "addressU": getattr(sd, "addressU", ""),
+                        "addressV": getattr(sd, "addressV", ""),
+                        "addressW": getattr(sd, "addressW", ""),
+                        "filter": getattr(sd, "filter", ""),
+                        "maxAnisotropy": getattr(sd, "maxAnisotropy", 0),
+                        "minLOD": getattr(sd, "minLOD", 0.0),
+                        "maxLOD": getattr(sd, "maxLOD", 0.0),
+                        "mipBias": getattr(sd, "mipBias", 0.0),
+                    }
+                )
+        return _result_response(request_id, {"eid": eid, "samplers": all_samplers}), True
+
+    if method == "pipe_vbuffers":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        vbs = pipe_state.GetVBuffers()
+        rows = []
+        for i, vb in enumerate(vbs):
+            rows.append(
+                {
+                    "slot": i,
+                    "resourceId": int(vb.resourceId),
+                    "byteOffset": getattr(vb, "byteOffset", 0),
+                    "byteSize": getattr(vb, "byteSize", 0),
+                    "byteStride": getattr(vb, "byteStride", 0),
+                }
+            )
+        return _result_response(request_id, {"eid": eid, "vbuffers": rows}), True
+
+    if method == "pipe_ibuffer":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        ib = pipe_state.GetIBuffer()
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "resourceId": int(ib.resourceId),
+                "byteOffset": getattr(ib, "byteOffset", 0),
+                "byteSize": getattr(ib, "byteSize", 0),
+                "byteStride": getattr(ib, "byteStride", 0),
+            },
+        ), True
+
+    if method == "postvs":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        controller = state.adapter.controller
+        mesh = controller.GetPostVSData(0, 0, 1)  # 1 = MeshDataStage.VSOut
+        return _result_response(
+            request_id,
+            {
+                "eid": eid,
+                "vertexResourceId": int(getattr(mesh, "vertexResourceId", 0)),
+                "vertexByteStride": getattr(mesh, "vertexByteStride", 0),
+                "numIndices": getattr(mesh, "numIndices", 0),
+                "topology": str(getattr(mesh, "topology", "")),
+            },
+        ), True
+
     if method == "shutdown":
         if state.temp_dir is not None:
             import shutil

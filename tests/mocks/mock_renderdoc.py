@@ -369,6 +369,9 @@ class Viewport:
     y: float = 0.0
     width: float = 1920.0
     height: float = 1080.0
+    minDepth: float = 0.0
+    maxDepth: float = 1.0
+    enabled: bool = True
 
 
 @dataclass
@@ -377,6 +380,90 @@ class Scissor:
     y: int = 0
     width: int = 1920
     height: int = 1080
+    enabled: bool = True
+
+
+@dataclass
+class BlendEquation:
+    source: str = "One"
+    destination: str = "Zero"
+    operation: str = "Add"
+
+
+@dataclass
+class ColorBlend:
+    enabled: bool = False
+    colorBlend: BlendEquation = field(default_factory=BlendEquation)
+    alphaBlend: BlendEquation = field(default_factory=BlendEquation)
+    logicOperationEnabled: bool = False
+    logicOperation: str = "NoOp"
+    writeMask: int = 0xF
+
+
+@dataclass
+class StencilFace:
+    failOperation: str = "Keep"
+    depthFailOperation: str = "Keep"
+    passOperation: str = "Keep"
+    function: str = "AlwaysTrue"
+    reference: int = 0
+    compareMask: int = 0xFF
+    writeMask: int = 0xFF
+
+
+@dataclass
+class BoundVBuffer:
+    resourceId: ResourceId = field(default_factory=ResourceId)
+    byteOffset: int = 0
+    byteSize: int = 0
+    byteStride: int = 0
+
+
+@dataclass
+class VertexInputAttribute:
+    name: str = ""
+    vertexBuffer: int = 0
+    byteOffset: int = 0
+    perInstance: bool = False
+    instanceRate: int = 0
+    format: ResourceFormat = field(default_factory=ResourceFormat)
+    genericEnabled: bool = False
+    used: bool = True
+
+
+@dataclass
+class SamplerData:
+    addressU: str = "Wrap"
+    addressV: str = "Wrap"
+    addressW: str = "Wrap"
+    borderColor: FloatVector = field(default_factory=FloatVector)
+    compareFunction: str = ""
+    filter: str = "Linear"
+    maxAnisotropy: int = 1
+    maxLOD: float = 1000.0
+    minLOD: float = 0.0
+    mipBias: float = 0.0
+    seamlessCubeMap: bool = False
+
+
+@dataclass
+class UsedSampler:
+    """Mimics UsedDescriptor wrapping a SamplerDescriptor."""
+
+    sampler: SamplerData = field(default_factory=SamplerData)
+
+
+@dataclass
+class MeshFormat:
+    vertexResourceId: ResourceId = field(default_factory=ResourceId)
+    vertexByteStride: int = 0
+    vertexByteOffset: int = 0
+    indexResourceId: ResourceId = field(default_factory=ResourceId)
+    indexByteStride: int = 0
+    indexByteOffset: int = 0
+    numIndices: int = 0
+    topology: str = "TriangleList"
+    format: ResourceFormat = field(default_factory=ResourceFormat)
 
 
 @dataclass
@@ -511,6 +598,12 @@ class MockPipeState:
         self._depth_target: Descriptor = depth_target or Descriptor()
         self._viewport: Viewport = Viewport()
         self._scissor: Scissor = Scissor()
+        self._color_blends: list[ColorBlend] = [ColorBlend()]
+        self._stencil: tuple[StencilFace, StencilFace] = (StencilFace(), StencilFace())
+        self._vertex_inputs: list[VertexInputAttribute] = []
+        self._samplers: dict[ShaderStage, list[SamplerData]] = {}
+        self._vbuffers: list[BoundVBuffer] = []
+        self._ibuffer: BoundVBuffer = BoundVBuffer()
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
@@ -541,6 +634,24 @@ class MockPipeState:
 
     def GetPrimitiveTopology(self) -> str:
         return "TriangleList"
+
+    def GetColorBlends(self) -> list[ColorBlend]:
+        return self._color_blends
+
+    def GetStencilFaces(self) -> tuple[StencilFace, StencilFace]:
+        return self._stencil
+
+    def GetVertexInputs(self) -> list[VertexInputAttribute]:
+        return self._vertex_inputs
+
+    def GetSamplers(self, stage: ShaderStage, only_used: bool = True) -> list[UsedSampler]:
+        return [UsedSampler(sampler=s) for s in self._samplers.get(stage, [])]
+
+    def GetVBuffers(self) -> list[BoundVBuffer]:
+        return self._vbuffers
+
+    def GetIBuffer(self) -> BoundVBuffer:
+        return self._ibuffer
 
     def IsCaptureVK(self) -> bool:
         return True
@@ -617,6 +728,10 @@ class MockReplayController:
     def GetBufferData(self, resource_id: Any, offset: int, length: int) -> bytes:
         """Mock GetBufferData -- returns dummy buffer bytes."""
         return b"\xab\xcd" * 256
+
+    def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
+        """Mock GetPostVSData -- returns dummy mesh format."""
+        return MeshFormat()
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

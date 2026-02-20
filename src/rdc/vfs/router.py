@@ -51,6 +51,20 @@ _r(
     "pipeline",
     [("eid", int)],
 )
+_r(r"/draws/(?P<eid>\d+)/pipeline/topology", "leaf", "pipe_topology", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/viewport", "leaf", "pipe_viewport", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/scissor", "leaf", "pipe_scissor", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/blend", "leaf", "pipe_blend", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/stencil", "leaf", "pipe_stencil", [("eid", int)])
+_r(
+    r"/draws/(?P<eid>\d+)/pipeline/vertex-inputs",
+    "leaf",
+    "pipe_vinputs",
+    [("eid", int)],
+)
+_r(r"/draws/(?P<eid>\d+)/pipeline/samplers", "leaf", "pipe_samplers", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/vbuffers", "leaf", "pipe_vbuffers", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/ibuffer", "leaf", "pipe_ibuffer", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/shader", "dir", None, [("eid", int)])
 _r(
     rf"/draws/(?P<eid>\d+)/shader/(?P<stage>{_STAGES})",
@@ -82,6 +96,7 @@ _r(
     "shader_constants",
     [("eid", int)],
 )
+_r(r"/draws/(?P<eid>\d+)/postvs", "leaf", "postvs", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/bindings", "dir", None, [("eid", int)])
 
 # draw targets

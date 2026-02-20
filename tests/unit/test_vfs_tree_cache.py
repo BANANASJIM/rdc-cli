@@ -146,15 +146,32 @@ class TestBuildVfsSkeleton:
     def test_draw_node_structure(self, skeleton: VfsTree) -> None:
         node = skeleton.static["/draws/10"]
         assert node.kind == "dir"
-        assert node.children == ["pipeline", "shader", "bindings", "targets"]
+        assert node.children == ["pipeline", "shader", "bindings", "targets", "postvs"]
 
     def test_draw_pipeline_children(self, skeleton: VfsTree) -> None:
         pipe = skeleton.static["/draws/10/pipeline"]
         assert pipe.kind == "dir"
-        assert pipe.children == ["summary"]
+        expected = [
+            "summary",
+            "topology",
+            "viewport",
+            "scissor",
+            "blend",
+            "stencil",
+            "vertex-inputs",
+            "samplers",
+            "vbuffers",
+            "ibuffer",
+        ]
+        assert pipe.children == expected
 
     def test_draw_pipeline_leaves(self, skeleton: VfsTree) -> None:
         assert skeleton.static["/draws/10/pipeline/summary"].kind == "leaf"
+        assert skeleton.static["/draws/10/pipeline/topology"].kind == "leaf"
+        assert skeleton.static["/draws/10/pipeline/viewport"].kind == "leaf"
+
+    def test_postvs_is_leaf(self, skeleton: VfsTree) -> None:
+        assert skeleton.static["/draws/10/postvs"].kind == "leaf"
 
     def test_draw_shader_empty_initially(self, skeleton: VfsTree) -> None:
         shader = skeleton.static["/draws/10/shader"]
