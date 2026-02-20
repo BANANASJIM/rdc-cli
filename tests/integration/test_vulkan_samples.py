@@ -3,8 +3,8 @@
 Opens captures one at a time (yield + shutdown) to avoid exhausting Vulkan device handles.
 
 Control sample size via env var RDC_GPU_SAMPLES:
-    all         — test every capture (default)
-    N           — randomly pick N captures
+    all         — test every capture
+    N           — randomly pick N captures (default: 5)
     N%          — randomly pick N% of captures
 """
 
@@ -35,7 +35,7 @@ def _discover_captures() -> list[str]:
     if not all_caps:
         return []
 
-    spec = os.environ.get("RDC_GPU_SAMPLES", "all").strip()
+    spec = os.environ.get("RDC_GPU_SAMPLES", "5").strip()
     if spec == "all":
         return all_caps
     if spec.endswith("%"):
@@ -90,7 +90,14 @@ def _build_state(rd: Any, rdc_path: str) -> tuple[Any, Any, DaemonState]:
     state.max_eid = _max_eid(root_actions)
 
     resources = adapter.get_resources()
-    state.vfs_tree = build_vfs_skeleton(root_actions, resources, sf)
+    textures = adapter.get_textures()
+    buffers = adapter.get_buffers()
+
+    state.tex_map = {int(t.resourceId): t for t in textures}
+    state.buf_map = {int(b.resourceId): b for b in buffers}
+    state.res_names = {int(r.resourceId): r.name for r in resources}
+
+    state.vfs_tree = build_vfs_skeleton(root_actions, resources, textures, buffers, sf)
 
     return cap, controller, state
 

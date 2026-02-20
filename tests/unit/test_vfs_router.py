@@ -82,7 +82,7 @@ def test_draws_pipeline_invalid_section() -> None:
 
 
 def test_draws_pipeline_ia_not_routed() -> None:
-    """ia/rs/om are Phase 2+ — not yet in route table."""
+    """ia/rs/om are not yet in route table."""
     assert resolve_path("/draws/142/pipeline/ia") is None
 
 
@@ -266,3 +266,94 @@ def test_pass_name_with_special_chars() -> None:
     m = resolve_path("/passes/Main-Pass_01/info")
     assert m is not None
     assert m.args["name"] == "Main-Pass_01"
+
+
+# ── Textures (Phase 2) ─────────────────────────────────────────────
+
+
+def test_textures_id_dir() -> None:
+    m = resolve_path("/textures/42")
+    assert m == PathMatch(kind="dir", handler=None, args={"id": 42})
+
+
+def test_textures_id_info() -> None:
+    m = resolve_path("/textures/42/info")
+    assert m == PathMatch(kind="leaf", handler="tex_info", args={"id": 42})
+
+
+def test_textures_id_image_png() -> None:
+    m = resolve_path("/textures/42/image.png")
+    assert m == PathMatch(kind="leaf_bin", handler="tex_export", args={"id": 42})
+
+
+def test_textures_id_mips_dir() -> None:
+    m = resolve_path("/textures/42/mips")
+    assert m == PathMatch(kind="dir", handler=None, args={"id": 42})
+
+
+@pytest.mark.parametrize("mip", [0, 3])
+def test_textures_id_mips_png(mip: int) -> None:
+    m = resolve_path(f"/textures/42/mips/{mip}.png")
+    assert m == PathMatch(kind="leaf_bin", handler="tex_export", args={"id": 42, "mip": mip})
+
+
+def test_textures_id_data() -> None:
+    m = resolve_path("/textures/42/data")
+    assert m == PathMatch(kind="leaf_bin", handler="tex_raw", args={"id": 42})
+
+
+# ── Buffers (Phase 2) ──────────────────────────────────────────────
+
+
+def test_buffers_id_dir() -> None:
+    m = resolve_path("/buffers/7")
+    assert m == PathMatch(kind="dir", handler=None, args={"id": 7})
+
+
+def test_buffers_id_info() -> None:
+    m = resolve_path("/buffers/7/info")
+    assert m == PathMatch(kind="leaf", handler="buf_info", args={"id": 7})
+
+
+def test_buffers_id_data() -> None:
+    m = resolve_path("/buffers/7/data")
+    assert m == PathMatch(kind="leaf_bin", handler="buf_raw", args={"id": 7})
+
+
+# ── Draw targets (Phase 2) ─────────────────────────────────────────
+
+
+def test_draws_targets_dir() -> None:
+    m = resolve_path("/draws/142/targets")
+    assert m == PathMatch(kind="dir", handler=None, args={"eid": 142})
+
+
+@pytest.mark.parametrize("target", [0, 3])
+def test_draws_targets_color_png(target: int) -> None:
+    m = resolve_path(f"/draws/142/targets/color{target}.png")
+    assert m == PathMatch(kind="leaf_bin", handler="rt_export", args={"eid": 142, "target": target})
+
+
+def test_draws_targets_depth_png() -> None:
+    m = resolve_path("/draws/142/targets/depth.png")
+    assert m == PathMatch(kind="leaf_bin", handler="rt_depth", args={"eid": 142})
+
+
+# ── Phase 2 edge / error cases ─────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/textures/abc",
+        "/textures/42/nonexistent",
+        "/buffers/abc",
+        "/draws/142/targets/colorX.png",
+        "/textures/42/mips/abc.png",
+        "/textures/42/mips/0",
+        "/draws/142/targets/color0",
+        "/draws/142/targets/depth",
+    ],
+)
+def test_phase2_invalid_paths_return_none(path: str) -> None:
+    assert resolve_path(path) is None

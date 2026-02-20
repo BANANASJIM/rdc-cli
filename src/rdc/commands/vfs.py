@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import shutil
+import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import click
@@ -47,6 +50,8 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
     "shader_reflect": lambda r: _kv_text(r),
     "shader_constants": lambda r: _kv_text(r),
     "log": lambda r: _fmt_log(r),
+    "tex_info": lambda r: _kv_text(r),
+    "buf_info": lambda r: _kv_text(r),
 }
 
 
@@ -68,11 +73,47 @@ def ls_cmd(path: str, classify: bool, use_json: bool) -> None:
     click.echo(render_ls(children, classify=classify))
 
 
+def _stdout_is_tty() -> bool:
+    return sys.stdout.isatty()
+
+
+def _deliver_binary(path: str, match: Any, raw: bool, output: str | None) -> None:
+    """Handle binary leaf delivery: TTY protection, -o, or pipe."""
+    if _stdout_is_tty() and not raw and output is None:
+        click.echo(
+            f"error: {path}: binary data, use redirect (>) or -o",
+            err=True,
+        )
+        raise SystemExit(1)
+
+    content_result = _daemon_call(match.handler, match.args)
+    temp_path = content_result.get("path")
+    if temp_path is None:
+        click.echo(f"error: {path}: handler did not return file path", err=True)
+        raise SystemExit(1)
+
+    temp = Path(temp_path)
+    if not temp.exists():
+        click.echo(f"error: {path}: temp file missing", err=True)
+        raise SystemExit(1)
+
+    try:
+        if output is not None:
+            shutil.move(str(temp), output)
+        else:
+            sys.stdout.buffer.write(temp.read_bytes())
+            temp.unlink(missing_ok=True)
+    except OSError as exc:
+        click.echo(f"error: {path}: {exc}", err=True)
+        raise SystemExit(1) from None
+
+
 @click.command("cat")
 @click.argument("path")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
-def cat_cmd(path: str, use_json: bool, raw: bool) -> None:
+@click.option("-o", "--output", type=click.Path(), default=None, help="Write binary output to file")
+def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
     """Output VFS leaf node content."""
     result = _daemon_call("vfs_ls", {"path": path})
     kind = result.get("kind")
@@ -89,6 +130,10 @@ def cat_cmd(path: str, use_json: bool, raw: bool) -> None:
     if match is None or match.handler is None:
         click.echo(f"error: {path}: no content handler", err=True)
         raise SystemExit(1)
+
+    if kind == "leaf_bin":
+        _deliver_binary(path, match, raw, output)
+        return
 
     content_result = _daemon_call(match.handler, match.args)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -36,7 +37,15 @@ def _make_state(
     from rdc.vfs.tree_cache import build_vfs_skeleton
 
     resources = adapter.get_resources()
-    state.vfs_tree = build_vfs_skeleton(root_actions, resources, sf)
+    textures = adapter.get_textures()
+    buffers = adapter.get_buffers()
+
+    state.tex_map = {int(t.resourceId): t for t in textures}
+    state.buf_map = {int(b.resourceId): b for b in buffers}
+    state.res_names = {int(r.resourceId): r.name for r in resources}
+
+    state.rd = rd_module
+    state.vfs_tree = build_vfs_skeleton(root_actions, resources, textures, buffers, sf)
     return state
 
 
@@ -145,3 +154,151 @@ class TestDaemonHandlersReal:
         child_names = [c["name"] for c in tree["children"]]
         assert "draws" in child_names
         assert "info" in child_names
+
+
+class TestBinaryHandlersReal:
+    """Integration tests for Phase 2 binary export handlers."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self,
+        vkcube_replay: tuple[Any, Any, Any],
+        rd_module: Any,
+        tmp_path: Path,
+    ) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+        self.state.temp_dir = tmp_path
+
+    def _first_texture_id(self) -> int:
+        """Find the first texture resource ID."""
+        if self.state.tex_map:
+            return next(iter(self.state.tex_map))
+        pytest.skip("no texture resources in capture")
+
+    def _first_buffer_id(self) -> int:
+        """Find the first buffer resource ID."""
+        if self.state.buf_map:
+            return next(iter(self.state.buf_map))
+        pytest.skip("no buffer resources in capture")
+
+    def _first_draw_eid(self) -> int:
+        """Find the first draw call EID."""
+        result = _call(self.state, "events", {"type": "draw"})
+        draws = result["events"]
+        assert len(draws) > 0, "no draw calls in capture"
+        return draws[0]["eid"]
+
+    def test_vfs_ls_textures(self) -> None:
+        result = _call(self.state, "vfs_ls", {"path": "/textures"})
+        assert result["kind"] == "dir"
+        assert len(result["children"]) > 0
+
+    def test_vfs_ls_buffers(self) -> None:
+        result = _call(self.state, "vfs_ls", {"path": "/buffers"})
+        assert result["kind"] == "dir"
+        assert len(result["children"]) > 0
+
+    def test_vfs_ls_texture_subtree(self) -> None:
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "vfs_ls", {"path": f"/textures/{tex_id}"})
+        names = [c["name"] for c in result["children"]]
+        assert "info" in names
+        assert "image.png" in names
+        assert "mips" in names
+        assert "data" in names
+
+    def test_tex_info(self) -> None:
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_info", {"id": tex_id})
+        assert result["id"] == tex_id
+        assert result["width"] > 0
+        assert result["height"] > 0
+        assert result["mips"] >= 1
+        assert "format" in result
+        assert "type" in result
+        assert "byte_size" in result
+
+    def test_tex_export_png(self) -> None:
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_export", {"id": tex_id, "mip": 0})
+        assert "path" in result
+        assert result["size"] > 0
+        exported = Path(result["path"])
+        assert exported.exists()
+        data = exported.read_bytes()
+        assert data[:4] == b"\x89PNG", f"Not a PNG file: {data[:8]!r}"
+
+    def test_tex_raw(self) -> None:
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_raw", {"id": tex_id})
+        assert "path" in result
+        assert result["size"] > 0
+        exported = Path(result["path"])
+        assert exported.exists()
+        assert exported.stat().st_size == result["size"]
+
+    def test_buf_info(self) -> None:
+        buf_id = self._first_buffer_id()
+        result = _call(self.state, "buf_info", {"id": buf_id})
+        assert result["id"] == buf_id
+        assert "name" in result
+        assert "length" in result
+        assert "creation_flags" in result
+
+    def test_buf_raw(self) -> None:
+        buf_id = self._first_buffer_id()
+        result = _call(self.state, "buf_raw", {"id": buf_id})
+        assert "path" in result
+        assert result["size"] > 0
+        exported = Path(result["path"])
+        assert exported.exists()
+
+    def test_vfs_ls_draw_targets(self) -> None:
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "vfs_ls", {"path": f"/draws/{draw_eid}/targets"})
+        assert result["kind"] == "dir"
+        children = result["children"]
+        assert len(children) >= 1
+        names = [c["name"] for c in children]
+        assert any(n.startswith("color") for n in names)
+
+    def test_rt_export_png(self) -> None:
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "rt_export", {"eid": draw_eid, "target": 0})
+        assert "path" in result
+        assert result["size"] > 0
+        exported = Path(result["path"])
+        assert exported.exists()
+        data = exported.read_bytes()
+        assert data[:4] == b"\x89PNG", f"Not a PNG file: {data[:8]!r}"
+
+    def test_rt_depth(self) -> None:
+        draw_eid = self._first_draw_eid()
+        req = {
+            "id": 1,
+            "method": "rt_depth",
+            "params": {"_token": self.state.token, "eid": draw_eid},
+        }
+        resp, _ = _handle_request(req, self.state)
+        if "error" in resp:
+            assert "no depth target" in resp["error"]["message"]
+        else:
+            result = resp["result"]
+            assert "path" in result
+            exported = Path(result["path"])
+            assert exported.exists()
+
+    def test_temp_dir_cleanup_on_shutdown(self) -> None:
+        """Verify temp dir is cleaned on shutdown."""
+        temp_dir = self.state.temp_dir
+        assert temp_dir.exists()
+        (temp_dir / "test.bin").write_bytes(b"data")
+        # Clear adapter/cap so shutdown handler only tests temp cleanup,
+        # not the shared session-scoped controller (avoids double-shutdown segfault).
+        self.state.adapter = None
+        self.state.cap = None
+        req = {"id": 1, "method": "shutdown", "params": {"_token": self.state.token}}
+        resp, running = _handle_request(req, self.state)
+        assert resp["result"]["ok"] is True
+        assert running is False
+        assert not temp_dir.exists()
