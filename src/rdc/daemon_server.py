@@ -1152,38 +1152,71 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 f"no constant block at set={cb_set} binding={cb_binding}",
             ), True
         controller = state.adapter.controller
-        pipeline = pipe_state.GetGraphicsPipelineObject()
+        if stage_name == "cs":
+            pipeline = pipe_state.GetComputePipelineObject()
+        else:
+            pipeline = pipe_state.GetGraphicsPipelineObject()
         shader = pipe_state.GetShader(stage_val)
+        entry = pipe_state.GetShaderEntryPoint(stage_val)
+        # Resolve cbuffer resource via GetConstantBlock descriptor
+        if hasattr(pipe_state, "GetConstantBlock"):
+            cb_desc = pipe_state.GetConstantBlock(stage_val, target_idx, 0)
+            cb_resource = cb_desc.resource
+            cb_offset = getattr(cb_desc, "byteOffset", 0)
+            cb_size = getattr(cb_desc, "byteSize", 0)
+        else:
+            cb_resource = shader
+            cb_offset = 0
+            cb_size = 0
         variables = controller.GetCBufferVariableContents(
             pipeline,
             shader,
             stage_val,
-            "",
+            entry,
             target_idx,
-            shader,
-            0,
-            0,
+            cb_resource,
+            cb_offset,
+            cb_size,
         )
+
+        def _extract_value(v: Any) -> Any:
+            """Extract JSON-serializable value from ShaderVariable."""
+            val = getattr(v, "value", None)
+            if val is None:
+                return None
+            # Real API: ShaderValue union with .f32v/.u32v/.s32v
+            f32v = getattr(val, "f32v", None)
+            if f32v is not None:
+                r = getattr(v, "rows", 1) or 1
+                c = getattr(v, "columns", 1) or 1
+                values = [f32v[ri * c + ci] for ri in range(r) for ci in range(c)]
+                return values if len(values) > 1 else values[0]
+            # Mock or simple value — already JSON-serializable
+            return val
 
         def _flatten_vars(
             vs: list[Any],
             prefix: str = "",
+            depth: int = 0,
         ) -> list[dict[str, Any]]:
-            rows: list[dict[str, Any]] = []
+            if depth > 8:
+                return []
+            cb_rows: list[dict[str, Any]] = []
             for v in vs:
                 name = f"{prefix}{getattr(v, 'name', '')}"
                 members = getattr(v, "members", [])
                 if members:
-                    rows.extend(_flatten_vars(members, f"{name}."))
+                    cb_rows.extend(_flatten_vars(members, f"{name}.", depth + 1))
                 else:
-                    rows.append(
+                    vtype = getattr(v, "type", "")
+                    cb_rows.append(
                         {
                             "name": name,
-                            "type": getattr(v, "type", ""),
-                            "value": getattr(v, "value", None),
+                            "type": str(vtype),
+                            "value": _extract_value(v),
                         }
                     )
-            return rows
+            return cb_rows
 
         flat = _flatten_vars(variables)
         return _result_response(
@@ -1285,7 +1318,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         import struct
 
         controller = state.adapter.controller
-        stride = getattr(ib, "byteStride", 2)
+        raw_stride = getattr(ib, "byteStride", 0)
+        stride = raw_stride if raw_stride in (2, 4) else 2
         offset = getattr(ib, "byteOffset", 0)
         size = getattr(ib, "byteSize", 0)
         data = controller.GetBufferData(rid, offset, size)

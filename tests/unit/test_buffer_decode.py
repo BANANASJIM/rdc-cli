@@ -18,12 +18,14 @@ from mock_renderdoc import (
     ActionFlags,
     BoundVBuffer,
     ConstantBlock,
+    Descriptor,
     MockPipeState,
     ResourceDescription,
     ResourceFormat,
     ResourceId,
     ShaderReflection,
     ShaderStage,
+    ShaderValue,
     ShaderVariable,
     VertexInputAttribute,
 )
@@ -93,6 +95,10 @@ def state(tmp_path: Path) -> DaemonState:
         ],
     )
     pipe._reflections[ShaderStage.Pixel] = refl
+    # Set up cbuffer descriptor for GetConstantBlock
+    pipe._cbuffer_descriptors[(ShaderStage.Pixel, 0)] = Descriptor(
+        resource=ResourceId(50),
+    )
 
     # Vertex inputs for vbuffer test
     pipe._vertex_inputs = [
@@ -134,9 +140,23 @@ def state(tmp_path: Path) -> DaemonState:
 
     vbuf_data = _make_vbuffer_data()
     ibuf_data = _make_ibuffer_data_u16()
+    light_val = ShaderValue(f32v=[0.5, 0.7, 0.0] + [0.0] * 13)
+    intensity_val = ShaderValue(f32v=[1.0] + [0.0] * 15)
     cbuffer_vars = [
-        ShaderVariable(name="lightDir", type="vec3", value=[0.5, 0.7, 0.0]),
-        ShaderVariable(name="intensity", type="float", value=1.0),
+        ShaderVariable(
+            name="lightDir",
+            type="vec3",
+            rows=1,
+            columns=3,
+            value=light_val,
+        ),
+        ShaderVariable(
+            name="intensity",
+            type="float",
+            rows=1,
+            columns=1,
+            value=intensity_val,
+        ),
     ]
 
     actions = _build_actions()
@@ -191,7 +211,9 @@ class TestCbufferDecode:
         assert r["binding"] == 0
         assert len(r["variables"]) == 2
         assert r["variables"][0]["name"] == "lightDir"
+        assert r["variables"][0]["value"] == [0.5, 0.7, 0.0]
         assert r["variables"][1]["name"] == "intensity"
+        assert r["variables"][1]["value"] == pytest.approx(1.0)
 
     def test_no_adapter(self) -> None:
         s = DaemonState(
@@ -221,6 +243,8 @@ class TestCbufferDecode:
 
     def test_nested_variables(self, state: DaemonState) -> None:
         """Nested ShaderVariable members flatten with dot notation."""
+        dir_val = ShaderValue(f32v=[1.0, 0.0, 0.0] + [0.0] * 13)
+        color_val = ShaderValue(f32v=[1.0, 1.0, 1.0] + [0.0] * 13)
         nested = [
             ShaderVariable(
                 name="light",
@@ -229,12 +253,16 @@ class TestCbufferDecode:
                     ShaderVariable(
                         name="dir",
                         type="vec3",
-                        value=[1.0, 0.0, 0.0],
+                        rows=1,
+                        columns=3,
+                        value=dir_val,
                     ),
                     ShaderVariable(
                         name="color",
                         type="vec3",
-                        value=[1.0, 1.0, 1.0],
+                        rows=1,
+                        columns=3,
+                        value=color_val,
                     ),
                 ],
             ),

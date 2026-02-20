@@ -467,6 +467,15 @@ class MeshFormat:
 
 
 @dataclass
+class ShaderValue:
+    """Mock for ShaderValue union (real API has f32v, u32v, s32v, f64v)."""
+
+    f32v: list[float] = field(default_factory=lambda: [0.0] * 16)
+    u32v: list[int] = field(default_factory=lambda: [0] * 16)
+    s32v: list[int] = field(default_factory=lambda: [0] * 16)
+
+
+@dataclass
 class ShaderVariable:
     name: str = ""
     type: str = ""
@@ -614,6 +623,7 @@ class MockPipeState:
         self._samplers: dict[ShaderStage, list[SamplerData]] = {}
         self._vbuffers: list[BoundVBuffer] = []
         self._ibuffer: BoundVBuffer = BoundVBuffer()
+        self._cbuffer_descriptors: dict[tuple[int, int], Descriptor] = {}
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
@@ -662,6 +672,15 @@ class MockPipeState:
 
     def GetIBuffer(self) -> BoundVBuffer:
         return self._ibuffer
+
+    def GetConstantBlock(
+        self,
+        stage: int,
+        slot: int,
+        array_idx: int,
+    ) -> Descriptor:
+        """Mock GetConstantBlock — returns descriptor with cbuffer resource."""
+        return self._cbuffer_descriptors.get((stage, slot), Descriptor())
 
     def IsCaptureVK(self) -> bool:
         return True
