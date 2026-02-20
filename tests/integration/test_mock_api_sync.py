@@ -62,6 +62,8 @@ ENUM_PAIRS = [
     ("GPUCounter", "GPUCounter"),
     ("CounterUnit", "CounterUnit"),
     ("CompType", "CompType"),
+    ("DescriptorType", "DescriptorType"),
+    ("AddressMode", "AddressMode"),
 ]
 
 
@@ -108,6 +110,9 @@ STRUCT_PAIRS = [
     ("EventUsage", "EventUsage"),
     ("CounterDescription", "CounterDescription"),
     ("CounterResult", "CounterResult"),
+    ("DescriptorAccess", "DescriptorAccess"),
+    ("SamplerDescriptor", "SamplerDescriptor"),
+    ("UsedDescriptor", "UsedDescriptor"),
 ]
 
 

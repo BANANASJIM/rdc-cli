@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -95,6 +95,65 @@ class ResourceType(IntEnum):
     Pool = 17
     AccelerationStructure = 18
     DescriptorStore = 19
+
+
+class DescriptorType(IntEnum):
+    Unknown = 0
+    ConstantBuffer = 1
+    Sampler = 2
+    ImageSampler = 3
+    Image = 4
+    Buffer = 5
+    TypedBuffer = 6
+    ReadWriteImage = 7
+    ReadWriteTypedBuffer = 8
+    ReadWriteBuffer = 9
+    AccelerationStructure = 10
+
+
+class AddressMode(IntEnum):
+    Wrap = 0
+    Mirror = 1
+    MirrorOnce = 2
+    ClampEdge = 3
+    ClampBorder = 4
+
+
+class FilterMode(IntEnum):
+    NoFilter = 0
+    Point = 1
+    Linear = 2
+    Cubic = 3
+    Anisotropic = 4
+
+
+class CompareFunction(IntEnum):
+    Never = 0
+    AlwaysTrue = 1
+    Less = 2
+    LessEqual = 3
+    Greater = 4
+    GreaterEqual = 5
+    Equal = 6
+    NotEqual = 7
+
+
+class ChromaSampleLocation(IntEnum):
+    CositedEven = 0
+    Midpoint = 1
+
+
+class YcbcrConversion(IntEnum):
+    Raw = 0
+    RangeOnly = 1
+    BT709 = 2
+    BT601 = 3
+    BT2020 = 4
+
+
+class YcbcrRange(IntEnum):
+    ITUFull = 0
+    ITUNarrow = 1
 
 
 class TextureType(IntEnum):
@@ -591,6 +650,77 @@ class UsedSampler:
 
 
 @dataclass
+class PixelValue:
+    """Stub for PixelValue (SWIG opaque type)."""
+
+    floatValue: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0, 0.0])
+
+
+@dataclass
+class TextureFilter:
+    """Stub for TextureFilter (SWIG opaque type)."""
+
+    minify: FilterMode = FilterMode.Linear
+    magnify: FilterMode = FilterMode.Linear
+    mip: FilterMode = FilterMode.Linear
+
+
+@dataclass
+class SamplerDescriptor:
+    """Mock for SamplerDescriptor from GetAllUsedDescriptors."""
+
+    addressU: AddressMode = AddressMode.Wrap
+    addressV: AddressMode = AddressMode.Wrap
+    addressW: AddressMode = AddressMode.Wrap
+    borderColorType: CompType = CompType.Float
+    borderColorValue: PixelValue = field(default_factory=PixelValue)
+    chromaFilter: FilterMode = FilterMode.NoFilter
+    compareFunction: CompareFunction = CompareFunction.AlwaysTrue
+    creationTimeConstant: bool = False
+    filter: TextureFilter = field(default_factory=TextureFilter)
+    forceExplicitReconstruction: bool = False
+    maxAnisotropy: float = 0.0
+    maxLOD: float = 0.0
+    minLOD: float = 0.0
+    mipBias: float = 0.0
+    object: ResourceId = field(default_factory=ResourceId)
+    seamlessCubemaps: bool = True
+    srgbBorder: bool = False
+    swizzle: TextureSwizzle4 = field(default_factory=TextureSwizzle4)
+    type: DescriptorType = DescriptorType.Unknown
+    unnormalized: bool = False
+    xChromaOffset: ChromaSampleLocation = ChromaSampleLocation.CositedEven
+    yChromaOffset: ChromaSampleLocation = ChromaSampleLocation.CositedEven
+    ycbcrModel: YcbcrConversion = YcbcrConversion.Raw
+    ycbcrRange: YcbcrRange = YcbcrRange.ITUFull
+    ycbcrSampler: ResourceId = field(default_factory=ResourceId)
+
+
+@dataclass
+class DescriptorAccess:
+    """Mock for DescriptorAccess from GetAllUsedDescriptors."""
+
+    NoShaderBinding: ClassVar[int] = 65535
+    stage: ShaderStage = ShaderStage.Vertex
+    type: DescriptorType = DescriptorType.ConstantBuffer
+    index: int = 0
+    arrayElement: int = 0
+    descriptorStore: ResourceId = field(default_factory=ResourceId)
+    byteOffset: int = 0
+    byteSize: int = 0
+    staticallyUnused: bool = False
+
+
+@dataclass
+class UsedDescriptor:
+    """Mock for UsedDescriptor from GetAllUsedDescriptors."""
+
+    access: DescriptorAccess = field(default_factory=DescriptorAccess)
+    descriptor: Descriptor = field(default_factory=Descriptor)
+    sampler: SamplerDescriptor = field(default_factory=SamplerDescriptor)
+
+
+@dataclass
 class MeshFormat:
     allowRestart: bool = False
     baseVertex: int = 0
@@ -783,6 +913,7 @@ class MockPipeState:
         self._vbuffers: list[BoundVBuffer] = []
         self._ibuffer: BoundVBuffer = BoundVBuffer()
         self._cbuffer_descriptors: dict[tuple[int, int], Descriptor] = {}
+        self._used_descriptors: list[UsedDescriptor] = []
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
@@ -840,6 +971,12 @@ class MockPipeState:
     ) -> Descriptor:
         """Mock GetConstantBlock — returns descriptor with cbuffer resource."""
         return self._cbuffer_descriptors.get((stage, slot), Descriptor())
+
+    def GetAllUsedDescriptors(self, only_used: bool = True) -> list[UsedDescriptor]:
+        """Mock GetAllUsedDescriptors — returns configured used descriptors."""
+        if only_used:
+            return [d for d in self._used_descriptors if not d.access.staticallyUnused]
+        return list(self._used_descriptors)
 
     def IsCaptureVK(self) -> bool:
         return True

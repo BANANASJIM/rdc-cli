@@ -292,6 +292,69 @@ def test_cat_shader_source(monkeypatch) -> None:
     assert "void main()" in result.output
 
 
+def test_cat_descriptors(monkeypatch) -> None:
+    _patch(
+        monkeypatch,
+        {
+            "vfs_ls": {"path": "/draws/5/descriptors", "kind": "leaf", "children": []},
+            "descriptors": {
+                "eid": 5,
+                "descriptors": [
+                    {
+                        "stage": "Vertex",
+                        "type": "ConstantBuffer",
+                        "index": 0,
+                        "array_element": 0,
+                        "resource_id": 42,
+                        "format": "",
+                        "byte_size": 256,
+                    },
+                    {
+                        "stage": "Pixel",
+                        "type": "ConstantBuffer",
+                        "index": 0,
+                        "array_element": 0,
+                        "resource_id": 43,
+                        "format": "",
+                        "byte_size": 128,
+                    },
+                ],
+            },
+        },
+    )
+    monkeypatch.setattr(
+        vfs_mod,
+        "resolve_path",
+        lambda p: PathMatch(kind="leaf", handler="descriptors", args={"eid": 5}),
+    )
+    result = CliRunner().invoke(cat_cmd, ["/draws/5/descriptors"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE"
+    assert len(lines) == 3
+    assert "Vertex\tConstantBuffer\t0\t0\t42\t\t256" in lines[1]
+
+
+def test_cat_descriptors_empty(monkeypatch) -> None:
+    _patch(
+        monkeypatch,
+        {
+            "vfs_ls": {"path": "/draws/0/descriptors", "kind": "leaf", "children": []},
+            "descriptors": {"eid": 0, "descriptors": []},
+        },
+    )
+    monkeypatch.setattr(
+        vfs_mod,
+        "resolve_path",
+        lambda p: PathMatch(kind="leaf", handler="descriptors", args={"eid": 0}),
+    )
+    result = CliRunner().invoke(cat_cmd, ["/draws/0/descriptors"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE"
+    assert len(lines) == 1
+
+
 # ── tree ────────────────────────────────────────────────────────────
 
 

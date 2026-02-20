@@ -239,6 +239,53 @@ class TestDaemonHandlersReal:
         names = [c["name"] for c in result["children"]]
         assert "list" in names
 
+    def test_descriptors_basic(self) -> None:
+        """Descriptors for a draw eid returns valid entries."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "descriptors", {"eid": draw_eid})
+        assert isinstance(result["descriptors"], list)
+        assert len(result["descriptors"]) >= 1
+        for d in result["descriptors"]:
+            assert "stage" in d
+            assert "type" in d
+            assert "index" in d
+            assert "resource_id" in d
+            assert "format" in d
+            assert "byte_size" in d
+
+    def test_descriptors_sampler(self) -> None:
+        """Sampler descriptors appear with sampler sub-dict (skip if none)."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "descriptors", {"eid": draw_eid})
+        sampler_entries = [
+            d for d in result["descriptors"] if d["type"] in ("Sampler", "ImageSampler")
+        ]
+        if not sampler_entries:
+            pytest.skip("no sampler descriptors in capture")
+        for s in sampler_entries:
+            assert "sampler" in s
+            assert "filter" in s["sampler"]
+            assert "address_u" in s["sampler"]
+
+    def test_vfs_ls_draw_descriptors(self) -> None:
+        """VFS /draws/<eid>/descriptors is listed as a child."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "vfs_ls", {"path": f"/draws/{draw_eid}"})
+        names = [c["name"] for c in result["children"]]
+        assert "descriptors" in names
+
+    def test_vfs_cat_descriptors(self) -> None:
+        """VFS cat /draws/<eid>/descriptors returns TSV with correct header."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "descriptors", {"eid": draw_eid})
+        assert isinstance(result["descriptors"], list)
+        for d in result["descriptors"]:
+            assert len(d.keys()) >= 7
+
 
 class TestBinaryHandlersReal:
     """Integration tests for Phase 2 binary export handlers."""

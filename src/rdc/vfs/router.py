@@ -106,6 +106,7 @@ _r(
 )
 _r(r"/draws/(?P<eid>\d+)/vbuffer", "leaf", "vbuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/ibuffer", "leaf", "ibuffer_decode", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/descriptors", "leaf", "descriptors", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/bindings", "dir", None, [("eid", int)])
 
 # draw targets
