@@ -455,15 +455,36 @@ class UsedSampler:
 
 @dataclass
 class MeshFormat:
-    vertexResourceId: ResourceId = field(default_factory=ResourceId)
-    vertexByteStride: int = 0
-    vertexByteOffset: int = 0
-    indexResourceId: ResourceId = field(default_factory=ResourceId)
-    indexByteStride: int = 0
-    indexByteOffset: int = 0
-    numIndices: int = 0
-    topology: str = "TriangleList"
+    allowRestart: bool = False
+    baseVertex: int = 0
+    dispatchSize: tuple[int, int, int] = (0, 0, 0)
+    farPlane: float = 1.0
+    flipY: bool = False
     format: ResourceFormat = field(default_factory=ResourceFormat)
+    indexByteOffset: int = 0
+    indexByteSize: int = 0
+    indexByteStride: int = 0
+    indexResourceId: ResourceId = field(default_factory=ResourceId)
+    instStepRate: int = 1
+    instanced: bool = False
+    meshColor: FloatVector = field(default_factory=FloatVector)
+    meshletIndexOffset: int = 0
+    meshletOffset: int = 0
+    meshletSizes: tuple[int, int, int] = (0, 0, 0)
+    nearPlane: float = 0.1
+    numIndices: int = 0
+    perPrimitiveOffset: int = 0
+    perPrimitiveStride: int = 0
+    restartIndex: int = 0xFFFFFFFF
+    showAlpha: bool = False
+    status: str = ""
+    taskSizes: tuple[int, int, int] = (0, 0, 0)
+    topology: str = "TriangleList"
+    unproject: bool = False
+    vertexByteOffset: int = 0
+    vertexByteSize: int = 0
+    vertexByteStride: int = 0
+    vertexResourceId: ResourceId = field(default_factory=ResourceId)
 
 
 @dataclass
@@ -481,6 +502,7 @@ class ShaderVariable:
     type: str = ""
     rows: int = 0
     columns: int = 0
+    flags: int = 0
     value: Any = None
     members: list[ShaderVariable] = field(default_factory=list)
 
@@ -716,6 +738,7 @@ class MockReplayController:
         self._structured_file: StructuredFile = StructuredFile()
         self._debug_messages: list[DebugMessage] = []
         self._cbuffer_variables: dict[tuple[int, int], list[ShaderVariable]] = {}
+        self._disasm_text: dict[int, str] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -776,6 +799,15 @@ class MockReplayController:
     def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
         """Mock GetPostVSData -- returns dummy mesh format."""
         return MeshFormat()
+
+    def GetDisassemblyTargets(self, with_pipeline: bool) -> list[str]:
+        """Mock GetDisassemblyTargets -- returns default target list."""
+        return ["SPIR-V"]
+
+    def DisassembleShader(self, pipeline: Any, refl: Any, target: str) -> str:
+        """Mock DisassembleShader -- returns cached disasm text by shader id."""
+        rid = int(getattr(refl, "resourceId", 0))
+        return self._disasm_text.get(rid, "")
 
     def Shutdown(self) -> None:
         self._shutdown_called = True
