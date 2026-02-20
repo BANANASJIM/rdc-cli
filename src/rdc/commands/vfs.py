@@ -52,6 +52,8 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
     "log": lambda r: _fmt_log(r),
     "tex_info": lambda r: _kv_text(r),
     "buf_info": lambda r: _kv_text(r),
+    "shader_list_info": lambda r: _kv_text(r),
+    "shader_list_disasm": lambda r: r.get("disasm", ""),
 }
 
 

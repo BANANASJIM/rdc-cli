@@ -37,6 +37,7 @@ class DaemonState:
     rd: Any = None
     disasm_cache: dict[int, str] = field(default_factory=dict)
     shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
+    _shader_cache_built: bool = field(default=False, repr=False)
 
 
 def _detect_version(rd: Any) -> tuple[int, int]:
@@ -1344,7 +1345,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if stage_filter is not None:
             stage_filter = str(stage_filter).lower()
         case_sensitive = bool(params.get("case_sensitive", False))
-        limit = int(params.get("limit", 200))
+        limit = max(1, int(params.get("limit", 200)))
         context_lines = int(params.get("context", 0))
         try:
             flags = 0 if case_sensitive else re.IGNORECASE
@@ -1739,7 +1740,7 @@ def _build_shader_cache(state: DaemonState) -> None:
     Populates state.disasm_cache and state.shader_meta in-place. No-op if
     already built. Also populates the /shaders/ VFS subtree as a side effect.
     """
-    if state.disasm_cache or state.adapter is None:
+    if state._shader_cache_built or state.adapter is None:
         return
 
     _stage_names = {0: "vs", 1: "hs", 2: "ds", 3: "gs", 4: "ps", 5: "cs"}
@@ -1810,6 +1811,8 @@ def _build_shader_cache(state: DaemonState) -> None:
             "first_eid": first_eid,
             "entry": getattr(refl, "entryPoint", "main") if refl else "main",
         }
+
+    state._shader_cache_built = True
 
     if state.vfs_tree is not None:
         from rdc.vfs.tree_cache import populate_shaders_subtree

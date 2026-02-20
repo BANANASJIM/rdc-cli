@@ -778,6 +778,10 @@ class MockReplayController:
         """Mock GetPostVSData -- returns dummy mesh format."""
         return MeshFormat()
 
+    def GetDisassemblyTargets(self, with_pipeline: bool) -> list[str]:
+        """Mock GetDisassemblyTargets -- returns default target list."""
+        return ["SPIR-V"]
+
     def DisassembleShader(self, pipeline: Any, refl: Any, target: str) -> str:
         """Mock DisassembleShader -- returns cached disasm text by shader id."""
         rid = int(getattr(refl, "resourceId", 0))
