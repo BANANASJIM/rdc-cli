@@ -1479,6 +1479,55 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             request_id, {"eid": eid, "format": fmt_name, "indices": indices}
         ), True
 
+    if method == "descriptors":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        if not hasattr(pipe_state, "GetAllUsedDescriptors"):
+            return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
+        used = pipe_state.GetAllUsedDescriptors(True)
+        desc_rows: list[dict[str, Any]] = []
+        for ud in used:
+            acc = ud.access
+            desc = ud.descriptor
+            stage_name = acc.stage.name if hasattr(acc.stage, "name") else str(acc.stage)
+            type_name = acc.type.name if hasattr(acc.type, "name") else str(acc.type)
+            fmt = getattr(desc, "format", None)
+            fmt_name = fmt.Name() if fmt and hasattr(fmt, "Name") else str(fmt) if fmt else ""
+            d_row: dict[str, Any] = {
+                "stage": stage_name,
+                "type": type_name,
+                "index": acc.index,
+                "array_element": acc.arrayElement,
+                "resource_id": int(desc.resource),
+                "format": fmt_name,
+                "byte_size": getattr(desc, "byteSize", 0),
+            }
+            if type_name in ("Sampler", "ImageSampler"):
+                s = getattr(ud, "sampler", None)
+                if s is not None:
+                    au = getattr(s, "addressU", "")
+                    av = getattr(s, "addressV", "")
+                    aw = getattr(s, "addressW", "")
+                    cf = getattr(s, "compareFunction", "")
+                    d_row["sampler"] = {
+                        "address_u": au.name if hasattr(au, "name") else str(au),
+                        "address_v": av.name if hasattr(av, "name") else str(av),
+                        "address_w": aw.name if hasattr(aw, "name") else str(aw),
+                        "filter": str(getattr(s, "filter", "")),
+                        "compare_function": cf.name if hasattr(cf, "name") else str(cf),
+                        "min_lod": float(getattr(s, "minLOD", 0.0)),
+                        "max_lod": float(getattr(s, "maxLOD", 0.0)),
+                        "mip_bias": float(getattr(s, "mipBias", 0.0)),
+                        "max_anisotropy": float(getattr(s, "maxAnisotropy", 0)),
+                    }
+            desc_rows.append(d_row)
+        return _result_response(request_id, {"eid": eid, "descriptors": desc_rows}), True
+
     if method == "search":
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True

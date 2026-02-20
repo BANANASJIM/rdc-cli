@@ -156,6 +156,7 @@ class TestBuildVfsSkeleton:
             "cbuffer",
             "vbuffer",
             "ibuffer",
+            "descriptors",
         ]
         assert node.children == expected
 
@@ -241,6 +242,12 @@ class TestBuildVfsSkeleton:
         assert skeleton.static["/draws/10/cbuffer"].kind == "dir"
         assert skeleton.static["/draws/10/vbuffer"].kind == "leaf"
         assert skeleton.static["/draws/10/ibuffer"].kind == "leaf"
+
+    def test_descriptors_in_draw_children(self, skeleton: VfsTree) -> None:
+        assert "descriptors" in skeleton.static["/draws/10"].children
+
+    def test_descriptors_is_leaf(self, skeleton: VfsTree) -> None:
+        assert skeleton.static["/draws/10/descriptors"].kind == "leaf"
 
     def test_counters_dir(self, skeleton: VfsTree) -> None:
         node = skeleton.static["/counters"]
