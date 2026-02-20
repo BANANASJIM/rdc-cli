@@ -117,7 +117,7 @@ class TestBinaryErrors:
         def mock_call(method, params=None):
             if method == "vfs_ls":
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
-            return {"error": "resource not found"}
+            return {"size": 0}
 
         monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())

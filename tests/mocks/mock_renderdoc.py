@@ -678,7 +678,7 @@ def GlobalEnvironment() -> object:
 
 
 def GetVersionString() -> str:
-    return "v1.33"
+    return "v1.41"
 
 
 def GetCommitHash() -> str:

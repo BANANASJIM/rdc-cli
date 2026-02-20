@@ -742,15 +742,15 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         tex = state.tex_map.get(res_id)
         if tex is None:
             return _error_response(request_id, -32001, f"texture {res_id} not found"), True
-        if mip >= tex.mips:
+        if mip < 0 or mip >= tex.mips:
             return _error_response(
                 request_id, -32001, f"mip {mip} out of range (max: {tex.mips - 1})"
             ), True
         temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}.png"
         controller = state.adapter.controller
         texsave = _make_texsave(state.rd, tex.resourceId, mip)
-        controller.SaveTexture(texsave, str(temp_path))
-        if not temp_path.exists():
+        success = controller.SaveTexture(texsave, str(temp_path))
+        if not success or not temp_path.exists():
             return _error_response(request_id, -32002, "SaveTexture failed"), True
         return _result_response(
             request_id,
@@ -847,8 +847,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             ), True
         temp_path = state.temp_dir / f"rt_{eid}_color{target_idx}.png"
         texsave = _make_texsave(state.rd, match[0].resource)
-        state.adapter.controller.SaveTexture(texsave, str(temp_path))
-        if not temp_path.exists():
+        success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+        if not success or not temp_path.exists():
             return _error_response(request_id, -32002, "SaveTexture failed"), True
         return _result_response(
             request_id,
@@ -875,8 +875,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
         temp_path = state.temp_dir / f"rt_{eid}_depth.png"
         texsave = _make_texsave(state.rd, depth.resource)
-        state.adapter.controller.SaveTexture(texsave, str(temp_path))
-        if not temp_path.exists():
+        success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+        if not success or not temp_path.exists():
             return _error_response(request_id, -32002, "SaveTexture failed"), True
         return _result_response(
             request_id,
