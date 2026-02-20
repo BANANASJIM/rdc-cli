@@ -52,12 +52,11 @@ def test_shader_targets() -> None:
     assert resp["result"]["targets"] == ["SPIR-V", "GLSL"]
 
 
-def test_shader_targets_fallback() -> None:
+def test_shader_targets_default() -> None:
     state = _state_with_adapter()
     resp, running = _handle_request(_req("shader_targets"), state)
     assert running
-    assert "SPIR-V" in resp["result"]["targets"]
-    assert len(resp["result"]["targets"]) == 4
+    assert resp["result"]["targets"] == ["SPIR-V"]
 
 
 def test_shader_targets_no_adapter() -> None:

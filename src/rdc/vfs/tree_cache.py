@@ -58,6 +58,7 @@ _PIPELINE_CHILDREN = [
 ]
 _PASS_CHILDREN = ["info", "draws", "attachments"]
 _SHADER_STAGE_CHILDREN = ["disasm", "source", "reflect", "constants"]
+_SHADER_CHILDREN = ["info", "disasm"]
 
 
 @dataclass
@@ -281,3 +282,19 @@ def populate_draw_subtree(
 
     tree.set_draw_subtree(eid, subtree)
     return subtree
+
+
+def populate_shaders_subtree(tree: VfsTree, shader_meta: dict[int, dict[str, Any]]) -> None:
+    """Populate /shaders/<id>/ dir nodes from shader metadata.
+
+    Args:
+        tree: The VFS tree to update.
+        shader_meta: Mapping of shader_id -> metadata dict (from DaemonState).
+    """
+    shader_ids = [str(sid) for sid in shader_meta]
+    tree.static["/shaders"] = VfsNode("shaders", "dir", shader_ids)
+    for sid in shader_meta:
+        prefix = f"/shaders/{sid}"
+        tree.static[prefix] = VfsNode(str(sid), "dir", list(_SHADER_CHILDREN))
+        tree.static[f"{prefix}/info"] = VfsNode("info", "leaf")
+        tree.static[f"{prefix}/disasm"] = VfsNode("disasm", "leaf")

@@ -132,6 +132,9 @@ _r(r"/resources/(?P<id>\d+)/info", "leaf", "resource", [("id", int)])
 
 # top-level dirs / aliases
 _r("/shaders", "dir")
+_r(r"/shaders/(?P<id>\d+)", "dir", None, [("id", int)])
+_r(r"/shaders/(?P<id>\d+)/info", "leaf", "shader_list_info", [("id", int)])
+_r(r"/shaders/(?P<id>\d+)/disasm", "leaf", "shader_list_disasm", [("id", int)])
 _r("/by-marker", "dir")
 _r("/textures", "dir")
 _r(r"/textures/(?P<id>\d+)", "dir", None, [("id", int)])

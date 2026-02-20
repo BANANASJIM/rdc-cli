@@ -35,6 +35,9 @@ class DaemonState:
     buf_map: dict[int, Any] = field(default_factory=dict)
     res_names: dict[int, str] = field(default_factory=dict)
     rd: Any = None
+    disasm_cache: dict[int, str] = field(default_factory=dict)
+    shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
+    _shader_cache_built: bool = field(default=False, repr=False)
 
 
 def _detect_version(rd: Any) -> tuple[int, int]:
@@ -1332,6 +1335,75 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             request_id, {"eid": eid, "format": fmt_name, "indices": indices}
         ), True
 
+    if method == "search":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        pattern = str(params.get("pattern", ""))
+        if not pattern:
+            return _error_response(request_id, -32602, "missing pattern"), True
+        if len(pattern) > 500:
+            return _error_response(request_id, -32602, "pattern too long (max 500)"), True
+        stage_filter = params.get("stage")
+        if stage_filter is not None:
+            stage_filter = str(stage_filter).lower()
+        case_sensitive = bool(params.get("case_sensitive", False))
+        limit = max(1, int(params.get("limit", 200)))
+        context_lines = int(params.get("context", 0))
+        try:
+            flags = 0 if case_sensitive else re.IGNORECASE
+            compiled = re.compile(pattern, flags)
+        except re.error as exc:
+            return _error_response(request_id, -32602, f"invalid regex: {exc}"), True
+        _build_shader_cache(state)
+        matches: list[dict[str, Any]] = []
+        truncated = False
+        for sid, text in state.disasm_cache.items():
+            meta = state.shader_meta.get(sid, {})
+            shader_stages: list[str] = meta.get("stages", [])
+            if stage_filter and stage_filter not in shader_stages:
+                continue
+            lines = text.splitlines()
+            for lineno, line in enumerate(lines):
+                if compiled.search(line):
+                    ctx_before = lines[max(0, lineno - context_lines) : lineno]
+                    ctx_after = lines[lineno + 1 : lineno + 1 + context_lines]
+                    matches.append(
+                        {
+                            "shader": sid,
+                            "stages": shader_stages,
+                            "first_eid": meta.get("first_eid", 0),
+                            "line": lineno + 1,
+                            "text": line,
+                            "context_before": ctx_before,
+                            "context_after": ctx_after,
+                        }
+                    )
+                    if len(matches) >= limit:
+                        truncated = True
+                        break
+            if truncated:
+                break
+        return _result_response(request_id, {"matches": matches, "truncated": truncated}), True
+
+    if method == "shader_list_info":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        _build_shader_cache(state)
+        sid = int(params.get("id", 0))
+        info_meta = state.shader_meta.get(sid)
+        if info_meta is None:
+            return _error_response(request_id, -32001, f"shader {sid} not found"), True
+        return _result_response(request_id, {"id": sid, **info_meta}), True
+
+    if method == "shader_list_disasm":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        _build_shader_cache(state)
+        sid = int(params.get("id", 0))
+        if sid not in state.disasm_cache:
+            return _error_response(request_id, -32001, f"shader {sid} not found"), True
+        return _result_response(request_id, {"id": sid, "disasm": state.disasm_cache[sid]}), True
+
     if method == "shutdown":
         if state.temp_dir is not None:
             import shutil
@@ -1662,6 +1734,92 @@ def _handle_vfs_tree(request_id: int, path: str, depth: int, state: DaemonState)
         return result
 
     return _result_response(request_id, {"path": path, "tree": _subtree(path, depth)})
+
+
+def _build_shader_cache(state: DaemonState) -> None:
+    """Collect disassembly text and metadata for all unique shaders.
+
+    Populates state.disasm_cache and state.shader_meta in-place. No-op if
+    already built. Also populates the /shaders/ VFS subtree as a side effect.
+    """
+    if state._shader_cache_built or state.adapter is None:
+        return
+
+    _stage_names = {0: "vs", 1: "hs", 2: "ds", 3: "gs", 4: "ps", 5: "cs"}
+
+    actions = state.adapter.get_root_actions()
+    pipe_states = _collect_pipe_states(actions, state)
+
+    # Collect per-shader metadata: stages, eids, first_eid
+    shader_stages: dict[int, list[str]] = {}
+    shader_eids: dict[int, list[int]] = {}
+    shader_first_eid: dict[int, int] = {}
+
+    for eid, pipe in pipe_states.items():
+        for stage_val, stage_name in _stage_names.items():
+            sid = int(pipe.GetShader(stage_val))
+            if sid == 0:
+                continue
+            if sid not in shader_stages:
+                shader_stages[sid] = []
+                shader_eids[sid] = []
+                shader_first_eid[sid] = eid
+            if stage_name not in shader_stages[sid]:
+                shader_stages[sid].append(stage_name)
+            shader_eids[sid].append(eid)
+
+    controller = state.adapter.controller
+    targets = (
+        controller.GetDisassemblyTargets(True)
+        if hasattr(controller, "GetDisassemblyTargets")
+        else ["SPIR-V"]
+    )
+    target = str(targets[0]) if targets else "SPIR-V"
+
+    for sid, stages in shader_stages.items():
+        first_eid = shader_first_eid[sid]
+        _set_frame_event(state, first_eid)
+        pipe = state.adapter.get_pipeline_state()
+
+        # Find a stage that uses this shader to get reflection
+        refl = None
+        stage_val_used = 0
+        for stage_val, stage_name in _stage_names.items():
+            if stage_name in stages and int(pipe.GetShader(stage_val)) == sid:
+                refl = pipe.GetShaderReflection(stage_val)
+                stage_val_used = stage_val
+                break
+
+        if refl is None:
+            state.disasm_cache[sid] = ""
+        else:
+            if pipe.GetShader(stage_val_used) and int(pipe.GetShader(stage_val_used)) != 0:
+                if stage_val_used < 5:
+                    pipeline = pipe.GetGraphicsPipelineObject()
+                else:
+                    pipeline = pipe.GetComputePipelineObject()
+            else:
+                pipeline = None
+            disasm = (
+                controller.DisassembleShader(pipeline, refl, target)
+                if hasattr(controller, "DisassembleShader")
+                else ""
+            )
+            state.disasm_cache[sid] = disasm
+
+        state.shader_meta[sid] = {
+            "stages": stages,
+            "uses": len(shader_eids[sid]),
+            "first_eid": first_eid,
+            "entry": getattr(refl, "entryPoint", "main") if refl else "main",
+        }
+
+    state._shader_cache_built = True
+
+    if state.vfs_tree is not None:
+        from rdc.vfs.tree_cache import populate_shaders_subtree
+
+        populate_shaders_subtree(state.vfs_tree, state.shader_meta)
 
 
 def _collect_pipe_states(
