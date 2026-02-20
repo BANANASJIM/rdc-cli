@@ -400,6 +400,97 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         usage_rows.sort(key=lambda r: (r["id"], r["eid"]))
         return _result_response(request_id, {"rows": usage_rows, "total": len(usage_rows)}), True
 
+    if method == "counter_list":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        controller = state.adapter.controller
+        raw_counters = controller.EnumerateCounters()
+        counters_out = []
+        for c in raw_counters:
+            try:
+                desc = controller.DescribeCounter(c)
+            except Exception:  # noqa: BLE001
+                continue
+            if not desc.name or desc.name.startswith("ERROR"):
+                continue
+            cat = desc.category
+            cat_str = getattr(cat, "name", str(cat)) if hasattr(cat, "name") else str(cat)
+            counters_out.append(
+                {
+                    "id": int(c),
+                    "name": desc.name,
+                    "category": cat_str,
+                    "description": desc.description,
+                    "unit": desc.unit.name if hasattr(desc.unit, "name") else str(desc.unit),
+                    "type": (
+                        desc.resultType.name
+                        if hasattr(desc.resultType, "name")
+                        else str(desc.resultType)
+                    ),
+                    "byte_width": desc.resultByteWidth,
+                }
+            )
+        return (
+            _result_response(request_id, {"counters": counters_out, "total": len(counters_out)}),
+            True,
+        )
+
+    if method == "counter_fetch":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        controller = state.adapter.controller
+        raw_counters = controller.EnumerateCounters()
+        counter_info: dict[int, dict[str, Any]] = {}
+        for c in raw_counters:
+            try:
+                desc = controller.DescribeCounter(c)
+            except Exception:  # noqa: BLE001
+                continue
+            if not desc.name or desc.name.startswith("ERROR"):
+                continue
+            counter_info[int(c)] = {
+                "name": desc.name,
+                "unit": desc.unit.name if hasattr(desc.unit, "name") else str(desc.unit),
+                "result_type": desc.resultType,
+            }
+        name_filter = params.get("name")
+        if name_filter:
+            name_lower = str(name_filter).lower()
+            counter_info = {
+                k: v for k, v in counter_info.items() if name_lower in v["name"].lower()
+            }
+        if not counter_info:
+            return _result_response(request_id, {"rows": [], "total": 0}), True
+        fetch_counter_objs = [c for c in raw_counters if int(c) in counter_info]
+        results = controller.FetchCounters(fetch_counter_objs)
+        eid_filter = params.get("eid")
+        fetch_rows: list[dict[str, Any]] = []
+        for r in results:
+            if eid_filter is not None and r.eventId != int(eid_filter):
+                continue
+            cid = int(r.counter)
+            info = counter_info.get(cid)
+            if info is None:
+                continue
+            rt = info["result_type"]
+            rt_name = rt.name if hasattr(rt, "name") else str(rt)
+            if rt_name == "Float":
+                val: int | float = r.value.d
+            elif rt_name == "UInt":
+                val = r.value.u64
+            else:
+                val = r.value.u32
+            fetch_rows.append(
+                {
+                    "eid": r.eventId,
+                    "counter": info["name"],
+                    "value": val,
+                    "unit": info["unit"],
+                }
+            )
+        fetch_rows.sort(key=lambda row: (row["eid"], row["counter"]))
+        return _result_response(request_id, {"rows": fetch_rows, "total": len(fetch_rows)}), True
+
     if method == "passes":
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True

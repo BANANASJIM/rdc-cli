@@ -126,6 +126,7 @@ class TestBuildVfsSkeleton:
             "textures",
             "buffers",
             "shaders",
+            "counters",
             "current",
         ]
         assert root.children == expected
@@ -240,6 +241,14 @@ class TestBuildVfsSkeleton:
         assert skeleton.static["/draws/10/cbuffer"].kind == "dir"
         assert skeleton.static["/draws/10/vbuffer"].kind == "leaf"
         assert skeleton.static["/draws/10/ibuffer"].kind == "leaf"
+
+    def test_counters_dir(self, skeleton: VfsTree) -> None:
+        node = skeleton.static["/counters"]
+        assert node.kind == "dir"
+        assert node.children == ["list"]
+
+    def test_counters_list_leaf(self, skeleton: VfsTree) -> None:
+        assert skeleton.static["/counters/list"].kind == "leaf"
 
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,9 @@ ENUM_PAIRS = [
     ("ActionFlags", "ActionFlags"),
     ("MessageSeverity", "MessageSeverity"),
     ("ResourceUsage", "ResourceUsage"),
+    ("GPUCounter", "GPUCounter"),
+    ("CounterUnit", "CounterUnit"),
+    ("CompType", "CompType"),
 ]
 
 
@@ -103,6 +106,8 @@ STRUCT_PAIRS = [
     ("MeshFormat", "MeshFormat"),
     ("ShaderVariable", "ShaderVariable"),
     ("EventUsage", "EventUsage"),
+    ("CounterDescription", "CounterDescription"),
+    ("CounterResult", "CounterResult"),
 ]
 
 

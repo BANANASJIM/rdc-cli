@@ -206,6 +206,87 @@ class EventUsage:
     view: int = 0
 
 
+class GPUCounter(IntEnum):
+    EventGPUDuration = 1
+    InputVerticesRead = 2
+    IAPrimitives = 3
+    GSPrimitives = 4
+    RasterizerInvocations = 5
+    RasterizedPrimitives = 6
+    SamplesPassed = 7
+    VSInvocations = 8
+    HSInvocations = 9
+    DSInvocations = 10
+    GSInvocations = 11
+    PSInvocations = 12
+    CSInvocations = 13
+    ASInvocations = 14
+    MSInvocations = 15
+    Count = 16
+    FirstAMD = 1000000
+    FirstIntel = 2000000
+    LastAMD = 1999999
+    FirstNvidia = 3000000
+    LastIntel = 2999999
+    FirstVulkanExtended = 4000000
+    LastNvidia = 3999999
+    FirstARM = 5000000
+    LastVulkanExtended = 4999999
+    LastARM = 6000000
+
+
+class CounterUnit(IntEnum):
+    Absolute = 0
+    Seconds = 1
+    Percentage = 2
+    Ratio = 3
+    Bytes = 4
+    Cycles = 5
+    Hertz = 6
+    Volt = 7
+    Celsius = 8
+
+
+class CompType(IntEnum):
+    Typeless = 0
+    Float = 1
+    UNorm = 2
+    SNorm = 3
+    UInt = 4
+    SInt = 5
+    UScaled = 6
+    SScaled = 7
+    Depth = 8
+    UNormSRGB = 9
+
+
+@dataclass
+class CounterValue:
+    d: float = 0.0
+    f: float = 0.0
+    u32: int = 0
+    u64: int = 0
+
+
+@dataclass
+class CounterDescription:
+    name: str = ""
+    category: str = ""
+    description: str = ""
+    counter: GPUCounter = GPUCounter.EventGPUDuration
+    resultByteWidth: int = 8
+    resultType: CompType = CompType.Float
+    unit: CounterUnit = CounterUnit.Absolute
+    uuid: str = ""
+
+
+@dataclass
+class CounterResult:
+    eventId: int = 0
+    counter: GPUCounter = GPUCounter.EventGPUDuration
+    value: CounterValue = field(default_factory=CounterValue)
+
+
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
@@ -796,6 +877,8 @@ class MockReplayController:
         self._cbuffer_variables: dict[tuple[int, int], list[ShaderVariable]] = {}
         self._disasm_text: dict[int, str] = {}
         self._usage_map: dict[int, list[EventUsage]] = {}
+        self._counter_descriptions: dict[int, CounterDescription] = {}
+        self._counter_results: list[CounterResult] = []
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -870,6 +953,29 @@ class MockReplayController:
         """Mock GetUsage -- returns event usage list for a resource."""
         rid = int(resource_id) if not isinstance(resource_id, int) else resource_id
         return self._usage_map.get(rid, [])
+
+    def EnumerateCounters(self) -> list[Any]:
+        """Mock EnumerateCounters -- returns counter ids from description keys.
+
+        Uses GPUCounter enum when the value is a known member, otherwise returns raw int.
+        This mirrors real API behaviour where vendor counters have non-standard ids.
+        """
+        result: list[Any] = []
+        for k in self._counter_descriptions:
+            try:
+                result.append(GPUCounter(k))
+            except ValueError:
+                result.append(k)
+        return result
+
+    def DescribeCounter(self, counter_id: Any) -> CounterDescription:
+        """Mock DescribeCounter -- returns CounterDescription by id."""
+        return self._counter_descriptions.get(int(counter_id), CounterDescription())
+
+    def FetchCounters(self, counter_ids: list[Any]) -> list[CounterResult]:
+        """Mock FetchCounters -- returns results filtered by requested counter ids."""
+        id_set = {int(c) for c in counter_ids}
+        return [r for r in self._counter_results if int(r.counter) in id_set]
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

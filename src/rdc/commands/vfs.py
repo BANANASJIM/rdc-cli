@@ -57,6 +57,13 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
     "usage": lambda r: (
         "EID\tUSAGE\n" + "\n".join(f"{e['eid']}\t{e['usage']}" for e in r.get("entries", []))
     ),
+    "counter_list": lambda r: (
+        "ID\tNAME\tUNIT\tTYPE\tCATEGORY\n"
+        + "\n".join(
+            f"{c['id']}\t{c['name']}\t{c['unit']}\t{c['type']}\t{c['category']}"
+            for c in r.get("counters", [])
+        )
+    ),
 }
 
 
