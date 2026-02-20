@@ -34,7 +34,16 @@ _ROOT_CHILDREN = [
     "current",
 ]
 
-_DRAW_CHILDREN = ["pipeline", "shader", "bindings", "targets", "postvs"]
+_DRAW_CHILDREN = [
+    "pipeline",
+    "shader",
+    "bindings",
+    "targets",
+    "postvs",
+    "cbuffer",
+    "vbuffer",
+    "ibuffer",
+]
 _PIPELINE_CHILDREN = [
     "summary",
     "topology",
@@ -149,6 +158,9 @@ def build_vfs_skeleton(
         tree.static[f"{prefix}/bindings"] = VfsNode("bindings", "dir")
         tree.static[f"{prefix}/targets"] = VfsNode("targets", "dir")
         tree.static[f"{prefix}/postvs"] = VfsNode("postvs", "leaf")
+        tree.static[f"{prefix}/cbuffer"] = VfsNode("cbuffer", "dir")
+        tree.static[f"{prefix}/vbuffer"] = VfsNode("vbuffer", "leaf")
+        tree.static[f"{prefix}/ibuffer"] = VfsNode("ibuffer", "leaf")
 
     # /passes — sanitize names containing "/" to avoid path corruption
     safe_pass_names = [n.replace("/", "_") for n in pass_names]

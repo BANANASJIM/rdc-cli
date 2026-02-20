@@ -100,6 +100,7 @@ STRUCT_PAIRS = [
     ("Viewport", "Viewport"),
     ("Scissor", "Scissor"),
     ("MeshFormat", "MeshFormat"),
+    ("ShaderVariable", "ShaderVariable"),
 ]
 
 
