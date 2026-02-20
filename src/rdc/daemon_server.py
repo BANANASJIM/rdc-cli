@@ -368,7 +368,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         resid = int(params.get("id", 0))
         if resid not in state.res_names:
             return _error_response(request_id, -32001, f"resource {resid} not found"), True
-        rid_obj = state.res_rid_map.get(resid, resid)
+        rid_obj = state.res_rid_map[resid]
         usage_list = state.adapter.controller.GetUsage(rid_obj)
         entries = [
             {"eid": u.eventId, "usage": u.usage.name if hasattr(u.usage, "name") else str(u.usage)}
@@ -388,13 +388,16 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         for resid, name in state.res_names.items():
             if type_filter and state.res_types.get(resid, "") != type_filter:
                 continue
-            rid_obj = state.res_rid_map.get(resid, resid)
+            rid_obj = state.res_rid_map.get(resid)
+            if rid_obj is None:
+                continue
             usage_list = state.adapter.controller.GetUsage(rid_obj)
             for u in usage_list:
                 uname = u.usage.name if hasattr(u.usage, "name") else str(u.usage)
                 if usage_filter and uname != usage_filter:
                     continue
                 usage_rows.append({"id": resid, "name": name, "eid": u.eventId, "usage": uname})
+        usage_rows.sort(key=lambda r: (r["id"], r["eid"]))
         return _result_response(request_id, {"rows": usage_rows, "total": len(usage_rows)}), True
 
     if method == "passes":

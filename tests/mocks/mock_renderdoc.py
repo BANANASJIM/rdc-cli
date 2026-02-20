@@ -203,6 +203,7 @@ class ResourceUsage(IntEnum):
 class EventUsage:
     eventId: int = 0
     usage: ResourceUsage = ResourceUsage.Unused
+    view: int = 0
 
 
 # ---------------------------------------------------------------------------
