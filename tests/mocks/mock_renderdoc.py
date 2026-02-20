@@ -150,6 +150,62 @@ class MessageSeverity(IntEnum):
     Info = 3
 
 
+class ResourceUsage(IntEnum):
+    Unused = 0
+    VertexBuffer = 1
+    IndexBuffer = 2
+    VS_Constants = 3
+    HS_Constants = 4
+    DS_Constants = 5
+    GS_Constants = 6
+    PS_Constants = 7
+    CS_Constants = 8
+    TS_Constants = 9
+    MS_Constants = 10
+    All_Constants = 11
+    StreamOut = 12
+    VS_Resource = 13
+    HS_Resource = 14
+    DS_Resource = 15
+    GS_Resource = 16
+    PS_Resource = 17
+    CS_Resource = 18
+    TS_Resource = 19
+    MS_Resource = 20
+    All_Resource = 21
+    VS_RWResource = 22
+    HS_RWResource = 23
+    DS_RWResource = 24
+    GS_RWResource = 25
+    PS_RWResource = 26
+    CS_RWResource = 27
+    TS_RWResource = 28
+    MS_RWResource = 29
+    All_RWResource = 30
+    InputTarget = 31
+    ColorTarget = 32
+    DepthStencilTarget = 33
+    Indirect = 34
+    Clear = 35
+    Discard = 36
+    GenMips = 37
+    Resolve = 38
+    ResolveSrc = 39
+    ResolveDst = 40
+    Copy = 41
+    CopySrc = 42
+    CopyDst = 43
+    Barrier = 44
+    CPUWrite = 45
+
+
+@dataclass
+class EventUsage:
+    eventId: int = 0
+    usage: ResourceUsage = ResourceUsage.Unused
+    view: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
@@ -739,6 +795,7 @@ class MockReplayController:
         self._debug_messages: list[DebugMessage] = []
         self._cbuffer_variables: dict[tuple[int, int], list[ShaderVariable]] = {}
         self._disasm_text: dict[int, str] = {}
+        self._usage_map: dict[int, list[EventUsage]] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -808,6 +865,11 @@ class MockReplayController:
         """Mock DisassembleShader -- returns cached disasm text by shader id."""
         rid = int(getattr(refl, "resourceId", 0))
         return self._disasm_text.get(rid, "")
+
+    def GetUsage(self, resource_id: Any) -> list[EventUsage]:
+        """Mock GetUsage -- returns event usage list for a resource."""
+        rid = int(resource_id) if not isinstance(resource_id, int) else resource_id
+        return self._usage_map.get(rid, [])
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

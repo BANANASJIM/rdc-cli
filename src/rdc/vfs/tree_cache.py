@@ -179,8 +179,9 @@ def build_vfs_skeleton(
     # /resources
     tree.static["/resources"] = VfsNode("resources", "dir", list(resource_ids))
     for rid in resource_ids:
-        tree.static[f"/resources/{rid}"] = VfsNode(rid, "dir", ["info"])
+        tree.static[f"/resources/{rid}"] = VfsNode(rid, "dir", ["info", "usage"])
         tree.static[f"/resources/{rid}/info"] = VfsNode("info", "leaf")
+        tree.static[f"/resources/{rid}/usage"] = VfsNode("usage", "leaf")
 
     _textures = textures or []
     _buffers = buffers or []

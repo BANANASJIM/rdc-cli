@@ -43,6 +43,11 @@ def _make_state(
     state.tex_map = {int(t.resourceId): t for t in textures}
     state.buf_map = {int(b.resourceId): b for b in buffers}
     state.res_names = {int(r.resourceId): r.name for r in resources}
+    state.res_types = {
+        int(r.resourceId): getattr(getattr(r, "type", None), "name", str(getattr(r, "type", "")))
+        for r in resources
+    }
+    state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
 
     state.rd = rd_module
     state.vfs_tree = build_vfs_skeleton(root_actions, resources, textures, buffers, sf)
@@ -154,6 +159,48 @@ class TestDaemonHandlersReal:
         child_names = [c["name"] for c in tree["children"]]
         assert "draws" in child_names
         assert "info" in child_names
+
+    def test_usage_single_resource(self) -> None:
+        """GetUsage on a known resource returns entries with valid schema."""
+        resources = _call(self.state, "resources")
+        rid = resources["rows"][0]["id"]
+        result = _call(self.state, "usage", {"id": rid})
+        assert result["id"] == rid
+        assert isinstance(result["entries"], list)
+        assert "name" in result
+        for e in result["entries"]:
+            assert isinstance(e["eid"], int)
+            assert isinstance(e["usage"], str)
+            assert len(e["usage"]) > 0
+
+    def test_usage_all(self) -> None:
+        """usage_all returns a full matrix with valid row schema."""
+        result = _call(self.state, "usage_all")
+        assert result["total"] >= 0
+        assert result["total"] == len(result["rows"])
+        for row in result["rows"]:
+            assert isinstance(row["id"], int)
+            assert isinstance(row["name"], str)
+            assert isinstance(row["eid"], int)
+            assert isinstance(row["usage"], str)
+
+    def test_usage_all_filter(self) -> None:
+        """usage_all with usage filter returns only matching rows."""
+        full = _call(self.state, "usage_all")
+        if not full["rows"]:
+            pytest.skip("no usage data in capture")
+        target_usage = full["rows"][0]["usage"]
+        filtered = _call(self.state, "usage_all", {"usage": target_usage})
+        assert all(r["usage"] == target_usage for r in filtered["rows"])
+        assert filtered["total"] <= full["total"]
+
+    def test_vfs_resource_usage(self) -> None:
+        """VFS /resources/<id>/usage resolves and returns data."""
+        resources = _call(self.state, "resources")
+        rid = resources["rows"][0]["id"]
+        result = _call(self.state, "vfs_ls", {"path": f"/resources/{rid}"})
+        names = [c["name"] for c in result["children"]]
+        assert "usage" in names
 
 
 class TestBinaryHandlersReal:

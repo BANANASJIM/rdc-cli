@@ -417,3 +417,11 @@ class TestPipelineStateRoutes:
         assert m is not None
         assert m.handler == "postvs"
         assert m.args["eid"] == 42
+
+
+# ── Resource usage route ──────────────────────────────────────────────
+
+
+def test_resources_id_usage() -> None:
+    m = resolve_path("/resources/97/usage")
+    assert m == PathMatch(kind="leaf", handler="usage", args={"id": 97})
