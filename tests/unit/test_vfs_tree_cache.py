@@ -146,7 +146,17 @@ class TestBuildVfsSkeleton:
     def test_draw_node_structure(self, skeleton: VfsTree) -> None:
         node = skeleton.static["/draws/10"]
         assert node.kind == "dir"
-        assert node.children == ["pipeline", "shader", "bindings", "targets", "postvs"]
+        expected = [
+            "pipeline",
+            "shader",
+            "bindings",
+            "targets",
+            "postvs",
+            "cbuffer",
+            "vbuffer",
+            "ibuffer",
+        ]
+        assert node.children == expected
 
     def test_draw_pipeline_children(self, skeleton: VfsTree) -> None:
         pipe = skeleton.static["/draws/10/pipeline"]
@@ -222,6 +232,11 @@ class TestBuildVfsSkeleton:
         assert skeleton.static["/textures"].children == []
         assert skeleton.static["/buffers"].kind == "dir"
         assert skeleton.static["/buffers"].children == []
+
+    def test_buffer_decode_nodes(self, skeleton: VfsTree) -> None:
+        assert skeleton.static["/draws/10/cbuffer"].kind == "dir"
+        assert skeleton.static["/draws/10/vbuffer"].kind == "leaf"
+        assert skeleton.static["/draws/10/ibuffer"].kind == "leaf"
 
 
 # ---------------------------------------------------------------------------

@@ -467,6 +467,25 @@ class MeshFormat:
 
 
 @dataclass
+class ShaderValue:
+    """Mock for ShaderValue union (real API has f32v, u32v, s32v, f64v)."""
+
+    f32v: list[float] = field(default_factory=lambda: [0.0] * 16)
+    u32v: list[int] = field(default_factory=lambda: [0] * 16)
+    s32v: list[int] = field(default_factory=lambda: [0] * 16)
+
+
+@dataclass
+class ShaderVariable:
+    name: str = ""
+    type: str = ""
+    rows: int = 0
+    columns: int = 0
+    value: Any = None
+    members: list[ShaderVariable] = field(default_factory=list)
+
+
+@dataclass
 class SigParameter:
     varName: str = ""
     semanticName: str = ""
@@ -604,6 +623,7 @@ class MockPipeState:
         self._samplers: dict[ShaderStage, list[SamplerData]] = {}
         self._vbuffers: list[BoundVBuffer] = []
         self._ibuffer: BoundVBuffer = BoundVBuffer()
+        self._cbuffer_descriptors: dict[tuple[int, int], Descriptor] = {}
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
@@ -653,6 +673,15 @@ class MockPipeState:
     def GetIBuffer(self) -> BoundVBuffer:
         return self._ibuffer
 
+    def GetConstantBlock(
+        self,
+        stage: int,
+        slot: int,
+        array_idx: int,
+    ) -> Descriptor:
+        """Mock GetConstantBlock — returns descriptor with cbuffer resource."""
+        return self._cbuffer_descriptors.get((stage, slot), Descriptor())
+
     def IsCaptureVK(self) -> bool:
         return True
 
@@ -686,6 +715,7 @@ class MockReplayController:
         self._shutdown_called: bool = False
         self._structured_file: StructuredFile = StructuredFile()
         self._debug_messages: list[DebugMessage] = []
+        self._cbuffer_variables: dict[tuple[int, int], list[ShaderVariable]] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -728,6 +758,20 @@ class MockReplayController:
     def GetBufferData(self, resource_id: Any, offset: int, length: int) -> bytes:
         """Mock GetBufferData -- returns dummy buffer bytes."""
         return b"\xab\xcd" * 256
+
+    def GetCBufferVariableContents(
+        self,
+        pipeline: Any,
+        shader: Any,
+        stage: Any,
+        entry: str,
+        idx: int,
+        resource: Any,
+        offset: int,
+        size: int,
+    ) -> list[ShaderVariable]:
+        """Mock GetCBufferVariableContents."""
+        return self._cbuffer_variables.get((int(stage), idx), [])
 
     def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
         """Mock GetPostVSData -- returns dummy mesh format."""

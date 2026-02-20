@@ -97,6 +97,15 @@ _r(
     [("eid", int)],
 )
 _r(r"/draws/(?P<eid>\d+)/postvs", "leaf", "postvs", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/cbuffer", "dir", None, [("eid", int)])
+_r(
+    r"/draws/(?P<eid>\d+)/cbuffer/(?P<set>\d+)/(?P<binding>\d+)",
+    "leaf",
+    "cbuffer_decode",
+    [("eid", int), ("set", int), ("binding", int)],
+)
+_r(r"/draws/(?P<eid>\d+)/vbuffer", "leaf", "vbuffer_decode", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/ibuffer", "leaf", "ibuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/bindings", "dir", None, [("eid", int)])
 
 # draw targets

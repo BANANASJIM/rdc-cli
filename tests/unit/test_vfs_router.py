@@ -233,6 +233,35 @@ def test_trailing_slash_stripped() -> None:
     assert resolve_path("/draws/142/") == resolve_path("/draws/142")
 
 
+class TestBufferDecodeRoutes:
+    def test_cbuffer_dir(self) -> None:
+        m = resolve_path("/draws/42/cbuffer")
+        assert m is not None
+        assert m.kind == "dir"
+        assert m.args["eid"] == 42
+
+    def test_cbuffer_decode(self) -> None:
+        m = resolve_path("/draws/42/cbuffer/0/3")
+        assert m is not None
+        assert m.kind == "leaf"
+        assert m.handler == "cbuffer_decode"
+        assert m.args == {"eid": 42, "set": 0, "binding": 3}
+
+    def test_vbuffer_decode(self) -> None:
+        m = resolve_path("/draws/42/vbuffer")
+        assert m is not None
+        assert m.kind == "leaf"
+        assert m.handler == "vbuffer_decode"
+        assert m.args["eid"] == 42
+
+    def test_ibuffer_decode(self) -> None:
+        m = resolve_path("/draws/42/ibuffer")
+        assert m is not None
+        assert m.kind == "leaf"
+        assert m.handler == "ibuffer_decode"
+        assert m.args["eid"] == 42
+
+
 def test_trailing_slash_on_leaf() -> None:
     assert resolve_path("/info/") == resolve_path("/info")
 
