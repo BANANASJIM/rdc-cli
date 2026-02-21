@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run lint + typecheck + test before every commit.
+# Install: git config core.hooksPath .githooks
+set -euo pipefail
+
+echo "pre-commit: running pixi run check..."
+pixi run check
