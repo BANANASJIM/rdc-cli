@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Pre-push hook: run e2e test before pushing.
+# Requires active renderdoc module — skip with: git push --no-verify
+set -euo pipefail
+
+echo "pre-push: running pixi run e2e..."
+pixi run e2e
