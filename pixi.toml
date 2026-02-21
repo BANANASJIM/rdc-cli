@@ -7,8 +7,12 @@ platforms = ["linux-64", "osx-arm64", "osx-64"]
 python = "3.14.*"
 uv = ">=0.5"
 
+[activation.env]
+RENDERDOC_PYTHON_PATH = ".local/renderdoc"
+
 [tasks]
 sync = "uv sync --extra dev && git config core.hooksPath .githooks"
+setup-renderdoc = "bash scripts/setup-renderdoc.sh"
 lint = "uv run ruff check src tests && uv run ruff format --check src tests"
 typecheck = "uv run mypy src"
 test = "uv run pytest tests/unit -v --cov=rdc --cov-report=term-missing --cov-fail-under=80"
@@ -16,5 +20,4 @@ test-gpu = "uv run pytest tests -v -m gpu --no-header"
 test-all = "uv run pytest tests -v --cov=rdc --cov-report=term-missing"
 check = "pixi run lint && pixi run typecheck && pixi run test"
 verify = "bash scripts/verify-package.sh"
-dev-install = "pip install --break-system-packages --quiet -e ."
-e2e = "pixi run dev-install && bash scripts/e2e-test.sh"
+e2e = "bash scripts/e2e-test.sh"
