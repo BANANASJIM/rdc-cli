@@ -172,11 +172,20 @@ def build_vfs_skeleton(
         if safe != orig:
             tree.pass_name_map[safe] = orig
     tree.static["/passes"] = VfsNode("passes", "dir", list(safe_pass_names))
-    for name in safe_pass_names:
+    for p, name in zip(pass_list, safe_pass_names, strict=True):
         prefix = f"/passes/{name}"
         tree.static[prefix] = VfsNode(name, "dir", list(_PASS_CHILDREN))
         tree.static[f"{prefix}/info"] = VfsNode("info", "leaf")
-        tree.static[f"{prefix}/draws"] = VfsNode("draws", "dir")
+        begin_eid = p.get("begin_eid", 0)
+        end_eid = p.get("end_eid", 0)
+        pass_draw_eids = [
+            str(a.eid)
+            for a in flat
+            if begin_eid <= a.eid <= end_eid and bool(a.flags & (_DRAWCALL | _DISPATCH))
+        ]
+        tree.static[f"{prefix}/draws"] = VfsNode("draws", "dir", list(pass_draw_eids))
+        for deid in pass_draw_eids:
+            tree.static[f"{prefix}/draws/{deid}"] = VfsNode(deid, "alias")
         tree.static[f"{prefix}/attachments"] = VfsNode("attachments", "dir")
 
     # /resources
