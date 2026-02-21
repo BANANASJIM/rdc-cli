@@ -9,7 +9,7 @@ def send_request(
     host: str,
     port: int,
     payload: dict[str, Any],
-    timeout: float = 2.0,
+    timeout: float = 30.0,
 ) -> dict[str, Any]:
     data = (json.dumps(payload) + "\n").encode("utf-8")
     with socket.create_connection((host, port), timeout=timeout) as sock:

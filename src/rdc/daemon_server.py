@@ -158,6 +158,19 @@ def _count_events(actions: list[Any]) -> int:
     return count
 
 
+_UINT_MAX_SENTINEL = (1 << 64) - 1
+
+
+def _enum_name(v: Any) -> Any:
+    """Return .name for enum-like values, pass through others."""
+    return v.name if hasattr(v, "name") else v
+
+
+def _sanitize_size(v: int) -> int | str:
+    """Return '-' for UINT_MAX sentinel values."""
+    return "-" if v < 0 or v >= _UINT_MAX_SENTINEL else v
+
+
 def _set_frame_event(state: DaemonState, eid: int) -> str | None:
     """Set frame event with caching. Returns error string or None."""
     if eid < 0:
@@ -1043,7 +1056,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             return _error_response(request_id, -32002, err), True
         pipe_state = state.adapter.get_pipeline_state()
         return _result_response(
-            request_id, {"eid": eid, "topology": str(pipe_state.GetPrimitiveTopology())}
+            request_id, {"eid": eid, "topology": _enum_name(pipe_state.GetPrimitiveTopology())}
         ), True
 
     if method == "pipe_viewport":
@@ -1106,12 +1119,12 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 {
                     "rt": i,
                     "enabled": getattr(b, "enabled", False),
-                    "srcColor": getattr(cb, "source", "") if cb else "",
-                    "dstColor": getattr(cb, "destination", "") if cb else "",
-                    "colorOp": getattr(cb, "operation", "") if cb else "",
-                    "srcAlpha": getattr(ab, "source", "") if ab else "",
-                    "dstAlpha": getattr(ab, "destination", "") if ab else "",
-                    "alphaOp": getattr(ab, "operation", "") if ab else "",
+                    "srcColor": _enum_name(getattr(cb, "source", "")) if cb else "",
+                    "dstColor": _enum_name(getattr(cb, "destination", "")) if cb else "",
+                    "colorOp": _enum_name(getattr(cb, "operation", "")) if cb else "",
+                    "srcAlpha": _enum_name(getattr(ab, "source", "")) if ab else "",
+                    "dstAlpha": _enum_name(getattr(ab, "destination", "")) if ab else "",
+                    "alphaOp": _enum_name(getattr(ab, "operation", "")) if ab else "",
                     "writeMask": getattr(b, "writeMask", 0),
                 }
             )
@@ -1129,10 +1142,10 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
 
         def _face(f: Any) -> dict[str, Any]:
             return {
-                "failOperation": getattr(f, "failOperation", ""),
-                "depthFailOperation": getattr(f, "depthFailOperation", ""),
-                "passOperation": getattr(f, "passOperation", ""),
-                "function": getattr(f, "function", ""),
+                "failOperation": _enum_name(getattr(f, "failOperation", "")),
+                "depthFailOperation": _enum_name(getattr(f, "depthFailOperation", "")),
+                "passOperation": _enum_name(getattr(f, "passOperation", "")),
+                "function": _enum_name(getattr(f, "function", "")),
                 "reference": getattr(f, "reference", 0),
                 "compareMask": getattr(f, "compareMask", 0),
                 "writeMask": getattr(f, "writeMask", 0),
@@ -1191,10 +1204,10 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                     {
                         "stage": stage_name,
                         "slot": i,
-                        "addressU": getattr(sd, "addressU", ""),
-                        "addressV": getattr(sd, "addressV", ""),
-                        "addressW": getattr(sd, "addressW", ""),
-                        "filter": getattr(sd, "filter", ""),
+                        "addressU": _enum_name(getattr(sd, "addressU", "")),
+                        "addressV": _enum_name(getattr(sd, "addressV", "")),
+                        "addressW": _enum_name(getattr(sd, "addressW", "")),
+                        "filter": _enum_name(getattr(sd, "filter", "")),
                         "maxAnisotropy": getattr(sd, "maxAnisotropy", 0),
                         "minLOD": getattr(sd, "minLOD", 0.0),
                         "maxLOD": getattr(sd, "maxLOD", 0.0),
@@ -1219,7 +1232,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                     "slot": i,
                     "resourceId": int(vb.resourceId),
                     "byteOffset": getattr(vb, "byteOffset", 0),
-                    "byteSize": getattr(vb, "byteSize", 0),
+                    "byteSize": _sanitize_size(getattr(vb, "byteSize", 0)),
                     "byteStride": getattr(vb, "byteStride", 0),
                 }
             )
@@ -1240,7 +1253,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 "eid": eid,
                 "resourceId": int(ib.resourceId),
                 "byteOffset": getattr(ib, "byteOffset", 0),
-                "byteSize": getattr(ib, "byteSize", 0),
+                "byteSize": _sanitize_size(getattr(ib, "byteSize", 0)),
                 "byteStride": getattr(ib, "byteStride", 0),
             },
         ), True
@@ -1261,7 +1274,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 "vertexResourceId": int(getattr(mesh, "vertexResourceId", 0)),
                 "vertexByteStride": getattr(mesh, "vertexByteStride", 0),
                 "numIndices": getattr(mesh, "numIndices", 0),
-                "topology": str(getattr(mesh, "topology", "")),
+                "topology": _enum_name(getattr(mesh, "topology", "")),
             },
         ), True
 
