@@ -862,11 +862,33 @@ class SDObject:
     data: SDData = field(default_factory=SDData)
     children: list[SDObject] = field(default_factory=list)
 
+    def NumChildren(self) -> int:
+        return len(self.children)
+
+    def GetChild(self, index: int) -> SDObject:
+        return self.children[index]
+
+    def AsString(self) -> str:
+        if self.data and self.data.basic and self.data.basic.value is not None:
+            return str(self.data.basic.value)
+        return ""
+
+    def AsInt(self) -> int:
+        if self.data and self.data.basic and self.data.basic.value is not None:
+            return int(self.data.basic.value)
+        return 0
+
 
 @dataclass
 class SDChunk:
     name: str = ""
     children: list[SDObject] = field(default_factory=list)
+
+    def NumChildren(self) -> int:
+        return len(self.children)
+
+    def GetChild(self, index: int) -> SDObject:
+        return self.children[index]
 
 
 @dataclass
