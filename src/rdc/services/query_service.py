@@ -17,6 +17,8 @@ _DRAWCALL = 0x0002
 _DISPATCH = 0x0004
 _COPY = 0x0400
 _INDEXED = 0x10000
+_PUSH_MARKER = 0x0040
+_CMD_BUFFER = 0x1000000
 _BEGIN_PASS = 0x400000
 _END_PASS = 0x800000
 
@@ -221,13 +223,7 @@ def _count_events_recursive(actions: list[Any]) -> int:
 
 
 def _count_passes(actions: list[Any]) -> int:
-    count = 0
-    for a in actions:
-        if int(a.flags) & _BEGIN_PASS:
-            count += 1
-        if a.children:
-            count += _count_passes(a.children)
-    return count
+    return len(_build_pass_list(actions))
 
 
 def count_from_actions(
@@ -454,46 +450,136 @@ def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
     return {"passes": [{"name": p["name"], "draws": p["draws"]} for p in enriched]}
 
 
+def _subtree_has_draws(action: Any) -> bool:
+    if int(action.flags) & _DRAWCALL:
+        return True
+    for c in action.children:
+        if _subtree_has_draws(c):
+            return True
+    return False
+
+
+def _window_stats(begin: Any, window: list[Any], sf: Any = None) -> dict[str, Any]:
+    """Aggregate stats for a render pass window (begin node + flat sibling list)."""
+    name = begin.GetName(sf) if sf is not None else getattr(begin, "_name", "")
+    draws = dispatches = triangles = 0
+    eids = [begin.eventId] + [w.eventId for w in window]
+    min_eid, max_eid = min(eids), max(eids)
+
+    def _walk(a: Any) -> None:
+        nonlocal draws, dispatches, triangles, min_eid, max_eid
+        flags = int(a.flags)
+        min_eid = min(min_eid, a.eventId)
+        max_eid = max(max_eid, a.eventId)
+        if flags & _DRAWCALL:
+            draws += 1
+            triangles += (a.numIndices // 3) * max(a.numInstances, 1)
+        elif flags & _DISPATCH:
+            dispatches += 1
+        for c in a.children:
+            _walk(c)
+
+    for w in window:
+        _walk(w)
+    return {
+        "name": name,
+        "begin_eid": min_eid,
+        "end_eid": max_eid,
+        "draws": draws,
+        "dispatches": dispatches,
+        "triangles": triangles,
+    }
+
+
+def _subtree_stats(action: Any, sf: Any = None) -> dict[str, Any]:
+    name = action.GetName(sf) if sf is not None else getattr(action, "_name", "")
+    draws = 0
+    dispatches = 0
+    triangles = 0
+    min_eid = action.eventId
+    max_eid = action.eventId
+
+    def _walk(a: Any) -> None:
+        nonlocal draws, dispatches, triangles, min_eid, max_eid
+        flags = int(a.flags)
+        min_eid = min(min_eid, a.eventId)
+        max_eid = max(max_eid, a.eventId)
+        if flags & _DRAWCALL:
+            draws += 1
+            triangles += (a.numIndices // 3) * max(a.numInstances, 1)
+        elif flags & _DISPATCH:
+            dispatches += 1
+        for c in a.children:
+            _walk(c)
+
+    _walk(action)
+    return {
+        "name": name,
+        "begin_eid": min_eid,
+        "end_eid": max_eid,
+        "draws": draws,
+        "dispatches": dispatches,
+        "triangles": triangles,
+    }
+
+
 def _build_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
     """Build enriched pass list with begin/end EID, draws, dispatches, triangles."""
     passes: list[dict[str, Any]] = []
-    _build_pass_list_recursive(actions, passes, None, sf)
+    _build_pass_list_recursive(actions, passes, sf)
     return passes
 
 
 def _build_pass_list_recursive(
     actions: list[Any],
     passes: list[dict[str, Any]],
-    current_pass: dict[str, Any] | None,
     sf: Any = None,
 ) -> None:
-    for a in actions:
+    # Real RenderDoc API: BeginPass node may have children (draws/markers)
+    # OR BeginPass/EndPass are flat siblings with content between them.
+    # Children take priority; flat-sibling window is the fallback.
+    i = 0
+    while i < len(actions):
+        a = actions[i]
         flags = int(a.flags)
+        is_begin = bool(flags & _BEGIN_PASS) and not (flags & (_END_PASS | _CMD_BUFFER))
 
-        if flags & _BEGIN_PASS:
-            current_pass = {
-                "name": a.GetName(sf),
-                "begin_eid": a.eventId,
-                "end_eid": a.eventId,
-                "draws": 0,
-                "dispatches": 0,
-                "triangles": 0,
-            }
-            passes.append(current_pass)
-
-        if current_pass is not None:
-            current_pass["end_eid"] = max(current_pass["end_eid"], a.eventId)
-            if flags & _DRAWCALL:
-                current_pass["draws"] += 1
-                current_pass["triangles"] += (a.numIndices // 3) * max(a.numInstances, 1)
-            elif flags & _DISPATCH:
-                current_pass["dispatches"] += 1
-
-        if a.children:
-            _build_pass_list_recursive(a.children, passes, current_pass, sf)
-
-        if flags & _END_PASS:
-            current_pass = None
+        if is_begin:
+            if a.children:
+                # Children-of-BeginPass: real API and mock tree patterns
+                content = a.children
+                marker_groups = [
+                    c for c in content if (int(c.flags) & _PUSH_MARKER) and _subtree_has_draws(c)
+                ]
+                if marker_groups:
+                    for g in marker_groups:
+                        passes.append(_subtree_stats(g, sf))
+                elif any(_subtree_has_draws(c) for c in content):
+                    passes.append(_subtree_stats(a, sf))
+                i += 1
+            else:
+                # Flat-sibling: collect window between BeginPass and EndPass
+                window: list[Any] = []
+                j = i + 1
+                while j < len(actions):
+                    if int(actions[j].flags) & _END_PASS:
+                        break
+                    window.append(actions[j])
+                    j += 1
+                marker_groups = [
+                    c for c in window if (int(c.flags) & _PUSH_MARKER) and _subtree_has_draws(c)
+                ]
+                if marker_groups:
+                    for g in marker_groups:
+                        passes.append(_subtree_stats(g, sf))
+                elif any(_subtree_has_draws(c) for c in window):
+                    passes.append(_window_stats(a, window, sf))
+                i = j
+        elif a.children:
+            _build_pass_list_recursive(a.children, passes, sf)
+            i += 1
+        else:
+            i += 1
 
 
 def get_pass_detail(

@@ -235,15 +235,14 @@ def test_query_service_resources() -> None:
 
 
 def test_query_service_pass_hierarchy() -> None:
-    """Test get_pass_hierarchy."""
+    """Test get_pass_hierarchy with flat sibling structure matching real RenderDoc API."""
     from rdc.services.query_service import get_pass_hierarchy
 
-    # Create actions with pass markers
+    # Real API: BeginPass has no children; draws appear as siblings before EndPass.
     begin_pass = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.BeginPass)
     begin_pass._name = "Pass1"
     draw = rd.ActionDescription(eventId=11, flags=rd.ActionFlags.Drawcall)
     end_pass = rd.ActionDescription(eventId=12, flags=rd.ActionFlags.EndPass)
-    end_pass._name = "Pass1"
 
     actions = [begin_pass, draw, end_pass]
     tree = get_pass_hierarchy(actions)
@@ -305,12 +304,11 @@ def test_daemon_resource_handler() -> None:
 def test_daemon_passes_handler() -> None:
     """Test daemon handler for passes method."""
     state = _state_with_adapter()
-    # Add pass-marked actions
+    # Real API: BeginPass has no children; draws appear as siblings before EndPass.
     begin_pass = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.BeginPass)
     begin_pass._name = "Pass1"
     draw = rd.ActionDescription(eventId=11, flags=rd.ActionFlags.Drawcall)
     end_pass = rd.ActionDescription(eventId=12, flags=rd.ActionFlags.EndPass)
-    end_pass._name = "Pass1"
     state.adapter.controller._actions = [begin_pass, draw, end_pass]
 
     request = {"jsonrpc": "2.0", "id": 1, "method": "passes", "params": {"_token": "tok"}}

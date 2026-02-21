@@ -218,9 +218,29 @@ class _IntLike:
         return self._val
 
 
+def _build_pass_actions() -> list[ActionDescription]:
+    """Hierarchical pass tree for pass handler tests."""
+    shadow_begin = ActionDescription(
+        eventId=10, flags=ActionFlags.BeginPass | ActionFlags.PassBoundary, _name="Shadow"
+    )
+    draw1 = ActionDescription(
+        eventId=42,
+        flags=ActionFlags.Drawcall | ActionFlags.Indexed,
+        numIndices=3600,
+        numInstances=1,
+        _name="vkCmdDrawIndexed",
+        events=[APIEvent(eventId=42, chunkIndex=0)],
+    )
+    shadow_begin.children = [draw1]
+    shadow_end = ActionDescription(
+        eventId=50, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="EndPass"
+    )
+    return [shadow_begin, shadow_end]
+
+
 def _make_pass_state():
     """State with output targets on pipeline for pass detail tests."""
-    actions = _build_actions()
+    actions = _build_pass_actions()
     sf = _build_sf()
     pipe = SimpleNamespace(
         GetOutputTargets=lambda: [SimpleNamespace(resource=_IntLike(10))],
