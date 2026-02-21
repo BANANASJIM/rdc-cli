@@ -209,7 +209,15 @@ def run_server(  # pragma: no cover
                     }
                     conn.sendall((json.dumps(error_resp) + "\n").encode("utf-8"))
                     continue
-                response, running = _handle_request(request, state)
+                try:
+                    response, running = _handle_request(request, state)
+                except Exception:  # noqa: BLE001
+                    response = {
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32603, "message": "internal error"},
+                        "id": request.get("id"),
+                    }
+                    running = True
                 conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
                 last_activity = time.time()
 
@@ -428,7 +436,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                         else str(desc.resultType)
                     ),
                     "byte_width": desc.resultByteWidth,
-                    "uuid": getattr(desc, "uuid", ""),
+                    "uuid": str(getattr(desc, "uuid", "") or ""),
                 }
             )
         return (
@@ -1786,9 +1794,15 @@ def _handle_event_method(
             if 0 <= idx < len(sf.chunks):
                 chunk = sf.chunks[idx]
                 api_call = chunk.name
-                for child in chunk.children:
-                    val = child.data.basic.value if child.data and child.data.basic else "-"
-                    params_dict[child.name] = val
+                if hasattr(chunk, "NumChildren"):
+                    for ci in range(chunk.NumChildren()):
+                        child = chunk.GetChild(ci)
+                        val = child.AsString() if hasattr(child, "AsString") else "-"
+                        params_dict[child.name] = val
+                else:
+                    for child in chunk.children:
+                        val = child.data.basic.value if child.data and child.data.basic else "-"
+                        params_dict[child.name] = val
                 break
     result: dict[str, Any] = {"EID": eid, "API Call": api_call}
     if params_dict:
