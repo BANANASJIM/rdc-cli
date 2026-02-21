@@ -174,6 +174,10 @@ class TestBuildVfsSkeleton:
             "samplers",
             "vbuffers",
             "ibuffer",
+            "push-constants",
+            "rasterizer",
+            "depth-stencil",
+            "msaa",
         ]
         assert pipe.children == expected
 

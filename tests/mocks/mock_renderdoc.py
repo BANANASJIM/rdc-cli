@@ -607,6 +607,58 @@ class StencilFace:
     writeMask: int = 0xFF
 
 
+class FillMode:
+    """Stub for fill mode enum with .name attribute."""
+
+    def __init__(self, name: str = "Solid") -> None:
+        self.name = name
+
+
+class CullMode:
+    """Stub for cull mode enum with .name attribute."""
+
+    def __init__(self, name: str = "None") -> None:
+        self.name = name
+
+
+class CompFunc:
+    """Stub for comparison function enum with .name attribute."""
+
+    def __init__(self, name: str = "LessEqual") -> None:
+        self.name = name
+
+
+@dataclass
+class RasterizerState:
+    fillMode: FillMode | None = None
+    cullMode: CullMode | None = None
+    frontCCW: bool | None = None
+    depthBiasEnable: bool | None = None
+    depthBiasConstantFactor: float | None = None
+    depthBiasClamp: float | None = None
+    depthBiasSlopeFactor: float | None = None
+    lineWidth: float | None = None
+
+
+@dataclass
+class DepthStencilState:
+    depthTestEnable: bool | None = None
+    depthWriteEnable: bool | None = None
+    depthFunction: CompFunc | None = None
+    depthBoundsEnable: bool | None = None
+    minDepthBounds: float | None = None
+    maxDepthBounds: float | None = None
+    stencilTestEnable: bool | None = None
+
+
+@dataclass
+class MultisampleState:
+    rasterSamples: int = 1
+    sampleShadingEnable: bool = False
+    minSampleShading: float = 0.0
+    sampleMask: int = 0xFFFFFFFF
+
+
 @dataclass
 class BoundVBuffer:
     resourceId: ResourceId = field(default_factory=ResourceId)
@@ -844,6 +896,8 @@ class ShaderReflection:
     rayPayload: Any = None
     rayAttributes: Any = None
     taskPayload: Any = None
+    pushConstantRangeByteOffset: int = 0
+    pushConstantRangeByteSize: int = 0
 
 
 @dataclass
@@ -914,6 +968,9 @@ class MockPipeState:
         self._ibuffer: BoundVBuffer = BoundVBuffer()
         self._cbuffer_descriptors: dict[tuple[int, int], Descriptor] = {}
         self._used_descriptors: list[UsedDescriptor] = []
+        self.rasterizer: RasterizerState | None = None
+        self.depthStencil: DepthStencilState | None = None
+        self.multisample: MultisampleState = MultisampleState()
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
