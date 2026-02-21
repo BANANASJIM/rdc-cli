@@ -31,7 +31,7 @@ provides=('rdc-cli')
 conflicts=('rdc-cli')
 source=(
   "git+https://github.com/BANANASJIM/rdc-cli.git"
-  "git+https://github.com/baldurk/renderdoc.git"
+  "git+https://github.com/baldurk/renderdoc.git#tag=v1.41"
   "renderdoc-swig::https://github.com/baldurk/swig/archive/renderdoc-modified-7.zip"
 )
 sha256sums=('SKIP'
@@ -46,6 +46,11 @@ pkgver() {
 
 build() {
   # Build renderdoc Python module (pyrenderdoc only, no Qt UI)
+  # Disable LTO — breaks SWIG-generated Python bindings
+  export CFLAGS="${CFLAGS//-flto=auto/}"
+  export CXXFLAGS="${CXXFLAGS//-flto=auto/}"
+  export LDFLAGS="${LDFLAGS//-flto=auto/}"
+
   cd renderdoc
   cmake -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
