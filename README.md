@@ -7,8 +7,8 @@
 ```
 
 [![PyPI](https://img.shields.io/pypi/v/rdc-cli)](https://pypi.org/project/rdc-cli/)
-[![Python](https://img.shields.io/pypi/pyversions/rdc-cli)](https://pypi.org/project/rdc-cli/)
-[![License](https://img.shields.io/github/license/BANANASJIM/rdc-cli)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/rdc-cli/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Pipe-friendly TSV output, JSON mode, 33 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
 
