@@ -223,38 +223,80 @@ class TestGetTopDraws:
         assert get_top_draws(walk_actions(_build_action_tree()), limit=1)[0].eid == 142
 
 
+def _build_pass_tree() -> list[ActionDescription]:
+    """Hierarchical pass tree: draws are children of BeginPass nodes."""
+    shadow_begin = ActionDescription(
+        eventId=10, flags=ActionFlags.BeginPass | ActionFlags.PassBoundary, _name="Shadow"
+    )
+    shadow_begin.children = [
+        ActionDescription(
+            eventId=42,
+            flags=ActionFlags.Drawcall | ActionFlags.Indexed,
+            numIndices=3600,
+            numInstances=1,
+            _name="draw1",
+        ),
+        ActionDescription(
+            eventId=55,
+            flags=ActionFlags.Drawcall | ActionFlags.Indexed,
+            numIndices=2400,
+            numInstances=1,
+            _name="draw2",
+        ),
+    ]
+    shadow_end = ActionDescription(
+        eventId=60, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="EndPass"
+    )
+    gbuffer_begin = ActionDescription(
+        eventId=90, flags=ActionFlags.BeginPass | ActionFlags.PassBoundary, _name="GBuffer"
+    )
+    gbuffer_begin.children = [
+        ActionDescription(
+            eventId=98,
+            flags=ActionFlags.Drawcall | ActionFlags.Indexed,
+            numIndices=3600,
+            numInstances=1,
+            _name="draw3",
+        ),
+    ]
+    gbuffer_end = ActionDescription(
+        eventId=200, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="EndPass"
+    )
+    return [shadow_begin, shadow_end, gbuffer_begin, gbuffer_end]
+
+
 class TestGetPassDetail:
     def test_by_index(self):
-        result = get_pass_detail(_build_action_tree(), None, 0)
+        result = get_pass_detail(_build_pass_tree(), None, 0)
         assert result is not None
         assert result["name"] == "Shadow"
         assert result["begin_eid"] == 10
         assert result["draws"] == 2
 
     def test_by_name(self):
-        result = get_pass_detail(_build_action_tree(), None, "GBuffer")
+        result = get_pass_detail(_build_pass_tree(), None, "GBuffer")
         assert result is not None
         assert result["name"] == "GBuffer"
 
     def test_by_name_case_insensitive(self):
-        assert get_pass_detail(_build_action_tree(), None, "gbuffer") is not None
+        assert get_pass_detail(_build_pass_tree(), None, "gbuffer") is not None
 
     def test_index_out_of_range(self):
-        assert get_pass_detail(_build_action_tree(), None, 999) is None
+        assert get_pass_detail(_build_pass_tree(), None, 999) is None
 
     def test_name_not_found(self):
-        assert get_pass_detail(_build_action_tree(), None, "NoSuch") is None
+        assert get_pass_detail(_build_pass_tree(), None, "NoSuch") is None
 
     def test_empty_actions(self):
         assert get_pass_detail([], None, 0) is None
 
     def test_end_eid_includes_children(self):
-        result = get_pass_detail(_build_action_tree(), None, 0)
+        result = get_pass_detail(_build_pass_tree(), None, 0)
         assert result is not None
         assert result["end_eid"] >= 50
 
     def test_triangles_counted(self):
-        result = get_pass_detail(_build_action_tree(), None, 0)
+        result = get_pass_detail(_build_pass_tree(), None, 0)
         assert result is not None
         # shadow has draws with numIndices=3600 and 2400 → 1200+800 tris
         assert result["triangles"] == 2000
