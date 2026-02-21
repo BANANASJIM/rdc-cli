@@ -726,24 +726,25 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if err:
             return _error_response(request_id, -32002, err), True
 
-        pipe_state = state.adapter.get_pipeline_state()
         stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        pipe_state = state.adapter.get_pipeline_state()
         controller = state.adapter.controller
+        refl = pipe_state.GetShaderReflection(stage_val)
 
         source = ""
-        has_debug_info = False
-
-        # Try to get debug source
-        if hasattr(controller, "GetDebugSource"):
-            source = controller.GetDebugSource(stage_val)
-            has_debug_info = bool(source)
-
-        # Fallback to disassembly if no debug source
-        if not source:
-            if hasattr(controller, "GetDisassembly"):
-                source = controller.GetDisassembly(stage_val)
-            elif hasattr(controller, "GetShaderDisassembly"):
-                source = controller.GetShaderDisassembly(stage_val)
+        if refl is not None:
+            pipeline = (
+                pipe_state.GetComputePipelineObject()
+                if stage_val == 5
+                else pipe_state.GetGraphicsPipelineObject()
+            )
+            targets = (
+                controller.GetDisassemblyTargets(True)
+                if hasattr(controller, "GetDisassemblyTargets")
+                else ["SPIR-V"]
+            )
+            tgt = str(targets[0]) if targets else "SPIR-V"
+            source = controller.DisassembleShader(pipeline, refl, tgt)
 
         return _result_response(
             request_id,
@@ -751,7 +752,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
                 "eid": eid,
                 "stage": stage,
                 "source": source,
-                "has_debug_info": has_debug_info,
+                "has_debug_info": False,
             },
         ), True
 
@@ -767,25 +768,34 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         if err:
             return _error_response(request_id, -32002, err), True
 
-        pipe_state = state.adapter.get_pipeline_state()
         stage_val = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}[stage]
+        pipe_state = state.adapter.get_pipeline_state()
         controller = state.adapter.controller
+        refl = pipe_state.GetShaderReflection(stage_val)
 
         disasm = ""
-        if hasattr(controller, "GetDisassembly"):
-            if target and hasattr(controller, "GetDisassemblyForTarget"):
-                disasm = controller.GetDisassemblyForTarget(stage_val, target)
-            else:
-                disasm = controller.GetDisassembly(stage_val)
-        elif hasattr(controller, "GetShaderDisassembly"):
-            disasm = controller.GetShaderDisassembly(stage_val)
+        used_target = target
+        if refl is not None:
+            pipeline = (
+                pipe_state.GetComputePipelineObject()
+                if stage_val == 5
+                else pipe_state.GetGraphicsPipelineObject()
+            )
+            if not used_target:
+                targets = (
+                    controller.GetDisassemblyTargets(True)
+                    if hasattr(controller, "GetDisassemblyTargets")
+                    else ["SPIR-V"]
+                )
+                used_target = str(targets[0]) if targets else "SPIR-V"
+            disasm = controller.DisassembleShader(pipeline, refl, used_target)
 
         return _result_response(
             request_id,
             {
                 "eid": eid,
                 "stage": stage,
-                "target": target,
+                "target": used_target,
                 "disasm": disasm,
             },
         ), True
@@ -1892,6 +1902,9 @@ def _handle_vfs_ls(request_id: int, path: str, state: DaemonState) -> dict[str, 
     if state.vfs_tree is None:
         return _error_response(request_id, -32002, "vfs tree not built")
 
+    if path.startswith("/shaders") and not state._shader_cache_built:
+        _build_shader_cache(state)
+
     pop_err = _ensure_shader_populated(request_id, path, state)
     if pop_err:
         return pop_err
@@ -1920,6 +1933,9 @@ def _handle_vfs_tree(request_id: int, path: str, depth: int, state: DaemonState)
 
     if depth < 1 or depth > 8:
         return _error_response(request_id, -32602, "depth must be 1-8")
+
+    if path.startswith("/shaders") and not state._shader_cache_built:
+        _build_shader_cache(state)
 
     node = state.vfs_tree.static.get(path)
     if node is None:
