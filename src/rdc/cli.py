@@ -4,6 +4,7 @@ import click
 
 from rdc import __version__
 from rdc.commands.capture import capture_cmd
+from rdc.commands.completion import completion_cmd
 from rdc.commands.counters import counters_cmd
 from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
@@ -56,6 +57,7 @@ main.add_command(rt_cmd, name="rt")
 main.add_command(buffer_cmd, name="buffer")
 main.add_command(search_cmd, name="search")
 main.add_command(usage_cmd, name="usage")
+main.add_command(completion_cmd, name="completion")
 main.add_command(counters_cmd, name="counters")
 
 
