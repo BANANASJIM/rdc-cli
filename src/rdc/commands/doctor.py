@@ -31,6 +31,15 @@ def _check_platform() -> CheckResult:
     return CheckResult("platform", False, f"unsupported system: {system}")
 
 
+_RENDERDOC_BUILD_HINT = """\
+  To build the renderdoc Python module:
+    git clone --depth 1 https://github.com/baldurk/renderdoc.git
+    cd renderdoc
+    cmake -B build -DENABLE_PYRENDERDOC=ON -DENABLE_QRENDERDOC=OFF
+    cmake --build build -j$(nproc)
+    export RENDERDOC_PYTHON_PATH=$PWD/build/lib"""
+
+
 def _import_renderdoc() -> tuple[Any | None, CheckResult]:
     module = find_renderdoc()
     if module is None:
@@ -82,6 +91,8 @@ def doctor_cmd() -> None:
         click.echo(f"{icon} {result.name}: {result.detail}")
         if not result.ok:
             has_error = True
+            if result.name == "renderdoc-module":
+                click.echo(_RENDERDOC_BUILD_HINT, err=True)
 
     if has_error:
         raise SystemExit(1)
