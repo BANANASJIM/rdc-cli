@@ -65,6 +65,10 @@ _r(
 _r(r"/draws/(?P<eid>\d+)/pipeline/samplers", "leaf", "pipe_samplers", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/pipeline/vbuffers", "leaf", "pipe_vbuffers", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/pipeline/ibuffer", "leaf", "pipe_ibuffer", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/push-constants", "leaf", "pipe_push_constants", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/rasterizer", "leaf", "pipe_rasterizer", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/depth-stencil", "leaf", "pipe_depth_stencil", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pipeline/msaa", "leaf", "pipe_msaa", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/shader", "dir", None, [("eid", int)])
 _r(
     rf"/draws/(?P<eid>\d+)/shader/(?P<stage>{_STAGES})",

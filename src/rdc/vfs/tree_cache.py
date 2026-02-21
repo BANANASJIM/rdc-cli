@@ -57,6 +57,10 @@ _PIPELINE_CHILDREN = [
     "samplers",
     "vbuffers",
     "ibuffer",
+    "push-constants",
+    "rasterizer",
+    "depth-stencil",
+    "msaa",
 ]
 _PASS_CHILDREN = ["info", "draws", "attachments"]
 _SHADER_STAGE_CHILDREN = ["disasm", "source", "reflect", "constants"]

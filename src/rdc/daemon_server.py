@@ -1276,6 +1276,96 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             },
         ), True
 
+    if method == "pipe_push_constants":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        stage_names = {0: "vs", 1: "hs", 2: "ds", 3: "gs", 4: "ps", 5: "cs"}
+        ranges: list[dict[str, Any]] = []
+        for stage_val, stage_name in stage_names.items():
+            if int(pipe_state.GetShader(stage_val)) == 0:
+                continue
+            refl = pipe_state.GetShaderReflection(stage_val)
+            if refl is None:
+                continue
+            offset = getattr(refl, "pushConstantRangeByteOffset", 0)
+            size = getattr(refl, "pushConstantRangeByteSize", 0)
+            if size > 0:
+                ranges.append({"stage": stage_name, "offset": offset, "size": size})
+        return _result_response(request_id, {"eid": eid, "push_constants": ranges}), True
+
+    if method == "pipe_rasterizer":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        rast = getattr(pipe_state, "rasterizer", None)
+        rast_data: dict[str, Any] = {"eid": eid}
+        if rast is not None:
+            for f in (
+                "fillMode",
+                "cullMode",
+                "frontCCW",
+                "depthBiasEnable",
+                "depthBiasConstantFactor",
+                "depthBiasClamp",
+                "depthBiasSlopeFactor",
+                "lineWidth",
+            ):
+                v = getattr(rast, f, None)
+                if v is not None:
+                    rast_data[f] = v.name if hasattr(v, "name") else v
+        return _result_response(request_id, rast_data), True
+
+    if method == "pipe_depth_stencil":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        ds = getattr(pipe_state, "depthStencil", None)
+        ds_data: dict[str, Any] = {"eid": eid}
+        if ds is not None:
+            for f in (
+                "depthTestEnable",
+                "depthWriteEnable",
+                "depthFunction",
+                "depthBoundsEnable",
+                "minDepthBounds",
+                "maxDepthBounds",
+                "stencilTestEnable",
+            ):
+                v = getattr(ds, f, None)
+                if v is not None:
+                    ds_data[f] = v.name if hasattr(v, "name") else v
+        return _result_response(request_id, ds_data), True
+
+    if method == "pipe_msaa":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        eid = int(params.get("eid", state.current_eid))
+        err = _set_frame_event(state, eid)
+        if err:
+            return _error_response(request_id, -32002, err), True
+        pipe_state = state.adapter.get_pipeline_state()
+        ms = getattr(pipe_state, "multisample", None)
+        ms_data: dict[str, Any] = {"eid": eid}
+        if ms is not None:
+            for f in ("rasterSamples", "sampleShadingEnable", "minSampleShading", "sampleMask"):
+                v = getattr(ms, f, None)
+                if v is not None:
+                    ms_data[f] = v
+        return _result_response(request_id, ms_data), True
+
     if method == "postvs":
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True
