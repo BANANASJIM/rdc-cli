@@ -57,7 +57,7 @@ cmake -B "$BUILD_DIR/renderdoc/build" -S "$BUILD_DIR/renderdoc" -G Ninja \
   -DRENDERDOC_SWIG_PACKAGE="$(pwd)/$BUILD_DIR/renderdoc-swig"
 
 echo "--- cmake build ---"
-cmake --build "$BUILD_DIR/renderdoc/build" -j "$(nproc)"
+cmake --build "$BUILD_DIR/renderdoc/build" -j "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
 # Copy artifacts
 cp "$BUILD_DIR/renderdoc/build/lib/renderdoc.so" "$OUT_DIR/"
