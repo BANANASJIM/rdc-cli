@@ -55,7 +55,7 @@ build() {
     -DENABLE_GL=OFF \
     -DENABLE_GLES=OFF \
     -DENABLE_VULKAN=ON \
-    -DRENDERDOC_SWIG_PACKAGE="$srcdir/renderdoc-modified-7.zip"
+    -DRENDERDOC_SWIG_PACKAGE="$srcdir/renderdoc-swig"
   cmake --build build
 
   # Build rdc-cli wheel
