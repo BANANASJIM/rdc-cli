@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+from click.shell_completion import CompletionItem
 
 from rdc.commands.info import _daemon_call
 from rdc.formatters.json_fmt import write_json
@@ -74,8 +75,35 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
 }
 
 
+def _complete_vfs_path(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    """Shell completion callback for VFS paths."""
+    if "/" in incomplete:
+        last_slash = incomplete.rfind("/")
+        dir_path = incomplete[: last_slash + 1].rstrip("/") or "/"
+        prefix = incomplete[last_slash + 1 :]
+    else:
+        dir_path = "/"
+        prefix = incomplete
+
+    try:
+        result = _daemon_call("vfs_ls", {"path": dir_path})
+    except SystemExit:
+        return []
+
+    base = dir_path if dir_path == "/" else dir_path + "/"
+    items: list[CompletionItem] = []
+    for child in result.get("children", []):
+        name = child["name"]
+        if name.startswith(prefix):
+            suffix = "/" if child.get("kind") == "dir" else ""
+            items.append(CompletionItem(base + name + suffix))
+    return items
+
+
 @click.command("ls")
-@click.argument("path", default="/")
+@click.argument("path", default="/", shell_complete=_complete_vfs_path)
 @click.option("-F", "--classify", is_flag=True, help="Append type indicator (/ * @)")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def ls_cmd(path: str, classify: bool, use_json: bool) -> None:
@@ -128,7 +156,7 @@ def _deliver_binary(path: str, match: Any, raw: bool, output: str | None) -> Non
 
 
 @click.command("cat")
-@click.argument("path")
+@click.argument("path", shell_complete=_complete_vfs_path)
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write binary output to file")
@@ -168,7 +196,7 @@ def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
 
 
 @click.command("tree")
-@click.argument("path", default="/")
+@click.argument("path", default="/", shell_complete=_complete_vfs_path)
 @click.option("--depth", default=2, type=click.IntRange(1, 8), show_default=True)
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def tree_cmd(path: str, depth: int, use_json: bool) -> None:
