@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Unix-friendly CLI for RenderDoc captures"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
 authors = [{name = "Jim"}]
 dependencies = [
   "click>=8.1",
