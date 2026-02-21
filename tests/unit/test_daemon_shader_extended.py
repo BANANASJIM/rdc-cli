@@ -155,8 +155,7 @@ def test_shader_disasm() -> None:
 def test_shader_disasm_with_target() -> None:
     state = _state_with_adapter()
     ctrl = state.adapter.controller
-    ctrl.GetDisassembly = lambda s: "default disasm"  # type: ignore[attr-defined]
-    ctrl.GetDisassemblyForTarget = lambda s, t: f"disasm for {t}"  # type: ignore[attr-defined]
+    ctrl._disasm_text[101] = "disasm for SPIR-V"
 
     resp, running = _handle_request(
         _req("shader_disasm", {"eid": 10, "stage": "ps", "target": "SPIR-V"}), state
