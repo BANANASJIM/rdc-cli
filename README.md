@@ -1,34 +1,44 @@
-# rdc-cli
+```
+          _
+ _ __ __| | ___
+| '__/ _` |/ __|
+| | | (_| | (__
+|_|  \__,_|\___|
+```
 
-Unix-friendly CLI for [RenderDoc](https://renderdoc.org/) `.rdc` captures. Pipe-friendly TSV output, JSON mode, 33 commands, daemon-backed session for interactive exploration.
+[![PyPI](https://img.shields.io/pypi/v/rdc-cli)](https://pypi.org/project/rdc-cli/)
+[![Python](https://img.shields.io/pypi/pyversions/rdc-cli)](https://pypi.org/project/rdc-cli/)
+[![License](https://img.shields.io/github/license/BANANASJIM/rdc-cli)](LICENSE)
+
+Pipe-friendly TSV output, JSON mode, 33 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
 
 ```bash
-rdc open capture.rdc          # Start session
-rdc draws                     # List draw calls (TSV)
-rdc pipeline 142              # Pipeline state at EID 142
-rdc shader 142 ps             # Pixel shader disassembly
-rdc texture 5 -o out.png      # Export texture
-rdc draws --json | jq '...'   # Machine-readable output
-rdc close                     # End session
+rdc open capture.rdc          # start session
+rdc draws                     # list draw calls (TSV)
+rdc pipeline 142              # pipeline state at EID 142
+rdc shader 142 ps             # pixel shader disassembly
+rdc texture 5 -o out.png      # export texture
+rdc draws --json | jq '...'   # machine-readable output
+rdc close                     # end session
 ```
+
+---
 
 ## Install
 
-### PyPI (recommended)
+**PyPI** (recommended)
 
 ```bash
 pipx install rdc-cli
 ```
 
-### AUR (Arch Linux)
+**AUR** (Arch Linux — builds renderdoc Python module automatically)
 
 ```bash
 yay -S rdc-cli-git
 ```
 
-This builds the renderdoc Python module automatically — no extra setup needed.
-
-### From source
+**From source**
 
 ```bash
 git clone https://github.com/BANANASJIM/rdc-cli.git
@@ -40,8 +50,6 @@ pixi install && pixi run sync
 
 `rdc` requires the renderdoc Python module (`renderdoc.cpython-*.so`), which is **not** included in most system packages. Your Python version must match the one used to compile renderdoc.
 
-### Build from source
-
 ```bash
 git clone --depth 1 https://github.com/baldurk/renderdoc.git
 cd renderdoc
@@ -50,17 +58,13 @@ cmake --build build -j$(nproc)
 export RENDERDOC_PYTHON_PATH=$PWD/build/lib
 ```
 
-### Module discovery order
+Module discovery order:
 
 1. `RENDERDOC_PYTHON_PATH` environment variable
 2. `/usr/lib/renderdoc`, `/usr/local/lib/renderdoc`
 3. Sibling directory of `renderdoccmd` on PATH
 
-### Verify
-
-```bash
-rdc doctor
-```
+Verify with `rdc doctor`.
 
 ## Commands
 
@@ -83,15 +87,16 @@ All commands support `--json` for machine-readable output.
 
 ```bash
 rdc completion bash > ~/.local/share/bash-completion/completions/rdc
-rdc completion zsh > ~/.zfunc/_rdc
-eval "$(rdc completion bash)"
+rdc completion zsh  > ~/.zfunc/_rdc
+rdc completion fish > ~/.config/fish/completions/rdc.fish
 ```
 
 ## Development
 
 ```bash
-pixi run sync                 # Install Python deps
+pixi run sync                 # install deps + activate git hooks
 pixi run check                # lint + typecheck + test (653 tests, 92% coverage)
+pixi run verify               # full packaging verification (19 checks)
 ```
 
 GPU integration tests require a real renderdoc module:
@@ -103,4 +108,4 @@ pixi run test-gpu
 
 ## License
 
-MIT
+[MIT](LICENSE)
