@@ -1,0 +1,94 @@
+---
+import Base from './Base.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const currentPath = Astro.url.pathname.replace(/\/$/, '');
+
+const sidebar = [
+  { label: 'Overview', href: `${base}docs/` },
+  { label: 'Installation', href: `${base}docs/install/` },
+  { label: 'Usage', href: `${base}docs/usage/` },
+  { label: 'Commands', href: `${base}docs/commands/` },
+  { label: 'VFS Paths', href: `${base}docs/vfs/` },
+];
+---
+
+<Base title={`${title} — rdc-cli`} description={description}>
+  <Navbar />
+  <div class="pt-16 min-h-screen flex flex-col md:flex-row">
+    <!-- Mobile sidebar toggle -->
+    <div class="md:hidden px-6 pt-4">
+      <button id="sidebar-toggle" class="flex items-center gap-2 text-sm text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        Navigation
+      </button>
+      <nav id="mobile-sidebar" class="hidden mt-3 space-y-1 pb-4 border-b border-gpu-border">
+        {sidebar.map((item) => (
+          <a
+            href={item.href}
+            class:list={[
+              'block px-3 py-2 rounded-md text-sm transition-colors',
+              currentPath === item.href.replace(/\/$/, '')
+                ? 'text-gpu-accent bg-gpu-accent/10'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gpu-card',
+            ]}
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    </div>
+
+    <!-- Desktop sidebar -->
+    <aside class="hidden md:block w-64 shrink-0 border-r border-gpu-border bg-gpu-deeper/50 p-6 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
+      <nav class="space-y-1">
+        {sidebar.map((item) => (
+          <a
+            href={item.href}
+            class:list={[
+              'block px-3 py-2 rounded-md text-sm transition-colors',
+              currentPath === item.href.replace(/\/$/, '')
+                ? 'text-gpu-accent bg-gpu-accent/10'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gpu-card',
+            ]}
+          >
+            {item.label}
+          </a>
+        ))}
+      </nav>
+    </aside>
+
+    <!-- Content -->
+    <main class="flex-1 max-w-3xl mx-auto px-8 py-12">
+      <h1 class="text-4xl font-bold text-gray-100 mb-8">{title}</h1>
+      <div class="prose prose-invert prose-base max-w-none
+        prose-headings:text-gray-200 prose-headings:font-semibold
+        prose-a:text-gpu-accent prose-a:no-underline hover:prose-a:underline
+        prose-code:text-gpu-accent prose-code:bg-gpu-card prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-[#060d18] prose-pre:border prose-pre:border-[#1e3050] prose-pre:rounded-xl
+        prose-td:text-gray-400 prose-th:text-gray-300
+        prose-strong:text-gray-200
+        prose-li:text-gray-400
+      ">
+        <slot />
+      </div>
+    </main>
+  </div>
+  <Footer />
+</Base>
+
+<script>
+  const toggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('mobile-sidebar');
+  toggle?.addEventListener('click', () => sidebar?.classList.toggle('hidden'));
+</script>
