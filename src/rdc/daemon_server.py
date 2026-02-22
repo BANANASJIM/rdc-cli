@@ -160,6 +160,23 @@ def _count_events(actions: list[Any]) -> int:
 
 _UINT_MAX_SENTINEL = (1 << 64) - 1
 
+_SECTION_MAP: dict[str, str] = {
+    "topology": "pipe_topology",
+    "viewport": "pipe_viewport",
+    "scissor": "pipe_scissor",
+    "blend": "pipe_blend",
+    "stencil": "pipe_stencil",
+    "rasterizer": "pipe_rasterizer",
+    "depth-stencil": "pipe_depth_stencil",
+    "msaa": "pipe_msaa",
+    "vbuffers": "pipe_vbuffers",
+    "ibuffer": "pipe_ibuffer",
+    "samplers": "pipe_samplers",
+    "push-constants": "pipe_push_constants",
+    "vinputs": "pipe_vinputs",
+}
+_SHADER_STAGES: frozenset[str] = frozenset({"vs", "hs", "ds", "gs", "ps", "cs"})
+
 
 def _enum_name(v: Any) -> Any:
     """Return .name for enum-like values, pass through others."""
@@ -314,11 +331,19 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         section = params.get("section")
         if section is not None:
             section = str(section).lower()
-            if section not in {"vs", "hs", "ds", "gs", "ps", "cs"}:
+            if section not in _SHADER_STAGES and section not in _SECTION_MAP:
                 return _error_response(request_id, -32602, "invalid section"), True
         err = _set_frame_event(state, eid)
         if err:
             return _error_response(request_id, -32002, err), True
+        if section is not None and section in _SECTION_MAP:
+            sub_req = {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": _SECTION_MAP[section],
+                "params": {"_token": params.get("_token", ""), "eid": eid},
+            }
+            return _handle_request(sub_req, state)
         pipe_state = state.adapter.get_pipeline_state()
         row = pipeline_row(state.current_eid, state.api_name, pipe_state, section=section)
         return _result_response(request_id, {"row": row}), True
@@ -334,10 +359,12 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         pipe_state = state.adapter.get_pipeline_state()
         rows = bindings_rows(state.current_eid, pipe_state)
 
-        # Filter by binding index (descriptor set filtering not yet implemented)
+        set_filter = params.get("set")
+        if set_filter is not None:
+            rows = [r for r in rows if r.get("set") == int(set_filter)]
         binding_index = params.get("binding")
         if binding_index is not None:
-            rows = [r for r in rows if r.get("slot") == binding_index]
+            rows = [r for r in rows if r.get("slot") == int(binding_index)]
 
         return _result_response(request_id, {"rows": rows}), True
     if method == "shader":

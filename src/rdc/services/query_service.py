@@ -361,6 +361,7 @@ def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
                     "eid": eid,
                     "stage": stage_name,
                     "kind": "ro",
+                    "set": getattr(r, "fixedBindSetOrSpace", 0),
                     "slot": getattr(r, "fixedBindNumber", getattr(r, "bindPoint", 0)),
                     "name": r.name,
                 }
@@ -371,6 +372,7 @@ def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
                     "eid": eid,
                     "stage": stage_name,
                     "kind": "rw",
+                    "set": getattr(r, "fixedBindSetOrSpace", 0),
                     "slot": getattr(r, "fixedBindNumber", getattr(r, "bindPoint", 0)),
                     "name": r.name,
                 }
