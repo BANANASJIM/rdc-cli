@@ -9,6 +9,7 @@ uv = ">=0.5"
 
 [activation.env]
 RENDERDOC_PYTHON_PATH = ".local/renderdoc"
+PYTHONPATH = "src"
 
 [tasks]
 sync = "uv sync --extra dev && git config core.hooksPath .githooks"
