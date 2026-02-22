@@ -15,6 +15,7 @@ from rdc.session_state import load_session
 
 _STAGE_CHOICES = ["vs", "hs", "ds", "gs", "ps", "cs"]
 _SORT_CHOICES = ["name", "stage", "uses"]
+_SHADER_STAGES_CLI: frozenset[str] = frozenset({"vs", "hs", "ds", "gs", "ps", "cs"})
 
 
 def _require_session() -> tuple[str, int, str]:
@@ -42,7 +43,7 @@ def _call(method: str, params: dict[str, Any]) -> dict[str, Any]:
 def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
     """Show pipeline summary for current or specified EID.
 
-    EID is the event ID. SECTION is optional (e.g., 'vs', 'ps').
+    EID is the event ID. SECTION is optional (e.g., 'vs', 'ps', 'topology', 'blend').
     """
     params: dict[str, Any] = {}
     if eid is not None:
@@ -50,7 +51,22 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
     if section is not None:
         params["section"] = section
 
+    section_lower = section.lower() if section else None
+    is_non_shader_section = section_lower is not None and section_lower not in _SHADER_STAGES_CLI
+
     result = _call("pipeline", params)
+
+    if is_non_shader_section:
+        # Non-shader sections return the pipe_* result directly (not wrapped in "row")
+        if as_json:
+            write_json(result)
+            return
+        click.echo(format_row(["KEY", "VALUE"]))
+        for k, v in result.items():
+            if k != "eid":
+                click.echo(format_row([k, str(v)]))
+        return
+
     row = result.get("row", {})
     if as_json:
         write_json(row)
@@ -88,17 +104,22 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
 @click.command("bindings")
 @click.argument("eid", required=False, type=int)
 @click.option("--binding", "binding_index", type=int, help="Filter by binding index.")
+@click.option("--set", "set_index", type=int, help="Filter by descriptor set index.")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def bindings_cmd(eid: int | None, binding_index: int | None, as_json: bool) -> None:
+def bindings_cmd(
+    eid: int | None, binding_index: int | None, set_index: int | None, as_json: bool
+) -> None:
     """Show bound resources per shader stage.
 
-    EID is the event ID. Use --binding to filter by binding index.
+    EID is the event ID. Use --binding to filter by slot, --set to filter by descriptor set.
     """
     params: dict[str, Any] = {}
     if eid is not None:
         params["eid"] = eid
     if binding_index is not None:
         params["binding"] = binding_index
+    if set_index is not None:
+        params["set"] = set_index
 
     result = _call("bindings", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
@@ -106,7 +127,7 @@ def bindings_cmd(eid: int | None, binding_index: int | None, as_json: bool) -> N
         write_json(rows)
         return
 
-    click.echo(format_row(["EID", "STAGE", "KIND", "SLOT", "NAME"]))
+    click.echo(format_row(["EID", "STAGE", "KIND", "SET", "SLOT", "NAME"]))
     for row in rows:
         click.echo(
             format_row(
@@ -114,6 +135,7 @@ def bindings_cmd(eid: int | None, binding_index: int | None, as_json: bool) -> N
                     row.get("eid", "-"),
                     row.get("stage", "-"),
                     row.get("kind", "-"),
+                    row.get("set", 0),
                     row.get("slot", "-"),
                     row.get("name", "-"),
                 ]
@@ -217,6 +239,19 @@ def shader_cmd(
             )
         return
 
+    # --target dispatches to shader_disasm
+    if target is not None:
+        disasm_result = _call(
+            "shader_disasm", {"eid": eid or 0, "stage": stage or "ps", "target": target}
+        )
+        content: str = disasm_result.get("disasm", "")
+        if output_path:
+            output_path.write_text(content)
+            click.echo(f"Written to {output_path}", err=True)
+        else:
+            click.echo(content)
+        return
+
     # Single shader query
     result = _call("shader", params)
     row = result.get("row", {})
@@ -224,8 +259,8 @@ def shader_cmd(
         write_json(row)
         return
 
-    # Handle output file for source/disassembly
-    if get_source or target:
+    # Handle output file for source
+    if get_source:
         output_file = output_path if output_path else None
         if output_file:
             content = row.get("content", "")
