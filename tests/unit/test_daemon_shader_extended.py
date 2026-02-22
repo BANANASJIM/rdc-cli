@@ -105,6 +105,9 @@ def test_shader_constants() -> None:
     assert r["stage"] == "ps"
     assert len(r["constants"]) == 1
     assert r["constants"][0]["name"] == "Globals"
+    assert "variables" in r["constants"][0]
+    assert isinstance(r["constants"][0]["variables"], list)
+    assert "data" not in r["constants"][0]
 
 
 def test_shader_constants_invalid_stage() -> None:
@@ -128,6 +131,8 @@ def test_shader_source() -> None:
     assert r["stage"] == "ps"
     assert "source" in r
     assert "has_debug_info" in r
+    assert "files" in r
+    assert isinstance(r["files"], list)
 
 
 def test_shader_source_invalid_stage() -> None:

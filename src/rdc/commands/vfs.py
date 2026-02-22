@@ -13,7 +13,7 @@ from click.shell_completion import CompletionItem
 
 from rdc.commands.info import _daemon_call
 from rdc.formatters.json_fmt import write_json
-from rdc.vfs.formatter import render_ls, render_tree_root
+from rdc.vfs.formatter import render_ls, render_ls_long, render_tree_root
 from rdc.vfs.router import resolve_path
 
 
@@ -117,19 +117,37 @@ def _complete_vfs_path(
 @click.command("ls")
 @click.argument("path", default="/", shell_complete=_complete_vfs_path)
 @click.option("-F", "--classify", is_flag=True, help="Append type indicator (/ * @)")
+@click.option("-l", "--long", "use_long", is_flag=True, help="Long format (TSV with metadata)")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
-def ls_cmd(path: str, classify: bool, use_json: bool) -> None:
+def ls_cmd(path: str, classify: bool, use_long: bool, use_json: bool) -> None:
     """List VFS directory contents."""
-    result = _daemon_call("vfs_ls", {"path": path})
+    if classify and use_long:
+        click.echo("error: -F and -l are mutually exclusive", err=True)
+        raise SystemExit(1)
+
+    params: dict[str, Any] = {"path": path}
+    if use_long:
+        params["long"] = True
+
+    result = _daemon_call("vfs_ls", params)
     if result.get("kind") != "dir":
         click.echo(f"error: {path}: Not a directory", err=True)
         raise SystemExit(1)
 
     children = result.get("children", [])
+
     if use_json:
-        write_json(children)
+        if use_long and result.get("long"):
+            write_json(result)
+        else:
+            write_json(children)
         return
-    click.echo(render_ls(children, classify=classify))
+
+    if use_long and result.get("long"):
+        columns = result.get("columns", [])
+        click.echo(render_ls_long(children, columns))
+    else:
+        click.echo(render_ls(children, classify=classify))
 
 
 def _stdout_is_tty() -> bool:

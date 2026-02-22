@@ -209,6 +209,8 @@ def _build_shader_cache(state: DaemonState) -> None:
             "uses": len(shader_eids[sid]),
             "first_eid": first_eid,
             "entry": getattr(refl, "entryPoint", "main") if refl else "main",
+            "inputs": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
+            "outputs": len(getattr(refl, "readWriteResources", [])) if refl else 0,
         }
 
     state._shader_cache_built = True

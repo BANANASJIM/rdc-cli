@@ -10,6 +10,24 @@ from typing import Any
 _CLASSIFY: dict[str, str] = {"dir": "/", "leaf_bin": "*", "alias": "@", "leaf": ""}
 
 
+def render_ls_long(children: list[dict[str, Any]], columns: list[str]) -> str:
+    """Render long-format ls output as TSV with header row.
+
+    Args:
+        children: List of child dicts with metadata fields.
+        columns: Column headers (uppercase); child keys are lowercase.
+    """
+    header = "\t".join(columns)
+    rows: list[str] = [header]
+    for child in children:
+        vals: list[str] = []
+        for col in columns:
+            v = child.get(col.lower())
+            vals.append(str(v) if v is not None else "-")
+        rows.append("\t".join(vals))
+    return "\n".join(rows)
+
+
 def render_ls(children: list[dict[str, str]], *, classify: bool = False) -> str:
     """Render ls output: one name per line, optional -F classification suffix.
 

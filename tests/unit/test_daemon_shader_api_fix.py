@@ -57,6 +57,7 @@ def test_shader_source_uses_disassemble_shader() -> None:
     r = resp["result"]
     assert r["source"] == "SPIR-V code here"
     assert r["has_debug_info"] is False
+    assert r["files"] == []
 
 
 def test_shader_source_no_reflection_returns_empty() -> None:
@@ -67,6 +68,65 @@ def test_shader_source_no_reflection_returns_empty() -> None:
     r = resp["result"]
     assert r["source"] == ""
     assert r["has_debug_info"] is False
+    assert r["files"] == []
+
+
+def test_shader_source_with_debug_info_returns_files() -> None:
+    """When debugInfo.files is non-empty, return files and has_debug_info=True."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        debugInfo=rd.ShaderDebugInfo(
+            files=[rd.SourceFile(filename="main.hlsl", contents="void main() {}")]
+        ),
+    )
+    ctrl._disasm_text[101] = "SPIR-V code here"
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+
+    resp, running = _handle_request(_req("shader_source", {"eid": 10, "stage": "ps"}), state)
+    assert running
+    r = resp["result"]
+    assert r["has_debug_info"] is True
+    assert len(r["files"]) == 1
+    assert r["files"][0]["filename"] == "main.hlsl"
+    assert r["files"][0]["source"] == "void main() {}"
+    assert r["source"] == ""
+
+
+def test_shader_source_with_multiple_debug_files() -> None:
+    """Multiple debug files are all returned."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        debugInfo=rd.ShaderDebugInfo(
+            files=[
+                rd.SourceFile(filename="main.hlsl", contents="// main"),
+                rd.SourceFile(filename="utils.hlsl", contents="// utils"),
+            ]
+        ),
+    )
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+
+    resp, _ = _handle_request(_req("shader_source", {"eid": 10, "stage": "ps"}), state)
+    r = resp["result"]
+    assert r["has_debug_info"] is True
+    assert len(r["files"]) == 2
+    filenames = {f["filename"] for f in r["files"]}
+    assert filenames == {"main.hlsl", "utils.hlsl"}
 
 
 def test_shader_source_compute_uses_compute_pipeline() -> None:
@@ -141,6 +201,195 @@ def test_shader_disasm_no_reflection_returns_empty() -> None:
     assert running
     r = resp["result"]
     assert r["disasm"] == ""
+
+
+# ---------------------------------------------------------------------------
+# shader_constants structured variables
+# ---------------------------------------------------------------------------
+
+
+def _make_state_with_cbuffer() -> DaemonState:
+    """DaemonState with PS shader + one cbuffer containing a variable."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        constantBlocks=[rd.ConstantBlock(name="Globals", fixedBindNumber=0, byteSize=64)],
+    )
+    ctrl._pipe_state._cbuffer_descriptors[(rd.ShaderStage.Pixel, 0)] = rd.Descriptor(
+        resource=rd.ResourceId(500),
+        byteOffset=0,
+        byteSize=64,
+    )
+    ctrl._cbuffer_variables[(rd.ShaderStage.Pixel, 0)] = [
+        rd.ShaderVariable(
+            name="g_Color",
+            type="float4",
+            rows=1,
+            columns=4,
+            value=rd.ShaderValue(f32v=[1.0, 0.5, 0.0, 1.0] + [0.0] * 12),
+        ),
+    ]
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.api_name = "Vulkan"
+    state.max_eid = 100
+    return state
+
+
+def test_shader_constants_returns_structured_variables() -> None:
+    state = _make_state_with_cbuffer()
+    resp, running = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    assert running
+    r = resp["result"]
+    assert r["constants"][0]["name"] == "Globals"
+    assert len(r["constants"][0]["variables"]) == 1
+    v = r["constants"][0]["variables"][0]
+    assert v["name"] == "g_Color"
+    assert v["type"] == "float4"
+    assert v["value"] == [1.0, 0.5, 0.0, 1.0]
+    assert "data" not in r["constants"][0]
+
+
+def test_shader_constants_struct_variable_recurses() -> None:
+    """Struct ShaderVariable with members recurses into children."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        constantBlocks=[rd.ConstantBlock(name="Params", fixedBindNumber=0)],
+    )
+    ctrl._pipe_state._cbuffer_descriptors[(rd.ShaderStage.Pixel, 0)] = rd.Descriptor(
+        resource=rd.ResourceId(500),
+    )
+    child_a = rd.ShaderVariable(
+        name="x",
+        type="float",
+        rows=1,
+        columns=1,
+        value=rd.ShaderValue(f32v=[3.14] + [0.0] * 15),
+    )
+    child_b = rd.ShaderVariable(
+        name="y",
+        type="float",
+        rows=1,
+        columns=1,
+        value=rd.ShaderValue(f32v=[2.71] + [0.0] * 15),
+    )
+    parent = rd.ShaderVariable(name="s", type="struct", members=[child_a, child_b])
+    ctrl._cbuffer_variables[(rd.ShaderStage.Pixel, 0)] = [parent]
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+
+    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    r = resp["result"]
+    v = r["constants"][0]["variables"][0]
+    assert v["name"] == "s"
+    assert v["value"] is None
+    assert len(v["members"]) == 2
+    assert v["members"][0]["name"] == "x"
+    assert v["members"][0]["value"] == [3.14]
+    assert v["members"][1]["name"] == "y"
+    assert v["members"][1]["value"] == [2.71]
+
+
+def test_shader_constants_empty_cbuffer() -> None:
+    """Cbuffer with no variables returns empty list."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        constantBlocks=[rd.ConstantBlock(name="Empty", fixedBindNumber=0)],
+    )
+    ctrl._pipe_state._cbuffer_descriptors[(rd.ShaderStage.Pixel, 0)] = rd.Descriptor(
+        resource=rd.ResourceId(500),
+    )
+    # No _cbuffer_variables entry -> returns []
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+
+    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    r = resp["result"]
+    assert r["constants"][0]["variables"] == []
+
+
+def test_shader_constants_multiple_cbuffers() -> None:
+    """Multiple constant blocks are each enumerated."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        constantBlocks=[
+            rd.ConstantBlock(name="CB0", fixedBindNumber=0),
+            rd.ConstantBlock(name="CB1", fixedBindNumber=1),
+        ],
+    )
+    for i in range(2):
+        ctrl._pipe_state._cbuffer_descriptors[(rd.ShaderStage.Pixel, i)] = rd.Descriptor(
+            resource=rd.ResourceId(500 + i),
+        )
+    ctrl._cbuffer_variables[(rd.ShaderStage.Pixel, 0)] = [
+        rd.ShaderVariable(
+            name="a", type="float", rows=1, columns=1, value=rd.ShaderValue(f32v=[1.0] + [0.0] * 15)
+        ),
+    ]
+    ctrl._cbuffer_variables[(rd.ShaderStage.Pixel, 1)] = [
+        rd.ShaderVariable(
+            name="b", type="float", rows=1, columns=1, value=rd.ShaderValue(f32v=[2.0] + [0.0] * 15)
+        ),
+    ]
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+
+    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    r = resp["result"]
+    assert len(r["constants"]) == 2
+    assert r["constants"][0]["name"] == "CB0"
+    assert r["constants"][0]["variables"][0]["name"] == "a"
+    assert r["constants"][1]["name"] == "CB1"
+    assert r["constants"][1]["variables"][0]["name"] == "b"
+
+
+def test_shader_constants_calls_get_cbuffer_variable_contents() -> None:
+    """GetCBufferVariableContents is called (not GetConstantBuffer)."""
+    state = _make_state_with_cbuffer()
+    ctrl = state.adapter.controller
+    calls: list[tuple] = []
+    orig = ctrl.GetCBufferVariableContents
+
+    def _spy(*args: object) -> list:
+        calls.append(args)
+        return orig(*args)
+
+    ctrl.GetCBufferVariableContents = _spy  # type: ignore[method-assign]
+
+    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    assert "result" in resp
+    assert len(calls) == 1
+    assert not hasattr(ctrl, "GetConstantBuffer")
 
 
 # ---------------------------------------------------------------------------
