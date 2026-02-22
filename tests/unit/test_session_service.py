@@ -23,7 +23,7 @@ def test_goto_session_rejects_negative_eid() -> None:
     assert "eid must be >= 0" in msg
 
 
-def test_close_session_without_state() -> None:
-    # no monkeypatch needed if there is no local session file in temp test env
+def test_close_session_without_state(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(session_service, "load_session", lambda: None)
     ok, _msg = session_service.close_session()
     assert ok is False

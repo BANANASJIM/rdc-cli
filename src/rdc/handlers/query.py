@@ -420,7 +420,6 @@ def _handle_event(
                     for child in chunk.children:
                         val = child.data.basic.value if child.data and child.data.basic else "-"
                         params_dict[child.name] = val
-                break
     result: dict[str, Any] = {"EID": eid, "API Call": api_call}
     if params_dict:
         param_str = chr(10).join(f"  {k:<20}{v}" for k, v in params_dict.items())
