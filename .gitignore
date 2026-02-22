@@ -14,3 +14,10 @@ dist/
 CLAUDE.md
 tests/fixtures/vulkan_samples
 .local/
+
+# Docs site
+docs/node_modules/
+docs/dist/
+docs/.astro/
+docs/public/demos/*.gif
+docs/public/demos/*.webm

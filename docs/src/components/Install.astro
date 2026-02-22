@@ -1,0 +1,116 @@
+---
+
+---
+
+<section id="install" class="py-32 relative section-glow">
+  <div class="max-w-3xl mx-auto px-6">
+    <h2 class="text-3xl md:text-5xl font-extrabold text-center mb-4 tracking-tight">
+      <span class="gradient-text">Get Started</span>
+    </h2>
+    <p class="text-center text-gray-400 mb-14">
+      Install in seconds. Start inspecting captures immediately.
+    </p>
+
+    <div class="space-y-5">
+      <div class="install-block opacity-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[10px] font-bold text-gpu-accent uppercase tracking-[0.2em]">PyPI</span>
+          <span class="text-[10px] text-gray-500 tracking-wider">recommended</span>
+        </div>
+        <div class="group relative terminal-window">
+          <div class="px-5 py-4 font-mono text-sm text-gray-200">
+            <span class="text-gpu-green select-none font-bold">$ </span>pipx install rdc-cli
+          </div>
+          <button
+            class="copy-btn absolute top-3 right-3 px-2.5 py-1 text-[10px] text-gray-500 bg-gpu-card rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:text-gpu-accent hover:bg-gpu-accent/10 uppercase tracking-wider font-bold"
+            data-copy="pipx install rdc-cli"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="install-block opacity-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[10px] font-bold text-gpu-purple uppercase tracking-[0.2em]">AUR</span>
+          <span class="text-[10px] text-gray-500 tracking-wider">Arch Linux</span>
+        </div>
+        <div class="group relative terminal-window">
+          <div class="px-5 py-4 font-mono text-sm text-gray-200">
+            <span class="text-gpu-green select-none font-bold">$ </span>yay -S rdc-cli-git
+          </div>
+          <button
+            class="copy-btn absolute top-3 right-3 px-2.5 py-1 text-[10px] text-gray-500 bg-gpu-card rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:text-gpu-accent hover:bg-gpu-accent/10 uppercase tracking-wider font-bold"
+            data-copy="yay -S rdc-cli-git"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="install-block opacity-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[10px] font-bold text-gpu-orange uppercase tracking-[0.2em]">Source</span>
+        </div>
+        <div class="group relative terminal-window">
+          <div class="px-5 py-4 font-mono text-sm text-gray-200 space-y-1">
+            <div><span class="text-gpu-green select-none font-bold">$ </span>git clone https://github.com/BANANASJIM/rdc-cli.git</div>
+            <div><span class="text-gpu-green select-none font-bold">$ </span>cd rdc-cli</div>
+            <div><span class="text-gpu-green select-none font-bold">$ </span>pixi install && pixi run sync</div>
+          </div>
+          <button
+            class="copy-btn absolute top-3 right-3 px-2.5 py-1 text-[10px] text-gray-500 bg-gpu-card rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:text-gpu-accent hover:bg-gpu-accent/10 uppercase tracking-wider font-bold"
+            data-copy="git clone https://github.com/BANANASJIM/rdc-cli.git && cd rdc-cli && pixi install && pixi run sync"
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  gsap.fromTo(
+    '.install-block',
+    { opacity: 0, y: 25 },
+    {
+      opacity: 1,
+      y: 0,
+      duration: 0.6,
+      stagger: 0.12,
+      ease: 'power3.out',
+      scrollTrigger: { trigger: '.install-block', start: 'top 88%' },
+    },
+  );
+
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const text = (btn as HTMLElement).dataset.copy ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      }
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.classList.add('text-gpu-accent');
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove('text-gpu-accent');
+      }, 1500);
+    });
+  });
+</script>
