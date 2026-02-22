@@ -449,3 +449,32 @@ def test_descriptors_route() -> None:
     assert m.kind == "leaf"
     assert m.handler == "descriptors"
     assert m.args == {"eid": 42}
+
+
+# ── Pixel History ────────────────────────────────────────────────────
+
+
+def test_pixel_history_base() -> None:
+    m = resolve_path("/draws/120/pixel/512/384")
+    assert m == PathMatch(
+        kind="leaf", handler="pixel_history", args={"eid": 120, "x": 512, "y": 384}
+    )
+
+
+def test_pixel_history_color_target() -> None:
+    m = resolve_path("/draws/120/pixel/512/384/color0")
+    assert m == PathMatch(
+        kind="leaf",
+        handler="pixel_history",
+        args={"eid": 120, "x": 512, "y": 384, "target": 0},
+    )
+
+
+def test_pixel_history_color_target_1() -> None:
+    m = resolve_path("/draws/120/pixel/512/384/color1")
+    assert m is not None
+    assert m.args["target"] == 1
+
+
+def test_pixel_history_non_integer_coord() -> None:
+    assert resolve_path("/draws/120/pixel/abc/384") is None
