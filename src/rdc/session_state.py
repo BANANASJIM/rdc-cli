@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+SESSION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 @dataclass
@@ -23,7 +26,11 @@ def _session_dir() -> Path:
 
 
 def session_path() -> Path:
-    return _session_dir() / "default.json"
+    """Return the session file path, derived from RDC_SESSION env var."""
+    name = os.environ.get("RDC_SESSION") or "default"
+    if not SESSION_NAME_RE.match(name):
+        name = "default"
+    return _session_dir() / f"{name}.json"
 
 
 def load_session() -> SessionState | None:

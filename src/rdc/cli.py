@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import click
 
 from rdc import __version__
@@ -17,10 +19,33 @@ from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 from rdc.commands.usage import usage_cmd
 from rdc.commands.vfs import cat_cmd, complete_cmd, ls_cmd, tree_cmd
+from rdc.session_state import SESSION_NAME_RE
+
+
+def _set_session_env(ctx: click.Context, param: click.Parameter, value: str | None) -> None:
+    """Validate and export --session NAME to RDC_SESSION environment variable."""
+    if value is None:
+        return
+    if not SESSION_NAME_RE.match(value):
+        raise click.BadParameter(
+            f"{value!r} is invalid; use [a-zA-Z0-9_-], 1–64 chars",
+            ctx=ctx,
+            param=param,
+        )
+    os.environ["RDC_SESSION"] = value
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(version=__version__, prog_name="rdc")
+@click.option(
+    "--session",
+    default=None,
+    metavar="NAME",
+    expose_value=False,
+    is_eager=True,
+    callback=_set_session_env,
+    help="Named session (default: value of $RDC_SESSION or 'default').",
+)
 def main() -> None:
     """rdc: Unix-friendly CLI for RenderDoc captures."""
 
