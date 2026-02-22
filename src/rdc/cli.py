@@ -13,6 +13,7 @@ from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
 from rdc.commands.export import buffer_cmd, rt_cmd, texture_cmd
 from rdc.commands.info import info_cmd, log_cmd, stats_cmd
 from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
+from rdc.commands.pixel import pixel_cmd
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 from rdc.commands.script import script_cmd
 from rdc.commands.search import search_cmd
@@ -86,6 +87,7 @@ main.add_command(usage_cmd, name="usage")
 main.add_command(completion_cmd, name="completion")
 main.add_command(counters_cmd, name="counters")
 main.add_command(script_cmd, name="script")
+main.add_command(pixel_cmd, name="pixel")
 
 
 if __name__ == "__main__":

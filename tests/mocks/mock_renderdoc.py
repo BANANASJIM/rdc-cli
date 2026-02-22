@@ -709,6 +709,58 @@ class PixelValue:
 
 
 @dataclass
+class ModificationValue:
+    """Mock for ModificationValue in PixelModification."""
+
+    col: PixelValue = field(default_factory=PixelValue)
+    depth: float = -1.0
+    stencil: int = -1
+
+    def IsValid(self) -> bool:
+        return True
+
+
+@dataclass
+class PixelModification:
+    """Mock for PixelModification from PixelHistory."""
+
+    eventId: int = 0
+    fragIndex: int = 0
+    primitiveID: int = 0
+    preMod: ModificationValue = field(default_factory=ModificationValue)
+    shaderOut: ModificationValue = field(default_factory=ModificationValue)
+    postMod: ModificationValue = field(default_factory=ModificationValue)
+    directShaderWrite: bool = False
+    unboundPS: bool = False
+    sampleMasked: bool = False
+    backfaceCulled: bool = False
+    depthClipped: bool = False
+    scissorClipped: bool = False
+    shaderDiscarded: bool = False
+    depthTestFailed: bool = False
+    stencilTestFailed: bool = False
+    depthBoundsFailed: bool = False
+    predicationSkipped: bool = False
+    viewClipped: bool = False
+
+    def Passed(self) -> bool:
+        return not any(
+            [
+                self.sampleMasked,
+                self.backfaceCulled,
+                self.depthClipped,
+                self.scissorClipped,
+                self.shaderDiscarded,
+                self.depthTestFailed,
+                self.stencilTestFailed,
+                self.depthBoundsFailed,
+                self.predicationSkipped,
+                self.viewClipped,
+            ]
+        )
+
+
+@dataclass
 class TextureFilter:
     """Stub for TextureFilter (SWIG opaque type)."""
 
@@ -1095,6 +1147,7 @@ class MockReplayController:
         self._usage_map: dict[int, list[EventUsage]] = {}
         self._counter_descriptions: dict[int, CounterDescription] = {}
         self._counter_results: list[CounterResult] = []
+        self._pixel_history_map: dict[tuple[int, int], list[PixelModification]] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -1192,6 +1245,12 @@ class MockReplayController:
         """Mock FetchCounters -- returns results filtered by requested counter ids."""
         id_set = {int(c) for c in counter_ids}
         return [r for r in self._counter_results if int(r.counter) in id_set]
+
+    def PixelHistory(
+        self, texture: Any, x: int, y: int, sub: Any, type_cast: Any
+    ) -> list[PixelModification]:
+        """Mock PixelHistory -- returns modifications keyed by (x, y)."""
+        return self._pixel_history_map.get((x, y), [])
 
     def Shutdown(self) -> None:
         self._shutdown_called = True
