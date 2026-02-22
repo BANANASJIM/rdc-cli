@@ -1557,3 +1557,39 @@ class TestShaderEditReal:
         assert result["ok"] is True
         assert result["restored"] >= 1
         assert result["freed"] >= 1
+
+
+class TestMeshDataReal:
+    """GPU integration tests for mesh_data handler with real replay."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "draws")
+        return result["draws"][0]["eid"]
+
+    def test_mesh_data_real(self) -> None:
+        """mesh_data on a draw event returns vertices with valid schema."""
+        eid = self._first_draw_eid()
+        result = _call(self.state, "mesh_data", {"eid": eid})
+        assert result["vertex_count"] > 0
+        assert len(result["vertices"]) == result["vertex_count"]
+        assert result["stage"] == "vs-out"
+
+    def test_mesh_data_topology_string(self) -> None:
+        """Topology field is a non-empty string, not an integer."""
+        eid = self._first_draw_eid()
+        result = _call(self.state, "mesh_data", {"eid": eid})
+        assert isinstance(result["topology"], str)
+        assert len(result["topology"]) > 0
+        assert not result["topology"].isdigit()
+
+    def test_mesh_data_vertex_comp_match(self) -> None:
+        """Each vertex list has exactly comp_count elements."""
+        eid = self._first_draw_eid()
+        result = _call(self.state, "mesh_data", {"eid": eid})
+        assert result["vertex_count"] == len(result["vertices"])
+        for v in result["vertices"]:
+            assert len(v) == result["comp_count"]

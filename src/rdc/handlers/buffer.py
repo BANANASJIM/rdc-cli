@@ -1,4 +1,4 @@
-"""Buffer handlers: buf_info, buf_raw, postvs, cbuffer_decode, vbuffer_decode, ibuffer_decode."""
+"""Buffer handlers: buf_info, buf_raw, postvs, mesh_data, cbuffer/vbuffer/ibuffer decode."""
 
 from __future__ import annotations
 
@@ -253,6 +253,90 @@ def _handle_vbuffer_decode(  # noqa: PLR0912
     ), True
 
 
+_MESH_STAGE_MAP: dict[str, int] = {"vs-out": 1, "gs-out": 2}
+
+
+def _handle_mesh_data(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    """Decode post-transform vertex data into position arrays."""
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
+    stage_name = str(params.get("stage", "vs-out"))
+    stage_val = _MESH_STAGE_MAP.get(stage_name)
+    if stage_val is None:
+        return _error_response(
+            request_id, -32602, f"invalid stage {stage_name!r}; use vs-out or gs-out"
+        ), True
+    eid = int(params.get("eid", state.current_eid))
+    err = _set_frame_event(state, eid)
+    if err:
+        return _error_response(request_id, -32002, err), True
+    controller = state.adapter.controller
+    mesh = controller.GetPostVSData(0, 0, stage_val)
+    vrid = int(getattr(mesh, "vertexResourceId", 0))
+    stride = getattr(mesh, "vertexByteStride", 0)
+    if vrid == 0 or stride == 0:
+        return _error_response(request_id, -32001, "no PostVS data at this event"), True
+    fmt = getattr(mesh, "format", None)
+    comp_width = getattr(fmt, "compByteWidth", 4) if fmt else 4
+    comp_count = getattr(fmt, "compCount", 4) if fmt else 4
+    v_offset = getattr(mesh, "vertexByteOffset", 0)
+    v_size = getattr(mesh, "vertexByteSize", 0)
+    raw = controller.GetBufferData(mesh.vertexResourceId, v_offset, v_size)
+    num_verts = len(raw) // stride if stride > 0 else 0
+    num_indices = getattr(mesh, "numIndices", 0)
+    if num_indices > 0:
+        irid = getattr(mesh, "indexResourceId", None)
+        if irid is None or int(irid) == 0:
+            num_verts = min(num_verts, num_indices)
+    vertices: list[list[float]] = []
+    for i in range(num_verts):
+        base = i * stride
+        comps: list[float] = []
+        for c in range(comp_count):
+            off = base + c * comp_width
+            if off + comp_width <= len(raw):
+                if comp_width == 4:
+                    comps.append(struct.unpack_from("<f", raw, off)[0])
+                elif comp_width == 2:
+                    comps.append(struct.unpack_from("<e", raw, off)[0])
+                else:
+                    comps.append(0.0)
+            else:
+                comps.append(0.0)
+        vertices.append(comps)
+    # Decode index buffer
+    irid = int(getattr(mesh, "indexResourceId", 0))
+    indices: list[int] = []
+    if irid != 0:
+        i_offset = getattr(mesh, "indexByteOffset", 0)
+        i_size = getattr(mesh, "indexByteSize", 0)
+        i_stride = getattr(mesh, "indexByteStride", 0)
+        if i_stride in (2, 4) and i_size > 0:
+            iraw = controller.GetBufferData(mesh.indexResourceId, i_offset, i_size)
+            fmt_str = "<H" if i_stride == 2 else "<I"
+            for j in range(len(iraw) // i_stride):
+                off = j * i_stride
+                if off + i_stride <= len(iraw):
+                    indices.append(struct.unpack_from(fmt_str, iraw, off)[0])
+    topology = _enum_name(getattr(mesh, "topology", ""))
+    return _result_response(
+        request_id,
+        {
+            "eid": eid,
+            "stage": stage_name,
+            "topology": topology,
+            "vertex_count": num_verts,
+            "comp_count": comp_count,
+            "stride": stride,
+            "vertices": vertices,
+            "index_count": len(indices),
+            "indices": indices,
+        },
+    ), True
+
+
 def _handle_ibuffer_decode(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -291,4 +375,5 @@ HANDLERS: dict[str, Any] = {
     "cbuffer_decode": _handle_cbuffer_decode,
     "vbuffer_decode": _handle_vbuffer_decode,
     "ibuffer_decode": _handle_ibuffer_decode,
+    "mesh_data": _handle_mesh_data,
 }

@@ -21,6 +21,7 @@ from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
 from rdc.commands.export import buffer_cmd, rt_cmd, texture_cmd
 from rdc.commands.info import info_cmd, log_cmd, stats_cmd
+from rdc.commands.mesh import mesh_cmd
 from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
 from rdc.commands.pixel import pixel_cmd
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
@@ -99,6 +100,7 @@ main.add_command(complete_cmd, name="_complete")
 main.add_command(texture_cmd, name="texture")
 main.add_command(rt_cmd, name="rt")
 main.add_command(buffer_cmd, name="buffer")
+main.add_command(mesh_cmd, name="mesh")
 main.add_command(search_cmd, name="search")
 main.add_command(usage_cmd, name="usage")
 main.add_command(completion_cmd, name="completion")
