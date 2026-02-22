@@ -139,8 +139,23 @@ def filter_by_type(flat: list[FlatAction], action_type: str) -> list[FlatAction]
     return [a for a in flat if a.flags & flag]
 
 
-def filter_by_pass(flat: list[FlatAction], pass_name: str) -> list[FlatAction]:
-    """Filter flattened actions by pass name (case-insensitive)."""
+def filter_by_pass(
+    flat: list[FlatAction],
+    pass_name: str,
+    actions: list[Any] | None = None,
+    sf: Any = None,
+) -> list[FlatAction]:
+    """Filter flattened actions by pass name (case-insensitive).
+
+    When `actions` is provided, uses EID-range matching via `_build_pass_list`
+    to support semantic pass names (e.g. 'Colour Pass #1'). Falls back to
+    `a.pass_name` string comparison when no pass matches or `actions` is None.
+    """
+    if actions is not None:
+        passes = _build_pass_list(actions, sf)
+        target = next((p for p in passes if p["name"].lower() == pass_name.lower()), None)
+        if target:
+            return [a for a in flat if target["begin_eid"] <= a.eid <= target["end_eid"]]
     lower = pass_name.lower()
     return [a for a in flat if a.pass_name.lower() == lower]
 
@@ -323,7 +338,7 @@ def pipeline_row(
     row: dict[str, Any] = {
         "eid": eid,
         "api": api_name,
-        "topology": str(pipe_state.GetPrimitiveTopology()),
+        "topology": getattr((_topo := pipe_state.GetPrimitiveTopology()), "name", str(_topo)),
         "graphics_pipeline": _rid(pipe_state.GetGraphicsPipelineObject()),
         "compute_pipeline": _rid(pipe_state.GetComputePipelineObject()),
     }
@@ -523,6 +538,19 @@ def _subtree_stats(action: Any, sf: Any = None) -> dict[str, Any]:
     }
 
 
+def _friendly_pass_name(api_name: str, index: int) -> str:
+    """Generate a readable pass name from raw API string when no debug markers exist."""
+    color_count = api_name.count("C=")
+    has_depth = "D=" in api_name
+    parts = []
+    if color_count:
+        parts.append(f"{color_count} Target{'s' if color_count > 1 else ''}")
+    if has_depth:
+        parts.append("Depth")
+    suffix = f" ({' + '.join(parts)})" if parts else ""
+    return f"Colour Pass #{index + 1}{suffix}"
+
+
 def _build_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
     """Build enriched pass list with begin/end EID, draws, dispatches, triangles."""
     passes: list[dict[str, Any]] = []
@@ -545,6 +573,7 @@ def _build_pass_list_recursive(
         is_begin = bool(flags & _BEGIN_PASS) and not (flags & (_END_PASS | _CMD_BUFFER))
 
         if is_begin:
+            api_name = a.GetName(sf) if sf is not None else getattr(a, "_name", "")
             if a.children:
                 # Children-of-BeginPass: real API and mock tree patterns
                 content = a.children
@@ -555,7 +584,10 @@ def _build_pass_list_recursive(
                     for g in marker_groups:
                         passes.append(_subtree_stats(g, sf))
                 elif any(_subtree_has_draws(c) for c in content):
-                    passes.append(_subtree_stats(a, sf))
+                    entry = _subtree_stats(a, sf)
+                    if "(" in api_name:
+                        entry["name"] = _friendly_pass_name(api_name, len(passes))
+                    passes.append(entry)
                 i += 1
             else:
                 # Flat-sibling: collect window between BeginPass and EndPass
@@ -573,7 +605,10 @@ def _build_pass_list_recursive(
                     for g in marker_groups:
                         passes.append(_subtree_stats(g, sf))
                 elif any(_subtree_has_draws(c) for c in window):
-                    passes.append(_window_stats(a, window, sf))
+                    entry = _window_stats(a, window, sf)
+                    if "(" in api_name:
+                        entry["name"] = _friendly_pass_name(api_name, len(passes))
+                    passes.append(entry)
                 i = j
         elif a.children:
             _build_pass_list_recursive(a.children, passes, sf)

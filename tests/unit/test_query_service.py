@@ -14,6 +14,8 @@ from mock_renderdoc import (
 )
 
 from rdc.services.query_service import (
+    _build_pass_list,
+    _friendly_pass_name,
     aggregate_stats,
     filter_by_pass,
     filter_by_pattern,
@@ -21,6 +23,7 @@ from rdc.services.query_service import (
     find_action_by_eid,
     get_pass_detail,
     get_top_draws,
+    pipeline_row,
     walk_actions,
 )
 
@@ -300,3 +303,263 @@ class TestGetPassDetail:
         assert result is not None
         # shadow has draws with numIndices=3600 and 2400 → 1200+800 tris
         assert result["triangles"] == 2000
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: filter_by_pass EID-range path
+# ---------------------------------------------------------------------------
+
+
+def _build_eid_range_tree() -> list[ActionDescription]:
+    """Flat-sibling tree: BeginPass / draws / EndPass."""
+    begin = ActionDescription(
+        eventId=3,
+        flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+        _name="vkCmdBeginRenderPass(C=Load)",
+    )
+    draw1 = ActionDescription(eventId=5, flags=ActionFlags.Drawcall, numIndices=3, _name="draw1")
+    draw2 = ActionDescription(eventId=7, flags=ActionFlags.Drawcall, numIndices=3, _name="draw2")
+    draw3 = ActionDescription(eventId=9, flags=ActionFlags.Drawcall, numIndices=3, _name="draw3")
+    end = ActionDescription(
+        eventId=10,
+        flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+        _name="EndPass",
+    )
+    return [begin, draw1, draw2, draw3, end]
+
+
+def _build_marker_tree() -> list[ActionDescription]:
+    """Tree with marker group inside BeginPass children."""
+    begin = ActionDescription(
+        eventId=3,
+        flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+        _name="vkCmdBeginRenderPass(C=Load)",
+    )
+    draw = ActionDescription(eventId=5, flags=ActionFlags.Drawcall, numIndices=3, _name="draw")
+    marker = ActionDescription(
+        eventId=4,
+        flags=ActionFlags.PushMarker,
+        _name="Opaque objects",
+        children=[draw],
+    )
+    begin.children = [marker]
+    end = ActionDescription(
+        eventId=10,
+        flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+        _name="EndPass",
+    )
+    return [begin, end]
+
+
+class TestFilterByPassEidRange:
+    def test_eid_range_semantic_name(self) -> None:
+        actions = _build_eid_range_tree()
+        flat = walk_actions(actions)
+        draws = [a for a in flat if a.flags & 0x0002]
+        # _build_pass_list produces "Colour Pass #1 (1 Target)" for single-color markerless pass
+        result = filter_by_pass(draws, "Colour Pass #1 (1 Target)", actions=actions)
+        assert len(result) == 3
+        assert {a.eid for a in result} == {5, 7, 9}
+
+    def test_eid_range_marker_name(self) -> None:
+        actions = _build_marker_tree()
+        flat = walk_actions(actions)
+        draws = [a for a in flat if a.flags & 0x0002]
+        result = filter_by_pass(draws, "Opaque objects", actions=actions)
+        assert len(result) == 1
+        assert result[0].eid == 5
+
+    def test_name_not_found_fallback_empty(self) -> None:
+        actions = _build_eid_range_tree()
+        flat = walk_actions(actions)
+        result = filter_by_pass(flat, "NonExistent", actions=actions)
+        assert result == []
+
+    def test_name_not_found_fallback_uses_pass_name(self) -> None:
+        # fallback to a.pass_name when not found in _build_pass_list
+        actions = _build_eid_range_tree()
+        flat = walk_actions(actions)
+        # pass_name is assigned from BeginPass name during walk
+        # "vkCmdBeginRenderPass(C=Load)" won't match, so fallback triggers
+        # Inject a FlatAction with matching pass_name to verify fallback works
+        from rdc.services.query_service import FlatAction
+
+        extra = FlatAction(eid=99, name="fake", flags=0x0002, pass_name="legacy-pass")
+        result = filter_by_pass(flat + [extra], "legacy-pass", actions=actions)
+        assert len(result) == 1
+        assert result[0].eid == 99
+
+    def test_no_actions_legacy_path(self) -> None:
+        flat = walk_actions(_build_action_tree())
+        result = filter_by_pass(flat, "Shadow")
+        assert len(result) > 0
+        assert all(a.pass_name == "Shadow" for a in result)
+
+
+# ---------------------------------------------------------------------------
+# Fix 4: _friendly_pass_name helper
+# ---------------------------------------------------------------------------
+
+
+class TestFriendlyPassName:
+    def test_single_color_no_depth(self) -> None:
+        assert _friendly_pass_name("vkCmdBeginRenderPass(C=Load)", 0) == "Colour Pass #1 (1 Target)"
+
+    def test_multi_color_with_depth(self) -> None:
+        assert (
+            _friendly_pass_name("vkCmdBeginRenderPass(C=Load, C=Clear, D=Clear)", 2)
+            == "Colour Pass #3 (2 Targets + Depth)"
+        )
+
+    def test_depth_only(self) -> None:
+        assert _friendly_pass_name("vkCmdBeginRenderPass(D=Clear)", 0) == "Colour Pass #1 (Depth)"
+
+    def test_unknown_api_no_crash(self) -> None:
+        assert _friendly_pass_name("UnknownPassType()", 0) == "Colour Pass #1"
+
+    def test_index_one_based(self) -> None:
+        assert _friendly_pass_name("vkCmdBeginRenderPass(C=Load)", 2).startswith("Colour Pass #3")
+
+    def test_always_returns_nonempty_string(self) -> None:
+        assert len(_friendly_pass_name("", 0)) > 0
+
+
+class TestBuildPassListFriendlyNames:
+    def test_friendly_name_no_markers(self) -> None:
+        """Markerless flat-sibling tree: name should be friendly, not raw API string."""
+        begin = ActionDescription(
+            eventId=1,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Load, D=Clear)",
+        )
+        draw = ActionDescription(eventId=2, flags=ActionFlags.Drawcall, numIndices=3, _name="d")
+        end = ActionDescription(
+            eventId=3, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="EndPass"
+        )
+        passes = _build_pass_list([begin, draw, end])
+        assert len(passes) == 1
+        assert passes[0]["name"] == "Colour Pass #1 (1 Target + Depth)"
+        assert not passes[0]["name"].startswith("vkCmd")
+
+    def test_friendly_name_children_no_markers(self) -> None:
+        """Children-of-BeginPass with no marker groups: name should be friendly."""
+        begin = ActionDescription(
+            eventId=1,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Clear, C=Load)",
+        )
+        begin.children = [
+            ActionDescription(eventId=2, flags=ActionFlags.Drawcall, numIndices=3, _name="d"),
+        ]
+        end = ActionDescription(
+            eventId=3, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="EndPass"
+        )
+        passes = _build_pass_list([begin, end])
+        assert len(passes) == 1
+        assert passes[0]["name"] == "Colour Pass #1 (2 Targets)"
+        assert not passes[0]["name"].startswith("vkCmd")
+
+    def test_preserves_marker_group_name(self) -> None:
+        """Marker groups inside BeginPass use marker name, not friendly pass name."""
+        begin = ActionDescription(
+            eventId=1,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Load)",
+        )
+        draw = ActionDescription(eventId=3, flags=ActionFlags.Drawcall, numIndices=3, _name="d")
+        marker = ActionDescription(
+            eventId=2,
+            flags=ActionFlags.PushMarker,
+            _name="Opaque objects",
+            children=[draw],
+        )
+        begin.children = [marker]
+        end = ActionDescription(
+            eventId=4, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="EndPass"
+        )
+        passes = _build_pass_list([begin, end])
+        assert len(passes) == 1
+        assert passes[0]["name"] == "Opaque objects"
+
+    def test_multi_pass_indices_increment(self) -> None:
+        """Two markerless passes produce Colour Pass #1 and Colour Pass #2."""
+
+        def _mk_pass(begin_eid: int, draw_eid: int, end_eid: int, api_name: str) -> list:
+            b = ActionDescription(
+                eventId=begin_eid,
+                flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+                _name=api_name,
+            )
+            d = ActionDescription(
+                eventId=draw_eid, flags=ActionFlags.Drawcall, numIndices=3, _name="d"
+            )
+            e = ActionDescription(
+                eventId=end_eid, flags=ActionFlags.EndPass | ActionFlags.PassBoundary, _name="End"
+            )
+            return [b, d, e]
+
+        actions = _mk_pass(1, 2, 3, "vkCmdBeginRenderPass(C=Load)") + _mk_pass(
+            10, 11, 12, "vkCmdBeginRenderPass(C=Load)"
+        )
+        passes = _build_pass_list(actions)
+        assert len(passes) == 2
+        assert passes[0]["name"] == "Colour Pass #1 (1 Target)"
+        assert passes[1]["name"] == "Colour Pass #2 (1 Target)"
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: topology enum name
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineRowTopology:
+    def test_topology_enum_name(self) -> None:
+        """Object with .name attribute → use name string."""
+
+        class _FakeTopology:
+            name = "TriangleList"
+
+        pipe = type(
+            "P",
+            (),
+            {
+                "GetPrimitiveTopology": lambda self: _FakeTopology(),
+                "GetGraphicsPipelineObject": lambda self: 0,
+                "GetComputePipelineObject": lambda self: 0,
+            },
+        )()
+        row = pipeline_row(10, "Vulkan", pipe)
+        assert row["topology"] == "TriangleList"
+
+    def test_topology_int_fallback(self) -> None:
+        """Plain int (no .name) → str(value)."""
+        pipe = type(
+            "P",
+            (),
+            {
+                "GetPrimitiveTopology": lambda self: 3,
+                "GetGraphicsPipelineObject": lambda self: 0,
+                "GetComputePipelineObject": lambda self: 0,
+            },
+        )()
+        row = pipeline_row(10, "Vulkan", pipe)
+        assert row["topology"] == "3"
+
+    def test_topology_intenum(self) -> None:
+        """IntEnum value → .name attribute gives enum member name."""
+        from enum import IntEnum
+
+        class MockTopology(IntEnum):
+            TriangleList = 3
+
+        pipe = type(
+            "P",
+            (),
+            {
+                "GetPrimitiveTopology": lambda self: MockTopology.TriangleList,
+                "GetGraphicsPipelineObject": lambda self: 0,
+                "GetComputePipelineObject": lambda self: 0,
+            },
+        )()
+        row = pipeline_row(10, "Vulkan", pipe)
+        assert row["topology"] == "TriangleList"

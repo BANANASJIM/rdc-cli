@@ -363,6 +363,10 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         actions = state.adapter.get_root_actions()
         pipe_states = _collect_pipe_states(actions, state)
         rows = shader_inventory(pipe_states)
+        stage_filter = params.get("stage")
+        if stage_filter:
+            stage_filter = stage_filter.lower()
+            rows = [r for r in rows if stage_filter in r["stages"].lower().split(",")]
         return _result_response(request_id, {"rows": rows}), True
     if method == "resources":
         if state.adapter is None:
@@ -1853,11 +1857,13 @@ def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -
     from rdc.services.query_service import aggregate_stats, filter_by_pass, filter_by_type
 
     all_flat = _get_flat_actions(state)
-    all_stats = aggregate_stats(all_flat)
-    flat = filter_by_type(all_flat, "draw")
     pass_name = params.get("pass")
     if pass_name:
-        flat = filter_by_pass(flat, pass_name)
+        _actions = state.adapter.get_root_actions()
+        _sf = state.structured_file
+        all_flat = filter_by_pass(all_flat, pass_name, actions=_actions, sf=_sf)
+    stats = aggregate_stats(all_flat)
+    flat = filter_by_type(all_flat, "draw")
     sort_field = params.get("sort")
     if sort_field == "triangles":
         flat.sort(key=lambda a: (a.num_indices // 3) * a.num_instances, reverse=True)
@@ -1876,10 +1882,10 @@ def _handle_draws(request_id: int, params: dict[str, Any], state: DaemonState) -
         for a in flat
     ]
     summary = (
-        f"{all_stats.total_draws} draw calls "
-        f"({all_stats.indexed_draws} indexed, "
-        f"{all_stats.dispatches} dispatches, "
-        f"{all_stats.clears} clears)"
+        f"{stats.total_draws} draw calls "
+        f"({stats.indexed_draws} indexed, "
+        f"{stats.dispatches} dispatches, "
+        f"{stats.clears} clears)"
     )
     return _result_response(request_id, {"draws": draws, "summary": summary})
 
