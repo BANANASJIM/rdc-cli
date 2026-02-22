@@ -482,3 +482,102 @@ class TestBinaryHandlersReal:
         assert resp["result"]["ok"] is True
         assert running is False
         assert not temp_dir.exists()
+
+
+class TestBugFiltersReal:
+    """GPU regression tests for phase2.7-bug-filters fixes (Fixes 1-5)."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def test_fix1_shaders_stage_vs_filter(self) -> None:
+        """Fix 1: shaders --stage vs returns only VS rows, result is non-empty."""
+        result = _call(self.state, "shaders", {"stage": "vs"})
+        rows = result["rows"]
+        assert len(rows) > 0, "expected at least one VS shader"
+        for r in rows:
+            assert "vs" in r["stages"].lower().split(","), (
+                f"row stages={r['stages']!r} does not contain 'vs'"
+            )
+
+    def test_fix1_shaders_stage_ps_filter(self) -> None:
+        """Fix 1: shaders --stage ps returns only PS rows."""
+        result = _call(self.state, "shaders", {"stage": "ps"})
+        rows = result["rows"]
+        assert len(rows) > 0, "expected at least one PS shader"
+        for r in rows:
+            assert "ps" in r["stages"].lower().split(",")
+
+    def test_fix1_shaders_no_filter_returns_all(self) -> None:
+        """Fix 1: shaders without stage filter returns unfiltered rows."""
+        all_rows = _call(self.state, "shaders")["rows"]
+        vs_rows = _call(self.state, "shaders", {"stage": "vs"})["rows"]
+        assert len(all_rows) >= len(vs_rows)
+
+    def test_fix2_draws_pass_filter_matches_passes(self) -> None:
+        """Fix 2: draws --pass <name> with a name from rdc passes returns non-empty list."""
+        passes_result = _call(self.state, "passes")
+        pass_list = passes_result["tree"]["passes"]
+        if not pass_list:
+            pytest.skip("no passes in capture")
+        pass_name = pass_list[0]["name"]
+        result = _call(self.state, "draws", {"pass": pass_name})
+        draws = result["draws"]
+        assert len(draws) > 0, f"expected draws in pass {pass_name!r}"
+
+    def test_fix3_draws_summary_matches_len(self) -> None:
+        """Fix 3: summary draw count matches len(draws) in response."""
+        passes_result = _call(self.state, "passes")
+        pass_list = passes_result["tree"]["passes"]
+        if not pass_list:
+            pytest.skip("no passes in capture")
+        pass_name = pass_list[0]["name"]
+        result = _call(self.state, "draws", {"pass": pass_name})
+        draws = result["draws"]
+        summary = result["summary"]
+        expected_prefix = f"{len(draws)} draw calls"
+        assert summary.startswith(expected_prefix), (
+            f"summary={summary!r} but len(draws)={len(draws)}"
+        )
+
+    def test_fix3_draws_no_filter_summary_consistent(self) -> None:
+        """Fix 3: unfiltered summary count matches len(draws)."""
+        result = _call(self.state, "draws")
+        draws = result["draws"]
+        summary = result["summary"]
+        expected_prefix = f"{len(draws)} draw calls"
+        assert summary.startswith(expected_prefix), (
+            f"summary={summary!r} but len(draws)={len(draws)}"
+        )
+
+    def test_fix4_passes_no_raw_api_names(self) -> None:
+        """Fix 4: pass names on markerless capture do not start with 'vkCmd'."""
+        passes_result = _call(self.state, "passes")
+        pass_list = passes_result["tree"]["passes"]
+        for p in pass_list:
+            assert not p["name"].startswith("vkCmd"), f"raw API pass name leaked: {p['name']!r}"
+
+    def test_fix4_passes_all_names_nonempty(self) -> None:
+        """Fix 4: all pass names are non-empty strings (no raw API name leaks)."""
+        passes_result = _call(self.state, "passes")
+        pass_list = passes_result["tree"]["passes"]
+        for p in pass_list:
+            assert isinstance(p["name"], str) and len(p["name"]) > 0
+
+    def test_fix5_topology_is_not_integer(self) -> None:
+        """Fix 5: pipeline topology field is not a plain integer string."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "pipeline", {"eid": draw_eid})
+        topology = result["row"]["topology"]
+        assert isinstance(topology, str)
+        assert not topology.isdigit(), f"topology is raw integer: {topology!r}"
+
+    def test_fix5_topology_is_trianglelist(self) -> None:
+        """Fix 5: hello_triangle topology is 'TriangleList', not '3'."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "pipeline", {"eid": draw_eid})
+        topology = result["row"]["topology"]
+        assert topology == "TriangleList", f"expected TriangleList, got {topology!r}"
