@@ -399,3 +399,65 @@ class TestLogHandler:
     def test_log_invalid_eid(self):
         resp, _ = _handle_request(_req("log", eid="abc"), _make_log_state([]))
         assert resp["error"]["code"] == -32602
+
+
+class TestEventMultiChunk:
+    def _make_multi_chunk_state(self):
+        sf = StructuredFile(
+            chunks=[
+                SDChunk(
+                    name="vkCmdSetViewport",
+                    children=[
+                        SDObject(name="viewportCount", data=SDData(basic=SDBasic(value=1))),
+                    ],
+                ),
+                SDChunk(
+                    name="vkCmdDrawIndexed",
+                    children=[
+                        SDObject(name="indexCount", data=SDData(basic=SDBasic(value=3600))),
+                        SDObject(name="instanceCount", data=SDData(basic=SDBasic(value=1))),
+                    ],
+                ),
+            ]
+        )
+        action = ActionDescription(
+            eventId=42,
+            flags=ActionFlags.Drawcall | ActionFlags.Indexed,
+            numIndices=3600,
+            numInstances=1,
+            _name="vkCmdDrawIndexed",
+            events=[
+                APIEvent(eventId=42, chunkIndex=0),
+                APIEvent(eventId=42, chunkIndex=1),
+            ],
+        )
+        controller = SimpleNamespace(
+            GetRootActions=lambda: [action],
+            GetResources=lambda: [],
+            GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+            GetPipelineState=lambda: SimpleNamespace(),
+            SetFrameEvent=lambda eid, force: None,
+            GetStructuredFile=lambda: sf,
+            GetDebugMessages=lambda: [],
+            Shutdown=lambda: None,
+        )
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+        state.structured_file = sf
+        state.api_name = "Vulkan"
+        state.max_eid = 42
+        from rdc.vfs.tree_cache import build_vfs_skeleton
+
+        state.vfs_tree = build_vfs_skeleton([action], [], sf=sf)
+        return state
+
+    def test_all_chunk_params_present(self):
+        resp, _ = _handle_request(_req("event", eid=42), self._make_multi_chunk_state())
+        params_str = resp["result"]["Parameters"]
+        assert "viewportCount" in params_str
+        assert "indexCount" in params_str
+        assert "instanceCount" in params_str
+
+    def test_last_chunk_wins_api_call(self):
+        resp, _ = _handle_request(_req("event", eid=42), self._make_multi_chunk_state())
+        assert resp["result"]["API Call"] == "vkCmdDrawIndexed"
