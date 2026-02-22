@@ -1477,3 +1477,78 @@ class TestDiffLibraryLevelReal:
         assert result["size"] > 0
         exported = Path(result["path"])
         assert exported.exists()
+
+
+class TestShaderDebugReal:
+    """GPU integration tests for Phase 4A shader debug handlers."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        return result["events"][0]["eid"]
+
+    def test_debug_pixel_basic(self) -> None:
+        """Debug a pixel at center of first draw -- should get steps or no-fragment."""
+        draw_eid = self._first_draw_eid()
+        req = {
+            "id": 1,
+            "method": "debug_pixel",
+            "params": {"_token": self.state.token, "eid": draw_eid, "x": 320, "y": 240},
+        }
+        resp, _ = _handle_request(req, self.state)
+        if "error" in resp:
+            assert resp["error"]["code"] == -32007
+        else:
+            r = resp["result"]
+            assert r["total_steps"] > 0
+            assert r["stage"] == "ps"
+            for step in r["trace"]:
+                assert "instruction" in step
+                assert "changes" in step
+
+    def test_debug_pixel_no_fragment(self) -> None:
+        """Debug a corner pixel that likely has no fragment."""
+        draw_eid = self._first_draw_eid()
+        req = {
+            "id": 1,
+            "method": "debug_pixel",
+            "params": {"_token": self.state.token, "eid": draw_eid, "x": 0, "y": 0},
+        }
+        resp, _ = _handle_request(req, self.state)
+        if "error" in resp:
+            assert resp["error"]["code"] == -32007
+        else:
+            assert resp["result"]["total_steps"] >= 0
+
+    def test_debug_vertex_basic(self) -> None:
+        """Debug vertex 0 of first draw -- should get VS trace."""
+        draw_eid = self._first_draw_eid()
+        req = {
+            "id": 1,
+            "method": "debug_vertex",
+            "params": {"_token": self.state.token, "eid": draw_eid, "vtx_id": 0},
+        }
+        resp, _ = _handle_request(req, self.state)
+        if "error" in resp:
+            assert resp["error"]["code"] == -32007
+        else:
+            r = resp["result"]
+            assert r["total_steps"] > 0
+            assert r["stage"] == "vs"
+
+    def test_debug_pixel_source_mapping(self) -> None:
+        """Verify file/line fields exist in steps (may be empty without debug info)."""
+        draw_eid = self._first_draw_eid()
+        req = {
+            "id": 1,
+            "method": "debug_pixel",
+            "params": {"_token": self.state.token, "eid": draw_eid, "x": 320, "y": 240},
+        }
+        resp, _ = _handle_request(req, self.state)
+        if "error" not in resp:
+            for step in resp["result"]["trace"]:
+                assert "file" in step
+                assert "line" in step

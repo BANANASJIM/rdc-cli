@@ -319,6 +319,25 @@ class CompType(IntEnum):
     UNormSRGB = 9
 
 
+class ShaderEncoding(IntEnum):
+    Unknown = 0
+    DXBC = 1
+    GLSL = 2
+    SPIRV = 3
+    SPIRVAsm = 4  # noqa: E702
+    HLSL = 5
+    DXIL = 6
+    OpenGLSPIRV = 7
+    OpenGLSPIRVAsm = 8
+    Slang = 9  # noqa: E702
+
+
+class ShaderEvents(IntFlag):
+    NoEvent = 0
+    SampleLoadGather = 1
+    GeneratedNanOrInf = 2
+
+
 @dataclass
 class CounterValue:
     d: float = 0.0
@@ -953,6 +972,79 @@ class ShaderReflection:
 
 
 @dataclass
+class DebugPixelInputs:
+    sample: int = 0xFFFFFFFF
+    primitive: int = 0xFFFFFFFF
+    view: int = 0xFFFFFFFF
+
+
+@dataclass
+class ShaderCompileFlags:
+    flags: list[Any] = field(default_factory=list)
+
+
+@dataclass
+class LineColumnInfo:
+    fileIndex: int = 0
+    lineStart: int = 0
+    lineEnd: int = 0
+    colStart: int = 0
+    colEnd: int = 0
+
+
+@dataclass
+class InstructionSourceInfo:
+    instruction: int = 0
+    lineInfo: LineColumnInfo = field(default_factory=LineColumnInfo)
+
+
+@dataclass
+class SourceVariableMapping:
+    name: str = ""
+    type: int = 0
+    rows: int = 0
+    columns: int = 0
+    offset: int = 0
+    signatureIndex: int = -1
+    variables: list[Any] = field(default_factory=list)
+
+
+@dataclass
+class ShaderVariableChange:
+    before: ShaderVariable = field(default_factory=ShaderVariable)
+    after: ShaderVariable = field(default_factory=ShaderVariable)
+
+
+@dataclass
+class ShaderDebugState:
+    stepIndex: int = 0
+    nextInstruction: int = 0
+    flags: int = 0
+    changes: list[ShaderVariableChange] = field(default_factory=list)
+    callstack: list[str] = field(default_factory=lambda: ["main"])
+
+
+@dataclass
+class SourceFile:
+    filename: str = ""
+    contents: str = ""
+
+
+@dataclass
+class ShaderDebugTrace:
+    debugger: Any = None
+    stage: ShaderStage = ShaderStage.Pixel
+    inputs: list[ShaderVariable] = field(default_factory=list)
+    sourceVars: list[SourceVariableMapping] = field(default_factory=list)
+    instInfo: list[InstructionSourceInfo] = field(default_factory=list)
+    sourceFiles: list[SourceFile] = field(default_factory=list)
+    constantBlocks: list[Any] = field(default_factory=list)
+    readOnlyResources: list[Any] = field(default_factory=list)
+    readWriteResources: list[Any] = field(default_factory=list)
+    samplers: list[Any] = field(default_factory=list)
+
+
+@dataclass
 class SDBasic:
     value: Any = None
 
@@ -1148,6 +1240,9 @@ class MockReplayController:
         self._counter_descriptions: dict[int, CounterDescription] = {}
         self._counter_results: list[CounterResult] = []
         self._pixel_history_map: dict[tuple[int, int], list[PixelModification]] = {}
+        self._debug_pixel_map: dict[tuple[int, int], ShaderDebugTrace] = {}
+        self._debug_vertex_map: dict[int, ShaderDebugTrace] = {}
+        self._debug_states: dict[int, list[list[ShaderDebugState]]] = {}
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -1251,6 +1346,22 @@ class MockReplayController:
     ) -> list[PixelModification]:
         """Mock PixelHistory -- returns modifications keyed by (x, y)."""
         return self._pixel_history_map.get((x, y), [])
+
+    def DebugPixel(self, x: int, y: int, inputs: Any) -> ShaderDebugTrace:
+        return self._debug_pixel_map.get((x, y), ShaderDebugTrace())
+
+    def DebugVertex(self, vtx: int, inst: int, idx: int, view: int) -> ShaderDebugTrace:
+        return self._debug_vertex_map.get(vtx, ShaderDebugTrace())
+
+    def ContinueDebug(self, debugger: Any) -> list[ShaderDebugState]:
+        key = id(debugger)
+        batches = self._debug_states.get(key, [])
+        if batches:
+            return batches.pop(0)
+        return []
+
+    def FreeTrace(self, trace: Any) -> None:
+        pass
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

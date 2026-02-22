@@ -27,6 +27,7 @@ from rdc.handlers._helpers import (
 )
 from rdc.handlers.buffer import HANDLERS as _BUFFER_HANDLERS
 from rdc.handlers.core import HANDLERS as _CORE_HANDLERS
+from rdc.handlers.debug import HANDLERS as _DEBUG_HANDLERS
 from rdc.handlers.descriptor import HANDLERS as _DESCRIPTOR_HANDLERS
 from rdc.handlers.pipe_state import HANDLERS as _PIPE_STATE_HANDLERS
 from rdc.handlers.pixel import HANDLERS as _PIXEL_HANDLERS
@@ -64,6 +65,7 @@ _DISPATCH: dict[str, Any] = {
     **_SCRIPT_HANDLERS,
     **_PIXEL_HANDLERS,
     **_VFS_HANDLERS,
+    **_DEBUG_HANDLERS,
 }
 
 

@@ -15,6 +15,7 @@ from rdc.commands.assert_image import assert_image_cmd
 from rdc.commands.capture import capture_cmd
 from rdc.commands.completion import completion_cmd
 from rdc.commands.counters import counters_cmd
+from rdc.commands.debug import debug_group
 from rdc.commands.diff import diff_cmd
 from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
@@ -104,6 +105,7 @@ main.add_command(assert_clean_cmd, name="assert-clean")
 main.add_command(assert_count_cmd, name="assert-count")
 main.add_command(assert_state_cmd, name="assert-state")
 main.add_command(snapshot_cmd, name="snapshot")
+main.add_command(debug_group, name="debug")
 
 
 if __name__ == "__main__":
