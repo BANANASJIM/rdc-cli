@@ -12,7 +12,7 @@ from rdc.cli import main
 
 
 def _setup(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> None:
-    import rdc.commands.pipeline as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -21,7 +21,7 @@ def _setup(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> None:
 
 def _capture_calls(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> list[dict]:
     calls: list[dict] = []
-    import rdc.commands.pipeline as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)

@@ -190,7 +190,7 @@ class TestSnapshotFatalFailures:
 
     def test_no_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         out_dir = tmp_path / "snap"
-        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
+        monkeypatch.setattr("rdc.commands._helpers.load_session", lambda: None)
 
         result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 

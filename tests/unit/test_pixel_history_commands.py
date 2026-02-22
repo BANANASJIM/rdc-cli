@@ -174,7 +174,7 @@ def test_no_header_empty(monkeypatch: Any) -> None:
 
 
 def test_missing_session(monkeypatch: Any) -> None:
-    monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
+    monkeypatch.setattr("rdc.commands._helpers.load_session", lambda: None)
     result = CliRunner().invoke(main, ["pixel", "512", "384"])
     assert result.exit_code == 1
 

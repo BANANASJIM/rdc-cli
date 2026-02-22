@@ -96,6 +96,14 @@ class TestScriptHappyPaths:
         assert resp["result"]["return_value"] == "fast"
 
 
+class TestScriptMissingParams:
+    def test_script_missing_path(self) -> None:
+        resp, keep = _handle_request(_req("script"), _make_state())
+        assert keep is True
+        assert resp["error"]["code"] == -32602
+        assert "path" in resp["error"]["message"]
+
+
 class TestScriptErrorPaths:
     def test_no_replay_loaded(self, tmp_path: Path) -> None:
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")

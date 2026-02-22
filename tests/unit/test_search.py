@@ -372,7 +372,7 @@ class TestVfsShaders:
 
 
 def _patch_search(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> None:
-    import rdc.commands.info as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -482,7 +482,7 @@ class TestSearchCli:
     def test_stage_option_passed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: list[dict[str, Any]] = []
 
-        import rdc.commands.info as mod
+        import rdc.commands._helpers as mod
 
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -499,7 +499,7 @@ class TestSearchCli:
     def test_case_sensitive_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: list[dict[str, Any]] = []
 
-        import rdc.commands.info as mod
+        import rdc.commands._helpers as mod
 
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)

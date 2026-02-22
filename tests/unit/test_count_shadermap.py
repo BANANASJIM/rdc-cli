@@ -244,7 +244,7 @@ class TestCountCLIOutput:
         from rdc.cli import main
 
         runner = CliRunner()
-        with patch("rdc.commands.unix_helpers._get_count_value", return_value=42):
+        with patch("rdc.commands.unix_helpers.call", return_value={"value": 42}):
             result = runner.invoke(main, ["count", "draws"])
         assert result.exit_code == 0
         assert result.output == "42\n"
@@ -254,7 +254,7 @@ class TestCountCLIOutput:
         from rdc.cli import main
 
         runner = CliRunner()
-        with patch("rdc.commands.unix_helpers._get_count_value", return_value=0):
+        with patch("rdc.commands.unix_helpers.call", return_value={"value": 0}):
             result = runner.invoke(main, ["count", "draws"])
         assert result.exit_code == 0
         assert result.output == "0\n"
@@ -263,7 +263,7 @@ class TestCountCLIOutput:
         from rdc.cli import main
 
         runner = CliRunner()
-        with patch("rdc.commands.unix_helpers._get_count_value", side_effect=SystemExit(1)):
+        with patch("rdc.commands.unix_helpers.call", side_effect=SystemExit(1)):
             result = runner.invoke(main, ["count", "draws"])
         assert result.exit_code == 1
 
@@ -283,7 +283,7 @@ class TestShaderMapCLIOutput:
 
         runner = CliRunner()
         rows = [{"eid": 42, "vs": 10, "hs": "-", "ds": "-", "gs": "-", "ps": 11, "cs": "-"}]
-        with patch("rdc.commands.unix_helpers._get_shader_map_rows", return_value=rows):
+        with patch("rdc.commands.unix_helpers.call", return_value={"rows": rows}):
             result = runner.invoke(main, ["shader-map"])
         assert result.exit_code == 0
         lines = result.output.strip().split("\n")
@@ -295,7 +295,7 @@ class TestShaderMapCLIOutput:
 
         runner = CliRunner()
         rows = [{"eid": 42, "vs": 10, "hs": "-", "ds": "-", "gs": "-", "ps": 11, "cs": "-"}]
-        with patch("rdc.commands.unix_helpers._get_shader_map_rows", return_value=rows):
+        with patch("rdc.commands.unix_helpers.call", return_value={"rows": rows}):
             result = runner.invoke(main, ["shader-map", "--no-header"])
         assert result.exit_code == 0
         lines = result.output.strip().split("\n")
@@ -305,7 +305,7 @@ class TestShaderMapCLIOutput:
         from rdc.cli import main
 
         runner = CliRunner()
-        with patch("rdc.commands.unix_helpers._get_shader_map_rows", return_value=[]):
+        with patch("rdc.commands.unix_helpers.call", return_value={"rows": []}):
             result = runner.invoke(main, ["shader-map"])
         assert result.exit_code == 0
         assert "EID\tVS\tHS\tDS\tGS\tPS\tCS" in result.output
@@ -314,7 +314,7 @@ class TestShaderMapCLIOutput:
         from rdc.cli import main
 
         runner = CliRunner()
-        with patch("rdc.commands.unix_helpers._get_shader_map_rows", return_value=[]):
+        with patch("rdc.commands.unix_helpers.call", return_value={"rows": []}):
             result = runner.invoke(main, ["shader-map", "--no-header"])
         assert result.exit_code == 0
         assert result.output == ""

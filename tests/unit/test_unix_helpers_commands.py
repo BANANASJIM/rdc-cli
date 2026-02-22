@@ -8,7 +8,7 @@ from rdc.cli import main
 
 
 def _patch_helpers(monkeypatch, response):
-    import rdc.commands.unix_helpers as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -44,7 +44,7 @@ def test_count_with_pass(monkeypatch) -> None:
 
 
 def test_count_no_session(monkeypatch) -> None:
-    import rdc.commands.unix_helpers as mod
+    import rdc.commands._helpers as mod
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(main, ["count", "draws"])
@@ -52,7 +52,7 @@ def test_count_no_session(monkeypatch) -> None:
 
 
 def test_count_error_response(monkeypatch) -> None:
-    import rdc.commands.unix_helpers as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
