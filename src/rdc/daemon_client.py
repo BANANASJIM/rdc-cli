@@ -4,6 +4,8 @@ import json
 import socket
 from typing import Any
 
+from rdc._transport import recv_line as _recv_line
+
 
 def send_request(
     host: str,
@@ -17,16 +19,3 @@ def send_request(
         response = _recv_line(sock)
     parsed: dict[str, Any] = json.loads(response)
     return parsed
-
-
-def _recv_line(sock: socket.socket) -> str:
-    chunks: list[bytes] = []
-    while True:
-        chunk = sock.recv(4096)
-        if not chunk:
-            break
-        chunks.append(chunk)
-        if b"\n" in chunk:
-            break
-    raw = b"".join(chunks)
-    return raw.split(b"\n", 1)[0].decode("utf-8")
