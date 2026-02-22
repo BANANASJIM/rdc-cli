@@ -72,6 +72,12 @@ def _handle_count(
 def _handle_shutdown(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
+    if state.replay_output is not None:
+        try:
+            state.replay_output.Shutdown()
+        except Exception:  # noqa: BLE001
+            pass
+        state.replay_output = None
     if state.temp_dir is not None:
         import shutil
 

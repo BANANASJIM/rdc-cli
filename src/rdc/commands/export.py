@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+
 import click
 
 from rdc.commands.info import _daemon_call
@@ -39,12 +41,58 @@ def texture_cmd(id: int, output: str | None, mip: int, raw: bool) -> None:
 
 
 @click.command("rt")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, required=False, default=None)
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option("--target", default=0, type=int, help="Color target index (default 0)")
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
-def rt_cmd(eid: int, output: str | None, target: int, raw: bool) -> None:
+@click.option(
+    "--overlay",
+    type=click.Choice(
+        [
+            "wireframe",
+            "depth",
+            "stencil",
+            "backface",
+            "viewport",
+            "nan",
+            "clipping",
+            "overdraw",
+            "triangle-size",
+        ]
+    ),
+    default=None,
+    help="Render with debug overlay",
+)
+@click.option("--width", type=int, default=256, help="Overlay render width")
+@click.option("--height", type=int, default=256, help="Overlay render height")
+def rt_cmd(
+    eid: int | None,
+    output: str | None,
+    target: int,
+    raw: bool,
+    overlay: str | None,
+    width: int,
+    height: int,
+) -> None:
     """Export render target as PNG."""
+    if overlay:
+        params: dict[str, object] = {"overlay": overlay, "width": width, "height": height}
+        if eid is not None:
+            params["eid"] = eid
+        result = _daemon_call("rt_overlay", params)
+        src_path = result["path"]
+        if output:
+            shutil.copy2(src_path, output)
+            click.echo(
+                f"overlay: {result['overlay']} {result['size']} bytes -> {output}",
+                err=True,
+            )
+        else:
+            click.echo(src_path)
+        return
+
+    if eid is None:
+        raise click.UsageError("EID is required when --overlay is not used")
     _export_vfs_path(f"/draws/{eid}/targets/color{target}.png", output, raw)
 
 
