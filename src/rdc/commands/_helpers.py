@@ -41,7 +41,11 @@ def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
     """
     host, port, token = require_session()
     payload = _request(method, 1, {"_token": token, **params}).to_dict()
-    response = send_request(host, port, payload)
+    try:
+        response = send_request(host, port, payload)
+    except OSError as exc:
+        click.echo(f"error: daemon unreachable: {exc}", err=True)
+        raise SystemExit(1) from exc
     if "error" in response:
         click.echo(f"error: {response['error']['message']}", err=True)
         raise SystemExit(1)

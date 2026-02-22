@@ -173,7 +173,7 @@ def diff_cmd(
             _render_framebuffer(result, output_json=output_json, threshold=threshold)
             sys.exit(0 if result.identical else 1)
 
-        if mode == "pipeline":
+        elif mode == "pipeline":
             assert pipeline_marker is not None
             exit_code = _handle_pipeline(
                 ctx,
@@ -184,7 +184,7 @@ def diff_cmd(
             )
             sys.exit(exit_code)
 
-        if mode == "resources":
+        elif mode == "resources":
             _handle_resources(
                 ctx,
                 capture_a,
@@ -196,7 +196,7 @@ def diff_cmd(
                 timeout,
             )
 
-        if mode == "stats":
+        elif mode == "stats":
             _handle_stats(
                 ctx,
                 output_json=output_json,
@@ -205,11 +205,11 @@ def diff_cmd(
                 no_header=no_header,
             )
 
-        if mode in _MODE_STUBS:
+        elif mode in _MODE_STUBS:
             click.echo(f"error: --{mode} not yet implemented", err=True)
             sys.exit(2)
 
-        # summary stub: exit 0
+        # else: summary stub — exit 0
     finally:
         stop_diff_session(ctx)
 

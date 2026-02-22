@@ -3,38 +3,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import click
 
-from rdc.daemon_client import send_request
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 from rdc.formatters.tsv import format_row
-from rdc.protocol import _request
 from rdc.services.query_service import STAGE_MAP
-from rdc.session_state import load_session
 
 _STAGE_CHOICES = ["vs", "hs", "ds", "gs", "ps", "cs"]
 _SORT_CHOICES = ["name", "stage", "uses"]
 _SHADER_STAGES_CLI: frozenset[str] = frozenset(STAGE_MAP)
-
-
-def _require_session() -> tuple[str, int, str]:
-    session = load_session()
-    if session is None:
-        click.echo("error: no active session (run 'rdc open' first)", err=True)
-        raise SystemExit(1)
-    return session.host, session.port, session.token
-
-
-def _call(method: str, params: dict[str, Any]) -> dict[str, Any]:
-    host, port, token = _require_session()
-    payload = _request(method, 1, {"_token": token, **params}).to_dict()
-    response = send_request(host, port, payload)
-    if "error" in response:
-        click.echo(f"error: {response['error']['message']}", err=True)
-        raise SystemExit(1)
-    return cast(dict[str, Any], response["result"])
 
 
 @click.command("pipeline")
@@ -55,7 +35,7 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
     section_lower = section.lower() if section else None
     is_non_shader_section = section_lower is not None and section_lower not in _SHADER_STAGES_CLI
 
-    result = _call("pipeline", params)
+    result = call("pipeline", params)
 
     if is_non_shader_section:
         # Non-shader sections return the pipe_* result directly (not wrapped in "row")
@@ -122,7 +102,7 @@ def bindings_cmd(
     if set_index is not None:
         params["set"] = set_index
 
-    result = _call("bindings", params)
+    result = call("bindings", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)
@@ -206,7 +186,7 @@ def shader_cmd(
 
     # Handle list_targets specially - just show available targets and return
     if list_targets:
-        result = _call("shader_targets", {})
+        result = call("shader_targets", {})
         targets_list: list[str] = result.get("targets", [])
         if as_json:
             write_json(targets_list)
@@ -218,7 +198,7 @@ def shader_cmd(
 
     # Handle --all - get all shaders
     if get_all:
-        result = _call("shader_all", params)
+        result = call("shader_all", params)
         rows: list[dict[str, Any]] = result.get("stages", [])
         if as_json:
             write_json(rows)
@@ -242,7 +222,7 @@ def shader_cmd(
 
     # --target dispatches to shader_disasm
     if target is not None:
-        disasm_result = _call(
+        disasm_result = call(
             "shader_disasm", {"eid": eid or 0, "stage": stage or "ps", "target": target}
         )
         if as_json:
@@ -257,7 +237,7 @@ def shader_cmd(
         return
 
     # Single shader query
-    result = _call("shader", params)
+    result = call("shader", params)
     row = result.get("row", {})
     if as_json:
         write_json(row)
@@ -359,7 +339,7 @@ def shaders_cmd(stage_filter: str | None, sort_by: str, as_json: bool) -> None:
     if sort_by is not None:
         params["sort"] = sort_by
 
-    result = _call("shaders", params)
+    result = call("shaders", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)

@@ -131,6 +131,27 @@ def test_debug_pixel_happy_path() -> None:
     assert r["outputs"][0]["name"] == "outColor"
 
 
+def test_debug_pixel_missing_eid() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("debug_pixel", {"x": 0, "y": 0}), state)
+    assert resp["error"]["code"] == -32602
+    assert "eid" in resp["error"]["message"]
+
+
+def test_debug_pixel_missing_x() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "y": 0}), state)
+    assert resp["error"]["code"] == -32602
+    assert "x" in resp["error"]["message"]
+
+
+def test_debug_pixel_missing_y() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0}), state)
+    assert resp["error"]["code"] == -32602
+    assert "y" in resp["error"]["message"]
+
+
 def test_debug_pixel_no_fragment() -> None:
     """Empty trace (no debugger) returns -32007."""
     state = _make_state()
@@ -236,6 +257,20 @@ def test_debug_vertex_happy_path() -> None:
     assert r["stage"] == "vs"
     assert r["total_steps"] == 1
     assert r["trace"][0]["changes"][0]["name"] == "position"
+
+
+def test_debug_vertex_missing_eid() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("debug_vertex", {"vtx_id": 0}), state)
+    assert resp["error"]["code"] == -32602
+    assert "eid" in resp["error"]["message"]
+
+
+def test_debug_vertex_missing_vtx_id() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("debug_vertex", {"eid": 100}), state)
+    assert resp["error"]["code"] == -32602
+    assert "vtx_id" in resp["error"]["message"]
 
 
 def test_debug_vertex_no_adapter() -> None:

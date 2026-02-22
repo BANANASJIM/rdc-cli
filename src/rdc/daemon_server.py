@@ -219,7 +219,10 @@ def run_server(  # pragma: no cover
                 continue
 
             with conn:
-                line = _recv_line(conn)
+                try:
+                    line = _recv_line(conn)
+                except ValueError:
+                    continue
                 if not line:
                     continue
                 try:
@@ -230,7 +233,10 @@ def run_server(  # pragma: no cover
                         "error": {"code": -32700, "message": "parse error"},
                         "id": None,
                     }
-                    conn.sendall((json.dumps(error_resp) + "\n").encode("utf-8"))
+                    try:
+                        conn.sendall((json.dumps(error_resp) + "\n").encode("utf-8"))
+                    except OSError:
+                        pass
                     continue
                 try:
                     response, running = _handle_request(request, state)
@@ -240,8 +246,11 @@ def run_server(  # pragma: no cover
                         "error": {"code": -32603, "message": "internal error"},
                         "id": request.get("id"),
                     }
-                    running = True
-                conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+                    running = request.get("method") != "shutdown"
+                try:
+                    conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+                except OSError:
+                    pass
                 last_activity = time.time()
 
 

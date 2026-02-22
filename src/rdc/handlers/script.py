@@ -30,6 +30,8 @@ def _handle_script(
     """
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    if "path" not in params:
+        return _error_response(request_id, -32602, "missing required param: path"), True
 
     path = Path(params["path"])
     if not path.exists():

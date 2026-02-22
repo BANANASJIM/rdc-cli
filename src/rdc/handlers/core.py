@@ -78,6 +78,14 @@ def _handle_shutdown(
         except Exception:  # noqa: BLE001
             pass
         state.replay_output = None
+    if state.adapter is not None:
+        controller = state.adapter.controller
+        for rid_obj in state.shader_replacements.values():
+            controller.RemoveReplacement(rid_obj)
+        for rid_obj in state.built_shaders.values():
+            controller.FreeTargetResource(rid_obj)
+        state.shader_replacements.clear()
+        state.built_shaders.clear()
     if state.temp_dir is not None:
         import shutil
 

@@ -48,6 +48,8 @@ def _handle_shader_build(
 ) -> tuple[dict[str, Any], bool]:
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    if "source" not in params:
+        return _error_response(request_id, -32602, "missing required param: source"), True
     stage = str(params.get("stage", "")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
@@ -76,6 +78,9 @@ def _handle_shader_replace(
 ) -> tuple[dict[str, Any], bool]:
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    for key in ("shader_id", "eid"):
+        if key not in params:
+            return _error_response(request_id, -32602, f"missing required param: {key}"), True
     stage = str(params.get("stage", "")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
@@ -107,6 +112,8 @@ def _handle_shader_restore(
 ) -> tuple[dict[str, Any], bool]:
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    if "eid" not in params:
+        return _error_response(request_id, -32602, "missing required param: eid"), True
     stage = str(params.get("stage", "")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True

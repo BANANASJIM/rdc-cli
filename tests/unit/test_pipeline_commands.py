@@ -8,7 +8,7 @@ from rdc.cli import main
 
 
 def _patch_pipeline(monkeypatch, response):
-    import rdc.commands.pipeline as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -88,7 +88,7 @@ def test_bindings_json(monkeypatch) -> None:
 
 def test_bindings_with_filters(monkeypatch) -> None:
     calls: list[dict] = []
-    import rdc.commands.pipeline as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -309,7 +309,7 @@ def test_shaders_json(monkeypatch) -> None:
 
 def test_shaders_with_filters(monkeypatch) -> None:
     calls: list[dict] = []
-    import rdc.commands.pipeline as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)

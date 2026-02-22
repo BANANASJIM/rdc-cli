@@ -2,33 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 import click
 
-from rdc.daemon_client import send_request
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 from rdc.formatters.tsv import format_row
-from rdc.protocol import _request
-from rdc.session_state import load_session
-
-
-def _require_session() -> tuple[str, int, str]:
-    session = load_session()
-    if session is None:
-        click.echo("error: no active session (run 'rdc open' first)", err=True)
-        raise SystemExit(1)
-    return session.host, session.port, session.token
-
-
-def _call(method: str, params: dict[str, Any]) -> dict[str, Any]:
-    host, port, token = _require_session()
-    payload = _request(method, 1, {"_token": token, **params}).to_dict()
-    response = send_request(host, port, payload)
-    if "error" in response:
-        click.echo(f"error: {response['error']['message']}", err=True)
-        raise SystemExit(1)
-    return cast(dict[str, Any], response["result"])
 
 
 @click.command("resources")
@@ -60,7 +40,7 @@ def resources_cmd(  # noqa: PLR0913
         params["name"] = name_filter
     if sort != "id":
         params["sort"] = sort
-    result = _call("resources", params)
+    result = call("resources", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)
@@ -76,7 +56,7 @@ def resources_cmd(  # noqa: PLR0913
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
 def resource_cmd(resid: int, as_json: bool) -> None:
     """Show details of a specific resource."""
-    result = _call("resource", {"id": resid})
+    result = call("resource", {"id": resid})
     res = result.get("resource", {})
     if as_json:
         write_json(res)
@@ -91,7 +71,7 @@ def resource_cmd(resid: int, as_json: bool) -> None:
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
 def passes_cmd(as_json: bool) -> None:
     """List render passes."""
-    result = _call("passes", {})
+    result = call("passes", {})
     tree: dict[str, Any] = result.get("tree", {})
     if as_json:
         write_json(tree)
@@ -113,7 +93,7 @@ def pass_cmd(identifier: str, as_json: bool) -> None:
         params["index"] = int(identifier)
     except ValueError:
         params["name"] = identifier
-    result = _call("pass", params)
+    result = call("pass", params)
     if as_json:
         write_json(result)
         return

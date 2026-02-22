@@ -98,6 +98,13 @@ class TestShaderBuild:
         assert resp["error"]["code"] == -32602
         assert "unknown encoding" in resp["error"]["message"]
 
+    def test_missing_source(self) -> None:
+        ctrl = rd.MockReplayController()
+        state = _make_state(ctrl)
+        resp, _ = _handle_request(_req("shader_build", {"stage": "ps"}), state)
+        assert resp["error"]["code"] == -32602
+        assert "source" in resp["error"]["message"]
+
     def test_default_entry(self) -> None:
         ctrl = rd.MockReplayController()
         calls: list[str] = []
@@ -134,6 +141,18 @@ class TestShaderReplace:
         assert result["ok"] is True
         assert result["original_id"] == 500
         assert 500 in state.shader_replacements
+
+    def test_missing_shader_id(self) -> None:
+        ctrl, state = self._setup_state()
+        resp, _ = _handle_request(_req("shader_replace", {"eid": 10, "stage": "ps"}), state)
+        assert resp["error"]["code"] == -32602
+        assert "shader_id" in resp["error"]["message"]
+
+    def test_missing_eid(self) -> None:
+        ctrl, state = self._setup_state()
+        resp, _ = _handle_request(_req("shader_replace", {"stage": "ps", "shader_id": 1000}), state)
+        assert resp["error"]["code"] == -32602
+        assert "eid" in resp["error"]["message"]
 
     def test_unknown_shader(self) -> None:
         ctrl, state = self._setup_state()
@@ -186,6 +205,12 @@ class TestShaderRestore:
         assert resp["result"]["ok"] is True
         assert 500 not in state.shader_replacements
 
+    def test_missing_eid(self) -> None:
+        ctrl, state = self._setup_state()
+        resp, _ = _handle_request(_req("shader_restore", {"stage": "ps"}), state)
+        assert resp["error"]["code"] == -32602
+        assert "eid" in resp["error"]["message"]
+
     def test_no_replacement(self) -> None:
         ctrl = rd.MockReplayController()
         ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = rd.ResourceId(500)
@@ -236,5 +261,26 @@ class TestShaderRestoreAll:
         state.built_shaders[1001] = rd.ResourceId(1001)
 
         _handle_request(_req("shader_restore_all"), state)
+        assert 1000 in ctrl._freed
+        assert 1001 in ctrl._freed
+
+
+# ── shutdown cleans shader resources ─────────────────────────────────
+
+
+class TestShutdownCleansShaders:
+    def test_shutdown_cleans_replacements_and_built(self) -> None:
+        ctrl = rd.MockReplayController()
+        state = _make_state(ctrl)
+        state.shader_replacements[500] = rd.ResourceId(500)
+        state.shader_replacements[600] = rd.ResourceId(600)
+        state.built_shaders[1000] = rd.ResourceId(1000)
+        state.built_shaders[1001] = rd.ResourceId(1001)
+
+        resp, running = _handle_request(_req("shutdown"), state)
+        assert running is False
+        assert resp["result"]["ok"] is True
+        assert len(state.shader_replacements) == 0
+        assert len(state.built_shaders) == 0
         assert 1000 in ctrl._freed
         assert 1001 in ctrl._freed

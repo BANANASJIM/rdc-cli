@@ -111,6 +111,9 @@ def _handle_debug_pixel(
     """Handle debug_pixel JSON-RPC request."""
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    for key in ("eid", "x", "y"):
+        if key not in params:
+            return _error_response(request_id, -32602, f"missing required param: {key}"), True
 
     eid = int(params["eid"])
     x = int(params["x"])
@@ -154,6 +157,9 @@ def _handle_debug_vertex(
     """Handle debug_vertex JSON-RPC request."""
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    for key in ("eid", "vtx_id"):
+        if key not in params:
+            return _error_response(request_id, -32602, f"missing required param: {key}"), True
 
     eid = int(params["eid"])
     vtx_id = int(params["vtx_id"])

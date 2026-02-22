@@ -50,7 +50,7 @@ def _state_with_resources(resources: list[Any]) -> DaemonState:
 
 
 def _patch_resources(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> None:
-    import rdc.commands.resources as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -264,7 +264,7 @@ class TestResourcesCLI:
             assert ghost not in result.output
 
     def test_type_option_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import rdc.commands.resources as mod
+        import rdc.commands._helpers as mod
 
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -279,7 +279,7 @@ class TestResourcesCLI:
         assert captured[0].get("type") == "Texture"
 
     def test_name_option_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import rdc.commands.resources as mod
+        import rdc.commands._helpers as mod
 
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -294,7 +294,7 @@ class TestResourcesCLI:
         assert captured[0].get("name") == "tri"
 
     def test_sort_option_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import rdc.commands.resources as mod
+        import rdc.commands._helpers as mod
 
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -319,7 +319,7 @@ class TestResourcesCLI:
             assert set(row.keys()) == {"id", "type", "name"}
 
     def test_all_three_options_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import rdc.commands.resources as mod
+        import rdc.commands._helpers as mod
 
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -349,7 +349,7 @@ class TestResourcesCLI:
 
 class TestResourcesRegressionNoSession:
     def test_no_session_exits_nonzero(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import rdc.commands.resources as mod
+        import rdc.commands._helpers as mod
 
         monkeypatch.setattr(mod, "load_session", lambda: None)
         result = CliRunner().invoke(resources_cmd, [])

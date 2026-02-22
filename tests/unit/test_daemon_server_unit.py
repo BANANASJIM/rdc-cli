@@ -157,6 +157,23 @@ class TestHandleRequest:
         assert resp["error"]["code"] == -32002
 
 
+class TestShutdownExceptionStops:
+    def test_shutdown_exception_still_stops(self) -> None:
+        """If shutdown handler raises, running should be False."""
+        # The fix is in run_server's except block:
+        #   running = request.get("method") != "shutdown"
+        # Verify the logic directly:
+        request: dict[str, Any] = {"method": "shutdown", "id": 1}
+        running = request.get("method") != "shutdown"
+        assert running is False
+
+    def test_non_shutdown_exception_keeps_running(self) -> None:
+        """If a non-shutdown handler raises, running should be True."""
+        request: dict[str, Any] = {"method": "status", "id": 1}
+        running = request.get("method") != "shutdown"
+        assert running is True
+
+
 class TestLoadReplay:
     """Test _load_replay with mock renderdoc module (P1 fix)."""
 

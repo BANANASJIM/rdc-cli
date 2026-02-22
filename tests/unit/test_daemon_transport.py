@@ -5,7 +5,11 @@ import socket
 import subprocess
 import sys
 import time
+from unittest.mock import MagicMock
 
+import pytest
+
+from rdc._transport import recv_line
 from rdc.daemon_client import send_request
 from rdc.protocol import goto_request, ping_request, shutdown_request, status_request
 
@@ -93,3 +97,29 @@ def test_daemon_rejects_invalid_token() -> None:
         assert bad["error"]["code"] == -32600
     finally:
         proc.terminate()
+
+
+# ---------------------------------------------------------------------------
+# recv_line unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_recv_line_exceeds_max_bytes() -> None:
+    mock_sock = MagicMock()
+    mock_sock.recv.return_value = b"A" * 4096
+    with pytest.raises(ValueError, match="max_bytes"):
+        recv_line(mock_sock, max_bytes=100)
+
+
+def test_recv_line_within_limit() -> None:
+    mock_sock = MagicMock()
+    mock_sock.recv.return_value = b'{"ok": true}\n'
+    result = recv_line(mock_sock, max_bytes=1000)
+    assert result == '{"ok": true}'
+
+
+def test_recv_line_eof() -> None:
+    mock_sock = MagicMock()
+    mock_sock.recv.return_value = b""
+    result = recv_line(mock_sock)
+    assert result == ""

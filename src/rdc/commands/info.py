@@ -7,34 +7,14 @@ from typing import Any
 
 import click
 
-from rdc.daemon_client import send_request
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 from rdc.formatters.tsv import write_tsv
-from rdc.session_state import load_session
 
 
 def _daemon_call(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    state = load_session()
-    if state is None:
-        click.echo("error: no active session", err=True)
-        raise SystemExit(1)
-    rpc_params: dict[str, Any] = {"_token": state.token}
-    if params:
-        rpc_params.update(params)
-    try:
-        resp = send_request(
-            state.host,
-            state.port,
-            {"jsonrpc": "2.0", "id": 1, "method": method, "params": rpc_params},
-        )
-    except Exception as exc:
-        click.echo(f"error: daemon unreachable: {exc}", err=True)
-        raise SystemExit(1) from exc
-    if "error" in resp:
-        click.echo("error: " + resp["error"]["message"], err=True)
-        raise SystemExit(1)
-    result: dict[str, Any] = resp["result"]
-    return result
+    """Backward-compatible wrapper around call() for other command modules."""
+    return call(method, params or {})
 
 
 def _format_kv(data: dict[str, Any], out: Any = None) -> None:
@@ -51,7 +31,7 @@ def _format_kv(data: dict[str, Any], out: Any = None) -> None:
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def info_cmd(use_json: bool) -> None:
     """Show capture metadata."""
-    result = _daemon_call("info")
+    result = call("info", {})
     if use_json:
         write_json(result)
         return
@@ -63,7 +43,7 @@ def info_cmd(use_json: bool) -> None:
 @click.option("--no-header", is_flag=True, help="Omit TSV header")
 def stats_cmd(use_json: bool, no_header: bool) -> None:
     """Show per-pass breakdown, top draws, largest resources."""
-    result = _daemon_call("stats")
+    result = call("stats", {})
     if use_json:
         write_json(result)
         return
@@ -109,7 +89,7 @@ def log_cmd(level: str | None, eid: int | None, no_header: bool, use_json: bool)
         rpc_params["level"] = level
     if eid is not None:
         rpc_params["eid"] = eid
-    result = _daemon_call("log", rpc_params if rpc_params else None)
+    result = call("log", rpc_params)
     messages = result.get("messages", [])
     if use_json:
         write_json(messages)
