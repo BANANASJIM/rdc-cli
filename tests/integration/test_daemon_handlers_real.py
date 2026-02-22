@@ -624,3 +624,88 @@ class TestBugFiltersReal:
         result = _call(self.state, "pipeline", {"eid": draw_eid})
         topology = result["row"]["topology"]
         assert topology == "TriangleList", f"expected TriangleList, got {topology!r}"
+
+
+class TestPhase27PipelineCLI:
+    """GPU integration tests for phase2.7: section routing, bindings set field, shader disasm."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        draws = result["events"]
+        assert len(draws) > 0, "no draw calls in capture"
+        return draws[0]["eid"]
+
+    def test_pipeline_section_topology(self) -> None:
+        """pipeline with section=topology returns topology key with non-empty string."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "topology"})
+        assert "topology" in result
+        assert isinstance(result["topology"], str)
+        assert len(result["topology"]) > 0
+
+    def test_pipeline_section_rasterizer(self) -> None:
+        """pipeline with section=rasterizer returns rasterizer data keys."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "rasterizer"})
+        assert "eid" in result
+        assert result["eid"] == draw_eid
+
+    def test_pipeline_section_blend(self) -> None:
+        """pipeline with section=blend returns blend data."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "blend"})
+        assert "blends" in result
+        assert isinstance(result["blends"], list)
+
+    def test_pipeline_section_viewport(self) -> None:
+        """pipeline with section=viewport returns viewport coordinates."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "viewport"})
+        assert "x" in result
+        assert "y" in result
+        assert "width" in result
+        assert "height" in result
+
+    def test_pipeline_section_depth_stencil(self) -> None:
+        """pipeline with section=depth-stencil returns depth-stencil data."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "depth-stencil"})
+        assert "eid" in result
+        assert result["eid"] == draw_eid
+
+    def test_bindings_set_field_present(self) -> None:
+        """bindings response rows each have a 'set' key with int value >= 0."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "bindings", {"eid": draw_eid})
+        rows = result["rows"]
+        if not rows:
+            pytest.skip("no bindings in capture at this draw")
+        for row in rows:
+            assert "set" in row, f"row missing 'set' field: {row}"
+            assert isinstance(row["set"], int)
+            assert row["set"] >= 0
+
+    def test_shader_disasm_with_target(self) -> None:
+        """shader_disasm with a target from shader_targets returns non-empty content."""
+        draw_eid = self._first_draw_eid()
+        targets_result = _call(self.state, "shader_targets")
+        targets = targets_result["targets"]
+        assert len(targets) > 0, "no disassembly targets available"
+        target = targets[0]
+        result = _call(
+            self.state, "shader_disasm", {"eid": draw_eid, "stage": "ps", "target": target}
+        )
+        assert "disasm" in result
+        assert isinstance(result["disasm"], str)
+        assert len(result["disasm"]) > 0
+
+    def test_pipeline_section_routing_same_as_direct(self) -> None:
+        """Routing section=topology via pipeline matches pipe_topology directly."""
+        draw_eid = self._first_draw_eid()
+        via_pipeline = _call(self.state, "pipeline", {"eid": draw_eid, "section": "topology"})
+        direct = _call(self.state, "pipe_topology", {"eid": draw_eid})
+        assert via_pipeline["topology"] == direct["topology"]
