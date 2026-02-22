@@ -10,6 +10,9 @@ import pytest
 from rdc.adapter import RenderDocAdapter, parse_version_tuple
 from rdc.daemon_server import DaemonState, _handle_request, _max_eid
 
+FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures"
+VKCUBE_RDC = str(FIXTURES_DIR / "vkcube.rdc")
+
 pytestmark = pytest.mark.gpu
 
 
@@ -810,3 +813,374 @@ class TestScriptReal:
         assert result["return_value"] > 0
         assert result["stdout"] == ""
         assert result["elapsed_ms"] >= 0
+
+
+# ── Phase 3B Diff GPU Integration Tests ────────────────────────────────
+
+
+class TestDiffStatsReal:
+    """GPU integration tests for diff --stats with real captures."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def test_stats_handler_returns_per_pass(self) -> None:
+        """stats handler returns per_pass list with valid schema."""
+        result = _call(self.state, "stats")
+        assert "per_pass" in result
+        per_pass = result["per_pass"]
+        assert isinstance(per_pass, list)
+        assert len(per_pass) >= 1
+        for ps in per_pass:
+            assert isinstance(ps["name"], str) and len(ps["name"]) > 0
+            assert isinstance(ps["draws"], int) and ps["draws"] >= 0
+            assert isinstance(ps["triangles"], int) and ps["triangles"] >= 0
+            assert isinstance(ps["dispatches"], int) and ps["dispatches"] >= 0
+
+    def test_diff_stats_self_all_equal(self) -> None:
+        """Self-diff stats: all passes should be EQUAL with zero deltas."""
+        from rdc.diff.draws import DiffStatus
+        from rdc.diff.stats import diff_stats
+
+        result = _call(self.state, "stats")
+        per_pass = result["per_pass"]
+
+        rows = diff_stats(per_pass, per_pass)
+        assert len(rows) == len(per_pass)
+        for row in rows:
+            assert row.status == DiffStatus.EQUAL
+            assert row.draws_a == row.draws_b
+            assert row.triangles_a == row.triangles_b
+            assert row.dispatches_a == row.dispatches_b
+            assert row.draws_delta == "0"
+            assert row.triangles_delta == "0"
+            assert row.dispatches_delta == "0"
+
+
+class TestDiffResourcesReal:
+    """GPU integration tests for diff --resources with real captures."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def test_diff_resources_self_all_equal(self) -> None:
+        """Self-diff resources: all resources should be EQUAL, no ADDED/DELETED."""
+        from rdc.diff.draws import DiffStatus
+        from rdc.diff.resources import ResourceRecord, diff_resources
+
+        result = _call(self.state, "resources")
+        rows = result["rows"]
+        assert len(rows) > 0
+
+        records = [ResourceRecord(**r) for r in rows]
+        diff_rows = diff_resources(records, records)
+        assert len(diff_rows) >= len(records)
+        for dr in diff_rows:
+            assert dr.status == DiffStatus.EQUAL, (
+                f"resource '{dr.name}' has status {dr.status}, expected EQUAL"
+            )
+            assert dr.type_a == dr.type_b
+
+    def test_diff_resources_self_no_added_deleted(self) -> None:
+        """Self-diff resources: no ADDED or DELETED entries."""
+        from rdc.diff.draws import DiffStatus
+        from rdc.diff.resources import ResourceRecord, diff_resources
+
+        result = _call(self.state, "resources")
+        records = [ResourceRecord(**r) for r in result["rows"]]
+        diff_rows = diff_resources(records, records)
+        for dr in diff_rows:
+            assert dr.status != DiffStatus.ADDED
+            assert dr.status != DiffStatus.DELETED
+
+
+class TestDiffPipelineReal:
+    """GPU integration tests for diff --pipeline with real captures."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        draws = result["events"]
+        assert len(draws) > 0, "no draw calls in capture"
+        return draws[0]["eid"]
+
+    def test_all_13_pipe_sections_return_data(self) -> None:
+        """All 13 pipeline section RPCs return non-error results."""
+        from rdc.diff.pipeline import PIPE_SECTION_CALLS
+
+        draw_eid = self._first_draw_eid()
+        for method, section in PIPE_SECTION_CALLS:
+            result = _call(self.state, method, {"eid": draw_eid})
+            assert isinstance(result, dict), f"section {section} via {method} returned non-dict"
+            assert len(result) > 0, f"section {section} returned empty dict"
+
+    def test_diff_pipeline_self_no_changes(self) -> None:
+        """Self-diff pipeline: no fields should be changed."""
+        from rdc.diff.pipeline import PIPE_SECTION_CALLS, diff_pipeline_sections
+
+        draw_eid = self._first_draw_eid()
+        results: list[dict[str, Any]] = []
+        for method, _ in PIPE_SECTION_CALLS:
+            r = _call(self.state, method, {"eid": draw_eid})
+            results.append({"result": r})
+
+        diffs = diff_pipeline_sections(results, results)
+        assert len(diffs) > 0, "expected pipeline fields to compare"
+        changed = [d for d in diffs if d.changed]
+        assert len(changed) == 0, (
+            f"self-diff has {len(changed)} changed fields: "
+            + ", ".join(f"{d.section}.{d.field}" for d in changed)
+        )
+
+    def test_diff_pipeline_self_all_sections_represented(self) -> None:
+        """Self-diff should have fields from multiple pipeline sections."""
+        from rdc.diff.pipeline import PIPE_SECTION_CALLS, diff_pipeline_sections
+
+        draw_eid = self._first_draw_eid()
+        results: list[dict[str, Any]] = []
+        for method, _ in PIPE_SECTION_CALLS:
+            r = _call(self.state, method, {"eid": draw_eid})
+            results.append({"result": r})
+
+        diffs = diff_pipeline_sections(results, results)
+        sections_seen = {d.section for d in diffs}
+        assert len(sections_seen) >= 5, (
+            f"expected fields from >= 5 sections, got {len(sections_seen)}: {sections_seen}"
+        )
+
+
+class TestDiffFramebufferReal:
+    """GPU integration tests for diff --framebuffer (render target export)."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self,
+        vkcube_replay: tuple[Any, Any, Any],
+        rd_module: Any,
+        tmp_path: Path,
+    ) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+        self.state.temp_dir = tmp_path
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        return result["events"][0]["eid"]
+
+    def test_rt_export_returns_valid_png(self) -> None:
+        """rt_export handler returns a valid PNG for target=0."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "rt_export", {"eid": draw_eid, "target": 0})
+        assert "path" in result
+        assert result["size"] > 0
+        exported = Path(result["path"])
+        assert exported.exists()
+        data = exported.read_bytes()
+        assert data[:4] == b"\x89PNG"
+
+    def test_self_compare_identical(self) -> None:
+        """Comparing same rt_export image with itself yields identical=True."""
+        from rdc.image_compare import compare_images
+
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "rt_export", {"eid": draw_eid, "target": 0})
+        path = Path(result["path"])
+
+        cmp = compare_images(path, path)
+        assert cmp.identical is True
+        assert cmp.diff_pixels == 0
+        assert cmp.total_pixels > 0
+        assert cmp.diff_ratio == 0.0
+
+
+class TestDiffSessionReal:
+    """GPU integration tests using start_diff_session with real daemon processes."""
+
+    def test_diff_stats_session_self_diff(self) -> None:
+        """Full two-daemon self-diff for stats: all passes should be EQUAL."""
+        from rdc.diff.draws import DiffStatus
+        from rdc.diff.stats import diff_stats
+        from rdc.services.diff_service import (
+            query_both,
+            start_diff_session,
+            stop_diff_session,
+        )
+
+        ctx, err = start_diff_session(VKCUBE_RDC, VKCUBE_RDC, timeout_s=60.0)
+        assert ctx is not None, f"start_diff_session failed: {err}"
+        try:
+            resp_a, resp_b, q_err = query_both(ctx, "stats", {}, timeout_s=30.0)
+            assert resp_a is not None, "daemon A stats query failed"
+            assert resp_b is not None, "daemon B stats query failed"
+
+            passes_a = resp_a["result"]["per_pass"]
+            passes_b = resp_b["result"]["per_pass"]
+            rows = diff_stats(passes_a, passes_b)
+
+            assert len(rows) >= 1
+            for row in rows:
+                assert row.status == DiffStatus.EQUAL
+        finally:
+            stop_diff_session(ctx)
+
+    def test_diff_resources_session_self_diff(self) -> None:
+        """Full two-daemon self-diff for resources: all should be EQUAL."""
+        from rdc.diff.draws import DiffStatus
+        from rdc.diff.resources import ResourceRecord, diff_resources
+        from rdc.services.diff_service import (
+            query_both,
+            start_diff_session,
+            stop_diff_session,
+        )
+
+        ctx, err = start_diff_session(VKCUBE_RDC, VKCUBE_RDC, timeout_s=60.0)
+        assert ctx is not None, f"start_diff_session failed: {err}"
+        try:
+            resp_a, resp_b, q_err = query_both(ctx, "resources", {}, timeout_s=30.0)
+            assert resp_a is not None, "daemon A resources query failed"
+            assert resp_b is not None, "daemon B resources query failed"
+
+            records_a = [ResourceRecord(**r) for r in resp_a["result"]["rows"]]
+            records_b = [ResourceRecord(**r) for r in resp_b["result"]["rows"]]
+            rows = diff_resources(records_a, records_b)
+
+            assert len(rows) >= 1
+            for row in rows:
+                assert row.status == DiffStatus.EQUAL
+        finally:
+            stop_diff_session(ctx)
+
+    def test_diff_pipeline_session_self_diff(self) -> None:
+        """Full two-daemon self-diff for pipeline: no changed fields."""
+        from rdc.diff.alignment import align_draws
+        from rdc.diff.pipeline import (
+            PIPE_SECTION_CALLS,
+            build_draw_records,
+            diff_pipeline_sections,
+        )
+        from rdc.services.diff_service import (
+            query_both,
+            query_each_sync,
+            start_diff_session,
+            stop_diff_session,
+        )
+
+        ctx, err = start_diff_session(VKCUBE_RDC, VKCUBE_RDC, timeout_s=60.0)
+        assert ctx is not None, f"start_diff_session failed: {err}"
+        try:
+            # Get draws from both daemons
+            resp_a, resp_b, _ = query_both(ctx, "draws", {}, timeout_s=30.0)
+            assert resp_a is not None and resp_b is not None
+
+            draws_a = resp_a["result"]["draws"]
+            draws_b = resp_b["result"]["draws"]
+            records_a = build_draw_records(draws_a)
+            records_b = build_draw_records(draws_b)
+
+            aligned = align_draws(records_a, records_b)
+            # Find first paired draw
+            pair = None
+            for a, b in aligned:
+                if a is not None and b is not None:
+                    pair = (a, b)
+                    break
+            assert pair is not None, "no aligned draw pairs found"
+
+            rec_a, rec_b = pair
+            calls_a = [(method, {"eid": rec_a.eid}) for method, _ in PIPE_SECTION_CALLS]
+            calls_b = [(method, {"eid": rec_b.eid}) for method, _ in PIPE_SECTION_CALLS]
+
+            results_a, results_b, _ = query_each_sync(ctx, calls_a, calls_b, timeout_s=30.0)
+
+            diffs = diff_pipeline_sections(results_a, results_b)
+            changed = [d for d in diffs if d.changed]
+            assert len(changed) == 0, (
+                f"self-diff has {len(changed)} changed fields: "
+                + ", ".join(f"{d.section}.{d.field}" for d in changed)
+            )
+        finally:
+            stop_diff_session(ctx)
+
+    def test_diff_framebuffer_session_self_diff(self) -> None:
+        """Full two-daemon self-diff for framebuffer: should be identical."""
+        from rdc.diff.framebuffer import compare_framebuffers
+        from rdc.services.diff_service import start_diff_session, stop_diff_session
+
+        ctx, err = start_diff_session(VKCUBE_RDC, VKCUBE_RDC, timeout_s=60.0)
+        assert ctx is not None, f"start_diff_session failed: {err}"
+        try:
+            result, fb_err = compare_framebuffers(ctx, target=0, timeout_s=30.0)
+            assert result is not None, f"compare_framebuffers failed: {fb_err}"
+            assert result.identical is True
+            assert result.diff_pixels == 0
+            assert result.total_pixels > 0
+            assert result.diff_ratio == 0.0
+            assert result.target == 0
+        finally:
+            stop_diff_session(ctx)
+
+
+class TestDiffCLIReal:
+    """GPU integration tests for diff CLI commands with real captures."""
+
+    def test_diff_stats_cli_self_diff(self) -> None:
+        """rdc diff --stats a.rdc a.rdc exits 0."""
+        from click.testing import CliRunner
+
+        from rdc.commands.diff import diff_cmd
+
+        runner = CliRunner()
+        result = runner.invoke(diff_cmd, ["--stats", VKCUBE_RDC, VKCUBE_RDC])
+        assert result.exit_code == 0, f"exit {result.exit_code}: {result.output}"
+
+    def test_diff_resources_cli_self_diff(self) -> None:
+        """rdc diff --resources a.rdc a.rdc exits 0."""
+        from click.testing import CliRunner
+
+        from rdc.commands.diff import diff_cmd
+
+        runner = CliRunner()
+        result = runner.invoke(diff_cmd, ["--resources", VKCUBE_RDC, VKCUBE_RDC])
+        assert result.exit_code == 0, f"exit {result.exit_code}: {result.output}"
+
+    def test_diff_framebuffer_cli_self_diff(self) -> None:
+        """rdc diff --framebuffer a.rdc a.rdc exits 0 and output contains 'identical'."""
+        from click.testing import CliRunner
+
+        from rdc.commands.diff import diff_cmd
+
+        runner = CliRunner()
+        result = runner.invoke(diff_cmd, ["--framebuffer", VKCUBE_RDC, VKCUBE_RDC])
+        assert result.exit_code == 0, f"exit {result.exit_code}: {result.output}"
+        assert "identical" in result.output.lower()
+
+    def test_diff_pipeline_cli_self_diff(self) -> None:
+        """rdc diff --pipeline MARKER a.rdc a.rdc exits 0 (using '-' marker for markerless capture)."""
+        from click.testing import CliRunner
+
+        from rdc.commands.diff import diff_cmd
+
+        runner = CliRunner()
+        result = runner.invoke(diff_cmd, ["--pipeline", "-", VKCUBE_RDC, VKCUBE_RDC])
+        assert result.exit_code == 0, f"exit {result.exit_code}: {result.output}"
+
+    def test_diff_stats_cli_json_output(self) -> None:
+        """rdc diff --stats --json a.rdc a.rdc outputs valid JSON."""
+        import json as json_mod
+
+        from click.testing import CliRunner
+
+        from rdc.commands.diff import diff_cmd
+
+        runner = CliRunner()
+        result = runner.invoke(diff_cmd, ["--stats", "--json", VKCUBE_RDC, VKCUBE_RDC])
+        assert result.exit_code == 0, f"exit {result.exit_code}: {result.output}"
+        data = json_mod.loads(result.output)
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        for row in data:
+            assert row["status"] == "="
