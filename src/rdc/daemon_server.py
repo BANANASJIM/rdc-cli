@@ -168,7 +168,11 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     request_id = request.get("id", 0)
     params = request.get("params") or {}
     token = params.get("_token")
-    if token is None or not secrets.compare_digest(token, state.token):
+    if (
+        token is None
+        or not isinstance(token, str)
+        or not secrets.compare_digest(token, state.token)
+    ):
         return _error_response(request_id, -32600, "invalid token"), True
 
     method = request.get("method", "")
