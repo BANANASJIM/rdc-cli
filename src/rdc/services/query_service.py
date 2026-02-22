@@ -427,15 +427,11 @@ def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
 
 
 def _resource_row(r: Any) -> dict[str, Any]:
-    fmt = getattr(r, "format", None)
+    t = getattr(r, "type", None)
     return {
         "id": _rid(getattr(r, "resourceId", 0)),
         "name": getattr(r, "name", ""),
-        "type": str(getattr(r, "type", "")),
-        "width": getattr(r, "width", 0),
-        "height": getattr(r, "height", 0),
-        "depth": getattr(r, "depth", 0),
-        "format": getattr(fmt, "name", "") if fmt else "",
+        "type": getattr(t, "name", str(t)) if t is not None else "",
     }
 
 
