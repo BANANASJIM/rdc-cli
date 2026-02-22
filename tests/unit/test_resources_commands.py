@@ -8,7 +8,7 @@ from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources
 
 
 def _patch_resources(monkeypatch, response):
-    import rdc.commands.resources as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -42,7 +42,7 @@ def test_resources_json(monkeypatch) -> None:
 
 
 def test_resources_no_session(monkeypatch) -> None:
-    import rdc.commands.resources as mod
+    import rdc.commands._helpers as mod
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(resources_cmd, [])
@@ -67,7 +67,7 @@ def test_resource_detail_json(monkeypatch) -> None:
 
 
 def test_resource_error(monkeypatch) -> None:
-    import rdc.commands.resources as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -100,7 +100,7 @@ def test_passes_json(monkeypatch) -> None:
 
 
 def test_passes_no_session(monkeypatch) -> None:
-    import rdc.commands.resources as mod
+    import rdc.commands._helpers as mod
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(passes_cmd, [])
@@ -165,7 +165,7 @@ def test_pass_detail_json(monkeypatch) -> None:
 
 
 def test_pass_no_session(monkeypatch) -> None:
-    import rdc.commands.resources as mod
+    import rdc.commands._helpers as mod
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(pass_cmd, ["0"])

@@ -8,9 +8,11 @@ from rdc.cli import main
 
 
 def _patch_info(monkeypatch, response):
-    import rdc.commands.info as mod
+    import rdc.commands._helpers as mod
 
-    monkeypatch.setattr(mod, "_daemon_call", lambda m, p=None: response)
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(mod, "load_session", lambda: session)
+    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
 
 
 def test_info_tsv(monkeypatch) -> None:
@@ -102,7 +104,7 @@ def test_stats_empty(monkeypatch) -> None:
 
 
 def test_daemon_call_no_session(monkeypatch) -> None:
-    import rdc.commands.info as mod
+    import rdc.commands._helpers as mod
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(main, ["info"])
@@ -111,7 +113,7 @@ def test_daemon_call_no_session(monkeypatch) -> None:
 
 
 def test_daemon_call_error_response(monkeypatch) -> None:
-    import rdc.commands.info as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -124,7 +126,7 @@ def test_daemon_call_error_response(monkeypatch) -> None:
 
 
 def test_daemon_call_connection_error(monkeypatch) -> None:
-    import rdc.commands.info as mod
+    import rdc.commands._helpers as mod
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
@@ -185,7 +187,7 @@ def test_log_empty(monkeypatch) -> None:
 
 
 def test_log_no_session(monkeypatch) -> None:
-    import rdc.commands.info as mod
+    import rdc.commands._helpers as mod
 
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(main, ["log"])
