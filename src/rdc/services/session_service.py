@@ -54,21 +54,29 @@ def start_daemon(capture: str, port: int, token: str) -> subprocess.Popen[str]:
     return subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
         text=True,
     )
 
 
-def wait_for_ping(host: str, port: int, token: str, timeout_s: float = 2.0) -> bool:
+def wait_for_ping(
+    host: str,
+    port: int,
+    token: str,
+    timeout_s: float = 15.0,
+    proc: subprocess.Popen[str] | None = None,
+) -> tuple[bool, str]:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
+        if proc is not None and proc.poll() is not None:
+            return False, f"process exited: exit code {proc.returncode}"
         try:
             resp = send_request(host, port, ping_request(token, request_id=1), timeout=0.5)
             if resp.get("result", {}).get("ok") is True:
-                return True
+                return True, ""
         except Exception:  # noqa: BLE001
             time.sleep(0.05)
-    return False
+    return False, f"timeout ({timeout_s}s)"
 
 
 def open_session(capture: Path) -> tuple[bool, str]:
@@ -83,9 +91,16 @@ def open_session(capture: Path) -> tuple[bool, str]:
     token = secrets.token_hex(16)
     proc = start_daemon(str(capture), port, token)
 
-    if not wait_for_ping(host, port, token):
+    ok, detail = wait_for_ping(host, port, token, proc=proc)
+    if not ok:
         proc.kill()
-        return False, "error: daemon failed to start"
+        try:
+            _, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            stderr = ""
+        if stderr and stderr.strip():
+            detail = stderr.strip()
+        return False, f"error: daemon failed to start ({detail})"
 
     create_session(
         capture=str(capture),
