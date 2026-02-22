@@ -20,6 +20,14 @@ from rdc.diff.pipeline import (
     render_pipeline_json,
     render_pipeline_tsv,
 )
+from rdc.diff.resources import (
+    ResourceRecord,
+    diff_resources,
+    render_tsv,
+)
+from rdc.diff.resources import render_json as render_json_res
+from rdc.diff.resources import render_shortstat as render_shortstat_res
+from rdc.diff.resources import render_unified as render_unified_res
 from rdc.services.diff_service import (
     query_both,
     query_each_sync,
@@ -27,7 +35,7 @@ from rdc.services.diff_service import (
     stop_diff_session,
 )
 
-_MODE_STUBS = {"draws", "resources", "passes", "stats"}
+_MODE_STUBS = {"draws", "passes", "stats"}
 
 
 def _render_framebuffer(
@@ -138,6 +146,18 @@ def diff_cmd(
             )
             sys.exit(exit_code)
 
+        if mode == "resources":
+            _handle_resources(
+                ctx,
+                capture_a,
+                capture_b,
+                fmt,
+                output_json,
+                shortstat,
+                no_header,
+                timeout,
+            )
+
         if mode in _MODE_STUBS:
             click.echo(f"error: --{mode} not yet implemented", err=True)
             sys.exit(2)
@@ -206,3 +226,40 @@ def _handle_pipeline(
 
     has_changes = any(d.changed for d in diffs)
     return 1 if has_changes else 0
+
+
+def _handle_resources(
+    ctx: object,
+    capture_a: Path,
+    capture_b: Path,
+    fmt: str,
+    output_json: bool,
+    shortstat: bool,
+    no_header: bool,
+    timeout: float,
+) -> None:
+    """Handle --resources mode: query, diff, render, exit."""
+    from rdc.diff.draws import DiffStatus
+
+    resp_a, resp_b, err = query_both(ctx, "resources", {}, timeout_s=timeout)  # type: ignore[arg-type]
+    if resp_a is None or resp_b is None:
+        msg = err or "one or both daemons returned no data"
+        click.echo(f"error: {msg}", err=True)
+        sys.exit(2)
+
+    records_a = [ResourceRecord(**r) for r in resp_a["result"]["rows"]]
+    records_b = [ResourceRecord(**r) for r in resp_b["result"]["rows"]]
+
+    rows = diff_resources(records_a, records_b)
+
+    if shortstat:
+        click.echo(render_shortstat_res(rows))
+    elif fmt == "json" or output_json:
+        click.echo(render_json_res(rows))
+    elif fmt == "unified":
+        click.echo(render_unified_res(rows, str(capture_a), str(capture_b)))
+    else:
+        click.echo(render_tsv(rows, header=not no_header))
+
+    has_changes = any(r.status != DiffStatus.EQUAL for r in rows)
+    sys.exit(1 if has_changes else 0)
