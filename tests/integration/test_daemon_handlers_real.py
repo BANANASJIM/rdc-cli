@@ -709,3 +709,49 @@ class TestPhase27PipelineCLI:
         via_pipeline = _call(self.state, "pipeline", {"eid": draw_eid, "section": "topology"})
         direct = _call(self.state, "pipe_topology", {"eid": draw_eid})
         assert via_pipeline["topology"] == direct["topology"]
+
+
+class TestFixVfsPassConsistency:
+    """GPU integration tests for fix/vfs-pass-consistency (Fixes 1-3)."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        draws = result["events"]
+        assert len(draws) > 0, "no draw calls in capture"
+        return draws[0]["eid"]
+
+    def test_draws_pass_matches_passes(self) -> None:
+        """Fix 1: draws PASS column values are a subset of passes NAME values."""
+        draws_result = _call(self.state, "draws")
+        passes_result = _call(self.state, "passes")
+        pass_names = {p["name"] for p in passes_result["tree"]["passes"]}
+        for d in draws_result["draws"]:
+            assert d["pass"] == "-" or d["pass"] in pass_names, (
+                f"draw pass={d['pass']!r} not in {pass_names!r}"
+            )
+
+    def test_draws_pass_no_api_name(self) -> None:
+        """Fix 1: draws PASS column never contains raw API names like 'vkCmd'."""
+        result = _call(self.state, "draws")
+        for d in result["draws"]:
+            assert "vkCmd" not in d["pass"], f"raw API name leaked in draws: {d['pass']!r}"
+
+    def test_vfs_cbuffer_intermediate(self) -> None:
+        """Fix 2: ls /draws/<eid>/cbuffer/ returns non-empty children."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "vfs_ls", {"path": f"/draws/{draw_eid}/cbuffer"})
+        assert result["kind"] == "dir"
+        assert len(result["children"]) > 0, "cbuffer/ should have set-level children"
+
+    def test_vfs_bindings_intermediate(self) -> None:
+        """Fix 2: ls /draws/<eid>/bindings/ returns non-empty children (if bindings exist)."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "vfs_ls", {"path": f"/draws/{draw_eid}/bindings"})
+        assert result["kind"] == "dir"
+        if not result["children"]:
+            pytest.skip("no bindings in this draw call")
+        assert len(result["children"]) > 0

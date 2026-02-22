@@ -343,9 +343,15 @@ def _handle_draws(
 ) -> tuple[dict[str, Any], bool]:
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
-    from rdc.services.query_service import aggregate_stats, filter_by_pass, filter_by_type
+    from rdc.services.query_service import (
+        aggregate_stats,
+        filter_by_pass,
+        filter_by_type,
+        pass_name_for_eid,
+    )
 
     all_flat = _get_flat_actions(state)
+    passes = state.vfs_tree.pass_list if state.vfs_tree else []
     pass_name = params.get("pass")
     if pass_name:
         _actions = state.adapter.get_root_actions()
@@ -365,7 +371,7 @@ def _handle_draws(
             "type": _action_type_str(a.flags),
             "triangles": (a.num_indices // 3) * a.num_instances,
             "instances": a.num_instances,
-            "pass": a.pass_name,
+            "pass": pass_name_for_eid(a.eid, passes),
             "marker": a.parent_marker,
         }
         for a in flat

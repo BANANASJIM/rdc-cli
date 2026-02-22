@@ -545,8 +545,21 @@ def _friendly_pass_name(api_name: str, index: int) -> str:
         parts.append(f"{color_count} Target{'s' if color_count > 1 else ''}")
     if has_depth:
         parts.append("Depth")
+    if not parts and "(" in api_name:
+        start = api_name.index("(")
+        end = api_name.rfind(")")
+        if end > start and (content := api_name[start + 1 : end]):
+            parts.append(content)
     suffix = f" ({' + '.join(parts)})" if parts else ""
     return f"Colour Pass #{index + 1}{suffix}"
+
+
+def pass_name_for_eid(eid: int, passes: list[dict[str, Any]]) -> str:
+    """Map an EID to its friendly pass name using EID-range matching."""
+    for p in passes:
+        if p["begin_eid"] <= eid <= p["end_eid"]:
+            return str(p["name"])
+    return "-"
 
 
 def _build_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:

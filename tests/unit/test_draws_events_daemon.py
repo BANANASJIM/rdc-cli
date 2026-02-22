@@ -84,6 +84,9 @@ def _make_state():
     state.structured_file = sf
     state.api_name = "Vulkan"
     state.max_eid = 300
+    from rdc.vfs.tree_cache import build_vfs_skeleton
+
+    state.vfs_tree = build_vfs_skeleton(actions, [], sf=sf)
     return state
 
 
@@ -154,8 +157,12 @@ class TestDrawsHandler:
         assert "summary" in resp["result"]
 
     def test_draws_filter_pass(self):
-        resp, _ = _handle_request(_req("draws", **{"pass": "Shadow"}), _make_state())
-        assert all(d["pass"] == "Shadow" for d in resp["result"]["draws"])
+        state = _make_state()
+        passes_resp, _ = _handle_request(_req("passes"), state)
+        friendly = passes_resp["result"]["tree"]["passes"][0]["name"]
+        resp, _ = _handle_request(_req("draws", **{"pass": friendly}), state)
+        assert len(resp["result"]["draws"]) > 0
+        assert all(d["pass"] == friendly for d in resp["result"]["draws"])
 
     def test_draws_sort_triangles(self):
         resp, _ = _handle_request(_req("draws", sort="triangles"), _make_state())

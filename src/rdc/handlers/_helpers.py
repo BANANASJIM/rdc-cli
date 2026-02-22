@@ -37,7 +37,7 @@ _SECTION_MAP: dict[str, str] = {
 _LOG_SEVERITY_MAP: dict[int, str] = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"}
 _VALID_LOG_LEVELS: set[str] = {*_LOG_SEVERITY_MAP.values(), "UNKNOWN"}
 
-_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/(?:shader|targets)(?:/|$)")
+_SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/(?:shader|targets|bindings|cbuffer)(?:/|$)")
 
 
 def _result_response(request_id: int, result: dict[str, Any]) -> dict[str, Any]:
