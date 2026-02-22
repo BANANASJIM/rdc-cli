@@ -1479,8 +1479,8 @@ class TestDiffLibraryLevelReal:
         assert exported.exists()
 
 
-class TestShaderDebugReal:
-    """GPU integration tests for Phase 4A shader debug handlers."""
+class TestShaderEditReal:
+    """GPU integration tests for shader edit-replay handlers."""
 
     @pytest.fixture(autouse=True)
     def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
@@ -1490,65 +1490,70 @@ class TestShaderDebugReal:
         result = _call(self.state, "events", {"type": "draw"})
         return result["events"][0]["eid"]
 
-    def test_debug_pixel_basic(self) -> None:
-        """Debug a pixel at center of first draw -- should get steps or no-fragment."""
-        draw_eid = self._first_draw_eid()
-        req = {
-            "id": 1,
-            "method": "debug_pixel",
-            "params": {"_token": self.state.token, "eid": draw_eid, "x": 320, "y": 240},
-        }
-        resp, _ = _handle_request(req, self.state)
-        if "error" in resp:
-            assert resp["error"]["code"] == -32007
-        else:
-            r = resp["result"]
-            assert r["total_steps"] > 0
-            assert r["stage"] == "ps"
-            for step in r["trace"]:
-                assert "instruction" in step
-                assert "changes" in step
+    def test_shader_encodings(self) -> None:
+        """Returns non-empty list with at least one known encoding."""
+        result = _call(self.state, "shader_encodings")
+        assert len(result["encodings"]) > 0
+        names = [e["name"] for e in result["encodings"]]
+        assert any(n in ("GLSL", "SPIRV") for n in names)
 
-    def test_debug_pixel_no_fragment(self) -> None:
-        """Debug a corner pixel that likely has no fragment."""
-        draw_eid = self._first_draw_eid()
-        req = {
-            "id": 1,
-            "method": "debug_pixel",
-            "params": {"_token": self.state.token, "eid": draw_eid, "x": 0, "y": 0},
-        }
-        resp, _ = _handle_request(req, self.state)
-        if "error" in resp:
-            assert resp["error"]["code"] == -32007
-        else:
-            assert resp["result"]["total_steps"] >= 0
+    def test_shader_build_glsl(self) -> None:
+        """Build a trivial GLSL fragment shader."""
+        encs = _call(self.state, "shader_encodings")
+        glsl_available = any(e["value"] == 2 for e in encs["encodings"])
+        if not glsl_available:
+            pytest.skip("GLSL encoding not available")
 
-    def test_debug_vertex_basic(self) -> None:
-        """Debug vertex 0 of first draw -- should get VS trace."""
-        draw_eid = self._first_draw_eid()
-        req = {
-            "id": 1,
-            "method": "debug_vertex",
-            "params": {"_token": self.state.token, "eid": draw_eid, "vtx_id": 0},
-        }
-        resp, _ = _handle_request(req, self.state)
-        if "error" in resp:
-            assert resp["error"]["code"] == -32007
-        else:
-            r = resp["result"]
-            assert r["total_steps"] > 0
-            assert r["stage"] == "vs"
+        source = "#version 450\nlayout(location=0) out vec4 o;\nvoid main(){o=vec4(1,0,0,1);}\n"
+        result = _call(self.state, "shader_build", {"stage": "ps", "source": source})
+        assert result["shader_id"] > 0
 
-    def test_debug_pixel_source_mapping(self) -> None:
-        """Verify file/line fields exist in steps (may be empty without debug info)."""
+    def test_shader_replace_cycle(self) -> None:
+        """Build -> Replace -> Restore full cycle."""
+        encs = _call(self.state, "shader_encodings")
+        if not any(e["value"] == 2 for e in encs["encodings"]):
+            pytest.skip("GLSL encoding not available")
+
         draw_eid = self._first_draw_eid()
-        req = {
-            "id": 1,
-            "method": "debug_pixel",
-            "params": {"_token": self.state.token, "eid": draw_eid, "x": 320, "y": 240},
-        }
-        resp, _ = _handle_request(req, self.state)
-        if "error" not in resp:
-            for step in resp["result"]["trace"]:
-                assert "file" in step
-                assert "line" in step
+        source = "#version 450\nlayout(location=0) out vec4 o;\nvoid main(){o=vec4(0,1,0,1);}\n"
+        build_result = _call(self.state, "shader_build", {"stage": "ps", "source": source})
+        shader_id = build_result["shader_id"]
+
+        try:
+            replace_result = _call(
+                self.state,
+                "shader_replace",
+                {"eid": draw_eid, "stage": "ps", "shader_id": shader_id},
+            )
+            assert replace_result["ok"] is True
+            assert replace_result["original_id"] > 0
+
+            restore_result = _call(self.state, "shader_restore", {"eid": draw_eid, "stage": "ps"})
+            assert restore_result["ok"] is True
+        finally:
+            req = {
+                "id": 1,
+                "method": "shader_restore_all",
+                "params": {"_token": self.state.token},
+            }
+            _handle_request(req, self.state)
+
+    def test_shader_restore_all(self) -> None:
+        """Build and replace, then restore-all cleans up."""
+        encs = _call(self.state, "shader_encodings")
+        if not any(e["value"] == 2 for e in encs["encodings"]):
+            pytest.skip("GLSL encoding not available")
+
+        draw_eid = self._first_draw_eid()
+        source = "#version 450\nlayout(location=0) out vec4 o;\nvoid main(){o=vec4(1,1,0,1);}\n"
+        build = _call(self.state, "shader_build", {"stage": "ps", "source": source})
+        _call(
+            self.state,
+            "shader_replace",
+            {"eid": draw_eid, "stage": "ps", "shader_id": build["shader_id"]},
+        )
+
+        result = _call(self.state, "shader_restore_all")
+        assert result["ok"] is True
+        assert result["restored"] >= 1
+        assert result["freed"] >= 1

@@ -27,6 +27,13 @@ from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources
 from rdc.commands.script import script_cmd
 from rdc.commands.search import search_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
+from rdc.commands.shader_edit import (
+    shader_build_cmd,
+    shader_encodings_cmd,
+    shader_replace_cmd,
+    shader_restore_all_cmd,
+    shader_restore_cmd,
+)
 from rdc.commands.snapshot import snapshot_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 from rdc.commands.usage import usage_cmd
@@ -106,6 +113,11 @@ main.add_command(assert_count_cmd, name="assert-count")
 main.add_command(assert_state_cmd, name="assert-state")
 main.add_command(snapshot_cmd, name="snapshot")
 main.add_command(debug_group, name="debug")
+main.add_command(shader_encodings_cmd, name="shader-encodings")
+main.add_command(shader_build_cmd, name="shader-build")
+main.add_command(shader_replace_cmd, name="shader-replace")
+main.add_command(shader_restore_cmd, name="shader-restore")
+main.add_command(shader_restore_all_cmd, name="shader-restore-all")
 
 
 if __name__ == "__main__":
