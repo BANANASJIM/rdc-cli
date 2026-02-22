@@ -129,10 +129,29 @@ class TestOverlayHandler:
         assert r["eid"] == 10
 
     def test_replay_output_cached(self, state: DaemonState) -> None:
-        state.replay_output = MockReplayOutput()
+        existing = MockReplayOutput()
+        state.replay_output = existing
+        state.replay_output_dims = (256, 256)
         resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), state)
         assert "result" in resp
         assert len(state.adapter.controller._create_output_calls) == 0
+        assert state.replay_output is existing
+
+    def test_replay_output_recreated_on_dimension_change(self, state: DaemonState) -> None:
+        old_output = MockReplayOutput()
+        state.replay_output = old_output
+        state.replay_output_dims = (256, 256)
+        resp, _ = _handle_request(
+            _req("rt_overlay", eid=10, overlay="wireframe", width=512, height=512), state
+        )
+        assert "result" in resp
+        calls = state.adapter.controller._create_output_calls
+        assert len(calls) == 1
+        windowing, _ = calls[0]
+        assert windowing.width == 512
+        assert windowing.height == 512
+        assert state.replay_output is not old_output
+        assert state.replay_output_dims == (512, 512)
 
     def test_invalid_overlay_name(self, state: DaemonState) -> None:
         resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="invalid"), state)

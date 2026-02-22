@@ -202,13 +202,18 @@ def _handle_rt_overlay(
     if not non_null:
         return _error_response(request_id, -32001, f"no color targets at eid {eid}"), True
     target_rid = non_null[0].resource
+    width = int(params.get("width", 256))
+    height = int(params.get("height", 256))
+    if state.replay_output is not None and state.replay_output_dims != (width, height):
+        state.replay_output.Shutdown()
+        state.replay_output = None
+        state.replay_output_dims = None
     if state.replay_output is None:
-        width = int(params.get("width", 256))
-        height = int(params.get("height", 256))
         windowing = state.rd.CreateHeadlessWindowingData(width, height)
         state.replay_output = state.adapter.controller.CreateOutput(
             windowing, state.rd.ReplayOutputType.Texture
         )
+        state.replay_output_dims = (width, height)
     display = state.rd.TextureDisplay()
     display.resourceId = target_rid
     display.overlay = state.rd.DebugOverlay(_OVERLAY_MAP[overlay_name])
