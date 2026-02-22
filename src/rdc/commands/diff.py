@@ -2,14 +2,42 @@
 
 from __future__ import annotations
 
+import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 import click
 
+from rdc.diff.framebuffer import FramebufferDiffResult, compare_framebuffers
 from rdc.services.diff_service import start_diff_session, stop_diff_session
 
-_MODE_STUBS = {"draws", "resources", "passes", "stats", "framebuffer", "pipeline"}
+_MODE_STUBS = {"draws", "resources", "passes", "stats", "pipeline"}
+
+
+def _render_framebuffer(
+    result: FramebufferDiffResult,
+    *,
+    output_json: bool,
+    threshold: float,
+) -> None:
+    """Render framebuffer diff result to stdout."""
+    if output_json:
+        data = asdict(result)
+        data["diff_image"] = str(result.diff_image) if result.diff_image else None
+        data["threshold"] = threshold
+        click.echo(json.dumps(data, indent=2))
+        return
+
+    if result.identical:
+        click.echo("identical")
+    else:
+        click.echo(
+            f"diff: {result.diff_pixels}/{result.total_pixels} pixels ({result.diff_ratio:.2f}%)"
+        )
+    click.echo(f"  eid={result.eid} target={result.target}")
+    if result.diff_image is not None:
+        click.echo(f"  diff image: {result.diff_image}")
 
 
 @click.command("diff")
@@ -26,6 +54,20 @@ _MODE_STUBS = {"draws", "resources", "passes", "stats", "framebuffer", "pipeline
 @click.option("--shortstat", is_flag=True)
 @click.option("--no-header", is_flag=True)
 @click.option("--timeout", default=60.0, type=float)
+@click.option("--target", default=0, type=int, help="Color target index (default 0)")
+@click.option(
+    "--threshold",
+    default=0.0,
+    type=float,
+    help="Max diff ratio %% to count as identical",
+)
+@click.option("--eid", default=None, type=int, help="Compare at specific EID (default: last draw)")
+@click.option(
+    "--diff-output",
+    default=None,
+    type=click.Path(path_type=Path),
+    help="Write diff PNG here",
+)
 def diff_cmd(
     capture_a: Path,
     capture_b: Path,
@@ -36,6 +78,10 @@ def diff_cmd(
     shortstat: bool,
     no_header: bool,
     timeout: float,
+    target: int,
+    threshold: float,
+    eid: int | None,
+    diff_output: Path | None,
 ) -> None:
     """Compare two RenderDoc captures side-by-side."""
     if pipeline_marker is not None:
@@ -49,6 +95,21 @@ def diff_cmd(
         sys.exit(2)
 
     try:
+        if mode == "framebuffer":
+            result, fb_err = compare_framebuffers(
+                ctx,
+                target=target,
+                threshold=threshold,
+                eid=eid,
+                diff_output=diff_output,
+                timeout_s=timeout,
+            )
+            if result is None:
+                click.echo(f"error: {fb_err}", err=True)
+                sys.exit(2)
+            _render_framebuffer(result, output_json=output_json, threshold=threshold)
+            sys.exit(0 if result.identical else 1)
+
         if mode in _MODE_STUBS:
             click.echo(f"error: --{mode} not yet implemented", err=True)
             sys.exit(2)
