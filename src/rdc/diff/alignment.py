@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TypeAlias
+
+MatchKey: TypeAlias = tuple[str, str, int | str]
 
 
 @dataclass(frozen=True)
@@ -50,7 +54,10 @@ def make_fallback_keys(records: list[DrawRecord]) -> list[tuple[str, str, str]]:
     return [(r.draw_type, r.shader_hash, r.topology) for r in records]
 
 
-def lcs_align(keys_a: list[tuple], keys_b: list[tuple]) -> list[tuple[int | None, int | None]]:
+def lcs_align(
+    keys_a: Sequence[MatchKey],
+    keys_b: Sequence[MatchKey],
+) -> list[tuple[int | None, int | None]]:
     """Align two key sequences using LCS dynamic programming.
 
     Returns:
@@ -140,6 +147,8 @@ def align_draws(
     if use_markers and len(a) + len(b) > 500:
         return _grouped_align(a, b)
 
+    keys_a: Sequence[MatchKey]
+    keys_b: Sequence[MatchKey]
     if use_markers:
         keys_a = make_match_keys(a)
         keys_b = make_match_keys(b)

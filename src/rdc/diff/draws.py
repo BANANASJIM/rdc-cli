@@ -121,20 +121,56 @@ def diff_draws(a: list[DrawRecord], b: list[DrawRecord]) -> list[DrawDiffRow]:
     aligned = align_draws(a, b)
     use_markers = has_markers(a) or has_markers(b)
 
+    confidence = _compute_confidence(a, b) if not use_markers else "high"
+
     rows: list[DrawDiffRow] = []
     for ra, rb in aligned:
         row = compare_draw_pair(ra, rb)
         if not use_markers and row.status in (DiffStatus.EQUAL, DiffStatus.MODIFIED):
-            row.confidence = _compute_confidence(a, b)
+            row.confidence = confidence
         rows.append(row)
 
     return rows
 
 
-def _format_draw_line(eid: int, marker: str, draw_type: str, tri: int, inst: int) -> str:
+def _format_draw_line(
+    eid: int,
+    marker: str,
+    draw_type: str,
+    tri: int,
+    inst: int,
+) -> str:
     """Format a single draw call line."""
     marker_part = f"{marker}/" if marker != "-" else ""
     return f"EID={eid} {marker_part}{draw_type} tri={tri} inst={inst}"
+
+
+def _fmt_a(row: DrawDiffRow) -> str:
+    """Format the A-side line of a diff row."""
+    assert row.eid_a is not None
+    assert row.triangles_a is not None
+    assert row.instances_a is not None
+    return _format_draw_line(
+        row.eid_a,
+        row.marker,
+        row.draw_type,
+        row.triangles_a,
+        row.instances_a,
+    )
+
+
+def _fmt_b(row: DrawDiffRow) -> str:
+    """Format the B-side line of a diff row."""
+    assert row.eid_b is not None
+    assert row.triangles_b is not None
+    assert row.instances_b is not None
+    return _format_draw_line(
+        row.eid_b,
+        row.marker,
+        row.draw_type,
+        row.triangles_b,
+        row.instances_b,
+    )
 
 
 def render_unified(rows: list[DrawDiffRow], capture_a: str, capture_b: str) -> str:
@@ -151,29 +187,15 @@ def render_unified(rows: list[DrawDiffRow], capture_a: str, capture_b: str) -> s
     lines: list[str] = [f"--- a/{capture_a}", f"+++ b/{capture_b}"]
 
     for row in rows:
-        la = _format_draw_line(
-            row.eid_a,
-            row.marker,
-            row.draw_type,  # type: ignore[arg-type]
-            row.triangles_a,
-            row.instances_a,  # type: ignore[arg-type]
-        )
-        lb = _format_draw_line(
-            row.eid_b,
-            row.marker,
-            row.draw_type,  # type: ignore[arg-type]
-            row.triangles_b,
-            row.instances_b,  # type: ignore[arg-type]
-        )
         if row.status == DiffStatus.EQUAL:
-            lines.append(f" {la}")
+            lines.append(f" {_fmt_a(row)}")
         elif row.status == DiffStatus.DELETED:
-            lines.append(f"-{la}")
+            lines.append(f"-{_fmt_a(row)}")
         elif row.status == DiffStatus.ADDED:
-            lines.append(f"+{lb}")
+            lines.append(f"+{_fmt_b(row)}")
         elif row.status == DiffStatus.MODIFIED:
-            lines.append(f"-{la}")
-            lines.append(f"+{lb}")
+            lines.append(f"-{_fmt_a(row)}")
+            lines.append(f"+{_fmt_b(row)}")
 
     return "\n".join(lines)
 
