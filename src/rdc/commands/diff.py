@@ -13,6 +13,11 @@ import click
 from rdc.diff import stats as diff_stats_mod
 from rdc.diff.alignment import align_draws
 from rdc.diff.draws import DiffStatus
+from rdc.diff.draws import diff_draws as _diff_draws
+from rdc.diff.draws import render_json as render_json_draws
+from rdc.diff.draws import render_shortstat as render_shortstat_draws
+from rdc.diff.draws import render_tsv as render_tsv_draws
+from rdc.diff.draws import render_unified as render_unified_draws
 from rdc.diff.framebuffer import FramebufferDiffResult, compare_framebuffers
 from rdc.diff.pipeline import (
     PIPE_SECTION_CALLS,
@@ -30,6 +35,8 @@ from rdc.diff.resources import (
 from rdc.diff.resources import render_json as render_json_res
 from rdc.diff.resources import render_shortstat as render_shortstat_res
 from rdc.diff.resources import render_unified as render_unified_res
+from rdc.diff.summary import diff_summary, render_text
+from rdc.diff.summary import render_json as render_json_summary
 from rdc.services.diff_service import (
     DiffContext,
     query_both,
@@ -37,8 +44,6 @@ from rdc.services.diff_service import (
     start_diff_session,
     stop_diff_session,
 )
-
-_MODE_STUBS = {"draws", "passes"}
 
 
 def _render_framebuffer(
@@ -66,19 +71,20 @@ def _render_framebuffer(
         click.echo(f"  diff image: {result.diff_image}")
 
 
-def _handle_stats(
+def _handle_pass_stats(
     ctx: DiffContext,
     *,
+    label: str,
     output_json: bool,
     fmt: str,
     shortstat: bool,
     no_header: bool,
 ) -> None:
-    """Query both daemons for stats and render the diff."""
+    """Query both daemons for per-pass stats and render the diff."""
     resp_a, resp_b, err = query_both(ctx, "stats", {})
     if resp_a is None or resp_b is None:
         click.echo(
-            f"error: stats query failed: {err or 'daemon returned no result'}",
+            f"error: {label} query failed: {err or 'daemon returned no result'}",
             err=True,
         )
         sys.exit(2)
@@ -98,6 +104,72 @@ def _handle_stats(
         click.echo(diff_stats_mod.render_tsv(rows, header=not no_header))
 
     has_changes = any(r.status != DiffStatus.EQUAL for r in rows)
+    sys.exit(1 if has_changes else 0)
+
+
+def _handle_draws(
+    ctx: DiffContext,
+    *,
+    output_json: bool,
+    fmt: str,
+    shortstat: bool,
+    no_header: bool,
+) -> None:
+    """Query both daemons for draw calls and render the diff."""
+    resp_a, resp_b, err = query_both(ctx, "draws", {})
+    if resp_a is None or resp_b is None:
+        click.echo(
+            f"error: draws query failed: {err or 'daemon returned no result'}",
+            err=True,
+        )
+        sys.exit(2)
+
+    draws_a = resp_a.get("result", {}).get("draws", [])
+    draws_b = resp_b.get("result", {}).get("draws", [])
+
+    records_a = build_draw_records(draws_a)
+    records_b = build_draw_records(draws_b)
+    rows = _diff_draws(records_a, records_b)
+
+    if shortstat:
+        click.echo(render_shortstat_draws(rows))
+    elif output_json or fmt == "json":
+        click.echo(render_json_draws(rows))
+    elif fmt == "unified":
+        click.echo(render_unified_draws(rows, ctx.capture_a, ctx.capture_b))
+    else:
+        click.echo(render_tsv_draws(rows, header=not no_header))
+
+    has_changes = any(r.status != DiffStatus.EQUAL for r in rows)
+    sys.exit(1 if has_changes else 0)
+
+
+def _handle_summary(ctx: DiffContext, *, output_json: bool) -> None:
+    """Query both daemons for summary stats and render a compact delta view."""
+    resp_stats_a, resp_stats_b, err_s = query_both(ctx, "stats", {})
+    resp_res_a, resp_res_b, _err_r = query_both(ctx, "resources", {})
+
+    if resp_stats_a is None or resp_stats_b is None:
+        click.echo(
+            f"error: summary query failed: {err_s or 'daemon returned no result'}",
+            err=True,
+        )
+        sys.exit(2)
+
+    stats_a = resp_stats_a.get("result", {})
+    stats_b = resp_stats_b.get("result", {})
+
+    res_count_a = len(resp_res_a.get("result", {}).get("rows", [])) if resp_res_a else 0
+    res_count_b = len(resp_res_b.get("result", {}).get("rows", [])) if resp_res_b else 0
+
+    rows = diff_summary(stats_a, stats_b, res_count_a, res_count_b)
+
+    if output_json:
+        click.echo(render_json_summary(rows))
+    else:
+        click.echo(render_text(rows))
+
+    has_changes = any(r.delta != 0 for r in rows)
     sys.exit(1 if has_changes else 0)
 
 
@@ -197,7 +269,17 @@ def diff_cmd(
             )
 
         elif mode == "stats":
-            _handle_stats(
+            _handle_pass_stats(
+                ctx,
+                label="stats",
+                output_json=output_json,
+                fmt=fmt,
+                shortstat=shortstat,
+                no_header=no_header,
+            )
+
+        elif mode == "draws":
+            _handle_draws(
                 ctx,
                 output_json=output_json,
                 fmt=fmt,
@@ -205,11 +287,18 @@ def diff_cmd(
                 no_header=no_header,
             )
 
-        elif mode in _MODE_STUBS:
-            click.echo(f"error: --{mode} not yet implemented", err=True)
-            sys.exit(2)
+        elif mode == "passes":
+            _handle_pass_stats(
+                ctx,
+                label="passes",
+                output_json=output_json,
+                fmt=fmt,
+                shortstat=shortstat,
+                no_header=no_header,
+            )
 
-        # else: summary stub — exit 0
+        elif mode == "summary":
+            _handle_summary(ctx, output_json=output_json)
     finally:
         stop_diff_session(ctx)
 

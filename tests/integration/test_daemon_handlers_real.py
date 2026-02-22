@@ -1632,3 +1632,49 @@ class TestOverlayReal:
         overlay_result = _call(self.state, "rt_overlay", {"eid": eid, "overlay": "wireframe"})
         rt_result = _call(self.state, "rt_export", {"eid": eid})
         assert overlay_result["path"] != rt_result["path"]
+
+
+class TestShaderApiFixReal:
+    """GPU integration tests for shader_source debug-info and shader_constants structured output."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        return result["events"][0]["eid"]
+
+    def test_shader_source_real_no_debug_info(self) -> None:
+        """vkcube shaders have no debug info; fallback to disassembly."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "shader_source", {"eid": draw_eid, "stage": "ps"})
+        assert result["has_debug_info"] is False
+        assert isinstance(result["source"], str)
+        assert len(result["source"]) > 0
+        assert result["files"] == []
+
+    def test_shader_source_real_fields_present(self) -> None:
+        """Response contains all required keys."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "shader_source", {"eid": draw_eid, "stage": "ps"})
+        for key in ("eid", "stage", "has_debug_info", "source", "files"):
+            assert key in result, f"missing key: {key}"
+
+    def test_shader_constants_real_structured(self) -> None:
+        """Constants response has structured variables, not raw hex."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "shader_constants", {"eid": draw_eid, "stage": "ps"})
+        assert isinstance(result["constants"], list)
+        for entry in result["constants"]:
+            assert "name" in entry
+            assert "bind_point" in entry
+            assert "variables" in entry
+            assert isinstance(entry["variables"], list)
+
+    def test_shader_constants_real_no_hex_data(self) -> None:
+        """No entry in constants contains a 'data' key (old hex field gone)."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "shader_constants", {"eid": draw_eid, "stage": "ps"})
+        for entry in result["constants"]:
+            assert "data" not in entry, f"old 'data' field still present in {entry['name']}"

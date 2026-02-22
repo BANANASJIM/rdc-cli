@@ -7,6 +7,7 @@ from rdc.diff.draws import (
     diff_draws,
     render_json,
     render_shortstat,
+    render_tsv,
     render_unified,
 )
 
@@ -18,5 +19,6 @@ __all__ = [
     "diff_draws",
     "render_json",
     "render_shortstat",
+    "render_tsv",
     "render_unified",
 ]

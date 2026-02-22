@@ -459,3 +459,134 @@ def test_complete_daemon_unreachable(monkeypatch) -> None:
     result = CliRunner().invoke(complete_cmd, ["/draws/14"])
     assert result.exit_code == 0
     assert result.output == ""
+
+
+# ── ls -l (long format) ───────────────────────────────────────────
+
+
+def _patch_long(monkeypatch, response: dict):
+    """Patch _daemon_call; return response for vfs_ls regardless of params."""
+
+    def fake_call(method, params=None):
+        if method == "vfs_ls":
+            return response
+        return {}
+
+    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+
+
+_LONG_PASSES_RESPONSE = {
+    "path": "/passes",
+    "kind": "dir",
+    "long": True,
+    "columns": ["NAME", "DRAWS", "DISPATCHES", "TRIANGLES"],
+    "children": [
+        {"name": "Shadow", "kind": "dir", "draws": 10, "dispatches": 0, "triangles": 5000},
+        {"name": "GBuffer", "kind": "dir", "draws": 25, "dispatches": 3, "triangles": 80000},
+    ],
+}
+
+
+def test_ls_long_calls_rpc_with_long_true(monkeypatch) -> None:
+    """Verify -l flag sends long=True in RPC params."""
+    captured_params = {}
+
+    def fake_call(method, params=None):
+        if method == "vfs_ls":
+            captured_params.update(params or {})
+            return _LONG_PASSES_RESPONSE
+        return {}
+
+    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    CliRunner().invoke(ls_cmd, ["-l", "/passes"])
+    assert captured_params.get("long") is True
+
+
+def test_ls_long_renders_tsv_header(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "/passes"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "NAME\tDRAWS\tDISPATCHES\tTRIANGLES"
+
+
+def test_ls_long_renders_tsv_rows(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "/passes"])
+    lines = result.output.strip().split("\n")
+    assert len(lines) == 3
+    assert lines[1] == "Shadow\t10\t0\t5000"
+    assert lines[2] == "GBuffer\t25\t3\t80000"
+
+
+def test_ls_long_missing_value_renders_dash(monkeypatch) -> None:
+    resp = {
+        "path": "/draws",
+        "kind": "dir",
+        "long": True,
+        "columns": ["EID", "NAME", "TYPE", "TRIANGLES", "INSTANCES"],
+        "children": [
+            {"name": "42", "kind": "dir", "eid": 42, "type": "DrawIndexed"},
+        ],
+    }
+    _patch_long(monkeypatch, resp)
+    result = CliRunner().invoke(ls_cmd, ["-l", "/draws"])
+    lines = result.output.strip().split("\n")
+    row = lines[1].split("\t")
+    assert row[3] == "-"
+    assert row[4] == "-"
+
+
+def test_ls_long_json_emits_full_response(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "--json", "/passes"])
+    assert result.exit_code == 0
+    parsed = json.loads(result.output)
+    assert "columns" in parsed
+    assert parsed["long"] is True
+    assert len(parsed["children"]) == 2
+
+
+def test_ls_long_classify_mutex(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "-F", "/passes"])
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.output
+
+
+def test_ls_long_empty_directory(monkeypatch) -> None:
+    resp = {
+        "path": "/passes",
+        "kind": "dir",
+        "long": True,
+        "columns": ["NAME", "DRAWS", "DISPATCHES", "TRIANGLES"],
+        "children": [],
+    }
+    _patch_long(monkeypatch, resp)
+    result = CliRunner().invoke(ls_cmd, ["-l", "/passes"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert len(lines) == 1
+    assert lines[0] == "NAME\tDRAWS\tDISPATCHES\tTRIANGLES"
+
+
+def test_ls_no_long_default_unchanged(monkeypatch) -> None:
+    """Without -l, existing short format still works."""
+    _patch(
+        monkeypatch,
+        {
+            "vfs_ls": {
+                "path": "/",
+                "kind": "dir",
+                "children": [
+                    {"name": "info", "kind": "leaf"},
+                    {"name": "draws", "kind": "dir"},
+                ],
+            },
+        },
+    )
+    result = CliRunner().invoke(ls_cmd, ["/"])
+    assert result.exit_code == 0
+    assert "info" in result.output
+    assert "draws" in result.output
+    assert "\t" not in result.output

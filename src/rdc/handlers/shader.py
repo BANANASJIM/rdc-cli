@@ -100,6 +100,44 @@ def _handle_shader_reflect(
     ), True
 
 
+def _flatten_shader_var(var: Any) -> dict[str, Any]:
+    """Recursively convert a ShaderVariable to a dict."""
+    members = getattr(var, "members", [])
+    if members:
+        return {
+            "name": var.name,
+            "type": str(getattr(var, "type", "")),
+            "rows": getattr(var, "rows", 0),
+            "columns": getattr(var, "columns", 0),
+            "value": None,
+            "members": [_flatten_shader_var(m) for m in members],
+        }
+
+    rows = getattr(var, "rows", 0)
+    columns = getattr(var, "columns", 0)
+    count = max(rows * columns, 1)
+
+    val = getattr(var, "value", None)
+    if val is None:
+        values: list[Any] = []
+    else:
+        type_str = str(getattr(var, "type", "")).lower()
+        if "uint" in type_str:
+            values = list(getattr(val, "u32v", [0.0] * 16)[:count])
+        elif "int" in type_str or "sint" in type_str:
+            values = list(getattr(val, "s32v", [0] * 16)[:count])
+        else:
+            values = list(getattr(val, "f32v", [0.0] * 16)[:count])
+
+    return {
+        "name": var.name,
+        "type": str(getattr(var, "type", "")),
+        "rows": rows,
+        "columns": columns,
+        "value": values,
+    }
+
+
 def _handle_shader_constants(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -121,31 +159,32 @@ def _handle_shader_constants(
         return _error_response(request_id, -32001, "no reflection available"), True
 
     controller = state.adapter.controller
-    constants = []
+    pipe = get_pipeline_for_stage(pipe_state, stage_val)
+    shader_id = pipe_state.GetShader(stage_val)
+    entry = pipe_state.GetShaderEntryPoint(stage_val)
+    constants: list[dict[str, Any]] = []
 
-    for cb in getattr(refl, "constantBlocks", []):
-        bind_point = getattr(cb, "fixedBindNumber", getattr(cb, "bindPoint", 0))
-        if hasattr(controller, "GetConstantBuffer"):
-            cbuf_data = controller.GetConstantBuffer(stage_val, bind_point)
-            if cbuf_data:
-                data_bytes = getattr(cbuf_data, "data", b"")
-                constants.append(
-                    {
-                        "name": cb.name,
-                        "bind_point": bind_point,
-                        "size": len(data_bytes),
-                        "data": data_bytes.hex() if data_bytes else "",
-                    }
-                )
-        else:
-            constants.append(
-                {
-                    "name": cb.name,
-                    "bind_point": bind_point,
-                    "size": getattr(cb, "byteSize", 0),
-                    "data": "",
-                }
-            )
+    for idx, cb_def in enumerate(getattr(refl, "constantBlocks", [])):
+        bind_point = getattr(cb_def, "fixedBindNumber", getattr(cb_def, "bindPoint", 0))
+        bound = pipe_state.GetConstantBlock(stage_val, idx, 0)
+        cbuffer_vars = controller.GetCBufferVariableContents(
+            pipe,
+            shader_id,
+            stage_val,
+            entry,
+            idx,
+            bound.resource,
+            bound.byteOffset,
+            bound.byteSize,
+        )
+        variables = [_flatten_shader_var(v) for v in cbuffer_vars]
+        constants.append(
+            {
+                "name": cb_def.name,
+                "bind_point": bind_point,
+                "variables": variables,
+            }
+        )
 
     return _result_response(
         request_id,
@@ -172,14 +211,28 @@ def _handle_shader_source(
     refl = pipe_state.GetShaderReflection(stage_val)
 
     source = ""
+    files: list[dict[str, str]] = []
+    has_debug_info = False
+
     if refl is not None:
-        pipeline = get_pipeline_for_stage(pipe_state, stage_val)
-        tgt = get_default_disasm_target(controller)
-        source = controller.DisassembleShader(pipeline, refl, tgt)
+        debug_files = getattr(getattr(refl, "debugInfo", None), "files", [])
+        if debug_files:
+            has_debug_info = True
+            files = [{"filename": f.filename, "source": f.contents} for f in debug_files]
+        else:
+            pipeline = get_pipeline_for_stage(pipe_state, stage_val)
+            tgt = get_default_disasm_target(controller)
+            source = controller.DisassembleShader(pipeline, refl, tgt)
 
     return _result_response(
         request_id,
-        {"eid": eid, "stage": stage, "source": source, "has_debug_info": False},
+        {
+            "eid": eid,
+            "stage": stage,
+            "has_debug_info": has_debug_info,
+            "files": files,
+            "source": source,
+        },
     ), True
 
 
