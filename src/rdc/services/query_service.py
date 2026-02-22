@@ -22,7 +22,7 @@ _CMD_BUFFER = 0x1000000
 _BEGIN_PASS = 0x400000
 _END_PASS = 0x800000
 
-_STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
+STAGE_MAP: dict[str, int] = {"vs": 0, "hs": 1, "ds": 2, "gs": 3, "ps": 4, "cs": 5}
 
 _VALID_COUNT_TARGETS = frozenset(
     {"draws", "events", "resources", "triangles", "passes", "dispatches", "clears"}
@@ -342,7 +342,7 @@ def pipeline_row(
         "graphics_pipeline": _rid(pipe_state.GetGraphicsPipelineObject()),
         "compute_pipeline": _rid(pipe_state.GetComputePipelineObject()),
     }
-    if section is not None and section in _STAGE_MAP:
+    if section is not None and section in STAGE_MAP:
         row["section"] = section
         row["section_detail"] = shader_row(eid, pipe_state, section)
     return row
@@ -351,7 +351,7 @@ def pipeline_row(
 def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
     """Get descriptor binding rows for all shader stages."""
     rows: list[dict[str, Any]] = []
-    for stage_name, stage_val in _STAGE_MAP.items():
+    for stage_name, stage_val in STAGE_MAP.items():
         refl = pipe_state.GetShaderReflection(stage_val)
         if refl is None:
             continue
@@ -382,7 +382,7 @@ def bindings_rows(eid: int, pipe_state: Any) -> list[dict[str, Any]]:
 
 def shader_row(eid: int, pipe_state: Any, stage_name: str) -> dict[str, Any]:
     """Get shader metadata row for a specific stage."""
-    stage_val = _STAGE_MAP[stage_name]
+    stage_val = STAGE_MAP[stage_name]
     sid = pipe_state.GetShader(stage_val)
     refl = pipe_state.GetShaderReflection(stage_val)
     return {
@@ -400,7 +400,7 @@ def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
     """Get inventory of unique shaders in the frame."""
     inv: dict[int, dict[str, Any]] = {}
     for _eid, state in pipe_states.items():
-        for stage_name, stage_val in _STAGE_MAP.items():
+        for stage_name, stage_val in STAGE_MAP.items():
             sid = state.GetShader(stage_val)
             sidv = int(sid)
             if sidv == 0:

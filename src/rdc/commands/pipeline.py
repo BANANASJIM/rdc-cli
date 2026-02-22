@@ -11,11 +11,12 @@ from rdc.daemon_client import send_request
 from rdc.formatters.json_fmt import write_json
 from rdc.formatters.tsv import format_row
 from rdc.protocol import _request
+from rdc.services.query_service import STAGE_MAP
 from rdc.session_state import load_session
 
 _STAGE_CHOICES = ["vs", "hs", "ds", "gs", "ps", "cs"]
 _SORT_CHOICES = ["name", "stage", "uses"]
-_SHADER_STAGES_CLI: frozenset[str] = frozenset({"vs", "hs", "ds", "gs", "ps", "cs"})
+_SHADER_STAGES_CLI: frozenset[str] = frozenset(STAGE_MAP)
 
 
 def _require_session() -> tuple[str, int, str]:

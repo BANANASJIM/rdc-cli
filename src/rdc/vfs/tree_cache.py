@@ -13,7 +13,7 @@ from typing import Any
 from rdc.services.query_service import (
     _DISPATCH,
     _DRAWCALL,
-    _STAGE_MAP,
+    STAGE_MAP,
     _build_pass_list,
     walk_actions,
 )
@@ -264,7 +264,7 @@ def populate_draw_subtree(
         return cached
 
     stages: list[str] = []
-    for stage_name, stage_idx in _STAGE_MAP.items():
+    for stage_name, stage_idx in STAGE_MAP.items():
         if int(pipe_state.GetShader(stage_idx)) != 0:
             stages.append(stage_name)
 
