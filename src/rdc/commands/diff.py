@@ -6,13 +6,28 @@ import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import click
 
+from rdc.diff.alignment import align_draws
 from rdc.diff.framebuffer import FramebufferDiffResult, compare_framebuffers
-from rdc.services.diff_service import start_diff_session, stop_diff_session
+from rdc.diff.pipeline import (
+    PIPE_SECTION_CALLS,
+    build_draw_records,
+    diff_pipeline_sections,
+    find_aligned_pair,
+    render_pipeline_json,
+    render_pipeline_tsv,
+)
+from rdc.services.diff_service import (
+    query_both,
+    query_each_sync,
+    start_diff_session,
+    stop_diff_session,
+)
 
-_MODE_STUBS = {"draws", "resources", "passes", "stats", "pipeline"}
+_MODE_STUBS = {"draws", "resources", "passes", "stats"}
 
 
 def _render_framebuffer(
@@ -53,6 +68,7 @@ def _render_framebuffer(
 @click.option("--format", "fmt", type=click.Choice(["tsv", "unified", "json"]), default="tsv")
 @click.option("--shortstat", is_flag=True)
 @click.option("--no-header", is_flag=True)
+@click.option("--verbose", is_flag=True)
 @click.option("--timeout", default=60.0, type=float)
 @click.option("--target", default=0, type=int, help="Color target index (default 0)")
 @click.option(
@@ -77,6 +93,7 @@ def diff_cmd(
     fmt: str,
     shortstat: bool,
     no_header: bool,
+    verbose: bool,
     timeout: float,
     target: int,
     threshold: float,
@@ -110,6 +127,17 @@ def diff_cmd(
             _render_framebuffer(result, output_json=output_json, threshold=threshold)
             sys.exit(0 if result.identical else 1)
 
+        if mode == "pipeline":
+            assert pipeline_marker is not None
+            exit_code = _handle_pipeline(
+                ctx,
+                pipeline_marker,
+                output_json=output_json,
+                verbose=verbose,
+                no_header=no_header,
+            )
+            sys.exit(exit_code)
+
         if mode in _MODE_STUBS:
             click.echo(f"error: --{mode} not yet implemented", err=True)
             sys.exit(2)
@@ -117,3 +145,64 @@ def diff_cmd(
         # summary stub: exit 0
     finally:
         stop_diff_session(ctx)
+
+
+def _handle_pipeline(
+    ctx: Any,
+    marker: str,
+    *,
+    output_json: bool,
+    verbose: bool,
+    no_header: bool,
+) -> int:
+    """Execute pipeline diff and render output.
+
+    Returns:
+        Exit code: 0 = no differences, 1 = differences found, 2 = error.
+    """
+    # Fetch draws from both daemons
+    resp_a, resp_b, err = query_both(ctx, "draws", {})
+    if resp_a is None and resp_b is None:
+        click.echo(f"error: {err}", err=True)
+        return 2
+
+    draws_a = resp_a["result"]["draws"] if resp_a else []
+    draws_b = resp_b["result"]["draws"] if resp_b else []
+
+    records_a = build_draw_records(draws_a)
+    records_b = build_draw_records(draws_b)
+
+    aligned = align_draws(records_a, records_b)
+    pair, msg = find_aligned_pair(aligned, marker)
+
+    if pair is None:
+        click.echo(f"error: {msg}", err=True)
+        return 2
+
+    if msg:
+        click.echo(f"warning: {msg}", err=True)
+
+    rec_a, rec_b = pair
+    assert rec_a is not None and rec_b is not None
+
+    # Build per-side RPC calls with their own EIDs
+    calls_a = [(method, {"eid": rec_a.eid}) for method, _ in PIPE_SECTION_CALLS]
+    calls_b = [(method, {"eid": rec_b.eid}) for method, _ in PIPE_SECTION_CALLS]
+
+    results_a, results_b, _ = query_each_sync(ctx, calls_a, calls_b)
+
+    # Warn about failed sections
+    section_names = [s for _, s in PIPE_SECTION_CALLS]
+    for i, name in enumerate(section_names):
+        if results_a[i] is None or results_b[i] is None:
+            click.echo(f"warning: section '{name}' skipped (RPC failed)", err=True)
+
+    diffs = diff_pipeline_sections(results_a, results_b)
+
+    if output_json:
+        click.echo(render_pipeline_json(diffs))
+    else:
+        click.echo(render_pipeline_tsv(diffs, verbose=verbose, header=not no_header))
+
+    has_changes = any(d.changed for d in diffs)
+    return 1 if has_changes else 0
