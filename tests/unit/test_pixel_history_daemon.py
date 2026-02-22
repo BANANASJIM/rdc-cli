@@ -137,6 +137,20 @@ def test_eid_defaults_to_current() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_pixel_history_missing_x() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("pixel_history", {"y": 0}), state)
+    assert resp["error"]["code"] == -32602
+    assert "x" in resp["error"]["message"]
+
+
+def test_pixel_history_missing_y() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("pixel_history", {"x": 0}), state)
+    assert resp["error"]["code"] == -32602
+    assert "y" in resp["error"]["message"]
+
+
 def test_eid_out_of_range() -> None:
     state = _make_state()
     resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0, "eid": 9999}), state)

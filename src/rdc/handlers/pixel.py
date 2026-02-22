@@ -74,6 +74,9 @@ def _handle_pixel_history(
     """
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
+    for key in ("x", "y"):
+        if key not in params:
+            return _error_response(request_id, -32602, f"missing required param: {key}"), True
 
     x = int(params["x"])
     y = int(params["y"])
