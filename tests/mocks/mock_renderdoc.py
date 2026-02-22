@@ -338,6 +338,29 @@ class ShaderEncoding(IntEnum):
     Slang = 9  # noqa: E702
 
 
+class DebugOverlay(IntEnum):
+    NoOverlay = 0
+    Drawcall = 1
+    Wireframe = 2
+    Depth = 3
+    Stencil = 4
+    BackfaceCull = 5
+    ViewportScissor = 6
+    NaN = 7
+    Clipping = 8
+    ClearBeforePass = 9
+    ClearBeforeDraw = 10
+    QuadOverdrawPass = 11
+    QuadOverdrawDraw = 12
+    TriangleSizePass = 13
+    TriangleSizeDraw = 14
+
+
+class ReplayOutputType(IntEnum):
+    Texture = 1
+    Mesh = 2
+
+
 class ShaderEvents(IntFlag):
     NoEvent = 0
     SampleLoadGather = 1
@@ -485,6 +508,26 @@ class TextureSave:
     jpegQuality: int = 90
     sample: TextureSampleMapping = field(default_factory=TextureSampleMapping)
     typeCast: int = 0
+
+
+@dataclass
+class TextureDisplay:
+    resourceId: Any = None
+    overlay: Any = None
+    rangeMin: float = 0.0
+    rangeMax: float = 1.0
+    scale: float = 1.0
+    red: bool = True
+    green: bool = True
+    blue: bool = True
+    alpha: bool = False
+    flipY: bool = False
+    hdrMultiplier: float = -1.0
+    subresource: Any = None
+
+    def __post_init__(self) -> None:
+        if self.resourceId is None:
+            self.resourceId = ResourceId(0)
 
 
 @dataclass
@@ -1393,8 +1436,38 @@ class MockReplayController:
     def FreeTargetResource(self, rid: Any) -> None:
         self._freed.add(int(rid))
 
+    def CreateOutput(self, windowing: Any, output_type: Any) -> MockReplayOutput:
+        return MockReplayOutput()
+
     def Shutdown(self) -> None:
         self._shutdown_called = True
+
+
+# ---------------------------------------------------------------------------
+# Mock ReplayOutput
+# ---------------------------------------------------------------------------
+
+
+class MockReplayOutput:
+    """Mock for renderdoc ReplayOutput."""
+
+    def __init__(self) -> None:
+        self._overlay_tex_id = ResourceId(900)
+
+    def SetTextureDisplay(self, display: Any) -> None:
+        pass
+
+    def Display(self) -> None:
+        pass
+
+    def GetDebugOverlayTexID(self) -> ResourceId:
+        return self._overlay_tex_id
+
+    def ReadbackOutputTexture(self) -> bytes:
+        return b"\x00" * (256 * 256 * 3)
+
+    def Shutdown(self) -> None:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -1458,6 +1531,12 @@ def GetVersionString() -> str:
 
 def GetCommitHash() -> str:
     return "abc123"
+
+
+def CreateHeadlessWindowingData(width: int, height: int) -> Any:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(width=width, height=height)
 
 
 class ReplayOptions:

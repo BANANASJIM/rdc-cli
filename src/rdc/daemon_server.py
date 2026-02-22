@@ -94,6 +94,7 @@ class DaemonState:
     shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
     built_shaders: dict[int, Any] = field(default_factory=dict)
     shader_replacements: dict[int, Any] = field(default_factory=dict)
+    replay_output: Any = None
     _shader_cache_built: bool = field(default=False, repr=False)
 
 
