@@ -82,6 +82,7 @@ class VfsTree:
 
     static: dict[str, VfsNode] = field(default_factory=dict)
     pass_name_map: dict[str, str] = field(default_factory=dict)
+    pass_list: list[dict[str, Any]] = field(default_factory=list)
     _draw_subtrees: OrderedDict[int, dict[str, list[str]]] = field(default_factory=OrderedDict)
     _lru_capacity: int = 64
 
@@ -138,6 +139,7 @@ def build_vfs_skeleton(
     draw_eids = [str(a.eid) for a in flat if a.flags & (_DRAWCALL | _DISPATCH)]
     event_eids = [str(a.eid) for a in flat]
     pass_list = _build_pass_list(actions, sf)
+    tree.pass_list = pass_list
     pass_names = [p["name"] for p in pass_list]
     resource_ids = [str(int(getattr(r, "resourceId", 0))) for r in resources]
 
@@ -300,6 +302,51 @@ def populate_draw_subtree(
 
     tree.static[targets_path].children = list(target_children)
     subtree[targets_path] = list(target_children)
+
+    # Populate bindings/ subtree
+    binding_sets: set[int] = set()
+    for stage_name in stages:
+        stage_idx = STAGE_MAP[stage_name]
+        refl = pipe_state.GetShaderReflection(stage_idx)
+        if refl is None:
+            continue
+        for r in getattr(refl, "readOnlyResources", []):
+            binding_sets.add(getattr(r, "fixedBindSetOrSpace", 0))
+        for r in getattr(refl, "readWriteResources", []):
+            binding_sets.add(getattr(r, "fixedBindSetOrSpace", 0))
+
+    bindings_path = f"{prefix}/bindings"
+    binding_set_names = sorted(str(s) for s in binding_sets)
+    tree.static[bindings_path].children = list(binding_set_names)
+    subtree[bindings_path] = list(binding_set_names)
+    for s in binding_sets:
+        set_path = f"{bindings_path}/{s}"
+        tree.static[set_path] = VfsNode(str(s), "dir")
+
+    # Populate cbuffer/ subtree
+    cbuffer_sets: dict[int, set[int]] = {}
+    for stage_name in stages:
+        stage_idx = STAGE_MAP[stage_name]
+        refl = pipe_state.GetShaderReflection(stage_idx)
+        if refl is None:
+            continue
+        for cb in getattr(refl, "constantBlocks", []):
+            s = getattr(cb, "fixedBindSetOrSpace", 0)
+            b = getattr(cb, "fixedBindNumber", 0)
+            cbuffer_sets.setdefault(s, set()).add(b)
+
+    cbuffer_path = f"{prefix}/cbuffer"
+    cbuffer_set_names = sorted(str(s) for s in cbuffer_sets)
+    tree.static[cbuffer_path].children = list(cbuffer_set_names)
+    subtree[cbuffer_path] = list(cbuffer_set_names)
+    for s, bindings in cbuffer_sets.items():
+        set_path = f"{cbuffer_path}/{s}"
+        binding_names = sorted(str(b) for b in bindings)
+        tree.static[set_path] = VfsNode(str(s), "dir", list(binding_names))
+        subtree[set_path] = list(binding_names)
+        for b in bindings:
+            leaf_path = f"{set_path}/{b}"
+            tree.static[leaf_path] = VfsNode(str(b), "leaf")
 
     tree.set_draw_subtree(eid, subtree)
     return subtree

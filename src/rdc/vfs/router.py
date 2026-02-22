@@ -108,10 +108,12 @@ _r(
     "cbuffer_decode",
     [("eid", int), ("set", int), ("binding", int)],
 )
+_r(r"/draws/(?P<eid>\d+)/cbuffer/(?P<set>\d+)", "dir", None, [("eid", int), ("set", int)])
 _r(r"/draws/(?P<eid>\d+)/vbuffer", "leaf", "vbuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/ibuffer", "leaf", "ibuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/descriptors", "leaf", "descriptors", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/bindings", "dir", None, [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/bindings/(?P<set>\d+)", "dir", None, [("eid", int), ("set", int)])
 
 # draw targets
 _r(r"/draws/(?P<eid>\d+)/targets", "dir", None, [("eid", int)])
