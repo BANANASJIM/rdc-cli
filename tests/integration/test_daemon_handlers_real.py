@@ -1477,3 +1477,83 @@ class TestDiffLibraryLevelReal:
         assert result["size"] > 0
         exported = Path(result["path"])
         assert exported.exists()
+
+
+class TestShaderEditReal:
+    """GPU integration tests for shader edit-replay handlers."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        return result["events"][0]["eid"]
+
+    def test_shader_encodings(self) -> None:
+        """Returns non-empty list with at least one known encoding."""
+        result = _call(self.state, "shader_encodings")
+        assert len(result["encodings"]) > 0
+        names = [e["name"] for e in result["encodings"]]
+        assert any(n in ("GLSL", "SPIRV") for n in names)
+
+    def test_shader_build_glsl(self) -> None:
+        """Build a trivial GLSL fragment shader."""
+        encs = _call(self.state, "shader_encodings")
+        glsl_available = any(e["value"] == 2 for e in encs["encodings"])
+        if not glsl_available:
+            pytest.skip("GLSL encoding not available")
+
+        source = "#version 450\nlayout(location=0) out vec4 o;\nvoid main(){o=vec4(1,0,0,1);}\n"
+        result = _call(self.state, "shader_build", {"stage": "ps", "source": source})
+        assert result["shader_id"] > 0
+
+    def test_shader_replace_cycle(self) -> None:
+        """Build -> Replace -> Restore full cycle."""
+        encs = _call(self.state, "shader_encodings")
+        if not any(e["value"] == 2 for e in encs["encodings"]):
+            pytest.skip("GLSL encoding not available")
+
+        draw_eid = self._first_draw_eid()
+        source = "#version 450\nlayout(location=0) out vec4 o;\nvoid main(){o=vec4(0,1,0,1);}\n"
+        build_result = _call(self.state, "shader_build", {"stage": "ps", "source": source})
+        shader_id = build_result["shader_id"]
+
+        try:
+            replace_result = _call(
+                self.state,
+                "shader_replace",
+                {"eid": draw_eid, "stage": "ps", "shader_id": shader_id},
+            )
+            assert replace_result["ok"] is True
+            assert replace_result["original_id"] > 0
+
+            restore_result = _call(self.state, "shader_restore", {"eid": draw_eid, "stage": "ps"})
+            assert restore_result["ok"] is True
+        finally:
+            req = {
+                "id": 1,
+                "method": "shader_restore_all",
+                "params": {"_token": self.state.token},
+            }
+            _handle_request(req, self.state)
+
+    def test_shader_restore_all(self) -> None:
+        """Build and replace, then restore-all cleans up."""
+        encs = _call(self.state, "shader_encodings")
+        if not any(e["value"] == 2 for e in encs["encodings"]):
+            pytest.skip("GLSL encoding not available")
+
+        draw_eid = self._first_draw_eid()
+        source = "#version 450\nlayout(location=0) out vec4 o;\nvoid main(){o=vec4(1,1,0,1);}\n"
+        build = _call(self.state, "shader_build", {"stage": "ps", "source": source})
+        _call(
+            self.state,
+            "shader_replace",
+            {"eid": draw_eid, "stage": "ps", "shader_id": build["shader_id"]},
+        )
+
+        result = _call(self.state, "shader_restore_all")
+        assert result["ok"] is True
+        assert result["restored"] >= 1
+        assert result["freed"] >= 1
