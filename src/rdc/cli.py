@@ -8,6 +8,7 @@ from rdc import __version__
 from rdc.commands.capture import capture_cmd
 from rdc.commands.completion import completion_cmd
 from rdc.commands.counters import counters_cmd
+from rdc.commands.diff import diff_cmd
 from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
 from rdc.commands.export import buffer_cmd, rt_cmd, texture_cmd
@@ -88,6 +89,7 @@ main.add_command(completion_cmd, name="completion")
 main.add_command(counters_cmd, name="counters")
 main.add_command(script_cmd, name="script")
 main.add_command(pixel_cmd, name="pixel")
+main.add_command(diff_cmd, name="diff")
 
 
 if __name__ == "__main__":
