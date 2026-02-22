@@ -646,6 +646,9 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pillow" },
 ]
 
 [package.optional-dependencies]
@@ -655,14 +658,6 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
-diff = [
-    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "pillow" },
-]
-imaging = [
-    { name = "pillow" },
-]
 rich = [
     { name = "rich" },
 ]
@@ -671,15 +666,14 @@ rich = [
 requires-dist = [
     { name = "click", specifier = ">=8.1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
-    { name = "numpy", marker = "extra == 'diff'", specifier = ">=1.24" },
-    { name = "pillow", marker = "extra == 'diff'", specifier = ">=10.0" },
-    { name = "pillow", marker = "extra == 'imaging'", specifier = ">=10.0" },
+    { name = "numpy", specifier = ">=1.24" },
+    { name = "pillow", specifier = ">=10.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "rich", marker = "extra == 'rich'", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
 ]
-provides-extras = ["rich", "imaging", "diff", "dev"]
+provides-extras = ["rich", "dev"]
 
 [[package]]
 name = "rich"

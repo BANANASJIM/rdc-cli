@@ -5,6 +5,7 @@ import os
 import click
 
 from rdc import __version__
+from rdc.commands.assert_image import assert_image_cmd
 from rdc.commands.capture import capture_cmd
 from rdc.commands.completion import completion_cmd
 from rdc.commands.counters import counters_cmd
@@ -90,6 +91,7 @@ main.add_command(counters_cmd, name="counters")
 main.add_command(script_cmd, name="script")
 main.add_command(pixel_cmd, name="pixel")
 main.add_command(diff_cmd, name="diff")
+main.add_command(assert_image_cmd, name="assert-image")
 
 
 if __name__ == "__main__":
