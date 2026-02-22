@@ -26,6 +26,7 @@ from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources
 from rdc.commands.script import script_cmd
 from rdc.commands.search import search_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
+from rdc.commands.snapshot import snapshot_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 from rdc.commands.usage import usage_cmd
 from rdc.commands.vfs import cat_cmd, complete_cmd, ls_cmd, tree_cmd
@@ -102,6 +103,7 @@ main.add_command(assert_pixel_cmd, name="assert-pixel")
 main.add_command(assert_clean_cmd, name="assert-clean")
 main.add_command(assert_count_cmd, name="assert-count")
 main.add_command(assert_state_cmd, name="assert-state")
+main.add_command(snapshot_cmd, name="snapshot")
 
 
 if __name__ == "__main__":
