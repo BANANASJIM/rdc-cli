@@ -213,6 +213,32 @@ def render_shortstat(rows: list[DrawDiffRow]) -> str:
     return f"{added} added, {deleted} deleted, {modified} modified, {unchanged} unchanged"
 
 
+def render_tsv(rows: list[DrawDiffRow], *, header: bool = True) -> str:
+    """Render rows as tab-separated values.
+
+    Args:
+        rows: Diff rows to render.
+        header: Include header line.
+
+    Returns:
+        TSV string.
+    """
+    lines: list[str] = []
+    if header:
+        lines.append("STATUS\tEID_A\tEID_B\tMARKER\tTYPE\tTRI_A\tTRI_B\tINST_A\tINST_B\tCONFIDENCE")
+
+    def _v(x: int | None) -> str:
+        return str(x) if x is not None else "-"
+
+    for r in rows:
+        lines.append(
+            f"{r.status.value}\t{_v(r.eid_a)}\t{_v(r.eid_b)}\t{r.marker}\t{r.draw_type}"
+            f"\t{_v(r.triangles_a)}\t{_v(r.triangles_b)}"
+            f"\t{_v(r.instances_a)}\t{_v(r.instances_b)}\t{r.confidence}"
+        )
+    return "\n".join(lines)
+
+
 def render_json(rows: list[DrawDiffRow]) -> str:
     """Render rows as a JSON array.
 
