@@ -155,3 +155,31 @@ def test_open_session_failure_with_empty_stderr(
     ok, msg = session_service.open_session(Path("test.rdc"))
     assert ok is False
     assert msg  # message must be non-empty
+
+
+def test_start_daemon_idle_timeout_custom(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+    captured_cmd: list[str] = []
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
+        captured_cmd.extend(cmd)
+        return MagicMock()
+
+    monkeypatch.setattr(session_service.subprocess, "Popen", fake_popen)
+    session_service.start_daemon("test.rdc", 9999, "tok", idle_timeout=120)
+    idx = captured_cmd.index("--idle-timeout")
+    assert captured_cmd[idx + 1] == "120"
+
+
+def test_start_daemon_idle_timeout_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+    captured_cmd: list[str] = []
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
+        captured_cmd.extend(cmd)
+        return MagicMock()
+
+    monkeypatch.setattr(session_service.subprocess, "Popen", fake_popen)
+    session_service.start_daemon("test.rdc", 9999, "tok")
+    idx = captured_cmd.index("--idle-timeout")
+    assert captured_cmd[idx + 1] == "1800"

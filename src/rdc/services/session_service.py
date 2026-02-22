@@ -33,7 +33,13 @@ def _renderdoc_available() -> bool:
     return find_renderdoc() is not None
 
 
-def start_daemon(capture: str, port: int, token: str) -> subprocess.Popen[str]:
+def start_daemon(
+    capture: str,
+    port: int,
+    token: str,
+    *,
+    idle_timeout: int = 1800,
+) -> subprocess.Popen[str]:
     cmd = [
         sys.executable,
         "-m",
@@ -47,7 +53,7 @@ def start_daemon(capture: str, port: int, token: str) -> subprocess.Popen[str]:
         "--token",
         token,
         "--idle-timeout",
-        "1800",
+        str(idle_timeout),
     ]
     if not _renderdoc_available():
         cmd.append("--no-replay")

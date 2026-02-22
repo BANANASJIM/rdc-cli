@@ -202,7 +202,7 @@ def run_server(  # pragma: no cover
         running = True
         last_activity = time.time()
         while running:
-            if time.time() - last_activity > idle_timeout_s:
+            if idle_timeout_s > 0 and time.time() - last_activity > idle_timeout_s:
                 break
 
             try:
