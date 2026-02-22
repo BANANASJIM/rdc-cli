@@ -287,6 +287,49 @@ class TestDaemonHandlersReal:
             assert len(d.keys()) >= 7
 
 
+class TestResourcesFilterReal:
+    """GPU integration tests for resources filter/sort (phase2.7)."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def test_resources_type_is_string(self) -> None:
+        result = _call(self.state, "resources")
+        rows = result["rows"]
+        assert len(rows) > 0
+        for row in rows:
+            assert isinstance(row["type"], str)
+            assert len(row["type"]) > 0
+
+    def test_resources_no_ghost_fields(self) -> None:
+        result = _call(self.state, "resources")
+        for row in result["rows"]:
+            for ghost in ("width", "height", "depth", "format"):
+                assert ghost not in row, f"ghost field '{ghost}' present in row"
+
+    def test_resources_filter_by_type(self) -> None:
+        all_rows = _call(self.state, "resources")["rows"]
+        if not all_rows:
+            pytest.skip("no resources in capture")
+        target_type = all_rows[0]["type"]
+        filtered = _call(self.state, "resources", {"type": target_type})["rows"]
+        assert len(filtered) >= 1
+        assert all(r["type"].lower() == target_type.lower() for r in filtered)
+
+    def test_resources_filter_by_name(self) -> None:
+        all_rows = _call(self.state, "resources")["rows"]
+        if not all_rows:
+            pytest.skip("no resources in capture")
+        target_name = all_rows[0]["name"]
+        if not target_name:
+            pytest.skip("first resource has empty name")
+        substring = target_name[:3].lower()
+        filtered = _call(self.state, "resources", {"name": substring})["rows"]
+        assert len(filtered) >= 1
+        assert all(substring in r["name"].lower() for r in filtered)
+
+
 class TestBinaryHandlersReal:
     """Integration tests for Phase 2 binary export handlers."""
 

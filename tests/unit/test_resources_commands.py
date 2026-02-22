@@ -20,49 +20,21 @@ def test_resources_tsv(monkeypatch) -> None:
         monkeypatch,
         {
             "rows": [
-                {
-                    "id": 1,
-                    "type": "Texture2D",
-                    "name": "Albedo",
-                    "width": 1024,
-                    "height": 1024,
-                    "depth": 1,
-                    "format": "R8G8B8A8_UNORM",
-                },
-                {
-                    "id": 2,
-                    "type": "Buffer",
-                    "name": "VBO",
-                    "width": 0,
-                    "height": 0,
-                    "depth": 0,
-                    "format": "",
-                },
+                {"id": 1, "type": "Texture", "name": "Albedo"},
+                {"id": 2, "type": "Buffer", "name": "VBO"},
             ]
         },
     )
     result = CliRunner().invoke(resources_cmd, [])
     assert result.exit_code == 0
     assert "Albedo" in result.output
-    assert "1024" in result.output
+    assert "Texture" in result.output
 
 
 def test_resources_json(monkeypatch) -> None:
     _patch_resources(
         monkeypatch,
-        {
-            "rows": [
-                {
-                    "id": 1,
-                    "type": "Texture2D",
-                    "name": "Albedo",
-                    "width": 1024,
-                    "height": 1024,
-                    "depth": 1,
-                    "format": "R8G8B8A8_UNORM",
-                }
-            ]
-        },
+        {"rows": [{"id": 1, "type": "Texture", "name": "Albedo"}]},
     )
     result = CliRunner().invoke(resources_cmd, ["--json"])
     assert result.exit_code == 0
@@ -80,15 +52,7 @@ def test_resources_no_session(monkeypatch) -> None:
 def test_resource_detail_tsv(monkeypatch) -> None:
     _patch_resources(
         monkeypatch,
-        {
-            "resource": {
-                "id": 1,
-                "type": "Texture2D",
-                "name": "Albedo",
-                "width": 1024,
-                "height": 1024,
-            }
-        },
+        {"resource": {"id": 1, "type": "Texture", "name": "Albedo"}},
     )
     result = CliRunner().invoke(resource_cmd, ["1"])
     assert result.exit_code == 0

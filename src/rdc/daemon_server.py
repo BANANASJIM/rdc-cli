@@ -370,6 +370,16 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         from rdc.services.query_service import get_resources
 
         rows = get_resources(state.adapter)
+        type_filter = params.get("type")
+        name_filter = params.get("name")
+        sort_by = params.get("sort", "id")
+        if type_filter:
+            rows = [r for r in rows if r["type"].lower() == type_filter.lower()]
+        if name_filter:
+            name_lower = name_filter.lower()
+            rows = [r for r in rows if name_lower in r["name"].lower()]
+        if sort_by in ("name", "type"):
+            rows.sort(key=lambda r: r[sort_by].lower())
         return _result_response(request_id, {"rows": rows}), True
 
     if method == "resource":

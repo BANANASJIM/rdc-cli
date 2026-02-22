@@ -33,29 +33,42 @@ def _call(method: str, params: dict[str, Any]) -> dict[str, Any]:
 
 @click.command("resources")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def resources_cmd(as_json: bool) -> None:
+@click.option(
+    "--type", "type_filter", default=None, help="Filter by resource type (exact, case-insensitive)."
+)  # noqa: E501
+@click.option(
+    "--name", "name_filter", default=None, help="Filter by name substring (case-insensitive)."
+)  # noqa: E501
+@click.option(
+    "--sort",
+    type=click.Choice(["id", "name", "type"]),
+    default="id",
+    show_default=True,
+    help="Sort order.",
+)
+def resources_cmd(  # noqa: PLR0913
+    as_json: bool,
+    type_filter: str | None,
+    name_filter: str | None,
+    sort: str,
+) -> None:
     """List all resources."""
-    result = _call("resources", {})
+    params: dict[str, Any] = {}
+    if type_filter is not None:
+        params["type"] = type_filter
+    if name_filter is not None:
+        params["name"] = name_filter
+    if sort != "id":
+        params["sort"] = sort
+    result = _call("resources", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)
         return
 
-    click.echo(format_row(["ID", "TYPE", "NAME", "WIDTH", "HEIGHT", "DEPTH", "FORMAT"]))
+    click.echo(format_row(["ID", "TYPE", "NAME"]))
     for row in rows:
-        click.echo(
-            format_row(
-                [
-                    row.get("id", "-"),
-                    row.get("type", "-"),
-                    row.get("name", "-"),
-                    row.get("width", 0),
-                    row.get("height", 0),
-                    row.get("depth", 0),
-                    row.get("format", "-"),
-                ]
-            )
-        )
+        click.echo(format_row([row.get("id", "-"), row.get("type", "-"), row.get("name", "-")]))
 
 
 @click.command("resource")
