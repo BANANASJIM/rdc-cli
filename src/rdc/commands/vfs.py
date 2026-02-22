@@ -39,6 +39,14 @@ def _fmt_log(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _fmt_pixel_mod(m: dict[str, Any]) -> str:
+    d = m["depth"]
+    depth_s = f"{d:.4f}" if d is not None else "-"
+    passed_s = "yes" if m["passed"] else "no"
+    flags_s = ",".join(m["flags"]) or "-"
+    return f"{m['eid']}\t{m['fragment']}\t{depth_s}\t{passed_s}\t{flags_s}"
+
+
 _EXTRACTORS: dict[str, Callable[..., str]] = {
     "info": lambda r: _kv_text(r),
     "stats": lambda r: _kv_text(r),
@@ -71,6 +79,10 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
             f"{d['stage']}\t{d['type']}\t{d['index']}\t{d['array_element']}\t{d['resource_id']}\t{d['format']}\t{d['byte_size']}"
             for d in r.get("descriptors", [])
         )
+    ),
+    "pixel_history": lambda r: (
+        "EID\tFRAG\tDEPTH\tPASSED\tFLAGS\n"
+        + "\n".join(_fmt_pixel_mod(m) for m in r.get("modifications", []))
     ),
 }
 

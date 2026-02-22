@@ -112,6 +112,18 @@ _r(r"/draws/(?P<eid>\d+)/cbuffer/(?P<set>\d+)", "dir", None, [("eid", int), ("se
 _r(r"/draws/(?P<eid>\d+)/vbuffer", "leaf", "vbuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/ibuffer", "leaf", "ibuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/descriptors", "leaf", "descriptors", [("eid", int)])
+_r(
+    r"/draws/(?P<eid>\d+)/pixel/(?P<x>\d+)/(?P<y>\d+)",
+    "leaf",
+    "pixel_history",
+    [("eid", int), ("x", int), ("y", int)],
+)
+_r(
+    r"/draws/(?P<eid>\d+)/pixel/(?P<x>\d+)/(?P<y>\d+)/color(?P<target>\d+)",
+    "leaf",
+    "pixel_history",
+    [("eid", int), ("x", int), ("y", int), ("target", int)],
+)
 _r(r"/draws/(?P<eid>\d+)/bindings", "dir", None, [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/bindings/(?P<set>\d+)", "dir", None, [("eid", int), ("set", int)])
 

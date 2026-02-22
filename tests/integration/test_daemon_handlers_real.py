@@ -286,6 +286,42 @@ class TestDaemonHandlersReal:
         for d in result["descriptors"]:
             assert len(d.keys()) >= 7
 
+    def test_pixel_history_real(self) -> None:
+        """PixelHistory on a draw event returns valid modification entries."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draws = events_result["events"]
+        assert len(draws) > 0
+        draw_eid = draws[0]["eid"]
+
+        # Pick center of likely render area
+        result = _call(self.state, "pixel_history", {"x": 320, "y": 240, "eid": draw_eid})
+        assert isinstance(result["modifications"], list)
+        for m in result["modifications"]:
+            assert isinstance(m["eid"], int)
+            assert isinstance(m["fragment"], int)
+            assert isinstance(m["passed"], bool)
+            assert isinstance(m["flags"], list)
+            pm = m["post_mod"]
+            for c in ("r", "g", "b", "a"):
+                assert isinstance(pm[c], (int, float))
+            d = m["depth"]
+            assert d is None or isinstance(d, float)
+
+    def test_pixel_history_background_real(self) -> None:
+        """Background pixel returns empty or clear-only modifications (no error)."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "pixel_history", {"x": 0, "y": 0, "eid": draw_eid})
+        assert isinstance(result["modifications"], list)
+
+    def test_pixel_history_depth_null_real(self) -> None:
+        """No raw -1.0 depth in returned modifications."""
+        events_result = _call(self.state, "events", {"type": "draw"})
+        draw_eid = events_result["events"][0]["eid"]
+        result = _call(self.state, "pixel_history", {"x": 320, "y": 240, "eid": draw_eid})
+        for m in result["modifications"]:
+            assert m["depth"] != -1.0, "raw -1.0 depth must be serialized as null"
+
 
 class TestResourcesFilterReal:
     """GPU integration tests for resources filter/sort (phase2.7)."""
