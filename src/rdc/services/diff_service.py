@@ -43,6 +43,8 @@ def start_diff_session(
     host = "127.0.0.1"
     port_a = pick_port()
     port_b = pick_port()
+    while port_b == port_a:
+        port_b = pick_port()
     token_a = secrets.token_hex(16)
     token_b = secrets.token_hex(16)
 
@@ -68,8 +70,8 @@ def start_diff_session(
     def _ping(idx: int, port: int, token: str) -> None:
         results[idx] = wait_for_ping(host, port, token, timeout_s=timeout_s)
 
-    t_a = threading.Thread(target=_ping, args=(0, port_a, token_a))
-    t_b = threading.Thread(target=_ping, args=(1, port_b, token_b))
+    t_a = threading.Thread(target=_ping, args=(0, port_a, token_a), daemon=True)
+    t_b = threading.Thread(target=_ping, args=(1, port_b, token_b), daemon=True)
     t_a.start()
     t_b.start()
     t_a.join()
@@ -106,6 +108,7 @@ def start_diff_session(
 
 def stop_diff_session(ctx: DiffContext) -> None:
     """Shut down both daemons. Best-effort, never raises, idempotent."""
+    atexit.unregister(stop_diff_session)
     for port, token in [(ctx.port_a, ctx.token_a), (ctx.port_b, ctx.token_b)]:
         try:
             send_request(ctx.host, port, shutdown_request(token), timeout=2.0)
@@ -163,10 +166,12 @@ def query_both(
     t_a = threading.Thread(
         target=_do_query,
         args=(ctx.host, ctx.port_a, ctx.token_a, method, params, timeout_s, out, 0),
+        daemon=True,
     )
     t_b = threading.Thread(
         target=_do_query,
         args=(ctx.host, ctx.port_b, ctx.token_b, method, params, timeout_s, out, 1),
+        daemon=True,
     )
     t_a.start()
     t_b.start()
@@ -199,10 +204,12 @@ def query_both_sync(
         t_a = threading.Thread(
             target=_do_query,
             args=(ctx.host, ctx.port_a, ctx.token_a, method, params, timeout_s, out_a, i),
+            daemon=True,
         )
         t_b = threading.Thread(
             target=_do_query,
             args=(ctx.host, ctx.port_b, ctx.token_b, method, params, timeout_s, out_b, i),
+            daemon=True,
         )
         threads.extend([t_a, t_b])
 
