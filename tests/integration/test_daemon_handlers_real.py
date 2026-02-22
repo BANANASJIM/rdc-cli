@@ -1381,7 +1381,12 @@ class TestDiffSessionExtendedReal:
             records_b = build_draw_records(resp_b["result"]["draws"])
             aligned = align_draws(records_a, records_b)
 
-            pair = next((a, b) for a, b in aligned if a is not None and b is not None)
+            pair = None
+            for a, b in aligned:
+                if a is not None and b is not None:
+                    pair = (a, b)
+                    break
+            assert pair is not None, "no aligned draw pairs found"
             rec_a, rec_b = pair
 
             calls_a = [(m, {"eid": rec_a.eid}) for m, _ in PIPE_SECTION_CALLS]
@@ -1398,8 +1403,14 @@ class TestDiffLibraryLevelReal:
     """GPU integration tests for diff library functions at the adapter level."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+    def _setup(
+        self,
+        vkcube_replay: tuple[Any, Any, Any],
+        rd_module: Any,
+        tmp_path: Path,
+    ) -> None:
         self.state = _make_state(vkcube_replay, rd_module)
+        self.state.temp_dir = tmp_path
 
     def test_diff_stats_pass_names_nonempty(self) -> None:
         """Stats per_pass entries all have non-empty pass names."""
