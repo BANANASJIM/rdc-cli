@@ -319,6 +319,12 @@ class CompType(IntEnum):
     UNormSRGB = 9
 
 
+class MeshDataStage(IntEnum):
+    VSIn = 0
+    VSOut = 1
+    GSOut = 2
+
+
 class ShaderEncoding(IntEnum):
     Unknown = 0
     DXBC = 1
@@ -1243,6 +1249,7 @@ class MockReplayController:
         self._debug_pixel_map: dict[tuple[int, int], ShaderDebugTrace] = {}
         self._debug_vertex_map: dict[int, ShaderDebugTrace] = {}
         self._debug_states: dict[int, list[list[ShaderDebugState]]] = {}
+        self._mesh_data: dict[int, MeshFormat] = {}
         self._target_encodings: list[int] = [3, 2]
         self._built_counter: int = 1000
         self._replacements: dict[int, int] = {}
@@ -1305,8 +1312,8 @@ class MockReplayController:
         return self._cbuffer_variables.get((int(stage), idx), [])
 
     def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
-        """Mock GetPostVSData -- returns dummy mesh format."""
-        return MeshFormat()
+        """Mock GetPostVSData -- returns configured or empty mesh format."""
+        return self._mesh_data.get(int(stage), MeshFormat())
 
     def GetDisassemblyTargets(self, with_pipeline: bool) -> list[str]:
         """Mock GetDisassemblyTargets -- returns default target list."""
