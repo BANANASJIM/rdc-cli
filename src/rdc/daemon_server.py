@@ -364,7 +364,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
             rows = [r for r in rows if r.get("set") == int(set_filter)]
         binding_index = params.get("binding")
         if binding_index is not None:
-            rows = [r for r in rows if r.get("slot") == binding_index]
+            rows = [r for r in rows if r.get("slot") == int(binding_index)]
 
         return _result_response(request_id, {"rows": rows}), True
     if method == "shader":

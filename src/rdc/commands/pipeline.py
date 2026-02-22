@@ -244,6 +244,9 @@ def shader_cmd(
         disasm_result = _call(
             "shader_disasm", {"eid": eid or 0, "stage": stage or "ps", "target": target}
         )
+        if as_json:
+            write_json(disasm_result)
+            return
         content: str = disasm_result.get("disasm", "")
         if output_path:
             output_path.write_text(content)
