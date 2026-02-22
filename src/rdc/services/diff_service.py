@@ -218,6 +218,6 @@ def query_both_sync(
     for t in threads:
         t.join()
 
-    all_none = all(r is None for r in out_a) and all(r is None for r in out_b)
+    all_none = n > 0 and all(r is None for r in out_a) and all(r is None for r in out_b)
     err = "all queries failed" if all_none else ""
     return out_a, out_b, err
