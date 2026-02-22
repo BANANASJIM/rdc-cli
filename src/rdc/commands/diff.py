@@ -10,7 +10,9 @@ from typing import Any
 
 import click
 
+from rdc.diff import stats as diff_stats_mod
 from rdc.diff.alignment import align_draws
+from rdc.diff.draws import DiffStatus
 from rdc.diff.framebuffer import FramebufferDiffResult, compare_framebuffers
 from rdc.diff.pipeline import (
     PIPE_SECTION_CALLS,
@@ -29,13 +31,14 @@ from rdc.diff.resources import render_json as render_json_res
 from rdc.diff.resources import render_shortstat as render_shortstat_res
 from rdc.diff.resources import render_unified as render_unified_res
 from rdc.services.diff_service import (
+    DiffContext,
     query_both,
     query_each_sync,
     start_diff_session,
     stop_diff_session,
 )
 
-_MODE_STUBS = {"draws", "passes", "stats"}
+_MODE_STUBS = {"draws", "passes"}
 
 
 def _render_framebuffer(
@@ -61,6 +64,41 @@ def _render_framebuffer(
     click.echo(f"  eid={result.eid} target={result.target}")
     if result.diff_image is not None:
         click.echo(f"  diff image: {result.diff_image}")
+
+
+def _handle_stats(
+    ctx: DiffContext,
+    *,
+    output_json: bool,
+    fmt: str,
+    shortstat: bool,
+    no_header: bool,
+) -> None:
+    """Query both daemons for stats and render the diff."""
+    resp_a, resp_b, err = query_both(ctx, "stats", {})
+    if resp_a is None or resp_b is None:
+        click.echo(
+            f"error: stats query failed: {err or 'daemon returned no result'}",
+            err=True,
+        )
+        sys.exit(2)
+
+    passes_a: list[dict[str, object]] = resp_a.get("result", {}).get("per_pass", [])
+    passes_b: list[dict[str, object]] = resp_b.get("result", {}).get("per_pass", [])
+
+    rows = diff_stats_mod.diff_stats(passes_a, passes_b)
+
+    if shortstat:
+        click.echo(diff_stats_mod.render_shortstat(rows))
+    elif output_json or fmt == "json":
+        click.echo(diff_stats_mod.render_json(rows))
+    elif fmt == "unified":
+        click.echo(diff_stats_mod.render_unified(rows, ctx.capture_a, ctx.capture_b))
+    else:
+        click.echo(diff_stats_mod.render_tsv(rows, header=not no_header))
+
+    has_changes = any(r.status != DiffStatus.EQUAL for r in rows)
+    sys.exit(1 if has_changes else 0)
 
 
 @click.command("diff")
@@ -158,6 +196,15 @@ def diff_cmd(
                 timeout,
             )
 
+        if mode == "stats":
+            _handle_stats(
+                ctx,
+                output_json=output_json,
+                fmt=fmt,
+                shortstat=shortstat,
+                no_header=no_header,
+            )
+
         if mode in _MODE_STUBS:
             click.echo(f"error: --{mode} not yet implemented", err=True)
             sys.exit(2)
@@ -239,8 +286,6 @@ def _handle_resources(
     timeout: float,
 ) -> None:
     """Handle --resources mode: query, diff, render, exit."""
-    from rdc.diff.draws import DiffStatus
-
     resp_a, resp_b, err = query_both(ctx, "resources", {}, timeout_s=timeout)  # type: ignore[arg-type]
     if resp_a is None or resp_b is None:
         msg = err or "one or both daemons returned no data"
