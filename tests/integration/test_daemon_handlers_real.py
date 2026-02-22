@@ -755,3 +755,22 @@ class TestFixVfsPassConsistency:
         if not result["children"]:
             pytest.skip("no bindings in this draw call")
         assert len(result["children"]) > 0
+
+
+class TestScriptReal:
+    """GPU integration test for script handler with real replay."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+        self.state.rd = rd_module
+
+    def test_script_get_resources_real(self, tmp_path: Path) -> None:
+        """Run a script that calls controller.GetResources() and returns count."""
+        script = tmp_path / "probe.py"
+        script.write_text("result = len(controller.GetResources())\n", encoding="utf-8")
+        result = _call(self.state, "script", {"path": str(script)})
+        assert isinstance(result["return_value"], int)
+        assert result["return_value"] > 0
+        assert result["stdout"] == ""
+        assert result["elapsed_ms"] >= 0
