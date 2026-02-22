@@ -37,16 +37,20 @@ def load_session() -> SessionState | None:
     path = session_path()
     if not path.exists():
         return None
-    data = json.loads(path.read_text())
-    return SessionState(
-        capture=data["capture"],
-        current_eid=int(data["current_eid"]),
-        opened_at=data["opened_at"],
-        host=data["host"],
-        port=int(data["port"]),
-        token=data["token"],
-        pid=int(data["pid"]),
-    )
+    try:
+        data = json.loads(path.read_text())
+        return SessionState(
+            capture=data["capture"],
+            current_eid=int(data["current_eid"]),
+            opened_at=data["opened_at"],
+            host=data["host"],
+            port=int(data["port"]),
+            token=data["token"],
+            pid=int(data["pid"]),
+        )
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        path.unlink(missing_ok=True)
+        return None
 
 
 def save_session(state: SessionState) -> None:
@@ -90,4 +94,11 @@ def is_pid_alive(pid: int) -> bool:
         os.kill(pid, 0)
     except OSError:
         return False
+    # Heuristic: verify cmdline contains daemon signature (Linux only)
+    try:
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+        if b"rdc" not in cmdline:
+            return False
+    except OSError:
+        pass  # non-Linux or permission denied — accept kill-only result
     return True
