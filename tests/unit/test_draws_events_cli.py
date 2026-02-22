@@ -28,20 +28,26 @@ class TestCliRegistration:
 
 
 class TestNoSession:
-    def test_info(self):
+    def test_info(self, monkeypatch):
+        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
         assert CliRunner().invoke(main, ["info"]).exit_code == 1
 
-    def test_events(self):
+    def test_events(self, monkeypatch):
+        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
         assert CliRunner().invoke(main, ["events"]).exit_code == 1
 
-    def test_draws(self):
+    def test_draws(self, monkeypatch):
+        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
         assert CliRunner().invoke(main, ["draws"]).exit_code == 1
 
-    def test_event(self):
+    def test_event(self, monkeypatch):
+        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
         assert CliRunner().invoke(main, ["event", "42"]).exit_code == 1
 
-    def test_draw(self):
+    def test_draw(self, monkeypatch):
+        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
         assert CliRunner().invoke(main, ["draw", "42"]).exit_code == 1
 
-    def test_stats(self):
+    def test_stats(self, monkeypatch):
+        monkeypatch.setattr("rdc.commands.info.load_session", lambda: None)
         assert CliRunner().invoke(main, ["stats"]).exit_code == 1
