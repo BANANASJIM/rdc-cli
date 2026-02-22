@@ -7,6 +7,7 @@ from typing import Any
 import click
 
 from rdc.commands.info import _daemon_call
+from rdc.commands.vfs import _fmt_pixel_mod
 from rdc.formatters.json_fmt import write_json
 
 
@@ -42,8 +43,4 @@ def pixel_cmd(
         click.echo("EID\tFRAG\tDEPTH\tPASSED\tFLAGS")
 
     for m in result.get("modifications", []):
-        d = m["depth"]
-        depth_s = f"{d:.4f}" if d is not None else "-"
-        passed_s = "yes" if m["passed"] else "no"
-        flags_s = ",".join(m["flags"]) or "-"
-        click.echo(f"{m['eid']}\t{m['fragment']}\t{depth_s}\t{passed_s}\t{flags_s}")
+        click.echo(_fmt_pixel_mod(m))
