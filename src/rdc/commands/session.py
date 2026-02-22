@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import click
@@ -30,6 +31,7 @@ def status_cmd() -> None:
 
     payload = result
     assert isinstance(payload, dict)
+    click.echo(f"session: {os.environ.get('RDC_SESSION') or 'default'}")
     click.echo(f"capture: {payload['capture']}")
     click.echo(f"current_eid: {payload['current_eid']}")
     click.echo(f"opened_at: {payload['opened_at']}")
