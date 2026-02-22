@@ -219,7 +219,10 @@ def run_server(  # pragma: no cover
                 continue
 
             with conn:
-                line = _recv_line(conn)
+                try:
+                    line = _recv_line(conn)
+                except ValueError:
+                    continue
                 if not line:
                     continue
                 try:

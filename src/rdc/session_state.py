@@ -49,6 +49,9 @@ def load_session() -> SessionState | None:
             pid=int(data["pid"]),
         )
     except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+        import logging
+
+        logging.getLogger("rdc").warning("corrupt session file deleted: %s", path)
         path.unlink(missing_ok=True)
         return None
 
