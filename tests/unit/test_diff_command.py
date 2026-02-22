@@ -160,10 +160,12 @@ def test_diff_pipeline_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     monkeypatch.setattr(diff_mod, "start_diff_session", lambda *a, **kw: (ctx, ""))
     monkeypatch.setattr(diff_mod, "stop_diff_session", lambda c: None)
 
+    # Pipeline is now implemented — without mocking query_both it
+    # reports "both daemons failed" (exit 2), proving dispatch works.
     runner = CliRunner()
     result = runner.invoke(diff_cmd, [str(a), str(b), "--pipeline", "vs"])
     assert result.exit_code == 2
-    assert "not yet implemented" in result.output.lower()
+    assert "both daemons failed" in result.output
 
 
 # ---------------------------------------------------------------------------

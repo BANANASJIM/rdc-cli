@@ -221,3 +221,49 @@ def query_both_sync(
     all_none = n > 0 and all(r is None for r in out_a) and all(r is None for r in out_b)
     err = "all queries failed" if all_none else ""
     return out_a, out_b, err
+
+
+def query_each_sync(
+    ctx: DiffContext,
+    calls_a: list[tuple[str, dict[str, Any]]],
+    calls_b: list[tuple[str, dict[str, Any]]],
+    *,
+    timeout_s: float = 30.0,
+) -> tuple[list[dict[str, Any] | None], list[dict[str, Any] | None], str]:
+    """Send N calls to daemon A and M calls to daemon B concurrently.
+
+    Unlike ``query_both_sync`` which sends identical calls to both daemons,
+    this variant accepts separate call lists (e.g. different EIDs per side).
+
+    Returns:
+        (results_a, results_b, error_string). Order matches input call lists.
+    """
+    na, nb = len(calls_a), len(calls_b)
+    out_a: list[dict[str, Any] | None] = [None] * na
+    out_b: list[dict[str, Any] | None] = [None] * nb
+    threads: list[threading.Thread] = []
+
+    for i, (method, params) in enumerate(calls_a):
+        t = threading.Thread(
+            target=_do_query,
+            args=(ctx.host, ctx.port_a, ctx.token_a, method, params, timeout_s, out_a, i),
+            daemon=True,
+        )
+        threads.append(t)
+
+    for i, (method, params) in enumerate(calls_b):
+        t = threading.Thread(
+            target=_do_query,
+            args=(ctx.host, ctx.port_b, ctx.token_b, method, params, timeout_s, out_b, i),
+            daemon=True,
+        )
+        threads.append(t)
+
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    all_none = (na + nb > 0) and all(r is None for r in out_a) and all(r is None for r in out_b)
+    err = "all queries failed" if all_none else ""
+    return out_a, out_b, err
