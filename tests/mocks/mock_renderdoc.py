@@ -1243,6 +1243,10 @@ class MockReplayController:
         self._debug_pixel_map: dict[tuple[int, int], ShaderDebugTrace] = {}
         self._debug_vertex_map: dict[int, ShaderDebugTrace] = {}
         self._debug_states: dict[int, list[list[ShaderDebugState]]] = {}
+        self._target_encodings: list[int] = [3, 2]
+        self._built_counter: int = 1000
+        self._replacements: dict[int, int] = {}
+        self._freed: set[int] = set()
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -1362,6 +1366,25 @@ class MockReplayController:
 
     def FreeTrace(self, trace: Any) -> None:
         pass
+
+    def GetTargetShaderEncodings(self) -> list[int]:
+        return list(self._target_encodings)
+
+    def BuildTargetShader(
+        self, entry: str, encoding: Any, source: bytes, flags: Any, stage: Any
+    ) -> tuple[Any, str]:
+        rid = self._built_counter
+        self._built_counter += 1
+        return (ResourceId(rid), "")
+
+    def ReplaceResource(self, original: Any, replacement: Any) -> None:
+        self._replacements[int(original)] = int(replacement)
+
+    def RemoveReplacement(self, original: Any) -> None:
+        self._replacements.pop(int(original), None)
+
+    def FreeTargetResource(self, rid: Any) -> None:
+        self._freed.add(int(rid))
 
     def Shutdown(self) -> None:
         self._shutdown_called = True

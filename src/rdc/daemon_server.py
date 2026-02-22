@@ -34,6 +34,7 @@ from rdc.handlers.pixel import HANDLERS as _PIXEL_HANDLERS
 from rdc.handlers.query import HANDLERS as _QUERY_HANDLERS
 from rdc.handlers.script import HANDLERS as _SCRIPT_HANDLERS
 from rdc.handlers.shader import HANDLERS as _SHADER_HANDLERS
+from rdc.handlers.shader_edit import HANDLERS as _SHADER_EDIT_HANDLERS
 from rdc.handlers.texture import HANDLERS as _TEXTURE_HANDLERS
 from rdc.handlers.vfs import HANDLERS as _VFS_HANDLERS
 
@@ -66,6 +67,7 @@ _DISPATCH: dict[str, Any] = {
     **_PIXEL_HANDLERS,
     **_VFS_HANDLERS,
     **_DEBUG_HANDLERS,
+    **_SHADER_EDIT_HANDLERS,
 }
 
 
@@ -90,6 +92,8 @@ class DaemonState:
     rd: Any = None
     disasm_cache: dict[int, str] = field(default_factory=dict)
     shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
+    built_shaders: dict[int, Any] = field(default_factory=dict)
+    shader_replacements: dict[int, Any] = field(default_factory=dict)
     _shader_cache_built: bool = field(default=False, repr=False)
 
 
