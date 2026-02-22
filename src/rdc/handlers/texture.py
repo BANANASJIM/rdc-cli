@@ -1,7 +1,8 @@
-"""Texture handlers: tex_info, tex_export, tex_raw, rt_export, rt_depth."""
+"""Texture handlers: tex_info, tex_export, tex_raw, rt_export, rt_depth, rt_overlay."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
@@ -14,6 +15,18 @@ from rdc.handlers._helpers import (
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
+
+_OVERLAY_MAP: dict[str, int] = {
+    "wireframe": 2,
+    "depth": 3,
+    "stencil": 4,
+    "backface": 5,
+    "viewport": 6,
+    "nan": 7,
+    "clipping": 8,
+    "overdraw": 12,
+    "triangle-size": 14,
+}
 
 
 def _handle_tex_info(
@@ -163,10 +176,73 @@ def _handle_rt_depth(
     ), True
 
 
+def _handle_rt_overlay(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    """Render a debug overlay on the color target and save as PNG."""
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
+    if state.rd is None:
+        return _error_response(request_id, -32002, "renderdoc module not available"), True
+    if state.temp_dir is None:
+        return _error_response(request_id, -32002, "temp directory not available"), True
+    overlay_name = params.get("overlay", "")
+    if overlay_name not in _OVERLAY_MAP:
+        valid = ", ".join(sorted(_OVERLAY_MAP))
+        return _error_response(
+            request_id, -32602, f"unknown overlay '{overlay_name}'; valid: {valid}"
+        ), True
+    eid = int(params.get("eid", state.current_eid))
+    err = _set_frame_event(state, eid)
+    if err:
+        return _error_response(request_id, -32002, err), True
+    pipe = state.adapter.get_pipeline_state()
+    targets = pipe.GetOutputTargets()
+    non_null = [t for t in targets if int(t.resource) != 0]
+    if not non_null:
+        return _error_response(request_id, -32001, f"no color targets at eid {eid}"), True
+    target_rid = non_null[0].resource
+    width = int(params.get("width", 256))
+    height = int(params.get("height", 256))
+    if state.replay_output is not None and state.replay_output_dims != (width, height):
+        state.replay_output.Shutdown()
+        state.replay_output = None
+        state.replay_output_dims = None
+    if state.replay_output is None:
+        windowing = state.rd.CreateHeadlessWindowingData(width, height)
+        state.replay_output = state.adapter.controller.CreateOutput(
+            windowing, state.rd.ReplayOutputType.Texture
+        )
+        state.replay_output_dims = (width, height)
+    display = state.rd.TextureDisplay()
+    display.resourceId = target_rid
+    display.overlay = state.rd.DebugOverlay(_OVERLAY_MAP[overlay_name])
+    state.replay_output.SetTextureDisplay(display)
+    state.replay_output.Display()
+    overlay_tex_id = state.replay_output.GetDebugOverlayTexID()
+    if int(overlay_tex_id) == 0:
+        return _error_response(request_id, -32002, "overlay texture ID is zero"), True
+    temp_path = Path(state.temp_dir) / f"overlay_{overlay_name}_{eid}.png"
+    texsave = _make_texsave(state.rd, overlay_tex_id)
+    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+    if not success or not temp_path.exists():
+        return _error_response(request_id, -32002, "SaveTexture failed"), True
+    return _result_response(
+        request_id,
+        {
+            "path": str(temp_path),
+            "size": temp_path.stat().st_size,
+            "overlay": overlay_name,
+            "eid": eid,
+        },
+    ), True
+
+
 HANDLERS: dict[str, Any] = {
     "tex_info": _handle_tex_info,
     "tex_export": _handle_tex_export,
     "tex_raw": _handle_tex_raw,
     "rt_export": _handle_rt_export,
     "rt_depth": _handle_rt_depth,
+    "rt_overlay": _handle_rt_overlay,
 }

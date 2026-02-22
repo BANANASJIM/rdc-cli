@@ -1593,3 +1593,42 @@ class TestMeshDataReal:
         assert result["vertex_count"] == len(result["vertices"])
         for v in result["vertices"]:
             assert len(v) == result["comp_count"]
+
+
+class TestOverlayReal:
+    """GPU integration tests for rt_overlay handler with real replay."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self,
+        vkcube_replay: tuple[Any, Any, Any],
+        rd_module: Any,
+        tmp_path: Path,
+    ) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+        self.state.temp_dir = tmp_path
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "draws")
+        return result["draws"][0]["eid"]
+
+    def test_rt_overlay_wireframe(self) -> None:
+        """Wireframe overlay produces a valid PNG on disk."""
+        eid = self._first_draw_eid()
+        result = _call(self.state, "rt_overlay", {"eid": eid, "overlay": "wireframe"})
+        assert Path(result["path"]).exists()
+        assert result["size"] > 0
+        assert result["overlay"] == "wireframe"
+
+    def test_rt_overlay_depth(self) -> None:
+        """Depth overlay produces a non-empty file."""
+        eid = self._first_draw_eid()
+        result = _call(self.state, "rt_overlay", {"eid": eid, "overlay": "depth"})
+        assert result["size"] > 0
+
+    def test_overlay_differs_from_plain_rt(self) -> None:
+        """Overlay PNG path differs from plain rt_export path."""
+        eid = self._first_draw_eid()
+        overlay_result = _call(self.state, "rt_overlay", {"eid": eid, "overlay": "wireframe"})
+        rt_result = _call(self.state, "rt_export", {"eid": eid})
+        assert overlay_result["path"] != rt_result["path"]
