@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import inspect
+import time
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -65,3 +68,90 @@ def test_open_session_same_name_alive_fails(
     ok2, msg2 = session_service.open_session(Path("alpha.rdc"))
     assert ok2 is False
     assert "active session exists" in msg2
+
+
+def test_wait_for_ping_default_timeout_is_15() -> None:
+    sig = inspect.signature(session_service.wait_for_ping)
+    assert sig.parameters["timeout_s"].default == 15.0
+
+
+def test_wait_for_ping_returns_early_on_process_exit() -> None:
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = 1
+    mock_proc.returncode = 1
+    mock_proc.stderr = None
+
+    start = time.monotonic()
+    ok, reason = session_service.wait_for_ping("127.0.0.1", 1, "tok", timeout_s=5.0, proc=mock_proc)
+    elapsed = time.monotonic() - start
+
+    assert ok is False
+    assert "process exited" in reason
+    assert elapsed < 1.0
+
+
+def test_wait_for_ping_succeeds_returns_tuple(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        session_service,
+        "send_request",
+        lambda *args, **kwargs: {"result": {"ok": True}},
+    )
+    ok, reason = session_service.wait_for_ping("127.0.0.1", 1, "tok", timeout_s=1.0)
+    assert ok is True
+    assert reason == ""
+
+
+def test_wait_for_ping_works_without_proc(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _refuse(*args: object, **kwargs: object) -> None:
+        raise ConnectionRefusedError
+
+    monkeypatch.setattr(session_service, "send_request", _refuse)
+    ok, reason = session_service.wait_for_ping("127.0.0.1", 1, "tok", timeout_s=0.2)
+    assert ok is False
+    assert "timeout" in reason
+
+
+def test_open_session_reports_stderr_on_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(session_service, "load_session", lambda: None)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = 1
+    mock_proc.returncode = 1
+    mock_proc.pid = 999
+    mock_proc.kill.return_value = None
+    mock_proc.communicate.return_value = ("", "some error msg\n")
+
+    detail = (False, "process exited: exit code 1")
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: detail)
+
+    ok, msg = session_service.open_session(Path("test.rdc"))
+    assert ok is False
+    assert "some error msg" in msg
+
+
+def test_open_session_failure_with_empty_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(session_service, "load_session", lambda: None)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = 1
+    mock_proc.returncode = 1
+    mock_proc.pid = 999
+    mock_proc.kill.return_value = None
+    mock_proc.communicate.return_value = ("", "")
+
+    detail = (False, "process exited: exit code 1")
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: detail)
+
+    ok, msg = session_service.open_session(Path("test.rdc"))
+    assert ok is False
+    assert msg  # message must be non-empty
