@@ -12,6 +12,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -32,8 +33,6 @@ _OVERLAY_MAP: dict[str, int] = {
 def _handle_tex_info(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
     res_id = int(params.get("id", 0))
     tex = state.tex_map.get(res_id)
     if tex is None:
@@ -64,8 +63,7 @@ def _handle_tex_info(
 def _handle_tex_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -94,8 +92,7 @@ def _handle_tex_export(
 def _handle_tex_raw(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -118,8 +115,7 @@ def _handle_tex_raw(
 def _handle_rt_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -151,8 +147,7 @@ def _handle_rt_export(
 def _handle_rt_depth(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -180,8 +175,7 @@ def _handle_rt_overlay(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     """Render a debug overlay on the color target and save as PNG."""
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -241,8 +235,7 @@ def _handle_rt_overlay(
 def _handle_tex_stats(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
 
@@ -324,7 +317,7 @@ def _handle_tex_stats(
     return _result_response(request_id, result_data), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "tex_info": _handle_tex_info,
     "tex_export": _handle_tex_export,
     "tex_raw": _handle_tex_raw,

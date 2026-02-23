@@ -10,6 +10,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -18,8 +19,7 @@ if TYPE_CHECKING:
 def _handle_descriptors(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -70,8 +70,7 @@ def _handle_descriptors(
 def _handle_usage(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     resid = int(params.get("id", 0))
     if resid not in state.res_names:
         return _error_response(request_id, -32001, f"resource {resid} not found"), True
@@ -87,8 +86,7 @@ def _handle_usage(
 def _handle_usage_all(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     type_filter = params.get("type")
     usage_filter = params.get("usage")
     usage_rows: list[dict[str, Any]] = []
@@ -111,8 +109,7 @@ def _handle_usage_all(
 def _handle_counter_list(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     controller = state.adapter.controller
     raw_counters = controller.EnumerateCounters()
     counters_out = []
@@ -146,8 +143,7 @@ def _handle_counter_list(  # noqa: PLR0912
 def _handle_counter_fetch(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     controller = state.adapter.controller
     raw_counters = controller.EnumerateCounters()
     counter_info: dict[int, dict[str, Any]] = {}
@@ -207,7 +203,7 @@ def _handle_counter_fetch(  # noqa: PLR0912
     return _result_response(request_id, {"rows": fetch_rows, "total": len(fetch_rows)}), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "descriptors": _handle_descriptors,
     "usage": _handle_usage,
     "usage_all": _handle_usage_all,

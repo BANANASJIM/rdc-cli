@@ -12,7 +12,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rdc._transport import recv_line as _recv_line
 from rdc.adapter import RenderDocAdapter
@@ -42,9 +42,15 @@ from rdc.handlers.shader_edit import HANDLERS as _SHADER_EDIT_HANDLERS
 from rdc.handlers.texture import HANDLERS as _TEXTURE_HANDLERS
 from rdc.handlers.vfs import HANDLERS as _VFS_HANDLERS
 
+if TYPE_CHECKING:
+    from rdc.vfs.tree_cache import VfsTree
+
+from rdc.handlers._types import Handler
+
 # re-export helpers for backward compat with test imports
 __all__ = [
     "DaemonState",
+    "Handler",
     "_build_shader_cache",
     "_cleanup_temp",
     "_collect_pipe_states",
@@ -61,7 +67,7 @@ __all__ = [
     "run_server",
 ]
 
-_DISPATCH: dict[str, Any] = {
+_DISPATCH: dict[str, Handler] = {
     **_CORE_HANDLERS,
     **_QUERY_HANDLERS,
     **_SHADER_HANDLERS,
@@ -87,7 +93,7 @@ class DaemonState:
     structured_file: Any = None
     api_name: str = ""
     max_eid: int = 0
-    vfs_tree: Any = field(default=None, repr=False)
+    vfs_tree: VfsTree | None = field(default=None, repr=False)
     _eid_cache: int = field(default=-1, repr=False)
     temp_dir: Path | None = None
     tex_map: dict[int, Any] = field(default_factory=dict)
@@ -204,6 +210,8 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     handler = _DISPATCH.get(method)
     if handler is None:
         return _error_response(request_id, -32601, "method not found"), True
+    if not getattr(handler, "_no_replay", False) and state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
     result: tuple[dict[str, Any], bool] = handler(request_id, params, state)
     return result
 

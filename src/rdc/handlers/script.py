@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import _error_response, _result_response
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -28,8 +29,6 @@ def _handle_script(
     Returns:
         Tuple of (response_dict, keep_running).
     """
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
     if "path" not in params:
         return _error_response(request_id, -32602, "missing required param: path"), True
 
@@ -39,6 +38,7 @@ def _handle_script(
     if not path.is_file():
         return _error_response(request_id, -32002, "script path is a directory"), True
 
+    assert state.adapter is not None
     source = path.read_text("utf-8")
 
     try:
@@ -87,6 +87,6 @@ def _handle_script(
     ), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "script": _handle_script,
 }

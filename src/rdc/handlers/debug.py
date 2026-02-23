@@ -12,6 +12,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -120,8 +121,7 @@ def _handle_debug_pixel(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     """Handle debug_pixel JSON-RPC request."""
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     for key in ("eid", "x", "y"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -168,8 +168,7 @@ def _handle_debug_vertex(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     """Handle debug_vertex JSON-RPC request."""
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     for key in ("eid", "vtx_id"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -213,8 +212,7 @@ def _handle_debug_thread(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     """Handle debug_thread JSON-RPC request."""
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     for key in ("eid", "gx", "gy", "gz", "tx", "ty", "tz"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -259,7 +257,7 @@ def _handle_debug_thread(
     ), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "debug_pixel": _handle_debug_pixel,
     "debug_vertex": _handle_debug_vertex,
     "debug_thread": _handle_debug_thread,
