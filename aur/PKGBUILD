@@ -2,13 +2,15 @@
 pkgname=rdc-cli-git
 pkgver=0.1.0.r0.g0000000
 pkgrel=1
-pkgdesc="Unix-friendly CLI for RenderDoc captures"
+pkgdesc="Unix-friendly CLI for RenderDoc .rdc captures"
 arch=('x86_64')
 url="https://github.com/BANANASJIM/rdc-cli"
 license=('MIT')
 depends=(
   'python'
   'python-click'
+  'python-pillow'
+  'python-numpy'
   'libx11'
   'libxcb'
   'xcb-util-keysyms'
@@ -24,8 +26,7 @@ makedepends=(
   'pcre'
 )
 optdepends=(
-  'python-pillow: texture/render target PNG export'
-  'python-numpy: buffer decode and diff support'
+  'python-rich: colored output support'
 )
 provides=('rdc-cli')
 conflicts=('rdc-cli')
@@ -41,7 +42,7 @@ sha256sums=('SKIP'
 pkgver() {
   cd rdc-cli
   git describe --long --tags 2>/dev/null | sed 's/^v//;s/-/.r/;s/-/./' ||
-    printf "0.1.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    printf "0.2.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 build() {
