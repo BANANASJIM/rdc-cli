@@ -52,13 +52,15 @@ def _format_step(state_obj: Any, trace: Any) -> dict[str, Any]:
     inst = state_obj.nextInstruction
     file_name = ""
     line_num = -1
-    if trace.instInfo and inst < len(trace.instInfo):
-        info = trace.instInfo[inst]
+    inst_info = getattr(trace, "instInfo", None)
+    source_files = getattr(trace, "sourceFiles", None)
+    if inst_info and inst < len(inst_info):
+        info = inst_info[inst]
         li = info.lineInfo
         line_num = li.lineStart
         fi = li.fileIndex
-        if trace.sourceFiles and 0 <= fi < len(trace.sourceFiles):
-            file_name = trace.sourceFiles[fi].filename
+        if source_files and 0 <= fi < len(source_files):
+            file_name = source_files[fi].filename
 
     changes: list[dict[str, Any]] = []
     for ch in state_obj.changes:
