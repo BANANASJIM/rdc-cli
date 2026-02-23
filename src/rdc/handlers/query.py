@@ -119,10 +119,11 @@ def _handle_shaders(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     assert state.adapter is not None
-    from rdc.services.query_service import shader_inventory
-
     _build_shader_cache(state)
-    rows = shader_inventory(state._pipe_states_cache)
+    rows = [
+        {"shader": sid, "stages": ",".join(sorted(meta["stages"])), "uses": meta["uses"]}
+        for sid, meta in sorted(state.shader_meta.items())
+    ]
     stage_filter = params.get("stage")
     if stage_filter:
         stage_filter = stage_filter.lower()
