@@ -795,6 +795,8 @@ Show per-pass breakdown, top draws, largest resources.
 |------|------|------|---------|
 | `--json` | JSON output | flag |  |
 | `--no-header` | Omit TSV header | flag |  |
+| `--jsonl` | JSONL output | flag |  |
+| `-q, --quiet` | Print primary key column only | flag |  |
 
 ## `rdc status`
 
