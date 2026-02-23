@@ -1926,3 +1926,51 @@ class TestCountShadersReal:
         count_result = _call(self.state, "count", {"what": "shaders"})
         shaders_result = _call(self.state, "shaders")
         assert count_result["value"] == len(shaders_result["rows"])
+
+
+class TestBufferDecodeReal:
+    """GPU integration tests for cbuffer_decode and vbuffer_decode handlers."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        events = result["events"]
+        assert len(events) > 0, "no draw calls in capture"
+        return events[0]["eid"]
+
+    def test_cbuffer_decode_returns_data(self) -> None:
+        """cbuffer_decode returns structured cbuffer data for VS stage."""
+        eid = self._first_draw_eid()
+        params = {"eid": eid, "stage": "vs", "set": 0, "binding": 0}
+        result = _call(self.state, "cbuffer_decode", params)
+        assert "variables" in result or "set" in result
+
+    def test_vbuffer_decode_returns_vertex_data(self) -> None:
+        """vbuffer_decode returns columns + vertices for a draw event."""
+        eid = self._first_draw_eid()
+        result = _call(self.state, "vbuffer_decode", {"eid": eid})
+        assert "columns" in result
+        assert "vertices" in result
+
+
+class TestShaderMapAndAllReal:
+    """GPU integration tests for shader_map and shader_all handlers."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def test_shader_map_returns_rows(self) -> None:
+        """shader_map returns {"rows": [...]} with at least VS + FS."""
+        result = _call(self.state, "shader_map")
+        assert "rows" in result
+        assert len(result["rows"]) >= 2
+
+    def test_shader_all_returns_stages(self) -> None:
+        """shader_all returns {"eid": ..., "stages": [...]} with at least VS + FS."""
+        result = _call(self.state, "shader_all")
+        assert "stages" in result
+        assert len(result["stages"]) >= 2
