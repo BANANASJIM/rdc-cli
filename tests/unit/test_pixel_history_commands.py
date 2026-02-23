@@ -203,3 +203,38 @@ def test_non_integer_x() -> None:
 
 def test_help_shows_pixel() -> None:
     assert "pixel" in CliRunner().invoke(main, ["--help"]).output
+
+
+# ── pixel output options ───────────────────────────────────────────
+
+
+def test_pixel_default_has_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, ["pixel", "512", "384"])
+    assert result.exit_code == 0
+    assert "EID\tFRAG\tDEPTH\tPASSED\tFLAGS" in result.output
+
+
+def test_pixel_no_header_regression(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, ["pixel", "512", "384", "--no-header"])
+    assert result.exit_code == 0
+    assert "EID\tFRAG\tDEPTH\tPASSED\tFLAGS" not in result.output
+    assert "88" in result.output
+
+
+def test_pixel_jsonl(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, ["pixel", "512", "384", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["eid"] == 88
+
+
+def test_pixel_quiet(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, ["pixel", "512", "384", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["88", "102"]

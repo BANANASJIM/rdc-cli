@@ -112,3 +112,77 @@ def test_usage_daemon_error_exits_1(monkeypatch: Any) -> None:
     monkeypatch.setattr(usage_mod, "_daemon_call", _raise_error)
     result = CliRunner().invoke(main, ["usage", "999"])
     assert result.exit_code == 1
+
+
+# ── usage single-resource output options ───────────────────────────
+
+
+def test_usage_single_default_has_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _SINGLE_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "97"])
+    assert result.exit_code == 0
+    assert "EID\tUSAGE" in result.output
+
+
+def test_usage_single_no_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _SINGLE_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "97", "--no-header"])
+    assert result.exit_code == 0
+    assert "EID\tUSAGE" not in result.output
+    assert "Clear" in result.output
+
+
+def test_usage_single_jsonl(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _SINGLE_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "97", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 3
+    assert lines[0]["eid"] == 6
+    assert lines[0]["usage"] == "Clear"
+
+
+def test_usage_single_quiet(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _SINGLE_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "97", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["6", "11", "12"]
+
+
+# ── usage --all output options ─────────────────────────────────────
+
+
+def test_usage_all_default_has_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _ALL_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "--all"])
+    assert result.exit_code == 0
+    assert "ID\tNAME\tEID\tUSAGE" in result.output
+
+
+def test_usage_all_no_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _ALL_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "--all", "--no-header"])
+    assert result.exit_code == 0
+    assert "ID\tNAME\tEID\tUSAGE" not in result.output
+    assert "2D Image 97" in result.output
+
+
+def test_usage_all_jsonl(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _ALL_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "--all", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 4
+    assert lines[0]["id"] == 97
+    assert lines[0]["name"] == "2D Image 97"
+    assert lines[0]["eid"] == 6
+    assert lines[0]["usage"] == "Clear"
+
+
+def test_usage_all_quiet(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _ALL_RESPONSE)
+    result = CliRunner().invoke(main, ["usage", "--all", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["97", "97", "97", "105"]

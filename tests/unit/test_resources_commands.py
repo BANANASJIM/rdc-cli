@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from click.testing import CliRunner
 
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
@@ -170,3 +172,82 @@ def test_pass_no_session(monkeypatch) -> None:
     monkeypatch.setattr(mod, "load_session", lambda: None)
     result = CliRunner().invoke(pass_cmd, ["0"])
     assert result.exit_code == 1
+
+
+# ── resources output options ────────────────────────────────────────
+
+_RESOURCES_ROWS = {
+    "rows": [
+        {"id": 1, "type": "Texture", "name": "Albedo"},
+        {"id": 2, "type": "Buffer", "name": "VBO"},
+    ]
+}
+
+
+def test_resources_default_has_header(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    result = CliRunner().invoke(resources_cmd, [])
+    assert result.exit_code == 0
+    assert "ID\tTYPE\tNAME" in result.output
+
+
+def test_resources_no_header(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    result = CliRunner().invoke(resources_cmd, ["--no-header"])
+    assert result.exit_code == 0
+    assert "ID\tTYPE\tNAME" not in result.output
+    assert "Albedo" in result.output
+
+
+def test_resources_jsonl(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    result = CliRunner().invoke(resources_cmd, ["--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["id"] == 1
+
+
+def test_resources_quiet(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    result = CliRunner().invoke(resources_cmd, ["-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["1", "2"]
+
+
+# ── passes output options ──────────────────────────────────────────
+
+_PASSES_TREE = {"tree": {"passes": [{"name": "Shadow", "draws": 3}, {"name": "Main", "draws": 12}]}}
+
+
+def test_passes_default_has_header(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _PASSES_TREE)
+    result = CliRunner().invoke(passes_cmd, [])
+    assert result.exit_code == 0
+    assert "NAME\tDRAWS" in result.output
+
+
+def test_passes_no_header(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _PASSES_TREE)
+    result = CliRunner().invoke(passes_cmd, ["--no-header"])
+    assert result.exit_code == 0
+    assert "NAME\tDRAWS" not in result.output
+    assert "Shadow" in result.output
+
+
+def test_passes_jsonl(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _PASSES_TREE)
+    result = CliRunner().invoke(passes_cmd, ["--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["name"] == "Shadow"
+
+
+def test_passes_quiet(monkeypatch) -> None:
+    _patch_resources(monkeypatch, _PASSES_TREE)
+    result = CliRunner().invoke(passes_cmd, ["-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["Shadow", "Main"]

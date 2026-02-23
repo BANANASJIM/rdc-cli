@@ -117,3 +117,75 @@ def test_counters_fetch_json(monkeypatch: Any) -> None:
     data = json.loads(result.output)
     assert data["total"] == 3
     assert len(data["rows"]) == 3
+
+
+# ── counters --list output options ─────────────────────────────────
+
+
+def test_counters_list_default_has_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _LIST_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "--list"])
+    assert result.exit_code == 0
+    assert "ID\tNAME\tUNIT\tTYPE\tCATEGORY" in result.output
+
+
+def test_counters_list_no_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _LIST_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "--list", "--no-header"])
+    assert result.exit_code == 0
+    assert "ID\tNAME\tUNIT\tTYPE\tCATEGORY" not in result.output
+    assert "EventGPUDuration" in result.output
+
+
+def test_counters_list_jsonl(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _LIST_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "--list", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["id"] == 1
+    assert lines[0]["name"] == "EventGPUDuration"
+
+
+def test_counters_list_quiet(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _LIST_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "--list", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["1", "8"]
+
+
+# ── counters fetch output options ──────────────────────────────────
+
+
+def test_counters_fetch_default_has_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _FETCH_RESPONSE)
+    result = CliRunner().invoke(main, ["counters"])
+    assert result.exit_code == 0
+    assert "EID\tCOUNTER\tVALUE\tUNIT" in result.output
+
+
+def test_counters_fetch_no_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _FETCH_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "--no-header"])
+    assert result.exit_code == 0
+    assert "EID\tCOUNTER\tVALUE\tUNIT" not in result.output
+    assert "EventGPUDuration" in result.output
+
+
+def test_counters_fetch_jsonl(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _FETCH_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 3
+    assert lines[0]["eid"] == 10
+    assert lines[0]["counter"] == "EventGPUDuration"
+
+
+def test_counters_fetch_quiet(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _FETCH_RESPONSE)
+    result = CliRunner().invoke(main, ["counters", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["10", "10", "20"]

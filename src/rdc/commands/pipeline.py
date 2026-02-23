@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
 import click
 
 from rdc.commands._helpers import call
-from rdc.formatters.json_fmt import write_json
-from rdc.formatters.tsv import format_row
+from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.options import list_output_options
+from rdc.formatters.tsv import format_row, write_tsv
 from rdc.services.query_service import STAGE_MAP
 
 _STAGE_CHOICES = ["vs", "hs", "ds", "gs", "ps", "cs"]
@@ -87,8 +89,15 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
 @click.option("--binding", "binding_index", type=int, help="Filter by binding index.")
 @click.option("--set", "set_index", type=int, help="Filter by descriptor set index.")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+@list_output_options
 def bindings_cmd(
-    eid: int | None, binding_index: int | None, set_index: int | None, as_json: bool
+    eid: int | None,
+    binding_index: int | None,
+    set_index: int | None,
+    as_json: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
 ) -> None:
     """Show bound resources per shader stage.
 
@@ -106,22 +115,25 @@ def bindings_cmd(
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)
-        return
-
-    click.echo(format_row(["EID", "STAGE", "KIND", "SET", "SLOT", "NAME"]))
-    for row in rows:
-        click.echo(
-            format_row(
-                [
-                    row.get("eid", "-"),
-                    row.get("stage", "-"),
-                    row.get("kind", "-"),
-                    row.get("set", 0),
-                    row.get("slot", "-"),
-                    row.get("name", "-"),
-                ]
-            )
-        )
+    elif use_jsonl:
+        write_jsonl(rows)
+    elif quiet:
+        for r in rows:
+            sys.stdout.write(str(r.get("eid", "")) + "\n")
+    else:
+        tsv_rows = [
+            [
+                r.get("eid", "-"),
+                r.get("stage", "-"),
+                r.get("kind", "-"),
+                r.get("set", 0),
+                r.get("slot", "-"),
+                r.get("name", "-"),
+            ]
+            for r in rows
+        ]
+        hdr = ["EID", "STAGE", "KIND", "SET", "SLOT", "NAME"]
+        write_tsv(tsv_rows, header=hdr, no_header=no_header)
 
 
 @click.command("shader")
@@ -328,7 +340,15 @@ def shader_cmd(
     help="Sort order.",
 )
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def shaders_cmd(stage_filter: str | None, sort_by: str, as_json: bool) -> None:
+@list_output_options
+def shaders_cmd(
+    stage_filter: str | None,
+    sort_by: str,
+    as_json: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
+) -> None:
     """List unique shaders in capture.
 
     Use --stage to filter by stage, --sort to change sort order.
@@ -343,7 +363,11 @@ def shaders_cmd(stage_filter: str | None, sort_by: str, as_json: bool) -> None:
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)
-        return
-    click.echo(format_row(["SHADER", "STAGES", "USES"]))
-    for row in rows:
-        click.echo(format_row([row.get("shader", "-"), row.get("stages", "-"), row.get("uses", 0)]))
+    elif use_jsonl:
+        write_jsonl(rows)
+    elif quiet:
+        for r in rows:
+            sys.stdout.write(str(r.get("shader", "")) + "\n")
+    else:
+        tsv_rows = [[r.get("shader", "-"), r.get("stages", "-"), r.get("uses", 0)] for r in rows]
+        write_tsv(tsv_rows, header=["SHADER", "STAGES", "USES"], no_header=no_header)

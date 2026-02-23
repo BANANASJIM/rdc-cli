@@ -12,7 +12,7 @@ import click
 from click.shell_completion import CompletionItem
 
 from rdc.commands.info import _daemon_call
-from rdc.formatters.json_fmt import write_json
+from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.vfs.formatter import render_ls, render_ls_long, render_tree_root
 from rdc.vfs.router import resolve_path
 
@@ -119,7 +119,18 @@ def _complete_vfs_path(
 @click.option("-F", "--classify", is_flag=True, help="Append type indicator (/ * @)")
 @click.option("-l", "--long", "use_long", is_flag=True, help="Long format (TSV with metadata)")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
-def ls_cmd(path: str, classify: bool, use_long: bool, use_json: bool) -> None:
+@click.option("--no-header", is_flag=True, help="Omit TSV header (with -l)")
+@click.option("--jsonl", "use_jsonl", is_flag=True, help="JSONL output (with -l)")
+@click.option("-q", "--quiet", is_flag=True, help="Print name only (with -l)")
+def ls_cmd(
+    path: str,
+    classify: bool,
+    use_long: bool,
+    use_json: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
+) -> None:
     """List VFS directory contents."""
     if classify and use_long:
         click.echo("error: -F and -l are mutually exclusive", err=True)
@@ -144,8 +155,14 @@ def ls_cmd(path: str, classify: bool, use_long: bool, use_json: bool) -> None:
         return
 
     if use_long and result.get("long"):
-        columns = result.get("columns", [])
-        click.echo(render_ls_long(children, columns))
+        if use_jsonl:
+            write_jsonl(children)
+        elif quiet:
+            for child in children:
+                sys.stdout.write(str(child.get("name", "")) + "\n")
+        else:
+            columns = result.get("columns", [])
+            click.echo(render_ls_long(children, columns, no_header=no_header))
     else:
         click.echo(render_ls(children, classify=classify))
 

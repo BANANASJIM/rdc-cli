@@ -8,7 +8,8 @@ from typing import Any
 import click
 
 from rdc.commands._helpers import call
-from rdc.formatters.json_fmt import write_json
+from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
 
 
@@ -80,9 +81,16 @@ def stats_cmd(use_json: bool, no_header: bool) -> None:
     help="Filter by severity.",
 )
 @click.option("--eid", default=None, type=int, help="Filter by event ID.")
-@click.option("--no-header", is_flag=True, help="Omit TSV header")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
-def log_cmd(level: str | None, eid: int | None, no_header: bool, use_json: bool) -> None:
+@list_output_options
+def log_cmd(
+    level: str | None,
+    eid: int | None,
+    use_json: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
+) -> None:
     """Show debug/validation messages from the capture."""
     rpc_params: dict[str, Any] = {}
     if level is not None:
@@ -93,6 +101,15 @@ def log_cmd(level: str | None, eid: int | None, no_header: bool, use_json: bool)
     messages = result.get("messages", [])
     if use_json:
         write_json(messages)
+        return
+
+    if use_jsonl:
+        write_jsonl(messages)
+        return
+
+    if quiet:
+        for m in messages:
+            sys.stdout.write(str(m.get("eid", 0)) + "\n")
         return
 
     def _sanitize(text: str) -> str:
