@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import click
 
 from rdc.commands.info import _daemon_call
 from rdc.commands.vfs import _fmt_pixel_mod
-from rdc.formatters.json_fmt import write_json
+from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.options import list_output_options
 
 
 @click.command("pixel")
@@ -18,7 +20,7 @@ from rdc.formatters.json_fmt import write_json
 @click.option("--target", default=0, type=int, help="Color target index (default 0)")
 @click.option("--sample", default=0, type=int, help="MSAA sample index (default 0)")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
-@click.option("--no-header", is_flag=True, help="Suppress TSV header row")
+@list_output_options
 def pixel_cmd(
     x: int,
     y: int,
@@ -27,6 +29,8 @@ def pixel_cmd(
     sample: int,
     use_json: bool,
     no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
 ) -> None:
     """Query pixel history at (X, Y) for the current or specified event."""
     params: dict[str, Any] = {"x": x, "y": y, "target": target, "sample": sample}
@@ -39,8 +43,19 @@ def pixel_cmd(
         write_json(result)
         return
 
+    modifications = result.get("modifications", [])
+
+    if use_jsonl:
+        write_jsonl(modifications)
+        return
+
+    if quiet:
+        for m in modifications:
+            sys.stdout.write(str(m["eid"]) + "\n")
+        return
+
     if not no_header:
         click.echo("EID\tFRAG\tDEPTH\tPASSED\tFLAGS")
 
-    for m in result.get("modifications", []):
+    for m in modifications:
         click.echo(_fmt_pixel_mod(m))

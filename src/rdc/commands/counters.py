@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import click
 
 from rdc.commands.info import _daemon_call
-from rdc.formatters.json_fmt import write_json
+from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.options import list_output_options
+from rdc.formatters.tsv import write_tsv
 
 
 @click.command("counters")
@@ -15,11 +18,15 @@ from rdc.formatters.json_fmt import write_json
 @click.option("--eid", type=int, default=None, help="Filter to specific event ID.")
 @click.option("--name", "name_filter", default=None, help="Filter counters by name substring.")
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")
+@list_output_options
 def counters_cmd(
     show_list: bool,
     eid: int | None,
     name_filter: str | None,
     use_json: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
 ) -> None:
     """Query GPU performance counters.
 
@@ -31,9 +38,16 @@ def counters_cmd(
         if use_json:
             write_json(result)
             return
-        click.echo("ID\tNAME\tUNIT\tTYPE\tCATEGORY")
-        for c in result.get("counters", []):
-            click.echo(f"{c['id']}\t{c['name']}\t{c['unit']}\t{c['type']}\t{c['category']}")
+        counters = result.get("counters", [])
+        if use_jsonl:
+            write_jsonl(counters)
+        elif quiet:
+            for c in counters:
+                sys.stdout.write(str(c["id"]) + "\n")
+        else:
+            tsv_rows = [[c["id"], c["name"], c["unit"], c["type"], c["category"]] for c in counters]
+            hdr = ["ID", "NAME", "UNIT", "TYPE", "CATEGORY"]
+            write_tsv(tsv_rows, header=hdr, no_header=no_header)
         return
 
     params: dict[str, Any] = {}
@@ -45,6 +59,12 @@ def counters_cmd(
     if use_json:
         write_json(result)
         return
-    click.echo("EID\tCOUNTER\tVALUE\tUNIT")
-    for r in result.get("rows", []):
-        click.echo(f"{r['eid']}\t{r['counter']}\t{r['value']}\t{r['unit']}")
+    rows = result.get("rows", [])
+    if use_jsonl:
+        write_jsonl(rows)
+    elif quiet:
+        for r in rows:
+            sys.stdout.write(str(r["eid"]) + "\n")
+    else:
+        tsv_rows = [[r["eid"], r["counter"], r["value"], r["unit"]] for r in rows]
+        write_tsv(tsv_rows, header=["EID", "COUNTER", "VALUE", "UNIT"], no_header=no_header)

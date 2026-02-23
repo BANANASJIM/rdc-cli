@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from click.testing import CliRunner
 
 from rdc.cli import main
@@ -193,3 +195,47 @@ def test_log_no_session(monkeypatch) -> None:
     result = CliRunner().invoke(main, ["log"])
     assert result.exit_code == 1
     assert "no active session" in result.output
+
+
+# ── log output options ─────────────────────────────────────────────
+
+_LOG_MESSAGES = {
+    "messages": [
+        {"level": "HIGH", "eid": 0, "message": "validation error"},
+        {"level": "INFO", "eid": 42, "message": "info msg"},
+    ]
+}
+
+
+def test_log_default_has_header(monkeypatch) -> None:
+    _patch_info(monkeypatch, _LOG_MESSAGES)
+    result = CliRunner().invoke(main, ["log"])
+    assert result.exit_code == 0
+    assert "LEVEL\tEID\tMESSAGE" in result.output
+
+
+def test_log_no_header_regression(monkeypatch) -> None:
+    _patch_info(monkeypatch, _LOG_MESSAGES)
+    result = CliRunner().invoke(main, ["log", "--no-header"])
+    assert result.exit_code == 0
+    assert "LEVEL\tEID\tMESSAGE" not in result.output
+    assert "validation error" in result.output
+
+
+def test_log_jsonl(monkeypatch) -> None:
+    _patch_info(monkeypatch, _LOG_MESSAGES)
+    result = CliRunner().invoke(main, ["log", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["level"] == "HIGH"
+    assert lines[0]["eid"] == 0
+    assert lines[0]["message"] == "validation error"
+
+
+def test_log_quiet(monkeypatch) -> None:
+    _patch_info(monkeypatch, _LOG_MESSAGES)
+    result = CliRunner().invoke(main, ["log", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["0", "42"]

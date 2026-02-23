@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from click.testing import CliRunner
 
 from rdc.cli import main
@@ -86,3 +88,50 @@ def test_shader_map_no_header(monkeypatch) -> None:
     result = CliRunner().invoke(main, ["shader-map", "--no-header"])
     assert result.exit_code == 0
     assert "EID" not in result.output
+
+
+# ── shader-map output options ──────────────────────────────────────
+
+_SHADER_MAP_ROWS = {
+    "rows": [
+        {"eid": 10, "vs": 101, "hs": 0, "ds": 0, "gs": 0, "ps": 201, "cs": 0},
+        {"eid": 20, "vs": 102, "hs": 0, "ds": 0, "gs": 0, "ps": 202, "cs": 0},
+    ]
+}
+
+
+def test_shader_map_no_header_regression(monkeypatch) -> None:
+    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    result = CliRunner().invoke(main, ["shader-map", "--no-header"])
+    assert result.exit_code == 0
+    assert "EID\tVS" not in result.output
+    assert "101" in result.output
+
+
+def test_shader_map_json(monkeypatch) -> None:
+    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    result = CliRunner().invoke(main, ["shader-map", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert len(data) == 2
+    assert data[0]["eid"] == 10
+
+
+def test_shader_map_jsonl(monkeypatch) -> None:
+    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    result = CliRunner().invoke(main, ["shader-map", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["eid"] == 10
+    assert lines[0]["vs"] == 101
+    assert lines[0]["ps"] == 201
+
+
+def test_shader_map_quiet(monkeypatch) -> None:
+    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    result = CliRunner().invoke(main, ["shader-map", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["10", "20"]

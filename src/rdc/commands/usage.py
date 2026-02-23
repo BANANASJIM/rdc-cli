@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import click
 
 from rdc.commands.info import _daemon_call
-from rdc.formatters.json_fmt import write_json
+from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.options import list_output_options
+from rdc.formatters.tsv import write_tsv
 
 
 @click.command("usage")
@@ -16,12 +19,16 @@ from rdc.formatters.json_fmt import write_json
 @click.option("--type", "res_type", default=None, help="Filter by resource type.")
 @click.option("--usage", "usage_filter", default=None, help="Filter by usage type.")
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")
+@list_output_options
 def usage_cmd(
     resource_id: int | None,
     show_all: bool,
     res_type: str | None,
     usage_filter: str | None,
     use_json: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
 ) -> None:
     """Show resource usage (which events read/write a resource).
 
@@ -39,9 +46,14 @@ def usage_cmd(
             write_json(result)
             return
         rows = result.get("rows", [])
-        click.echo("ID\tNAME\tEID\tUSAGE")
-        for r in rows:
-            click.echo(f"{r['id']}\t{r['name']}\t{r['eid']}\t{r['usage']}")
+        if use_jsonl:
+            write_jsonl(rows)
+        elif quiet:
+            for r in rows:
+                sys.stdout.write(str(r["id"]) + "\n")
+        else:
+            tsv_rows = [[r["id"], r["name"], r["eid"], r["usage"]] for r in rows]
+            write_tsv(tsv_rows, header=["ID", "NAME", "EID", "USAGE"], no_header=no_header)
         return
 
     if resource_id is None:
@@ -52,6 +64,12 @@ def usage_cmd(
     if use_json:
         write_json(result)
         return
-    click.echo("EID\tUSAGE")
-    for entry in result.get("entries", []):
-        click.echo(f"{entry['eid']}\t{entry['usage']}")
+    entries = result.get("entries", [])
+    if use_jsonl:
+        write_jsonl(entries)
+    elif quiet:
+        for entry in entries:
+            sys.stdout.write(str(entry["eid"]) + "\n")
+    else:
+        tsv_rows = [[entry["eid"], entry["usage"]] for entry in entries]
+        write_tsv(tsv_rows, header=["EID", "USAGE"], no_header=no_header)

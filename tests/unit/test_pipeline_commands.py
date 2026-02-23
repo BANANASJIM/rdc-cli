@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from click.testing import CliRunner
 
 from rdc.cli import main
@@ -322,3 +324,87 @@ def test_shaders_with_filters(monkeypatch) -> None:
     CliRunner().invoke(main, ["shaders", "--stage", "ps", "--sort", "uses"])
     assert calls[0]["params"]["stage"] == "ps"
     assert calls[0]["params"]["sort"] == "uses"
+
+
+# ── bindings output options ────────────────────────────────────────
+
+_BINDINGS_ROWS = {
+    "rows": [
+        {"eid": 10, "stage": "ps", "kind": "RO", "set": 0, "slot": 0, "name": "albedo"},
+        {"eid": 10, "stage": "ps", "kind": "RW", "set": 0, "slot": 1, "name": "rwbuf"},
+    ]
+}
+
+
+def test_bindings_default_has_header(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    result = CliRunner().invoke(main, ["bindings"])
+    assert result.exit_code == 0
+    assert "EID\tSTAGE\tKIND" in result.output
+
+
+def test_bindings_no_header(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    result = CliRunner().invoke(main, ["bindings", "--no-header"])
+    assert result.exit_code == 0
+    assert "EID\tSTAGE\tKIND" not in result.output
+    assert "albedo" in result.output
+
+
+def test_bindings_jsonl(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    result = CliRunner().invoke(main, ["bindings", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["eid"] == 10
+
+
+def test_bindings_quiet(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    result = CliRunner().invoke(main, ["bindings", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["10", "10"]
+
+
+# ── shaders output options ─────────────────────────────────────────
+
+_SHADERS_ROWS = {
+    "rows": [
+        {"shader": "abc123", "stages": "ps", "uses": 5},
+        {"shader": "def456", "stages": "vs", "uses": 3},
+    ]
+}
+
+
+def test_shaders_default_has_header(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    result = CliRunner().invoke(main, ["shaders"])
+    assert result.exit_code == 0
+    assert "SHADER\tSTAGES\tUSES" in result.output
+
+
+def test_shaders_no_header(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    result = CliRunner().invoke(main, ["shaders", "--no-header"])
+    assert result.exit_code == 0
+    assert "SHADER\tSTAGES\tUSES" not in result.output
+    assert "abc123" in result.output
+
+
+def test_shaders_jsonl(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    result = CliRunner().invoke(main, ["shaders", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["shader"] == "abc123"
+
+
+def test_shaders_quiet(monkeypatch) -> None:
+    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    result = CliRunner().invoke(main, ["shaders", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["abc123", "def456"]
