@@ -1,0 +1,23 @@
+# Tasks: Phase 5 — tex-stats
+
+- [ ] Create OpenSpec (proposal, test-plan, tasks)
+- [ ] Create branch `feat/phase5-tex-stats` from `master`
+- [ ] Extend mock: add `_min_max_map`, `_histogram_map`, `GetMinMax`, `GetHistogram` to `MockReplayController` in `tests/mocks/mock_renderdoc.py`
+- [ ] Write failing unit tests in `tests/unit/test_tex_stats.py` (TS-01..TS-24)
+- [ ] Write failing GPU integration tests in `tests/integration/test_daemon_handlers_real.py` (TS-25..TS-30)
+- [ ] Implement `_handle_tex_stats` in `src/rdc/handlers/texture.py`
+- [ ] Register `"tex_stats": _handle_tex_stats` in `HANDLERS` dict in `src/rdc/handlers/texture.py`
+- [ ] Create `src/rdc/commands/tex_stats.py` with `tex_stats_cmd`
+- [ ] Register `tex_stats_cmd` in `src/rdc/cli.py` (`import` + `main.add_command`)
+- [ ] `pixi run lint && pixi run test` passes (zero failures, coverage maintained)
+- [ ] GPU tests pass with real capture
+- [ ] New Opus subagent code review
+- [ ] Fix review issues
+- [ ] PR via `gh pr create` + wait for CodeRabbit/Greptile review
+- [ ] Fix bot review issues and push
+- [ ] Squash merge via `gh pr merge --squash --delete-branch`
+- [ ] Archive OpenSpec: `mv openspec/changes/2026-02-22-phase5-tex-stats openspec/changes/archive/`
+- [ ] Update Obsidian `进度跟踪.md` (test count, method count, Phase 5 status)
+- [ ] Update Obsidian `Roadmap.md`
+- [ ] Record decisions in `归档/决策记录.md` (next D-NNN)
+- [ ] Update MEMORY.md (phase status, stats)
