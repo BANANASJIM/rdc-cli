@@ -13,6 +13,12 @@ from rdc.commands.assert_ci import (
 )
 from rdc.commands.assert_image import assert_image_cmd
 from rdc.commands.capture import capture_cmd
+from rdc.commands.capture_control import (
+    attach_cmd,
+    capture_copy_cmd,
+    capture_list_cmd,
+    capture_trigger_cmd,
+)
 from rdc.commands.capturefile import (
     gpus_cmd,
     section_cmd,
@@ -136,6 +142,10 @@ main.add_command(thumbnail_cmd, name="thumbnail")
 main.add_command(gpus_cmd, name="gpus")
 main.add_command(sections_cmd, name="sections")
 main.add_command(section_cmd, name="section")
+main.add_command(attach_cmd, name="attach")
+main.add_command(capture_trigger_cmd, name="capture-trigger")
+main.add_command(capture_list_cmd, name="capture-list")
+main.add_command(capture_copy_cmd, name="capture-copy")
 
 
 if __name__ == "__main__":

@@ -88,6 +88,22 @@ Assert pipeline state value at EID matches expected.
 | `--expect` | Expected value. | text |  |
 | `--json` | JSON output. | flag |  |
 
+## `rdc attach`
+
+Attach to a running RenderDoc target by ident.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `ident` | integer | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--host` | Target host. | text | localhost |
+
 ## `rdc bindings`
 
 Show bound resources per shader stage.
@@ -150,6 +166,49 @@ Execute application and capture a frame.
 | `--soft-memory-limit` | Soft memory limit (MB). | integer |  |
 | `--delay-for-debugger` | Debugger attach delay (s). | integer |  |
 | `--json` | Output as JSON. | flag |  |
+
+## `rdc capture-copy`
+
+Copy a capture from the target to a local path.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `capture_id` | integer | yes |
+| `dest` | text | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--ident` | Target ident (default: most recent). | integer |  |
+| `--host` | Target host. | text | localhost |
+
+## `rdc capture-list`
+
+List captures from the attached target.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--ident` | Target ident (default: most recent). | integer |  |
+| `--host` | Target host. | text | localhost |
+| `--timeout` | Timeout in seconds. | float | 5.0 |
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc capture-trigger`
+
+Trigger a capture on the attached target.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--ident` | Target ident (default: most recent). | integer |  |
+| `--host` | Target host. | text | localhost |
+| `--num-frames` | Number of frames to capture. | integer | 1 |
 
 ## `rdc cat`
 
