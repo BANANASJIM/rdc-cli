@@ -885,6 +885,32 @@ def test_debug_vertex_api_exception() -> None:
     assert "DebugVertex failed" in err_msg or "GPU error" in err_msg
 
 
+def test_debug_thread_missing_trace_attrs() -> None:
+    """Trace without instInfo/sourceFiles attributes succeeds with empty file and line=-1."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    change = _make_change("x", "float", [0.0] * 16, [1.0] + [0.0] * 15)
+
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    del trace.instInfo
+    del trace.sourceFiles
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state(step=0, inst=0, changes=[change])]]
+
+    state = _make_dispatch_state(ctrl)
+    resp, running = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert running
+    r = resp["result"]
+    assert r["total_steps"] == 1
+    step = r["trace"][0]
+    assert step["file"] == ""
+    assert step["line"] == -1
+    assert len(step["changes"]) == 1
+
+
 def test_debug_pixel_api_exception() -> None:
     """DebugPixel raising exception returns structured error."""
     ctrl = rd.MockReplayController()
