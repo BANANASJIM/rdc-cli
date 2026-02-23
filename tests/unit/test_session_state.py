@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from rdc.session_state import is_pid_alive, load_session, session_path
+from rdc.session_state import (
+    SessionState,
+    is_pid_alive,
+    load_session,
+    save_session,
+    session_path,
+)
 
 
 def test_is_pid_alive_for_current_process() -> None:
@@ -127,3 +133,76 @@ def test_load_session_valid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     assert result.current_eid == 42
     assert result.port == 9876
     assert result.pid == 1234
+
+
+# --- P0-SEC-1: save_session permission tests ---
+
+_SAMPLE_STATE = SessionState(
+    capture="/tmp/test.rdc",
+    current_eid=0,
+    opened_at="2026-01-01T00:00:00+00:00",
+    host="127.0.0.1",
+    port=9876,
+    token="secret-token",
+    pid=1234,
+)
+
+
+def test_save_session_file_mode_0600(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Session file must be created with mode 0o600 (owner read/write only)."""
+    monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    save_session(_SAMPLE_STATE)
+    session_file = tmp_path / "sessions" / "default.json"
+    assert session_file.stat().st_mode & 0o777 == 0o600
+
+
+def test_save_session_dir_mode_0700(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Session directory must be set to mode 0o700 (owner only)."""
+    monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    save_session(_SAMPLE_STATE)
+    session_dir = tmp_path / "sessions"
+    assert session_dir.stat().st_mode & 0o777 == 0o700
+
+
+def test_save_session_umask_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Permissions hold even under a permissive umask (0o022)."""
+    monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    old_umask = os.umask(0o022)
+    try:
+        save_session(_SAMPLE_STATE)
+    finally:
+        os.umask(old_umask)
+    session_file = tmp_path / "sessions" / "default.json"
+    session_dir = tmp_path / "sessions"
+    assert session_file.stat().st_mode & 0o777 == 0o600
+    assert session_dir.stat().st_mode & 0o777 == 0o700
+
+
+def test_save_session_corrects_existing_file_perms(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Overwriting an existing 0o644 file must correct permissions to 0o600."""
+    monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir(parents=True)
+    session_file = session_dir / "default.json"
+    session_file.write_text("{}")
+    session_file.chmod(0o644)
+    save_session(_SAMPLE_STATE)
+    assert session_file.stat().st_mode & 0o777 == 0o600
+
+
+def test_save_then_load_roundtrip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """load_session reads back data correctly after the permission-hardened save."""
+    monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    save_session(_SAMPLE_STATE)
+    result = load_session()
+    assert result is not None
+    assert result.capture == _SAMPLE_STATE.capture
+    assert result.token == _SAMPLE_STATE.token
+    assert result.port == _SAMPLE_STATE.port

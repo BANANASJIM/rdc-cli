@@ -57,9 +57,14 @@ def load_session() -> SessionState | None:
 
 
 def save_session(state: SessionState) -> None:
+    """Write session state to disk with restricted permissions."""
     path = session_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(state), indent=2))
+    os.chmod(path.parent, 0o700)
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(json.dumps(asdict(state), indent=2))
+    os.chmod(path, 0o600)
 
 
 def create_session(

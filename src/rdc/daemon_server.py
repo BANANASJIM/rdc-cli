@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
+import logging
 import secrets
+import shutil
+import signal
 import socket
 import sys
 import time
@@ -42,12 +46,14 @@ from rdc.handlers.vfs import HANDLERS as _VFS_HANDLERS
 __all__ = [
     "DaemonState",
     "_build_shader_cache",
+    "_cleanup_temp",
     "_collect_pipe_states",
     "_enum_name",
     "_error_response",
     "_handle_request",
     "_load_replay",
     "_max_eid",
+    "_process_request",
     "_result_response",
     "_sanitize_size",
     "_set_frame_event",
@@ -107,6 +113,12 @@ def _detect_version(rd: Any) -> tuple[int, int]:
         return parse_version_tuple(rd.GetVersionString())
     except (AttributeError, TypeError):
         return (0, 0)
+
+
+def _cleanup_temp(state: DaemonState) -> None:
+    """Remove the daemon's temp directory if it exists."""
+    if state.temp_dir is not None:
+        shutil.rmtree(state.temp_dir, ignore_errors=True)
 
 
 def _load_replay(state: DaemonState) -> str | None:
@@ -172,6 +184,7 @@ def _load_replay(state: DaemonState) -> str | None:
     import tempfile
 
     state.temp_dir = Path(tempfile.mkdtemp(prefix=f"rdc-{state.token[:8]}-"))
+    atexit.register(_cleanup_temp, state)
 
     return None
 
@@ -193,6 +206,24 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         return _error_response(request_id, -32601, "method not found"), True
     result: tuple[dict[str, Any], bool] = handler(request_id, params, state)
     return result
+
+
+_log = logging.getLogger("rdc.daemon")
+
+
+def _process_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[str, Any], bool]:
+    """Dispatch a parsed JSON-RPC request, catching and logging handler exceptions."""
+    try:
+        return _handle_request(request, state)
+    except Exception:  # noqa: BLE001
+        _log.exception("unhandled exception in handler: %s", request.get("method", ""))
+        response: dict[str, Any] = {
+            "jsonrpc": "2.0",
+            "error": {"code": -32603, "message": "internal error"},
+            "id": request.get("id"),
+        }
+        running = request.get("method") != "shutdown"
+        return response, running
 
 
 def run_server(  # pragma: no cover
@@ -238,15 +269,7 @@ def run_server(  # pragma: no cover
                     except OSError:
                         pass
                     continue
-                try:
-                    response, running = _handle_request(request, state)
-                except Exception:  # noqa: BLE001
-                    response = {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32603, "message": "internal error"},
-                        "id": request.get("id"),
-                    }
-                    running = request.get("method") != "shutdown"
+                response, running = _process_request(request, state)
                 try:
                     conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
                 except OSError:
@@ -255,6 +278,8 @@ def run_server(  # pragma: no cover
 
 
 def main() -> None:  # pragma: no cover
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
