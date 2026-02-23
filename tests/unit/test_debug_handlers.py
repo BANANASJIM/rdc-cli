@@ -786,3 +786,118 @@ def test_valid_trace_returns_result_with_fields() -> None:
     assert "outputs" in r
     assert "total_steps" in r
     assert r["total_steps"] == 1
+
+
+# ---------------------------------------------------------------------------
+# B1: trace.stage extracted before FreeTrace invalidates trace
+# ---------------------------------------------------------------------------
+
+
+def test_debug_vertex_stage_before_free() -> None:
+    """trace.stage is read before FreeTrace invalidates the trace object."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Vertex)
+    ctrl._debug_vertex_map[0] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
+
+    original_free = ctrl.FreeTrace
+
+    def invalidating_free(t: object) -> None:
+        t.stage = None  # type: ignore[attr-defined]
+        original_free(t)
+
+    ctrl.FreeTrace = invalidating_free  # type: ignore[assignment]
+
+    state = _make_state(ctrl)
+    resp, _ = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
+    assert "result" in resp
+    assert resp["result"]["stage"] == "vs"
+
+
+def test_debug_pixel_stage_before_free() -> None:
+    """trace.stage is read before FreeTrace invalidates the trace object."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Pixel)
+    ctrl._debug_pixel_map[(0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
+
+    original_free = ctrl.FreeTrace
+
+    def invalidating_free(t: object) -> None:
+        t.stage = None  # type: ignore[attr-defined]
+        original_free(t)
+
+    ctrl.FreeTrace = invalidating_free  # type: ignore[assignment]
+
+    state = _make_state(ctrl)
+    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    assert "result" in resp
+    assert resp["result"]["stage"] == "ps"
+
+
+def test_debug_thread_stage_before_free() -> None:
+    """trace.stage is read before FreeTrace invalidates the trace object."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
+
+    original_free = ctrl.FreeTrace
+
+    def invalidating_free(t: object) -> None:
+        t.stage = None  # type: ignore[attr-defined]
+        original_free(t)
+
+    ctrl.FreeTrace = invalidating_free  # type: ignore[assignment]
+
+    state = _make_dispatch_state(ctrl)
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert "result" in resp
+    assert resp["result"]["stage"] == "cs"
+
+
+# ---------------------------------------------------------------------------
+# B1: debug API exception returns structured error
+# ---------------------------------------------------------------------------
+
+
+def test_debug_vertex_api_exception() -> None:
+    """DebugVertex raising exception returns structured error, not internal error."""
+    ctrl = rd.MockReplayController()
+
+    def failing_debug(*args: object) -> None:
+        raise RuntimeError("GPU error")
+
+    ctrl.DebugVertex = failing_debug  # type: ignore[assignment]
+
+    state = _make_state(ctrl)
+    resp, running = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
+    assert running
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    err_msg = resp["error"]["message"]
+    assert "DebugVertex failed" in err_msg or "GPU error" in err_msg
+
+
+def test_debug_pixel_api_exception() -> None:
+    """DebugPixel raising exception returns structured error."""
+    ctrl = rd.MockReplayController()
+
+    def failing_debug(*args: object) -> None:
+        raise RuntimeError("GPU error")
+
+    ctrl.DebugPixel = failing_debug  # type: ignore[assignment]
+
+    state = _make_state(ctrl)
+    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    assert running
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    err_msg = resp["error"]["message"]
+    assert "DebugPixel failed" in err_msg or "GPU error" in err_msg

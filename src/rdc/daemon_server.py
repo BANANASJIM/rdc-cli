@@ -108,6 +108,7 @@ class DaemonState:
     replay_output: Any = None
     replay_output_dims: tuple[int, int] | None = None
     _shader_cache_built: bool = field(default=False, repr=False)
+    _debug_messages_cache: list[Any] | None = None
 
 
 def _detect_version(rd: Any) -> tuple[int, int]:

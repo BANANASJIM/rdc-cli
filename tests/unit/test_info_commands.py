@@ -239,3 +239,177 @@ def test_log_quiet(monkeypatch) -> None:
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
     assert lines == ["0", "42"]
+
+
+# ── B6: log handler caches messages ──────────────────────────────────
+
+
+def test_log_handler_caches_messages(monkeypatch) -> None:
+    """Second _handle_log call returns same data without re-calling GetDebugMessages."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
+    import mock_renderdoc as rd  # noqa: E402
+
+    from rdc.adapter import RenderDocAdapter
+    from rdc.daemon_server import DaemonState, _handle_request
+
+    ctrl = rd.MockReplayController()
+    msg = rd.DebugMessage(eventId=10, severity=rd.MessageSeverity.High, description="test msg")
+    ctrl._debug_messages = [msg]
+
+    ctrl._actions = [
+        rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall, _name="draw"),
+    ]
+    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 10
+    state.rd = rd
+
+    req = {"jsonrpc": "2.0", "id": 1, "method": "log", "params": {"_token": "tok"}}
+
+    resp1, _ = _handle_request(req, state)
+    assert len(resp1["result"]["messages"]) == 1
+
+    # Clear the controller's messages to simulate consume-once
+    ctrl._debug_messages = []
+
+    resp2, _ = _handle_request(req, state)
+    # Should still return messages from cache
+    assert len(resp2["result"]["messages"]) == 1
+    assert resp2["result"]["messages"][0]["message"] == "test msg"
+
+
+# ── B8: stats --no-header hides section titles ───────────────────────
+
+
+def test_stats_no_header_hides_section_titles(monkeypatch) -> None:
+    """--no-header suppresses section title lines from stderr."""
+    _patch_info(
+        monkeypatch,
+        {
+            "per_pass": [{"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000}],
+            "top_draws": [{"eid": 42, "marker": "Geo", "triangles": 3000}],
+        },
+    )
+    result = CliRunner().invoke(main, ["stats", "--no-header"])
+    assert result.exit_code == 0
+    assert "Per-Pass Breakdown:" not in result.output
+    assert "Top Draws by Triangle Count:" not in result.output
+
+
+def test_stats_default_shows_section_titles(monkeypatch) -> None:
+    """Default mode shows section title lines in stderr."""
+    _patch_info(
+        monkeypatch,
+        {
+            "per_pass": [{"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000}],
+            "top_draws": [{"eid": 42, "marker": "Geo", "triangles": 3000}],
+        },
+    )
+    result = CliRunner().invoke(main, ["stats"])
+    assert result.exit_code == 0
+    assert "Per-Pass Breakdown:" in result.output
+
+
+# ── B9: stats --jsonl and -q ─────────────────────────────────────────
+
+
+def test_stats_jsonl(monkeypatch) -> None:
+    """--jsonl outputs each per-pass item as separate JSON line."""
+    _patch_info(
+        monkeypatch,
+        {
+            "per_pass": [
+                {
+                    "name": "Main",
+                    "draws": 10,
+                    "dispatches": 0,
+                    "triangles": 5000,
+                    "rt_w": 1920,
+                    "rt_h": 1080,
+                    "attachments": 3,
+                },
+            ],
+            "top_draws": [{"eid": 42, "marker": "Geo", "triangles": 3000}],
+        },
+    )
+    result = CliRunner().invoke(main, ["stats", "--jsonl"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) >= 1
+    assert lines[0]["name"] == "Main"
+
+
+def test_stats_quiet(monkeypatch) -> None:
+    """-q outputs pass names only."""
+    _patch_info(
+        monkeypatch,
+        {
+            "per_pass": [
+                {"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000},
+                {"name": "Shadow", "draws": 5, "dispatches": 0, "triangles": 2000},
+            ],
+            "top_draws": [],
+        },
+    )
+    result = CliRunner().invoke(main, ["stats", "-q"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["Main", "Shadow"]
+
+
+# ── B7: stats handler returns RT dimensions ──────────────────────────
+
+
+def test_stats_tsv_shows_rt_dimensions(monkeypatch) -> None:
+    """Stats TSV output includes RT_W and RT_H columns with actual values."""
+    _patch_info(
+        monkeypatch,
+        {
+            "per_pass": [
+                {
+                    "name": "Main",
+                    "draws": 10,
+                    "dispatches": 0,
+                    "triangles": 5000,
+                    "rt_w": 1920,
+                    "rt_h": 1080,
+                    "attachments": 3,
+                },
+            ],
+            "top_draws": [],
+        },
+    )
+    result = CliRunner().invoke(main, ["stats"])
+    assert result.exit_code == 0
+    assert "1920" in result.output
+    assert "1080" in result.output
+
+
+def test_stats_json_includes_rt_dimensions(monkeypatch) -> None:
+    """Stats JSON output includes rt_w and rt_h fields."""
+    _patch_info(
+        monkeypatch,
+        {
+            "per_pass": [
+                {
+                    "name": "Main",
+                    "draws": 10,
+                    "dispatches": 0,
+                    "triangles": 5000,
+                    "rt_w": 1920,
+                    "rt_h": 1080,
+                    "attachments": 3,
+                },
+            ],
+            "top_draws": [],
+        },
+    )
+    result = CliRunner().invoke(main, ["stats", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["per_pass"][0]["rt_w"] == 1920
+    assert data["per_pass"][0]["rt_h"] == 1080
+    assert data["per_pass"][0]["attachments"] == 3

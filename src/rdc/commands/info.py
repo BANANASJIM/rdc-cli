@@ -41,16 +41,32 @@ def info_cmd(use_json: bool) -> None:
 
 @click.command("stats")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
-@click.option("--no-header", is_flag=True, help="Omit TSV header")
-def stats_cmd(use_json: bool, no_header: bool) -> None:
+@list_output_options
+def stats_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
     """Show per-pass breakdown, top draws, largest resources."""
     result = call("stats", {})
     if use_json:
         write_json(result)
         return
+
     per_pass = result.get("per_pass", [])
+    top_draws = result.get("top_draws", [])
+
+    if use_jsonl:
+        for p in per_pass:
+            write_jsonl([p])
+        for d in top_draws:
+            write_jsonl([d])
+        return
+
+    if quiet:
+        for p in per_pass:
+            sys.stdout.write(p["name"] + "\n")
+        return
+
     if per_pass:
-        sys.stderr.write("Per-Pass Breakdown:" + chr(10))
+        if not no_header:
+            sys.stderr.write("Per-Pass Breakdown:" + chr(10))
         header = ["PASS", "DRAWS", "DISPATCHES", "TRIANGLES", "RT_W", "RT_H", "ATTACHMENTS"]
         rows = [
             [
@@ -65,9 +81,9 @@ def stats_cmd(use_json: bool, no_header: bool) -> None:
             for p in per_pass
         ]
         write_tsv(rows, header=header, no_header=no_header)
-    top_draws = result.get("top_draws", [])
     if top_draws:
-        sys.stderr.write(chr(10) + "Top Draws by Triangle Count:" + chr(10))
+        if not no_header:
+            sys.stderr.write(chr(10) + "Top Draws by Triangle Count:" + chr(10))
         header_d = ["EID", "MARKER", "TRIANGLES"]
         rows_d = [[d["eid"], d.get("marker", "-"), d["triangles"]] for d in top_draws]
         write_tsv(rows_d, header=header_d, no_header=no_header)
