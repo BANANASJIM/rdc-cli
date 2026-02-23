@@ -15,5 +15,5 @@ CLAUDE.md
 tests/fixtures/vulkan_samples
 .local/
 .claude/
-docs/
-scripts/*.py
+_site/
+docs-astro/dist/

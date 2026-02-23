@@ -1,0 +1,24 @@
+name: Release Please
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@16a9c90856f42705d54a6fda1823352bdc62cf38 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

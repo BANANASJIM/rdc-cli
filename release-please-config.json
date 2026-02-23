@@ -1,0 +1,34 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "rdc-cli",
+      "include-component-in-tag": false,
+      "bump-minor-pre-major": true,
+      "changelog-sections": [
+        {
+          "type": "feat",
+          "section": "Features"
+        },
+        {
+          "type": "fix",
+          "section": "Bug Fixes"
+        },
+        {
+          "type": "perf",
+          "section": "Performance"
+        },
+        {
+          "type": "refactor",
+          "section": "Refactoring",
+          "hidden": true
+        },
+        {
+          "type": "chore",
+          "section": "Miscellaneous",
+          "hidden": true
+        }
+      ]
+    }
+  }
+}

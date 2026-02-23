@@ -1,0 +1,61 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import stats from '../../data/stats.json';
+
+const base = import.meta.env.BASE_URL;
+---
+
+<Docs title="Documentation">
+  <p>
+    <strong>rdc-cli</strong> is a Unix-friendly command-line interface for
+    <a href="https://renderdoc.org/">RenderDoc</a> GPU captures.
+    It provides pipe-friendly TSV output, JSON mode, and {stats.command_count} commands for exploring
+    <code>.rdc</code> capture files — designed for CI pipelines and AI agents.
+  </p>
+
+  <h2>Quick Start</h2>
+
+  <pre><code>pipx install rdc-cli
+rdc open capture.rdc
+rdc info
+rdc draws
+rdc pipeline 5 --json
+rdc close</code></pre>
+
+  <h2>Key Concepts</h2>
+
+  <h3>Two-Layer Architecture</h3>
+  <p>
+    rdc-cli uses a daemon architecture: <code>rdc open</code> starts a background
+    daemon that loads the capture and holds it open. Subsequent commands
+    (<code>rdc draws</code>, <code>rdc pipeline</code>, etc.) send JSON-RPC
+    requests to the daemon over TCP. This means the capture is loaded only once,
+    and queries are fast.
+  </p>
+
+  <h3>Output Modes</h3>
+  <p>
+    By default, commands output TSV (tab-separated values) — ideal for Unix
+    pipes like <code>grep</code>, <code>awk</code>, <code>cut</code>, and
+    <code>sort</code>. Add <code>--json</code> to any command for structured
+    JSON output, perfect for <code>jq</code>, CI assertions, or AI agent
+    consumption.
+  </p>
+
+  <h3>VFS Path System</h3>
+  <p>
+    rdc-cli exposes capture data through a virtual filesystem. You can browse
+    it with <code>rdc ls</code>, <code>rdc cat</code>, and <code>rdc tree</code>.
+    Every piece of data has a stable path like
+    <code>/draws/142/pipeline/shader/ps</code>.
+  </p>
+
+  <h2>Sections</h2>
+
+  <ul>
+    <li><a href={`${base}docs/install/`}>Installation</a> — PyPI, AUR, from source, renderdoc setup</li>
+    <li><a href={`${base}docs/usage/`}>Usage Patterns</a> — common workflows and examples</li>
+    <li><a href={`${base}docs/commands/`}>Command Reference</a> — all {stats.command_count} commands</li>
+    <li><a href={`${base}docs/vfs/`}>VFS Paths</a> — virtual filesystem namespace</li>
+  </ul>
+</Docs>
