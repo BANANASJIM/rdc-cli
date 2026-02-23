@@ -37,6 +37,7 @@ from rdc.commands.shader_edit import (
     shader_restore_cmd,
 )
 from rdc.commands.snapshot import snapshot_cmd
+from rdc.commands.tex_stats import tex_stats_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
 from rdc.commands.usage import usage_cmd
 from rdc.commands.vfs import cat_cmd, complete_cmd, ls_cmd, tree_cmd
@@ -122,6 +123,7 @@ main.add_command(shader_build_cmd, name="shader-build")
 main.add_command(shader_replace_cmd, name="shader-replace")
 main.add_command(shader_restore_cmd, name="shader-restore")
 main.add_command(shader_restore_all_cmd, name="shader-restore-all")
+main.add_command(tex_stats_cmd, name="tex-stats")
 
 
 if __name__ == "__main__":

@@ -1734,3 +1734,75 @@ class TestPickPixelReal:
         draw_eid = self._first_draw_eid()
         result = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
         assert result["eid"] == draw_eid
+
+
+class TestTexStatsReal:
+    """GPU integration tests for tex_stats handler with real replay."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_texture_id(self) -> int:
+        if self.state.tex_map:
+            return next(iter(self.state.tex_map))
+        pytest.skip("no texture resources in capture")
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        draws = result["events"]
+        assert len(draws) > 0
+        return draws[0]["eid"]
+
+    def test_tex_stats_real_minmax(self) -> None:
+        """TS-25: GetMinMax returns min <= max for all channels."""
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_stats", {"id": tex_id})
+        for ch in ("r", "g", "b", "a"):
+            assert result["min"][ch] <= result["max"][ch], f"min > max for channel {ch}"
+
+    def test_tex_stats_real_no_nan(self) -> None:
+        """TS-26: All min/max values are finite."""
+        import math
+
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_stats", {"id": tex_id})
+        for ch in ("r", "g", "b", "a"):
+            assert math.isfinite(result["min"][ch]), f"min.{ch} not finite"
+            assert math.isfinite(result["max"][ch]), f"max.{ch} not finite"
+
+    def test_tex_stats_real_histogram(self) -> None:
+        """TS-27: Histogram has 256 entries with r/g/b/a keys."""
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_stats", {"id": tex_id, "histogram": True})
+        assert "histogram" in result
+        assert len(result["histogram"]) == 256
+        for entry in result["histogram"]:
+            for key in ("bucket", "r", "g", "b", "a"):
+                assert key in entry
+
+    def test_tex_stats_real_histogram_nonneg(self) -> None:
+        """TS-28: All histogram bucket counts are >= 0."""
+        tex_id = self._first_texture_id()
+        result = _call(self.state, "tex_stats", {"id": tex_id, "histogram": True})
+        for entry in result["histogram"]:
+            for ch in ("r", "g", "b", "a"):
+                assert entry[ch] >= 0, f"negative count at bucket {entry['bucket']}.{ch}"
+
+    def test_tex_stats_real_unknown_id(self) -> None:
+        """TS-29: Unknown texture ID returns error -32001."""
+        req = {
+            "id": 1,
+            "method": "tex_stats",
+            "params": {"_token": self.state.token, "id": 0},
+        }
+        resp, _ = _handle_request(req, self.state)
+        assert "error" in resp
+        assert resp["error"]["code"] == -32001
+
+    def test_tex_stats_real_eid_navigation(self) -> None:
+        """TS-30: Providing a draw EID succeeds and eid is echoed."""
+        tex_id = self._first_texture_id()
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "tex_stats", {"id": tex_id, "eid": draw_eid})
+        assert result["eid"] == draw_eid

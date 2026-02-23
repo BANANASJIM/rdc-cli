@@ -1,4 +1,4 @@
-"""Texture handlers: tex_info, tex_export, tex_raw, rt_export, rt_depth, rt_overlay."""
+"""Texture handlers: tex_info, tex_export, tex_raw, rt_export, rt_depth, rt_overlay, tex_stats."""
 
 from __future__ import annotations
 
@@ -238,6 +238,83 @@ def _handle_rt_overlay(
     ), True
 
 
+def _handle_tex_stats(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
+    if state.rd is None:
+        return _error_response(request_id, -32002, "renderdoc module not available"), True
+
+    res_id = int(params.get("id", 0))
+    tex = state.tex_map.get(res_id)
+    if tex is None:
+        return _error_response(request_id, -32001, f"texture {res_id} not found"), True
+
+    if getattr(tex, "msSamp", 1) > 1:
+        return _error_response(
+            request_id, -32001, "MSAA textures not supported for tex-stats"
+        ), True
+
+    eid = int(params.get("eid", state.current_eid))
+    err = _set_frame_event(state, eid)
+    if err:
+        return _error_response(request_id, -32002, err), True
+
+    rd = state.rd
+    mip = int(params.get("mip", 0))
+    array_slice = int(params.get("slice", 0))
+
+    sub = rd.Subresource()
+    sub.mip = mip
+    sub.slice = array_slice
+    sub.sample = 0
+    comp_type = rd.CompType.Typeless
+
+    controller = state.adapter.controller
+    min_val, max_val = controller.GetMinMax(tex.resourceId, sub, comp_type)
+
+    result_data: dict[str, Any] = {
+        "id": res_id,
+        "eid": eid,
+        "mip": mip,
+        "slice": array_slice,
+        "min": {
+            "r": min_val.floatValue[0],
+            "g": min_val.floatValue[1],
+            "b": min_val.floatValue[2],
+            "a": min_val.floatValue[3],
+        },
+        "max": {
+            "r": max_val.floatValue[0],
+            "g": max_val.floatValue[1],
+            "b": max_val.floatValue[2],
+            "a": max_val.floatValue[3],
+        },
+    }
+
+    if params.get("histogram"):
+        histogram: list[dict[str, Any]] = []
+        for ch in range(4):
+            channels = [ch == i for i in range(4)]
+            min_f = min_val.floatValue[ch]
+            max_f = max_val.floatValue[ch]
+            if min_f == max_f:
+                max_f = min_f + 1.0
+            buckets = controller.GetHistogram(
+                tex.resourceId, sub, comp_type, min_f, max_f, channels
+            )
+            ch_name = ["r", "g", "b", "a"][ch]
+            for b_idx, count in enumerate(buckets):
+                if ch == 0:
+                    histogram.append({"bucket": b_idx, "r": int(count), "g": 0, "b": 0, "a": 0})
+                else:
+                    histogram[b_idx][ch_name] = int(count)
+        result_data["histogram"] = histogram
+
+    return _result_response(request_id, result_data), True
+
+
 HANDLERS: dict[str, Any] = {
     "tex_info": _handle_tex_info,
     "tex_export": _handle_tex_export,
@@ -245,4 +322,5 @@ HANDLERS: dict[str, Any] = {
     "rt_export": _handle_rt_export,
     "rt_depth": _handle_rt_depth,
     "rt_overlay": _handle_rt_overlay,
+    "tex_stats": _handle_tex_stats,
 }
