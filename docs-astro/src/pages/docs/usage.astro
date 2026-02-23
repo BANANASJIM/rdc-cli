@@ -73,11 +73,14 @@ rdc cat /draws/142/pipeline/shader/ps
 rdc tree / --depth 2</code></pre>
 
   <h2>Search</h2>
-  <pre><code># Search for a string across shaders
-rdc search "main" --scope shaders
+  <pre><code># Search shader disassembly for a pattern
+rdc search "main"
 
-# Search draw call names
-rdc search "Triangle" --scope draws</code></pre>
+# Filter by shader stage
+rdc search "shadowMap" --stage ps
+
+# With context lines
+rdc search "textureSample" -C 3</code></pre>
 
   <h2>GPU Counters</h2>
   <pre><code># List available hardware counters

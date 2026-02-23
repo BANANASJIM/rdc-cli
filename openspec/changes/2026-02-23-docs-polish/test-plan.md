@@ -21,11 +21,27 @@ cd docs-astro && npm run build
 |-------|----------|
 | `design.astro` exists | New page renders with 7 sections |
 | Commands page sections | 12 sections (existing 10 + Target Control + Capture Metadata) |
-| Commands total | 60 commands documented |
-| Examples count | ~22 use cases (8 existing + 14 new) |
-| 🚧 badges | Visible on Phase 5B commands and examples |
+| Commands total | 60+ commands documented |
+| Examples count | ~22 use cases |
 
-### 3. Navigation
+### 3. Install Documentation
+
+| Check | Expected |
+|-------|----------|
+| README Install section | Before Quickstart, shows PyPI + build-renderdoc.sh + both AUR variants |
+| `install.astro` | Build script section, both AUR packages, `~/.local/renderdoc` discovery |
+| Landing page Install block | PyPI with curl, AUR with stable+git |
+
+### 4. Terminal Replay
+
+| Check | Expected |
+|-------|----------|
+| `python scripts/gen-replay.py` | Runs without error, outputs valid JSON |
+| `replay.json` | 7 playlists, each with open → commands → close |
+| Hero terminal animation | Types commands, shows output, rotates playlists |
+| No typed.js in bundle | Removed from package.json, no import errors |
+
+### 5. Navigation
 
 | Link | Target |
 |------|--------|
@@ -33,16 +49,9 @@ cd docs-astro && npm run build
 | Index "Design" link | `/docs/design/` |
 | All existing sidebar links | Still work correctly |
 
-### 4. Content Accuracy
-
-- Design page rationale matches Obsidian decision records (D-001 through D-025)
-- Phase 5B commands match `openspec/changes/2026-02-23-phase5b-capture-unified/proposal.md`
-- Command syntax matches `rdc --help` output
-- `stats.json` values updated (command_count: 60)
-
-### 5. Visual Check
+### 6. Visual Check
 
 - Dark mode renders correctly
 - Light mode renders correctly
-- Mobile responsive layout works
+- Terminal replay visible on mobile (responsive)
 - Code blocks properly formatted

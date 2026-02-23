@@ -1,0 +1,116 @@
+[
+  [
+    {
+      "cmd": "rdc open hello_triangle.rdc",
+      "output": "opened: hello_triangle.rdc"
+    },
+    {
+      "cmd": "rdc info",
+      "output": "Capture:        hello_triangle.rdc\nAPI:            Vulkan\nEvents:         6\nDraw Calls:     1 (0 indexed, 1 non-indexed, 0 dispatches)\nClears:         0\nCopies:         0"
+    },
+    {
+      "cmd": "rdc draws",
+      "output": "EID\tTYPE\tTRIANGLES\tINSTANCES\tPASS\tMARKER\n11\tDraw\t12\t1\tColour Pass #1 (1 Target + Depth)\t-"
+    },
+    {
+      "cmd": "rdc pipeline 11",
+      "output": "EID\tAPI\tTOPOLOGY\tGFX_PIPE\tCOMP_PIPE\n11\tVulkan\tTriangleList\t114\t0"
+    },
+    {
+      "cmd": "rdc search \"main\"",
+      "output": "shader:111[vs]:12:EntryPoint(Vertex, main, \"main\", {\nshader:111[vs]:43:void main() {\nshader:112[ps]:12:EntryPoint(Fragment, main, \"main\", {\nshader:112[ps]:18:ExecutionMode(main, OriginUpperLeft);\nshader:112[ps]:32:void main() {"
+    },
+    {
+      "cmd": "rdc close",
+      "output": "session closed"
+    }
+  ],
+  [
+    {
+      "cmd": "rdc open hello_triangle.rdc",
+      "output": "opened: hello_triangle.rdc"
+    },
+    {
+      "cmd": "rdc tree / --depth 1",
+      "output": "//\n\u251c\u2500\u2500 capabilities\n\u251c\u2500\u2500 info\n\u251c\u2500\u2500 stats\n\u251c\u2500\u2500 log\n\u251c\u2500\u2500 events/\n\u251c\u2500\u2500 draws/\n\u251c\u2500\u2500 by-marker/\n\u251c\u2500\u2500 passes/\n\u251c\u2500\u2500 resources/\n\u251c\u2500\u2500 textures/\n\u251c\u2500\u2500 buffers/\n\u251c\u2500\u2500 shaders/\n\u251c\u2500\u2500 counters/\n\u2514\u2500\u2500 current@"
+    },
+    {
+      "cmd": "rdc ls /draws/11",
+      "output": "pipeline\nshader\nbindings\ntargets\npostvs\ncbuffer\nvbuffer\nibuffer\ndescriptors"
+    },
+    {
+      "cmd": "rdc cat /draws/11/pipeline/topology",
+      "output": "eid:      11\ntopology: TriangleList"
+    },
+    {
+      "cmd": "rdc resources -q | wc -l",
+      "output": "46"
+    },
+    {
+      "cmd": "rdc draws --json | jq \".[0].triangles\"",
+      "output": "12"
+    },
+    {
+      "cmd": "rdc close",
+      "output": "session closed"
+    }
+  ],
+  [
+    {
+      "cmd": "rdc open hello_triangle.rdc",
+      "output": "opened: hello_triangle.rdc"
+    },
+    {
+      "cmd": "rdc pick-pixel 300 300 11",
+      "output": "r=0.3373  g=0.3373  b=0.3373  a=0.5216"
+    },
+    {
+      "cmd": "rdc pixel 300 300 11",
+      "output": "EID\tFRAG\tDEPTH\tPASSED\tFLAGS\n6\t0\t-\tyes\t-\n11\t0\t0.9581\tyes\t-"
+    },
+    {
+      "cmd": "rdc debug pixel 11 300 300",
+      "output": "stage:   ps\neid:     11\nsteps:   80\ninputs:  _99 = [-107374176.0 -107374176.0 -107374176.0 -107374176.0]\noutputs:  = [0.0]"
+    },
+    {
+      "cmd": "rdc debug pixel 11 300 300 --trace",
+      "output": "STEP\tINSTR\tFILE\tLINE\tVAR\tTYPE\tVALUE\n0\t78\t-\t0\t_99\tfloat\t-107374176.0 -107374176.0 -107374176.0 -107374176.0\n1\t79\t-\t0\t_79\tfloat\t-0.015102430246770382 -0.3927634656429291 4.36358118057251\n2\t80\t-\t0\t_80\tfloat\t0.01510667521506548 -8.669495582580566e-05 0.0010061264038085938\n3\t81\t-\t0\t\tfloat\t0.0\n3\t81\t-\t0\t_76\tfloat\t0.01510667521506548 -8.669495582580566e-05 0.0010061264038085938\n4\t82\t-\t0\t\tfloat\t0.0\n4\t82\t-\t0\t_82\tfloat\t-0.015102430246770382 -0.3927634656429291 4.36358118057251\n... (138 more)"
+    },
+    {
+      "cmd": "rdc close",
+      "output": "session closed"
+    }
+  ],
+  [
+    {
+      "cmd": "rdc open hello_triangle.rdc",
+      "output": "opened: hello_triangle.rdc"
+    },
+    {
+      "cmd": "rdc draws --json",
+      "output": "[\n  {\n    \"eid\": 11,\n    \"type\": \"Draw\",\n    \"triangles\": 12,\n    \"instances\": 1,\n    \"pass\": \"Colour Pass #1 (1 Target + Depth)\",\n    \"marker\": \"-\"\n  }\n]"
+    },
+    {
+      "cmd": "rdc assert-count draws --expect 1 --op eq",
+      "output": "pass: draws = 1 (expected eq 1)"
+    },
+    {
+      "cmd": "rdc assert-count events --expect 5 --op ge",
+      "output": "pass: events = 6 (expected ge 5)"
+    },
+    {
+      "cmd": "rdc close",
+      "output": "session closed"
+    }
+  ],
+  [
+    {
+      "cmd": "rdc diff before.rdc after.rdc --draws",
+      "output": "STATUS\tEID_A\tEID_B\tMARKER\tTYPE\tTRI_A\tTRI_B\tINST_A\tINST_B\tCONFIDENCE\n=\t11\t11\t-\tDraw\t12\t12\t1\t1\tmedium"
+    },
+    {
+      "cmd": "rdc diff before.rdc after.rdc --stats",
+      "output": "STATUS\tPASS\tDRAWS_A\tDRAWS_B\tDRAWS_DELTA\tTRI_A\tTRI_B\tTRI_DELTA\tDISP_A\tDISP_B\tDISP_DELTA\n=\tvkCmdBeginRenderPass(C=Clear, D=Clear)\t1\t1\t0\t12\t12\t0\t0\t0\t0"
+    }
+  ]
+]
