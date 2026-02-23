@@ -1295,6 +1295,8 @@ class MockReplayController:
         self._debug_thread_map: dict[tuple[int, int, int, int, int, int], ShaderDebugTrace] = {}
         self._debug_states: dict[int, list[list[ShaderDebugState]]] = {}
         self._mesh_data: dict[int, MeshFormat] = {}
+        self._min_max_map: dict[int, tuple[PixelValue, PixelValue]] = {}
+        self._histogram_map: dict[tuple[int, int], list[int]] = {}
         self._target_encodings: list[int] = [3, 2]
         self._built_counter: int = 1000
         self._replacements: dict[int, int] = {}
@@ -1446,6 +1448,17 @@ class MockReplayController:
 
     def FreeTargetResource(self, rid: Any) -> None:
         self._freed.add(int(rid))
+
+    def GetMinMax(self, tex_id: Any, sub: Any, comp_type: Any) -> tuple[PixelValue, PixelValue]:
+        rid = int(tex_id)
+        return self._min_max_map.get(rid, (PixelValue(), PixelValue()))
+
+    def GetHistogram(
+        self, tex_id: Any, sub: Any, comp_type: Any, min_val: float, max_val: float, channels: Any
+    ) -> list[int]:
+        rid = int(tex_id)
+        ch = next((i for i, c in enumerate(channels) if c), 0)
+        return self._histogram_map.get((rid, ch), [0] * 256)
 
     def CreateOutput(self, windowing: Any, output_type: Any) -> MockReplayOutput:
         return MockReplayOutput()
