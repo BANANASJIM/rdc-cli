@@ -367,6 +367,38 @@ class ShaderEvents(IntFlag):
     GeneratedNanOrInf = 2
 
 
+class TargetControlMessageType(IntEnum):
+    Unknown = 0
+    Disconnected = 1
+    Busy = 2
+    Noop = 3
+    NewCapture = 4
+    CaptureCopied = 5
+    RegisterAPI = 6
+    NewChild = 7
+    CaptureProgress = 8
+    CapturableWindowCount = 9
+    RequestShow = 10
+
+
+class SectionType(IntEnum):
+    Unknown = 0
+    FrameCapture = 1
+    ResolveDatabase = 2
+    Bookmarks = 3
+    Notes = 4
+    ResourceRenames = 5
+    AMDRGPProfile = 6
+    ExtendedThumbnail = 7
+
+
+class SectionFlags(IntFlag):
+    NoFlags = 0
+    ASCIIStored = 1
+    LZ4Compressed = 2
+    ZstdCompressed = 4
+
+
 @dataclass
 class CounterValue:
     d: float = 0.0
@@ -1143,6 +1175,74 @@ class StructuredFile:
     chunks: list[SDChunk] = field(default_factory=list)
 
 
+@dataclass
+class CaptureOptions:
+    allowFullscreen: bool = False
+    allowVSync: bool = False
+    apiValidation: bool = False
+    captureCallstacks: bool = False
+    captureCallstacksOnlyActions: bool = False
+    delayForDebugger: int = 0
+    verifyBufferAccess: bool = False
+    hookIntoChildren: bool = False
+    refAllResources: bool = False
+    captureAllCmdLists: bool = False
+    debugOutputMute: bool = False
+    softMemoryLimit: int = 0
+
+
+@dataclass
+class ExecuteResult:
+    result: int = 0
+    ident: int = 0
+
+
+@dataclass
+class Thumbnail:
+    data: bytes = b""
+    width: int = 0
+    height: int = 0
+
+
+@dataclass
+class GPUDevice:
+    name: str = ""
+    vendor: int = 0
+    deviceID: int = 0
+    driver: str = ""
+
+
+@dataclass
+class SectionProperties:
+    name: str = ""
+    type: SectionType = SectionType.Unknown
+    version: str = ""
+    compressedSize: int = 0
+    uncompressedSize: int = 0
+    flags: SectionFlags = SectionFlags.NoFlags
+
+
+@dataclass
+class NewCaptureData:
+    captureId: int = 0
+    frameNumber: int = 0
+    path: str = ""
+    byteSize: int = 0
+    timestamp: int = 0
+    thumbnail: bytes = b""
+    thumbWidth: int = 0
+    thumbHeight: int = 0
+    title: str = ""
+    api: str = ""
+    local: bool = True
+
+
+@dataclass
+class TargetControlMessage:
+    type: TargetControlMessageType = TargetControlMessageType.Noop
+    newCapture: NewCaptureData | None = None
+
+
 # ---------------------------------------------------------------------------
 # API Properties
 # ---------------------------------------------------------------------------
@@ -1516,6 +1616,69 @@ class MockReplayOutput:
 
 
 # ---------------------------------------------------------------------------
+# Mock TargetControl
+# ---------------------------------------------------------------------------
+
+
+class MockTargetControl:
+    """Mock for renderdoc TargetControl."""
+
+    def __init__(
+        self,
+        *,
+        messages: list[TargetControlMessage] | None = None,
+        copy_result: str = "",
+        target: str = "mock-target",
+        pid: int = 1234,
+        api: str = "Vulkan",
+    ) -> None:
+        self._connected = True
+        self._messages = list(messages) if messages else []
+        self._msg_idx = 0
+        self._copy_result = copy_result
+        self._target = target
+        self._pid = pid
+        self._api = api
+
+    def Connected(self) -> bool:
+        return self._connected
+
+    def GetTarget(self) -> str:
+        return self._target
+
+    def GetPID(self) -> int:
+        return self._pid
+
+    def GetAPI(self) -> str:
+        return self._api
+
+    def TriggerCapture(self, numFrames: int = 1) -> None:
+        pass
+
+    def QueueCapture(self, frameNumber: int, numFrames: int = 1) -> None:
+        pass
+
+    def CopyCapture(self, captureId: int, localpath: str) -> None:
+        pass
+
+    def DeleteCapture(self, captureId: int) -> None:
+        pass
+
+    def ReceiveMessage(self, progress: Any = None) -> TargetControlMessage:
+        if self._msg_idx < len(self._messages):
+            msg = self._messages[self._msg_idx]
+            self._msg_idx += 1
+            return msg
+        return TargetControlMessage(type=TargetControlMessageType.Noop)
+
+    def CycleActiveWindow(self) -> None:
+        pass
+
+    def Shutdown(self) -> None:
+        self._connected = False
+
+
+# ---------------------------------------------------------------------------
 # Mock CaptureFile
 # ---------------------------------------------------------------------------
 
@@ -1540,6 +1703,39 @@ class MockCaptureFile:
 
     def GetStructuredData(self) -> StructuredFile:
         return self._structured_data
+
+    def GetThumbnail(self, fileType: int = 0, maxsize: int = 0) -> Thumbnail:
+        return Thumbnail(data=b"\x00" * 16, width=4, height=4)
+
+    def GetAvailableGPUs(self) -> list[GPUDevice]:
+        return [GPUDevice(name="Mock GPU", vendor=0, deviceID=0, driver="0.0")]
+
+    def GetSectionCount(self) -> int:
+        return 1
+
+    def GetSectionProperties(self, idx: int) -> SectionProperties:
+        return SectionProperties(name="FrameCapture", type=SectionType.FrameCapture)
+
+    def GetSectionContents(self, idx: int) -> bytes:
+        return b"mock-section-data"
+
+    def FindSectionByName(self, name: str) -> int:
+        return 0 if name == "FrameCapture" else -1
+
+    def HasCallstacks(self) -> bool:
+        return False
+
+    def RecordedMachineIdent(self) -> str:
+        return "mock-machine-ident"
+
+    def TimestampBase(self) -> int:
+        return 0
+
+    def HasPendingDependencies(self) -> bool:
+        return False
+
+    def EmbedDependenciesIntoCapture(self) -> None:
+        pass
 
     def Shutdown(self) -> None:
         self._shutdown_called = True
@@ -1586,3 +1782,32 @@ def CreateHeadlessWindowingData(width: int, height: int) -> Any:
 
 class ReplayOptions:
     pass
+
+
+def ExecuteAndInject(
+    app: str,
+    workingDir: str,
+    cmdLine: str,
+    envList: list[str],
+    capturefile: str,
+    opts: CaptureOptions,
+    waitForExit: bool = False,
+) -> ExecuteResult:
+    return ExecuteResult(result=0, ident=12345)
+
+
+def CreateTargetControl(
+    URL: str,
+    ident: int,
+    clientName: str,
+    forceConnection: bool,
+) -> MockTargetControl:
+    return MockTargetControl()
+
+
+def GetDefaultCaptureOptions() -> CaptureOptions:
+    opts = CaptureOptions()
+    opts.allowFullscreen = True
+    opts.allowVSync = True
+    opts.debugOutputMute = True
+    return opts

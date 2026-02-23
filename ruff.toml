@@ -6,4 +6,4 @@ select = ["E", "W", "F", "I", "N", "UP", "B"]
 
 [lint.per-file-ignores]
 # Mock renderdoc module mirrors RenderDoc's CamelCase API names
-"tests/mocks/mock_renderdoc.py" = ["N802", "N815"]
+"tests/mocks/mock_renderdoc.py" = ["N802", "N803", "N815"]
