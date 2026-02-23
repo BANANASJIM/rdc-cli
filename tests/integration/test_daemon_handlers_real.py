@@ -1946,7 +1946,7 @@ class TestBufferDecodeReal:
         eid = self._first_draw_eid()
         params = {"eid": eid, "stage": "vs", "set": 0, "binding": 0}
         result = _call(self.state, "cbuffer_decode", params)
-        assert "variables" in result or "set" in result
+        assert "variables" in result and "set" in result
 
     def test_vbuffer_decode_returns_vertex_data(self) -> None:
         """vbuffer_decode returns columns + vertices for a draw event."""
@@ -1963,6 +1963,12 @@ class TestShaderMapAndAllReal:
     def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
         self.state = _make_state(vkcube_replay, rd_module)
 
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        events = result["events"]
+        assert len(events) > 0, "no draw calls in capture"
+        return events[0]["eid"]
+
     def test_shader_map_returns_rows(self) -> None:
         """shader_map returns {"rows": [...]} with at least VS + FS."""
         result = _call(self.state, "shader_map")
@@ -1971,6 +1977,7 @@ class TestShaderMapAndAllReal:
 
     def test_shader_all_returns_stages(self) -> None:
         """shader_all returns {"eid": ..., "stages": [...]} with at least VS + FS."""
-        result = _call(self.state, "shader_all")
+        eid = self._first_draw_eid()
+        result = _call(self.state, "shader_all", {"eid": eid})
         assert "stages" in result
         assert len(result["stages"]) >= 2
