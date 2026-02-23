@@ -35,7 +35,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python dependencies
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Compute test stats
         id: test_stats
@@ -90,9 +90,9 @@ jobs:
           import json, pathlib
           s = json.loads(pathlib.Path('docs-astro/src/data/stats.json').read_text())
           badges = [
-              ('commands', str(s.get('command_count', '')), 'brightgreen'),
-              ('tests',    str(s.get('test_count', '')),    'blue'),
-              ('coverage', s.get('coverage', ''),           'green'),
+              ('commands', str(s.get('command_count', '?')), 'brightgreen'),
+              ('tests',    str(s.get('test_count', 0) or '?'), 'blue'),
+              ('coverage', s.get('coverage', '') or '?',       'green'),
           ]
           for name, message, color in badges:
               pathlib.Path(f'docs-astro/dist/badges/{name}.json').write_text(
