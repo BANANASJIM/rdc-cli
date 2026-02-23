@@ -78,10 +78,10 @@ jobs:
           npm ci
           npm run build
 
-      - name: Merge mkdocs into Astro output
+      - name: Merge mkdocs CLI reference into Astro output
         run: |
-          mkdir -p docs-astro/dist/docs
-          cp -r _site/* docs-astro/dist/docs/
+          mkdir -p docs-astro/dist/docs/cli-reference
+          cp -r _site/cli-reference/* docs-astro/dist/docs/cli-reference/
 
       - name: Generate badge endpoint JSONs
         run: |
