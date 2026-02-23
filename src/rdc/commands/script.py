@@ -38,8 +38,16 @@ def _parse_args(raw: tuple[str, ...]) -> dict[str, str]:
 def script_cmd(script_file: Path, args: tuple[str, ...], output_json: bool) -> None:
     """Execute a Python script inside the daemon process.
 
-    The script has access to the live ReplayController, renderdoc module,
-    and all daemon state. Assign to `result` to return structured data.
+    The script runs with these variables pre-injected:
+
+    \b
+      controller  ReplayController instance (live replay session)
+      rd          renderdoc module (enums, types, helpers)
+      adapter     RenderDocAdapter instance (high-level wrapper)
+      state       DaemonState object (capture metadata, caches)
+      args        dict of --arg KEY=VALUE arguments
+
+    Assign to `result` to return structured data.
     """
     args_dict = _parse_args(args)
     params: dict[str, Any] = {

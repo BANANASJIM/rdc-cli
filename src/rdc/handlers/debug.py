@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
@@ -15,6 +16,7 @@ from rdc.handlers._helpers import (
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
 
+_log = logging.getLogger("rdc.handlers.debug")
 _MAX_STEPS = 50_000
 
 
@@ -80,21 +82,29 @@ def _format_step(state_obj: Any, trace: Any) -> dict[str, Any]:
     }
 
 
-def _run_debug_loop(controller: Any, trace: Any) -> list[dict[str, Any]]:
-    """Step through debug trace to completion, return formatted steps."""
+def _run_debug_loop(controller: Any, trace: Any) -> tuple[list[dict[str, Any]], str | None]:
+    """Step through debug trace to completion, return (steps, error_msg)."""
     steps: list[dict[str, Any]] = []
     try:
         while True:
-            states = controller.ContinueDebug(trace.debugger)
+            try:
+                states = controller.ContinueDebug(trace.debugger)
+            except Exception as exc:
+                _log.warning("ContinueDebug raised: %s", exc)
+                return steps, f"debug loop error: {type(exc).__name__}: {exc}"
             if not states:
                 break
             for s in states:
-                steps.append(_format_step(s, trace))
+                try:
+                    steps.append(_format_step(s, trace))
+                except Exception as exc:
+                    _log.warning("_format_step raised: %s", exc)
+                    return steps, f"debug loop error: {type(exc).__name__}: {exc}"
                 if len(steps) > _MAX_STEPS:
-                    return steps
+                    return steps, None
     finally:
         controller.FreeTrace(trace)
-    return steps
+    return steps, None
 
 
 def _extract_inputs_outputs(
@@ -135,7 +145,9 @@ def _handle_debug_pixel(
     if trace is None or trace.debugger is None:
         return _error_response(request_id, -32007, "no fragment at pixel"), True
 
-    steps = _run_debug_loop(controller, trace)
+    steps, loop_err = _run_debug_loop(controller, trace)
+    if loop_err:
+        return _error_response(request_id, -32603, loop_err), True
     stage_name = _STAGE_NAMES.get(int(trace.stage), "ps")
     inp, out = _extract_inputs_outputs(steps)
 
@@ -178,7 +190,9 @@ def _handle_debug_vertex(
     if trace is None or trace.debugger is None:
         return _error_response(request_id, -32007, "vertex debug not available"), True
 
-    steps = _run_debug_loop(controller, trace)
+    steps, loop_err = _run_debug_loop(controller, trace)
+    if loop_err:
+        return _error_response(request_id, -32603, loop_err), True
     stage_name = _STAGE_NAMES.get(int(trace.stage), "vs")
     inp, out = _extract_inputs_outputs(steps)
 
@@ -226,7 +240,9 @@ def _handle_debug_thread(
     if trace is None or trace.debugger is None:
         return _error_response(request_id, -32007, "thread debug not available"), True
 
-    steps = _run_debug_loop(controller, trace)
+    steps, loop_err = _run_debug_loop(controller, trace)
+    if loop_err:
+        return _error_response(request_id, -32603, loop_err), True
     stage_name = _STAGE_NAMES.get(int(trace.stage), "cs")
     inp, out = _extract_inputs_outputs(steps)
 

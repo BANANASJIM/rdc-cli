@@ -11,7 +11,16 @@ from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.tsv import write_tsv
 
-_COUNT_TARGETS = ["draws", "events", "resources", "triangles", "passes", "dispatches", "clears"]
+_COUNT_TARGETS = [
+    "draws",
+    "events",
+    "resources",
+    "triangles",
+    "passes",
+    "dispatches",
+    "clears",
+    "shaders",
+]
 _SHADER_MAP_HEADER = ["EID", "VS", "HS", "DS", "GS", "PS", "CS"]
 _SHADER_MAP_COLS = ["eid", "vs", "hs", "ds", "gs", "ps", "cs"]
 
@@ -22,7 +31,7 @@ _SHADER_MAP_COLS = ["eid", "vs", "hs", "ds", "gs", "ps", "cs"]
 def count_cmd(what: str, pass_name: str | None) -> None:
     """Output a single integer count to stdout.
 
-    Targets: draws, events, resources, triangles, passes, dispatches, clears.
+    Targets: draws, events, resources, triangles, passes, dispatches, clears, shaders.
     """
     params: dict[str, Any] = {"what": what}
     if pass_name is not None:

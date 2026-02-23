@@ -287,7 +287,16 @@ def assert_state_cmd(eid: int, key_path: str, expect: str, output_json: bool) ->
         sys.exit(2)
 
     result = _assert_call("pipeline", {"eid": eid, "section": section})
-    actual_raw = _traverse_path(result, field_path)
+    # Unwrap shader stage results — handler wraps them in {"row": {..., "section_detail": {...}}}
+    if "row" in result:
+        row = result["row"]
+        sd = row.get("section_detail")
+        result = sd if isinstance(sd, dict) else row
+    # Single-segment path: extract leaf by section name
+    if not field_path:
+        actual_raw = result.get(section, result)
+    else:
+        actual_raw = _traverse_path(result, field_path)
     actual_str = _normalize_value(actual_raw)
     expect_str = expect.lower() if expect.lower() in ("true", "false") else expect
 

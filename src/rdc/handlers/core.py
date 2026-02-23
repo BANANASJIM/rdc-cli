@@ -9,6 +9,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -57,6 +58,16 @@ def _handle_count(
         resources = state.adapter.get_resources()
         value = count_resources(resources)
         return _result_response(request_id, {"value": value}), True
+    if what == "shaders":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.handlers._helpers import _collect_pipe_states
+        from rdc.services.query_service import shader_inventory
+
+        actions = state.adapter.get_root_actions()
+        pipe_states = _collect_pipe_states(actions, state)
+        rows = shader_inventory(pipe_states)
+        return _result_response(request_id, {"value": len(rows)}), True
     try:
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True
@@ -97,7 +108,13 @@ def _handle_shutdown(
     return _result_response(request_id, {"ok": True}), False
 
 
-HANDLERS: dict[str, Any] = {
+_handle_ping._no_replay = True  # type: ignore[attr-defined]
+_handle_status._no_replay = True  # type: ignore[attr-defined]
+_handle_goto._no_replay = True  # type: ignore[attr-defined]
+_handle_shutdown._no_replay = True  # type: ignore[attr-defined]
+_handle_count._no_replay = True  # type: ignore[attr-defined]
+
+HANDLERS: dict[str, Handler] = {
     "ping": _handle_ping,
     "status": _handle_status,
     "goto": _handle_goto,

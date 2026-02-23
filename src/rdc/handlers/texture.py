@@ -265,6 +265,15 @@ def _handle_tex_stats(
     mip = int(params.get("mip", 0))
     array_slice = int(params.get("slice", 0))
 
+    if mip < 0 or mip >= tex.mips:
+        return _error_response(
+            request_id, -32001, f"mip {mip} out of range (max: {tex.mips - 1})"
+        ), True
+    if array_slice < 0 or array_slice >= tex.arraysize:
+        return _error_response(
+            request_id, -32001, f"slice {array_slice} out of range (max: {tex.arraysize - 1})"
+        ), True
+
     sub = rd.Subresource()
     sub.mip = mip
     sub.slice = array_slice

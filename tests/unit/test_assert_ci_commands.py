@@ -398,7 +398,7 @@ _ST = ["assert-state", "120"]
 
 
 def test_assert_state_simple_match(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"topology": "TriangleList"})
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
     r = _run(
         *_ST,
         "topology.topology",
@@ -409,13 +409,13 @@ def test_assert_state_simple_match(monkeypatch: Any) -> None:
 
 
 def test_assert_state_simple_mismatch(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"topology": "TriangleList"})
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
     r = _run(*_ST, "topology.topology", "--expect", "LineList")
     assert r.exit_code == 1
 
 
 def test_assert_state_nested_path(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"blends": [{"enabled": True}]})
+    _patch(monkeypatch, {"eid": 120, "blends": [{"enabled": True}]})
     r = _run(
         *_ST,
         "blend.blends.0.enabled",
@@ -429,6 +429,7 @@ def test_assert_state_array_index(monkeypatch: Any) -> None:
     _patch(
         monkeypatch,
         {
+            "eid": 120,
             "blends": [
                 {"colorBlend": {"source": "One"}},
                 {"colorBlend": {"source": "Zero"}},
@@ -445,7 +446,7 @@ def test_assert_state_array_index(monkeypatch: Any) -> None:
 
 
 def test_assert_state_bool_case_insensitive(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"blends": [{"enabled": True}]})
+    _patch(monkeypatch, {"eid": 120, "blends": [{"enabled": True}]})
     for val in ["True", "true", "TRUE"]:
         r = _run(
             *_ST,
@@ -457,7 +458,7 @@ def test_assert_state_bool_case_insensitive(monkeypatch: Any) -> None:
 
 
 def test_assert_state_numeric_value(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"width": 1920})
+    _patch(monkeypatch, {"eid": 120, "width": 1920})
     r = _run(*_ST, "viewport.width", "--expect", "1920")
     assert r.exit_code == 0
 
@@ -469,14 +470,14 @@ def test_assert_state_invalid_section(monkeypatch: Any) -> None:
 
 
 def test_assert_state_key_not_found(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"blends": [{"enabled": True}]})
+    _patch(monkeypatch, {"eid": 120, "blends": [{"enabled": True}]})
     r = _run(*_ST, "blend.nosuchkey", "--expect", "x")
     assert r.exit_code == 2
     assert "not found" in r.output
 
 
 def test_assert_state_index_out_of_range(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"blends": [{"enabled": True}]})
+    _patch(monkeypatch, {"eid": 120, "blends": [{"enabled": True}]})
     r = _run(
         *_ST,
         "blend.blends.99.enabled",
@@ -487,7 +488,7 @@ def test_assert_state_index_out_of_range(monkeypatch: Any) -> None:
 
 
 def test_assert_state_hyphenated_section(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"depthEnable": True})
+    _patch(monkeypatch, {"eid": 120, "depthEnable": True})
     r = _run(
         *_ST,
         "depth-stencil.depthEnable",
@@ -499,7 +500,7 @@ def test_assert_state_hyphenated_section(monkeypatch: Any) -> None:
 
 
 def test_assert_state_json_pass(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"topology": "TriangleList"})
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
     r = _run(
         *_ST,
         "topology.topology",
@@ -515,7 +516,7 @@ def test_assert_state_json_pass(monkeypatch: Any) -> None:
 
 
 def test_assert_state_json_fail(monkeypatch: Any) -> None:
-    _patch(monkeypatch, {"topology": "TriangleList"})
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
     r = _run(
         *_ST,
         "topology.topology",
@@ -526,6 +527,77 @@ def test_assert_state_json_fail(monkeypatch: Any) -> None:
     assert r.exit_code == 1
     data = json.loads(r.output)
     assert data["pass"] is False
+
+
+def test_assert_state_topology_single_segment_pass(monkeypatch: Any) -> None:
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
+    r = _run(*_ST, "topology", "--expect", "TriangleList")
+    assert r.exit_code == 0
+
+
+def test_assert_state_topology_single_segment_fail(monkeypatch: Any) -> None:
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
+    r = _run(*_ST, "topology", "--expect", "PointList")
+    assert r.exit_code == 1
+
+
+def test_assert_state_vs_shader_unwrap(monkeypatch: Any) -> None:
+    _patch(
+        monkeypatch,
+        {
+            "row": {
+                "eid": 120,
+                "section": "vs",
+                "section_detail": {
+                    "eid": 120,
+                    "stage": "vs",
+                    "shader": 42,
+                    "entry": "main",
+                    "ro": 0,
+                    "rw": 0,
+                    "cbuffers": 1,
+                },
+            },
+        },
+    )
+    r = _run(*_ST, "vs.shader", "--expect", "42")
+    assert r.exit_code == 0
+
+
+def test_assert_state_vs_entry_unwrap(monkeypatch: Any) -> None:
+    _patch(
+        monkeypatch,
+        {
+            "row": {
+                "eid": 120,
+                "section": "vs",
+                "section_detail": {
+                    "eid": 120,
+                    "stage": "vs",
+                    "shader": 42,
+                    "entry": "main",
+                    "ro": 0,
+                    "rw": 0,
+                    "cbuffers": 1,
+                },
+            },
+        },
+    )
+    r = _run(*_ST, "vs.entry", "--expect", "main")
+    assert r.exit_code == 0
+
+
+def test_assert_state_topology_two_segment_regression(monkeypatch: Any) -> None:
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
+    r = _run(*_ST, "topology.topology", "--expect", "TriangleList")
+    assert r.exit_code == 0
+
+
+def test_assert_state_key_not_found_error(monkeypatch: Any) -> None:
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
+    r = _run(*_ST, "topology.nosuchkey", "--expect", "x")
+    assert r.exit_code == 2
+    assert "not found" in r.output
 
 
 # ---------------------------------------------------------------------------

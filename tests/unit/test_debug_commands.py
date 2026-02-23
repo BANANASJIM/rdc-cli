@@ -729,3 +729,49 @@ def test_debug_group_help_includes_thread() -> None:
     result = CliRunner().invoke(main, ["debug", "--help"])
     assert result.exit_code == 0
     assert "thread" in result.output
+
+
+# ---------------------------------------------------------------------------
+# debug pixel: error handling (rc=1 on daemon error)
+# ---------------------------------------------------------------------------
+
+_ERROR_RESPONSE: dict[str, Any] = {
+    "error": {"message": "no shader bound", "code": -32603},
+}
+
+
+def _patch_helpers(monkeypatch: Any, response: dict[str, Any]) -> None:
+    """Patch load_session and send_request on _helpers for full call() path."""
+    import rdc.commands._helpers as helpers_mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
+    monkeypatch.setattr(helpers_mod, "send_request", lambda _h, _p, _payload: response)
+
+
+def test_debug_pixel_error_plain_rc1(monkeypatch: Any) -> None:
+    """Daemon error in plain mode exits with rc=1."""
+    _patch_helpers(monkeypatch, _ERROR_RESPONSE)
+    result = CliRunner().invoke(main, ["debug", "pixel", "100", "320", "240"])
+    assert result.exit_code == 1
+
+
+def test_debug_pixel_error_json_rc1(monkeypatch: Any) -> None:
+    """Daemon error in --json mode exits with rc=1."""
+    _patch_helpers(monkeypatch, _ERROR_RESPONSE)
+    result = CliRunner().invoke(main, ["debug", "pixel", "100", "320", "240", "--json"])
+    assert result.exit_code == 1
+
+
+def test_debug_pixel_error_trace_rc1(monkeypatch: Any) -> None:
+    """Daemon error in --trace mode exits with rc=1."""
+    _patch_helpers(monkeypatch, _ERROR_RESPONSE)
+    result = CliRunner().invoke(main, ["debug", "pixel", "100", "320", "240", "--trace"])
+    assert result.exit_code == 1
+
+
+def test_debug_pixel_success_plain_rc0(monkeypatch: Any) -> None:
+    """Successful daemon response exits with rc=0 (regression)."""
+    _patch_helpers(monkeypatch, {"result": _PIXEL_HAPPY_RESPONSE})
+    result = CliRunner().invoke(main, ["debug", "pixel", "120", "512", "384"])
+    assert result.exit_code == 0

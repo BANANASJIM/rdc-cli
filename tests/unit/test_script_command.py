@@ -183,3 +183,17 @@ class TestScriptArgParsing:
         monkeypatch.setattr(helpers_mod, "send_request", _capture)
         CliRunner().invoke(main, ["script", "--arg", "K=A=B", str(script)])
         assert captured[0]["params"]["args"] == {"K": "A=B"}
+
+
+class TestScriptHelp:
+    def test_help_lists_all_variables(self) -> None:
+        result = CliRunner().invoke(main, ["script", "--help"])
+        assert result.exit_code == 0
+        for var in ("controller", "rd", "adapter", "state", "args"):
+            assert var in result.output, f"expected '{var}' in help output"
+
+    def test_help_no_removed_code_option(self) -> None:
+        result = CliRunner().invoke(main, ["script", "--help"])
+        assert result.exit_code == 0
+        assert "-c" not in result.output
+        assert "--code" not in result.output
