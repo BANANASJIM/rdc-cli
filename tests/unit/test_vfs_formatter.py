@@ -45,6 +45,26 @@ class TestRenderLsLong:
         assert len(lines) == 1
         assert lines[0] == "NAME\tTYPE"
 
+    def test_no_header_true(self) -> None:
+        columns = ["EID", "NAME", "TYPE"]
+        children = [
+            {"eid": 42, "name": "draw1", "type": "DrawIndexed"},
+        ]
+        result = render_ls_long(children, columns, no_header=True)
+        lines = result.split("\n")
+        assert len(lines) == 1
+        assert lines[0] == "42\tdraw1\tDrawIndexed"
+
+    def test_no_header_false(self) -> None:
+        columns = ["EID", "NAME", "TYPE"]
+        children = [
+            {"eid": 42, "name": "draw1", "type": "DrawIndexed"},
+        ]
+        result = render_ls_long(children, columns, no_header=False)
+        lines = result.split("\n")
+        assert len(lines) == 2
+        assert lines[0] == "EID\tNAME\tTYPE"
+
 
 class TestRenderLsRegression:
     def test_render_ls_unchanged(self) -> None:

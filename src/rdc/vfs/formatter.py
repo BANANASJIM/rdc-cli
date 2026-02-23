@@ -10,15 +10,17 @@ from typing import Any
 _CLASSIFY: dict[str, str] = {"dir": "/", "leaf_bin": "*", "alias": "@", "leaf": ""}
 
 
-def render_ls_long(children: list[dict[str, Any]], columns: list[str]) -> str:
+def render_ls_long(
+    children: list[dict[str, Any]], columns: list[str], *, no_header: bool = False
+) -> str:
     """Render long-format ls output as TSV with header row.
 
     Args:
         children: List of child dicts with metadata fields.
         columns: Column headers (uppercase); child keys are lowercase.
+        no_header: If True, omit the header row.
     """
-    header = "\t".join(columns)
-    rows: list[str] = [header]
+    rows: list[str] = [] if no_header else ["\t".join(columns)]
     for child in children:
         vals: list[str] = []
         for col in columns:

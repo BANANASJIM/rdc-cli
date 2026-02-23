@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 import click
 
 from rdc.commands._helpers import call
-from rdc.formatters.json_fmt import write_json
-from rdc.formatters.tsv import format_row
+from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.options import list_output_options
+from rdc.formatters.tsv import format_row, write_tsv
 
 
 @click.command("resources")
@@ -26,11 +28,15 @@ from rdc.formatters.tsv import format_row
     show_default=True,
     help="Sort order.",
 )
+@list_output_options
 def resources_cmd(  # noqa: PLR0913
     as_json: bool,
     type_filter: str | None,
     name_filter: str | None,
     sort: str,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
 ) -> None:
     """List all resources."""
     params: dict[str, Any] = {}
@@ -44,11 +50,14 @@ def resources_cmd(  # noqa: PLR0913
     rows: list[dict[str, Any]] = result.get("rows", [])
     if as_json:
         write_json(rows)
-        return
-
-    click.echo(format_row(["ID", "TYPE", "NAME"]))
-    for row in rows:
-        click.echo(format_row([row.get("id", "-"), row.get("type", "-"), row.get("name", "-")]))
+    elif use_jsonl:
+        write_jsonl(rows)
+    elif quiet:
+        for r in rows:
+            sys.stdout.write(str(r.get("id", "")) + "\n")
+    else:
+        tsv_rows = [[r.get("id", "-"), r.get("type", "-"), r.get("name", "-")] for r in rows]
+        write_tsv(tsv_rows, header=["ID", "TYPE", "NAME"], no_header=no_header)
 
 
 @click.command("resource")
@@ -69,7 +78,8 @@ def resource_cmd(resid: int, as_json: bool) -> None:
 
 @click.command("passes")
 @click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def passes_cmd(as_json: bool) -> None:
+@list_output_options
+def passes_cmd(as_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
     """List render passes."""
     result = call("passes", {})
     tree: dict[str, Any] = result.get("tree", {})
@@ -78,9 +88,14 @@ def passes_cmd(as_json: bool) -> None:
         return
 
     passes = tree.get("passes", [])
-    click.echo(format_row(["NAME", "DRAWS"]))
-    for p in passes:
-        click.echo(format_row([p.get("name", "-"), p.get("draws", 0)]))
+    if use_jsonl:
+        write_jsonl(passes)
+    elif quiet:
+        for p in passes:
+            sys.stdout.write(str(p.get("name", "")) + "\n")
+    else:
+        tsv_rows = [[p.get("name", "-"), p.get("draws", 0)] for p in passes]
+        write_tsv(tsv_rows, header=["NAME", "DRAWS"], no_header=no_header)
 
 
 @click.command("pass")

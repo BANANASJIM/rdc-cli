@@ -590,3 +590,50 @@ def test_ls_no_long_default_unchanged(monkeypatch) -> None:
     assert "info" in result.output
     assert "draws" in result.output
     assert "\t" not in result.output
+
+
+# ── ls -l output options ───────────────────────────────────────────
+
+
+def test_ls_long_no_header(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "--no-header", "/passes"])
+    assert result.exit_code == 0
+    assert "NAME\tDRAWS\tDISPATCHES\tTRIANGLES" not in result.output
+    assert "Shadow" in result.output
+
+
+def test_ls_long_jsonl(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "--jsonl", "/passes"])
+    assert result.exit_code == 0
+    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    assert len(lines) == 2
+    assert lines[0]["name"] == "Shadow"
+
+
+def test_ls_long_quiet(monkeypatch) -> None:
+    _patch_long(monkeypatch, _LONG_PASSES_RESPONSE)
+    result = CliRunner().invoke(ls_cmd, ["-l", "-q", "/passes"])
+    assert result.exit_code == 0
+    lines = result.output.strip().splitlines()
+    assert lines == ["Shadow", "GBuffer"]
+
+
+def test_ls_long_options_ignored_without_l(monkeypatch) -> None:
+    _patch(
+        monkeypatch,
+        {
+            "vfs_ls": {
+                "path": "/",
+                "kind": "dir",
+                "children": [
+                    {"name": "info", "kind": "leaf"},
+                    {"name": "draws", "kind": "dir"},
+                ],
+            },
+        },
+    )
+    result = CliRunner().invoke(ls_cmd, ["--no-header", "/"])
+    assert result.exit_code == 0
+    assert "info" in result.output
