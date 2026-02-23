@@ -1678,3 +1678,59 @@ class TestShaderApiFixReal:
         result = _call(self.state, "shader_constants", {"eid": draw_eid, "stage": "ps"})
         for entry in result["constants"]:
             assert "data" not in entry, f"old 'data' field still present in {entry['name']}"
+
+
+class TestPickPixelReal:
+    """GPU integration tests for pick_pixel handler with real replay."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        return result["events"][0]["eid"]
+
+    def test_pick_pixel_valid_rgba(self) -> None:
+        """PP-G-01: pick_pixel at draw event returns valid RGBA."""
+        import math
+
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
+        c = result["color"]
+        for ch in ("r", "g", "b", "a"):
+            assert isinstance(c[ch], float)
+            assert math.isfinite(c[ch])
+
+    def test_pick_pixel_schema(self) -> None:
+        """PP-G-02: result has expected schema."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
+        for key in ("x", "y", "eid", "target", "color"):
+            assert key in result
+        for key in ("r", "g", "b", "a"):
+            assert key in result["color"]
+
+    def test_pick_pixel_target_nonzero(self) -> None:
+        """PP-G-03: target id is a positive integer."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
+        assert result["target"]["id"] > 0
+        assert result["target"]["index"] == 0
+
+    def test_pick_pixel_different_coords_differ(self) -> None:
+        """PP-G-04: different pixels may return different values."""
+        draw_eid = self._first_draw_eid()
+        r1 = _call(self.state, "pick_pixel", {"x": 0, "y": 0, "eid": draw_eid})
+        r2 = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
+        c1 = r1["color"]
+        c2 = r2["color"]
+        # At least one channel should differ (vkcube renders a colored cube)
+        differs = any(c1[ch] != c2[ch] for ch in ("r", "g", "b", "a"))
+        assert differs, f"expected different colors: {c1} vs {c2}"
+
+    def test_pick_pixel_eid_echoed(self) -> None:
+        """PP-G-05: EID param is echoed in response."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
+        assert result["eid"] == draw_eid
