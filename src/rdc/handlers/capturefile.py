@@ -19,7 +19,7 @@ def _handle_capture_thumbnail(
     if state.cap is None:
         return _error_response(request_id, -32002, "no capture file open"), True
     maxsize = int(params.get("maxsize", 0))
-    file_type = int(params.get("fileType", 2))  # default PNG
+    file_type = int(params.get("fileType", 2))  # default JPG
     thumb = state.cap.GetThumbnail(file_type, maxsize)
     data_b64 = base64.b64encode(thumb.data).decode() if thumb.data else ""
     return _result_response(
