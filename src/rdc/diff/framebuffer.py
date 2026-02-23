@@ -9,7 +9,7 @@ from typing import Any
 from PIL import UnidentifiedImageError
 
 from rdc.image_compare import compare_images
-from rdc.services.diff_service import DiffContext, query_both
+from rdc.services.diff_service import DiffContext, query_both, query_each_sync
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,17 @@ def _extract_path(resp: dict[str, Any] | None, label: str) -> tuple[str | None, 
     return result["path"], ""
 
 
+def _extract_last_draw_eid(resp: dict[str, Any] | None) -> int | None:
+    """Return the highest EID from a draws response, or None."""
+    if resp is None:
+        return None
+    draws = resp.get("result", {}).get("draws", [])
+    if not draws:
+        return None
+    eids = [d["eid"] for d in draws if "eid" in d]
+    return int(max(eids)) if eids else None
+
+
 def compare_framebuffers(
     ctx: DiffContext,
     *,
@@ -64,8 +75,33 @@ def compare_framebuffers(
     params: dict[str, Any] = {"target": target}
     if eid is not None:
         params["eid"] = eid
+        resp_a, resp_b, qb_err = query_both(ctx, "rt_export", params, timeout_s=timeout_s)
+    else:
+        # Resolve per-daemon last-draw EIDs
+        draws_a, draws_b, draws_err = query_both(ctx, "draws", {}, timeout_s=timeout_s)
+        if draws_err:
+            return None, f"cannot resolve default EID: {draws_err}"
 
-    resp_a, resp_b, qb_err = query_both(ctx, "rt_export", params, timeout_s=timeout_s)
+        last_a = _extract_last_draw_eid(draws_a)
+        last_b = _extract_last_draw_eid(draws_b)
+
+        if last_a is None and last_b is None:
+            return None, "cannot resolve default EID: no draws found"
+
+        eid_a = last_a if last_a is not None else last_b
+        eid_b = last_b if last_b is not None else last_a
+        eid = eid_a  # for result reporting
+
+        params_a = {"target": target, "eid": eid_a}
+        params_b = {"target": target, "eid": eid_b}
+        out_a, out_b, qb_err = query_each_sync(
+            ctx,
+            [("rt_export", params_a)],
+            [("rt_export", params_b)],
+            timeout_s=timeout_s,
+        )
+        resp_a, resp_b = out_a[0], out_b[0]
+
     if qb_err:
         return None, f"rt_export failed: {qb_err}"
 

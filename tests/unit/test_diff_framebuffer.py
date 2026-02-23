@@ -31,12 +31,24 @@ def _make_ctx() -> DiffContext:
     )
 
 
+def _draws_resp(*eids: int) -> dict[str, Any]:
+    return {"result": {"draws": [{"eid": e} for e in eids]}}
+
+
 def _mock_query_both(
     resp_a: dict[str, Any] | None,
     resp_b: dict[str, Any] | None,
     err: str = "",
+    *,
+    draws_a: dict[str, Any] | None = None,
+    draws_b: dict[str, Any] | None = None,
+    draws_err: str = "",
 ) -> Any:
-    """Return a mock for query_both that captures call args."""
+    """Return a mock for query_both that dispatches by method.
+
+    For ``"draws"`` method returns draws_a/draws_b; for everything else
+    returns resp_a/resp_b.
+    """
     calls: list[tuple[Any, ...]] = []
 
     def _fn(
@@ -47,7 +59,31 @@ def _mock_query_both(
         timeout_s: float = 30.0,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str]:
         calls.append((method, params, timeout_s))
+        if method == "draws":
+            return draws_a, draws_b, draws_err
         return resp_a, resp_b, err
+
+    _fn.calls = calls  # type: ignore[attr-defined]
+    return _fn
+
+
+def _mock_query_each_sync(
+    resp_a: dict[str, Any] | None,
+    resp_b: dict[str, Any] | None,
+    err: str = "",
+) -> Any:
+    """Return a mock for query_each_sync that captures call args."""
+    calls: list[tuple[Any, ...]] = []
+
+    def _fn(
+        ctx: DiffContext,
+        calls_a: list[tuple[str, dict[str, Any]]],
+        calls_b: list[tuple[str, dict[str, Any]]],
+        *,
+        timeout_s: float = 30.0,
+    ) -> tuple[list[dict[str, Any] | None], list[dict[str, Any] | None], str]:
+        calls.append((calls_a, calls_b, timeout_s))
+        return [resp_a], [resp_b], err
 
     _fn.calls = calls  # type: ignore[attr-defined]
     return _fn
@@ -79,11 +115,36 @@ def _compare_result(
 # ============================================================================
 
 
+def _setup_eid_none_mocks(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    draws_a: dict[str, Any] | None = None,
+    draws_b: dict[str, Any] | None = None,
+    resp_a: dict[str, Any] | None = None,
+    resp_b: dict[str, Any] | None = None,
+    each_err: str = "",
+) -> tuple[Any, Any]:
+    """Wire up query_both (draws) + query_each_sync (rt_export) for eid=None tests."""
+    if draws_a is None:
+        draws_a = _draws_resp(10, 20, 30)
+    if draws_b is None:
+        draws_b = _draws_resp(10, 20, 30)
+    if resp_a is None:
+        resp_a = _export_resp("/tmp/a.png")
+    if resp_b is None:
+        resp_b = _export_resp("/tmp/b.png")
+
+    mock_qb = _mock_query_both(None, None, draws_a=draws_a, draws_b=draws_b)
+    mock_qes = _mock_query_each_sync(resp_a, resp_b, each_err)
+    monkeypatch.setattr(fb_mod, "query_both", mock_qb)
+    monkeypatch.setattr(fb_mod, "query_each_sync", mock_qes)
+    return mock_qb, mock_qes
+
+
 class TestCompareFramebuffersHappy:
     def test_identical_renders(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ctx = _make_ctx()
-        mock_qb = _mock_query_both(_export_resp("/tmp/a.png"), _export_resp("/tmp/b.png"))
-        monkeypatch.setattr(fb_mod, "query_both", mock_qb)
+        _setup_eid_none_mocks(monkeypatch)
         monkeypatch.setattr(fb_mod, "compare_images", lambda *a, **kw: _compare_result())
 
         result, err = compare_framebuffers(ctx)
@@ -94,8 +155,7 @@ class TestCompareFramebuffersHappy:
 
     def test_different_renders(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ctx = _make_ctx()
-        mock_qb = _mock_query_both(_export_resp("/tmp/a.png"), _export_resp("/tmp/b.png"))
-        monkeypatch.setattr(fb_mod, "query_both", mock_qb)
+        _setup_eid_none_mocks(monkeypatch)
         monkeypatch.setattr(
             fb_mod,
             "compare_images",
@@ -108,14 +168,26 @@ class TestCompareFramebuffersHappy:
         assert result.identical is False
         assert result.diff_pixels == 100
 
-    def test_eid_none_omits_param(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_eid_resolves_last_draw(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ctx = _make_ctx()
-        mock_qb = _mock_query_both(_export_resp("/tmp/a.png"), _export_resp("/tmp/b.png"))
-        monkeypatch.setattr(fb_mod, "query_both", mock_qb)
+        mock_qb, mock_qes = _setup_eid_none_mocks(
+            monkeypatch,
+            draws_a=_draws_resp(10, 50, 30),
+            draws_b=_draws_resp(5, 40),
+        )
         monkeypatch.setattr(fb_mod, "compare_images", lambda *a, **kw: _compare_result())
 
-        compare_framebuffers(ctx, eid=None)
-        assert "eid" not in mock_qb.calls[0][1]
+        result, err = compare_framebuffers(ctx, eid=None)
+        assert err == ""
+        assert result is not None
+        # Resolved EID = max from daemon A draws = 50
+        assert result.eid == 50
+        # query_both was called with "draws"
+        assert mock_qb.calls[0][0] == "draws"
+        # query_each_sync got per-daemon EIDs
+        calls_a, calls_b, _ = mock_qes.calls[0]
+        assert calls_a[0][1]["eid"] == 50
+        assert calls_b[0][1]["eid"] == 40
 
     def test_explicit_eid(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ctx = _make_ctx()
@@ -126,13 +198,25 @@ class TestCompareFramebuffersHappy:
         compare_framebuffers(ctx, eid=50)
         assert mock_qb.calls[0][1]["eid"] == 50
 
-    def test_target_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_explicit_eid_skips_draws_query(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ctx = _make_ctx()
         mock_qb = _mock_query_both(_export_resp("/tmp/a.png"), _export_resp("/tmp/b.png"))
         monkeypatch.setattr(fb_mod, "query_both", mock_qb)
         monkeypatch.setattr(fb_mod, "compare_images", lambda *a, **kw: _compare_result())
 
-        compare_framebuffers(ctx, target=1)
+        compare_framebuffers(ctx, eid=50)
+        # Only one call to query_both: rt_export with eid=50, no draws query
+        assert len(mock_qb.calls) == 1
+        assert mock_qb.calls[0][0] == "rt_export"
+
+    def test_target_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ctx = _make_ctx()
+        # Use explicit eid to test target forwarding in the simple path
+        mock_qb = _mock_query_both(_export_resp("/tmp/a.png"), _export_resp("/tmp/b.png"))
+        monkeypatch.setattr(fb_mod, "query_both", mock_qb)
+        monkeypatch.setattr(fb_mod, "compare_images", lambda *a, **kw: _compare_result())
+
+        compare_framebuffers(ctx, target=1, eid=1)
         assert mock_qb.calls[0][1]["target"] == 1
 
     def test_threshold_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,7 +236,7 @@ class TestCompareFramebuffersHappy:
             return _compare_result()
 
         monkeypatch.setattr(fb_mod, "compare_images", mock_compare)
-        compare_framebuffers(ctx, threshold=0.5)
+        compare_framebuffers(ctx, threshold=0.5, eid=1)
         assert captured[0][2] == 0.5
 
     def test_diff_output_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -177,7 +261,7 @@ class TestCompareFramebuffersHappy:
             )
 
         monkeypatch.setattr(fb_mod, "compare_images", mock_compare)
-        result, _ = compare_framebuffers(ctx, diff_output=Path("/tmp/d.png"))
+        result, _ = compare_framebuffers(ctx, diff_output=Path("/tmp/d.png"), eid=1)
         assert captured[0][3] == Path("/tmp/d.png")
         assert result is not None
         assert result.diff_image == Path("/tmp/d.png")
@@ -192,7 +276,7 @@ class TestCompareFramebuffersHappy:
             lambda *a, **kw: _compare_result(diff_image=None),
         )
 
-        result, _ = compare_framebuffers(ctx, diff_output=Path("/tmp/d.png"))
+        result, _ = compare_framebuffers(ctx, diff_output=Path("/tmp/d.png"), eid=1)
         assert result is not None
         assert result.diff_image is None
 
@@ -219,6 +303,35 @@ class TestCompareFramebuffersHappy:
         assert result.total_pixels == 1000
         assert result.diff_ratio == 10.0
 
+    def test_only_one_daemon_has_draws(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ctx = _make_ctx()
+        mock_qb, mock_qes = _setup_eid_none_mocks(
+            monkeypatch,
+            draws_a=_draws_resp(10, 50),
+            draws_b={"result": {"draws": []}},
+        )
+        monkeypatch.setattr(fb_mod, "compare_images", lambda *a, **kw: _compare_result())
+
+        result, err = compare_framebuffers(ctx, eid=None)
+        assert err == ""
+        assert result is not None
+        # Both should use daemon A's last draw EID as fallback
+        calls_a, calls_b, _ = mock_qes.calls[0]
+        assert calls_a[0][1]["eid"] == 50
+        assert calls_b[0][1]["eid"] == 50
+
+    def test_no_draws_returns_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ctx = _make_ctx()
+        _setup_eid_none_mocks(
+            monkeypatch,
+            draws_a={"result": {"draws": []}},
+            draws_b={"result": {"draws": []}},
+        )
+
+        result, err = compare_framebuffers(ctx, eid=None)
+        assert result is None
+        assert "cannot resolve default EID" in err
+
 
 class TestCompareFramebuffersErrors:
     def test_daemon_a_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -226,7 +339,7 @@ class TestCompareFramebuffersErrors:
         mock_qb = _mock_query_both(None, _export_resp("/tmp/b.png"))
         monkeypatch.setattr(fb_mod, "query_both", mock_qb)
 
-        result, err = compare_framebuffers(ctx)
+        result, err = compare_framebuffers(ctx, eid=1)
         assert result is None
         assert "rt_export failed" in err
         assert "daemon A" in err
@@ -236,7 +349,7 @@ class TestCompareFramebuffersErrors:
         mock_qb = _mock_query_both(_export_resp("/tmp/a.png"), None)
         monkeypatch.setattr(fb_mod, "query_both", mock_qb)
 
-        result, err = compare_framebuffers(ctx)
+        result, err = compare_framebuffers(ctx, eid=1)
         assert result is None
         assert "rt_export failed" in err
         assert "daemon B" in err
@@ -246,7 +359,7 @@ class TestCompareFramebuffersErrors:
         mock_qb = _mock_query_both(None, None, err="both daemons failed")
         monkeypatch.setattr(fb_mod, "query_both", mock_qb)
 
-        result, err = compare_framebuffers(ctx)
+        result, err = compare_framebuffers(ctx, eid=1)
         assert result is None
         assert "rt_export failed" in err
         assert "both daemons failed" in err
@@ -260,7 +373,7 @@ class TestCompareFramebuffersErrors:
             raise ValueError("size mismatch: (640, 480) vs (320, 240)")
 
         monkeypatch.setattr(fb_mod, "compare_images", bad_compare)
-        result, err = compare_framebuffers(ctx)
+        result, err = compare_framebuffers(ctx, eid=1)
         assert result is None
         assert "size mismatch" in err
 
@@ -273,7 +386,7 @@ class TestCompareFramebuffersErrors:
             raise FileNotFoundError("/tmp/a.png")
 
         monkeypatch.setattr(fb_mod, "compare_images", bad_compare)
-        result, err = compare_framebuffers(ctx)
+        result, err = compare_framebuffers(ctx, eid=1)
         assert result is None
         assert "export file not found" in err
 
@@ -288,7 +401,7 @@ class TestCompareFramebuffersErrors:
             raise UnidentifiedImageError("/tmp/a.png")
 
         monkeypatch.setattr(fb_mod, "compare_images", bad_compare)
-        result, err = compare_framebuffers(ctx)
+        result, err = compare_framebuffers(ctx, eid=1)
         assert result is None
         assert "invalid image" in err
 
