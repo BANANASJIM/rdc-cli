@@ -396,33 +396,6 @@ def shader_row(eid: int, pipe_state: Any, stage_name: str) -> dict[str, Any]:
     }
 
 
-def shader_inventory(pipe_states: dict[int, Any]) -> list[dict[str, Any]]:
-    """Get inventory of unique shaders in the frame."""
-    inv: dict[int, dict[str, Any]] = {}
-    for _eid, state in pipe_states.items():
-        for stage_name, stage_val in STAGE_MAP.items():
-            sid = state.GetShader(stage_val)
-            sidv = int(sid)
-            if sidv == 0:
-                continue
-            if sidv not in inv:
-                inv[sidv] = {"shader": sidv, "stages": set(), "uses": 0}
-            inv[sidv]["stages"].add(stage_name)
-            inv[sidv]["uses"] += 1
-
-    rows: list[dict[str, Any]] = []
-    for sidv in sorted(inv):
-        row = inv[sidv]
-        rows.append(
-            {
-                "shader": sidv,
-                "stages": ",".join(sorted(row["stages"])),
-                "uses": row["uses"],
-            }
-        )
-    return rows
-
-
 # ---------------------------------------------------------------------------
 # Resource helpers (used by daemon resources/resource handlers)
 # ---------------------------------------------------------------------------

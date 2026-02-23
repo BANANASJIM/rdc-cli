@@ -7,7 +7,7 @@ from click.testing import CliRunner
 
 from rdc.cli import main
 from rdc.daemon_server import DaemonState, _handle_request
-from rdc.services.query_service import bindings_rows, pipeline_row, shader_inventory, shader_row
+from rdc.services.query_service import bindings_rows, pipeline_row, shader_row
 
 # Make mock module importable
 sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
@@ -67,15 +67,6 @@ def test_query_service_rows() -> None:
     assert srow["shader"] == 101
     assert srow["entry"] == "main_ps"
     assert srow["ro"] == 1
-
-
-def test_shader_inventory() -> None:
-    ctrl = rd.MockReplayController()
-    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = rd.ResourceId(101)
-    ctrl._pipe_state._shaders[rd.ShaderStage.Vertex] = rd.ResourceId(202)
-    rows = shader_inventory({10: ctrl.GetPipelineState(), 11: ctrl.GetPipelineState()})
-    assert len(rows) == 2
-    assert rows[0]["shader"] == 101
 
 
 def test_daemon_pipeline_bindings_shader_shaders() -> None:

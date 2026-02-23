@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 
@@ -30,54 +29,55 @@ def _make_state() -> DaemonState:
     return state
 
 
+def _make_state_with_shader_meta() -> DaemonState:
+    """Create state with pre-populated shader_meta (bypass _build_shader_cache)."""
+    state = _make_state()
+    state._shader_cache_built = True
+    _m = {"first_eid": 10, "entry": "main", "inputs": 0, "outputs": 0}
+    state.shader_meta = {
+        1: {"stages": ["vs"], "uses": 2, **_m},
+        2: {"stages": ["ps"], "uses": 2, **_m},
+        3: {"stages": ["ps", "vs"], "uses": 1, **_m},
+    }
+    return state
+
+
 def _req(method: str, **params: Any) -> dict[str, Any]:
     p: dict[str, Any] = {"_token": "tok"}
     p.update(params)
     return {"id": 1, "method": method, "params": p}
 
 
-_MOCK_ROWS = [
-    {"shader": 1, "stages": "vs", "uses": 2},
-    {"shader": 2, "stages": "ps", "uses": 2},
-    {"shader": 3, "stages": "vs,ps", "uses": 1},
-]
-
-
 class TestShadersStageFilter:
     def test_stage_filter_applied(self) -> None:
-        state = _make_state()
-        with patch("rdc.services.query_service.shader_inventory", return_value=list(_MOCK_ROWS)):
-            resp, _ = _handle_request(_req("shaders", stage="vs"), state)
+        state = _make_state_with_shader_meta()
+        resp, _ = _handle_request(_req("shaders", stage="vs"), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 2
         for r in rows:
             assert "vs" in r["stages"].lower().split(",")
 
     def test_stage_filter_case_insensitive(self) -> None:
-        state = _make_state()
-        with patch("rdc.services.query_service.shader_inventory", return_value=list(_MOCK_ROWS)):
-            resp, _ = _handle_request(_req("shaders", stage="VS"), state)
+        state = _make_state_with_shader_meta()
+        resp, _ = _handle_request(_req("shaders", stage="VS"), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 2
         for r in rows:
             assert "vs" in r["stages"].lower().split(",")
 
     def test_stage_filter_no_match(self) -> None:
-        state = _make_state()
-        with patch("rdc.services.query_service.shader_inventory", return_value=list(_MOCK_ROWS)):
-            resp, _ = _handle_request(_req("shaders", stage="cs"), state)
+        state = _make_state_with_shader_meta()
+        resp, _ = _handle_request(_req("shaders", stage="cs"), state)
         assert resp["result"]["rows"] == []
 
     def test_no_stage_filter_returns_all(self) -> None:
-        state = _make_state()
-        with patch("rdc.services.query_service.shader_inventory", return_value=list(_MOCK_ROWS)):
-            resp, _ = _handle_request(_req("shaders"), state)
+        state = _make_state_with_shader_meta()
+        resp, _ = _handle_request(_req("shaders"), state)
         assert len(resp["result"]["rows"]) == 3
 
     def test_invalid_stage_returns_empty_not_error(self) -> None:
-        state = _make_state()
-        with patch("rdc.services.query_service.shader_inventory", return_value=list(_MOCK_ROWS)):
-            resp, _ = _handle_request(_req("shaders", stage="zz"), state)
+        state = _make_state_with_shader_meta()
+        resp, _ = _handle_request(_req("shaders", stage="zz"), state)
         assert "error" not in resp
         assert resp["result"]["rows"] == []
 
