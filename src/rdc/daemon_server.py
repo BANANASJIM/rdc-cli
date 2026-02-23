@@ -18,7 +18,6 @@ from rdc._transport import recv_line as _recv_line
 from rdc.adapter import RenderDocAdapter
 from rdc.handlers._helpers import (
     _build_shader_cache,
-    _collect_pipe_states,
     _enum_name,
     _error_response,
     _max_eid,
@@ -53,7 +52,6 @@ __all__ = [
     "Handler",
     "_build_shader_cache",
     "_cleanup_temp",
-    "_collect_pipe_states",
     "_enum_name",
     "_error_response",
     "_handle_request",
@@ -104,6 +102,7 @@ class DaemonState:
     rd: Any = None
     disasm_cache: dict[int, str] = field(default_factory=dict)
     shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
+    _pipe_states_cache: dict[int, Any] = field(default_factory=dict)
     built_shaders: dict[int, Any] = field(default_factory=dict)
     shader_replacements: dict[int, Any] = field(default_factory=dict)
     replay_output: Any = None

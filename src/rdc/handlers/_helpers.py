@@ -116,98 +116,72 @@ def _action_type_str(flags: int) -> str:
     return "Other"
 
 
-def _collect_pipe_states(
-    actions: list[Any],
-    state: DaemonState,
-) -> dict[int, Any]:
-    """Collect pipeline state for each draw/dispatch action."""
-    result: dict[int, Any] = {}
-    _collect_pipe_states_recursive(actions, state, result)
-    return result
-
-
-def _collect_pipe_states_recursive(
-    actions: list[Any],
-    state: DaemonState,
-    result: dict[int, Any],
-) -> None:
-    from rdc.services.query_service import _DISPATCH as _QS_DISPATCH
-    from rdc.services.query_service import _DRAWCALL
-
-    for a in actions:
-        flags = int(a.flags)
-        is_draw = bool(flags & _DRAWCALL)
-        is_dispatch = bool(flags & _QS_DISPATCH)
-        if (is_draw or is_dispatch) and state.adapter is not None:
-            _set_frame_event(state, a.eventId)
-            result[a.eventId] = state.adapter.get_pipeline_state()
-        if a.children:
-            _collect_pipe_states_recursive(a.children, state, result)
-
-
 def _build_shader_cache(state: DaemonState) -> None:
-    """Collect disassembly text and metadata for all unique shaders.
+    """Single-pass shader cache: collect pipe states, disassembly, and metadata.
 
-    Populates state.disasm_cache and state.shader_meta in-place. No-op if
-    already built. Also populates the /shaders/ VFS subtree as a side effect.
+    Populates state.disasm_cache, state.shader_meta, and
+    state._pipe_states_cache in one recursive walk. No-op if already built.
+    Also populates the /shaders/ VFS subtree as a side effect.
     """
     if state._shader_cache_built or state.adapter is None:
         return
 
-    actions = state.adapter.get_root_actions()
-    pipe_states = _collect_pipe_states(actions, state)
-
-    shader_stages: dict[int, list[str]] = {}
-    shader_eids: dict[int, list[int]] = {}
-    shader_first_eid: dict[int, int] = {}
-
-    for eid, pipe in pipe_states.items():
-        for stage_val, stage_name in _STAGE_NAMES.items():
-            sid = int(pipe.GetShader(stage_val))
-            if sid == 0:
-                continue
-            if sid not in shader_stages:
-                shader_stages[sid] = []
-                shader_eids[sid] = []
-                shader_first_eid[sid] = eid
-            if stage_name not in shader_stages[sid]:
-                shader_stages[sid].append(stage_name)
-            shader_eids[sid].append(eid)
+    from rdc.services.query_service import _DISPATCH as _QS_DISPATCH
+    from rdc.services.query_service import _DRAWCALL
 
     controller = state.adapter.controller
     target = get_default_disasm_target(controller)
 
-    for sid, stages in shader_stages.items():
-        first_eid = shader_first_eid[sid]
-        _set_frame_event(state, first_eid)
-        pipe = state.adapter.get_pipeline_state()
+    shader_stages: dict[int, list[str]] = {}
+    shader_eids: dict[int, list[int]] = {}
+    shader_reflections: dict[int, Any] = {}
+    seen: set[int] = set()
 
-        refl = None
-        stage_val_used = 0
-        for stage_val, stage_name in _STAGE_NAMES.items():
-            if stage_name in stages and int(pipe.GetShader(stage_val)) == sid:
-                refl = pipe.GetShaderReflection(stage_val)
-                stage_val_used = stage_val
-                break
+    def _walk(actions: list[Any]) -> None:
+        assert state.adapter is not None
+        for a in actions:
+            flags = int(a.flags)
+            if (flags & _DRAWCALL) or (flags & _QS_DISPATCH):
+                _set_frame_event(state, a.eventId)
+                pipe = state.adapter.get_pipeline_state()
+                state._pipe_states_cache[a.eventId] = pipe
 
-        if refl is None:
-            state.disasm_cache[sid] = ""
-        else:
-            if pipe.GetShader(stage_val_used) and int(pipe.GetShader(stage_val_used)) != 0:
-                pipeline = get_pipeline_for_stage(pipe, stage_val_used)
-            else:
-                pipeline = None
-            disasm = (
-                controller.DisassembleShader(pipeline, refl, target)
-                if hasattr(controller, "DisassembleShader")
-                else ""
-            )
-            state.disasm_cache[sid] = disasm
+                for stage_val, stage_name in _STAGE_NAMES.items():
+                    sid = int(pipe.GetShader(stage_val))
+                    if sid == 0:
+                        continue
+                    if sid not in shader_stages:
+                        shader_stages[sid] = []
+                        shader_eids[sid] = []
+                    if stage_name not in shader_stages[sid]:
+                        shader_stages[sid].append(stage_name)
+                    shader_eids[sid].append(a.eventId)
 
+                    if sid not in seen:
+                        seen.add(sid)
+                        refl = pipe.GetShaderReflection(stage_val)
+                        shader_reflections[sid] = refl
+                        if refl is None:
+                            state.disasm_cache[sid] = ""
+                        else:
+                            pipeline = get_pipeline_for_stage(pipe, stage_val)
+                            disasm = (
+                                controller.DisassembleShader(pipeline, refl, target)
+                                if hasattr(controller, "DisassembleShader")
+                                else ""
+                            )
+                            state.disasm_cache[sid] = disasm
+            if a.children:
+                _walk(a.children)
+
+    _walk(state.adapter.get_root_actions())
+
+    for sid in seen:
+        refl = shader_reflections.get(sid)
         state.shader_meta[sid] = {
-            "stages": stages,
+            "stages": shader_stages[sid],
             "uses": len(shader_eids[sid]),
-            "first_eid": first_eid,
+            "first_eid": shader_eids[sid][0],
             "entry": getattr(refl, "entryPoint", "main") if refl else "main",
             "inputs": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
             "outputs": len(getattr(refl, "readWriteResources", [])) if refl else 0,

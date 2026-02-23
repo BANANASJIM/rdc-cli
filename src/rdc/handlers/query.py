@@ -15,7 +15,6 @@ from rdc.handlers._helpers import (
     STAGE_MAP,
     _action_type_str,
     _build_shader_cache,
-    _collect_pipe_states,
     _error_response,
     _result_response,
     _set_frame_event,
@@ -39,9 +38,9 @@ def _handle_shader_map(
     assert state.adapter is not None
     from rdc.services.query_service import collect_shader_map
 
+    _build_shader_cache(state)
     actions = state.adapter.get_root_actions()
-    pipe_states = _collect_pipe_states(actions, state)
-    rows = collect_shader_map(actions, pipe_states)
+    rows = collect_shader_map(actions, state._pipe_states_cache)
     return _result_response(request_id, {"rows": rows}), True
 
 
@@ -122,9 +121,8 @@ def _handle_shaders(
     assert state.adapter is not None
     from rdc.services.query_service import shader_inventory
 
-    actions = state.adapter.get_root_actions()
-    pipe_states = _collect_pipe_states(actions, state)
-    rows = shader_inventory(pipe_states)
+    _build_shader_cache(state)
+    rows = shader_inventory(state._pipe_states_cache)
     stage_filter = params.get("stage")
     if stage_filter:
         stage_filter = stage_filter.lower()
@@ -503,6 +501,17 @@ def _handle_search(
     return _result_response(request_id, {"matches": matches, "truncated": truncated}), True
 
 
+def _handle_preload(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    assert state.adapter is not None
+    _build_shader_cache(state)
+    return _result_response(
+        request_id,
+        {"done": True, "shaders": len(state.disasm_cache)},
+    ), True
+
+
 HANDLERS: dict[str, Handler] = {
     "shader_map": _handle_shader_map,
     "pipeline": _handle_pipeline,
@@ -521,4 +530,5 @@ HANDLERS: dict[str, Handler] = {
     "event": _handle_event,
     "draw": _handle_draw,
     "search": _handle_search,
+    "shaders_preload": _handle_preload,
 }
