@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -101,11 +102,13 @@ def capture_cmd(
 
     rd = find_renderdoc()
     if rd is not None:
+        if api_name:
+            click.echo("warning: --api is ignored with Python API path", err=True)
         cap_opts = build_capture_options(opts)
         result = execute_and_capture(
             rd,
             executable,
-            args=" ".join(app_args),
+            args=shlex.join(app_args),
             workdir="",
             output=output_path,
             opts=cap_opts,
@@ -114,8 +117,8 @@ def capture_cmd(
             timeout=timeout,
             wait_for_exit=wait_for_exit,
         )
-        if not trigger and not keep_alive and result.success and result.ident:
-            terminate_process(result.ident)
+        if not trigger and not keep_alive and result.success and result.pid:
+            terminate_process(result.pid)
         _emit_result(result, use_json, auto_open)
         return
 
