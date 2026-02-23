@@ -20,6 +20,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -35,8 +36,7 @@ def _get_flat_actions(state: DaemonState) -> list[Any]:
 def _handle_shader_map(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import collect_shader_map
 
     actions = state.adapter.get_root_actions()
@@ -48,8 +48,7 @@ def _handle_shader_map(
 def _handle_pipeline(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import pipeline_row
 
     eid = int(params.get("eid", state.current_eid))
@@ -79,8 +78,7 @@ def _handle_pipeline(
 def _handle_bindings(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import bindings_rows
 
     eid = int(params.get("eid", state.current_eid))
@@ -103,8 +101,7 @@ def _handle_bindings(
 def _handle_shader(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import shader_row
 
     eid = int(params.get("eid", state.current_eid))
@@ -122,8 +119,7 @@ def _handle_shader(
 def _handle_shaders(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import shader_inventory
 
     actions = state.adapter.get_root_actions()
@@ -139,8 +135,7 @@ def _handle_shaders(
 def _handle_resources(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import get_resources
 
     rows = get_resources(state.adapter)
@@ -160,8 +155,7 @@ def _handle_resources(
 def _handle_resource(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import get_resource_detail
 
     resid = int(params.get("id", 0))
@@ -174,8 +168,7 @@ def _handle_resource(
 def _handle_passes(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import get_pass_hierarchy
 
     actions = state.adapter.get_root_actions()
@@ -186,8 +179,7 @@ def _handle_passes(
 def _handle_pass(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import get_pass_detail
 
     identifier: int | str
@@ -224,8 +216,7 @@ def _handle_pass(
 def _handle_log(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     controller = state.adapter.controller
     level_filter = params.get("level")
     if level_filter is not None:
@@ -254,8 +245,7 @@ def _handle_log(
 def _handle_info(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import aggregate_stats
 
     flat = _get_flat_actions(state)
@@ -281,8 +271,7 @@ def _handle_info(
 def _handle_stats(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import aggregate_stats, get_top_draws
 
     flat = _get_flat_actions(state)
@@ -314,8 +303,7 @@ def _handle_stats(
 def _handle_events(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import filter_by_pattern, filter_by_type
 
     flat = _get_flat_actions(state)
@@ -341,8 +329,7 @@ def _handle_events(
 def _handle_draws(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import (
         aggregate_stats,
         filter_by_pass,
@@ -388,8 +375,7 @@ def _handle_draws(
 def _handle_event(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = params.get("eid")
     if eid is None:
         return _error_response(request_id, -32602, "missing eid parameter"), True
@@ -433,8 +419,7 @@ def _handle_event(
 def _handle_draw(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     from rdc.services.query_service import find_action_by_eid, walk_actions
 
     eid = params.get("eid")
@@ -469,8 +454,7 @@ def _handle_draw(
 def _handle_search(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     pattern = str(params.get("pattern", ""))
     if not pattern:
         return _error_response(request_id, -32602, "missing pattern"), True
@@ -519,7 +503,7 @@ def _handle_search(
     return _result_response(request_id, {"matches": matches, "truncated": truncated}), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "shader_map": _handle_shader_map,
     "pipeline": _handle_pipeline,
     "bindings": _handle_bindings,

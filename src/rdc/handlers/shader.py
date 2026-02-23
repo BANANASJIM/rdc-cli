@@ -13,6 +13,7 @@ from rdc.handlers._helpers import (
     get_default_disasm_target,
     get_pipeline_for_stage,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -21,8 +22,7 @@ if TYPE_CHECKING:
 def _handle_shader_targets(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     controller = state.adapter.controller
     if hasattr(controller, "GetDisassemblyTargets"):
         targets = controller.GetDisassemblyTargets(True)
@@ -35,8 +35,7 @@ def _handle_shader_targets(
 def _handle_shader_reflect(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
@@ -141,8 +140,7 @@ def _flatten_shader_var(var: Any) -> dict[str, Any]:
 def _handle_shader_constants(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
@@ -195,8 +193,7 @@ def _handle_shader_constants(
 def _handle_shader_source(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
@@ -239,8 +236,7 @@ def _handle_shader_source(
 def _handle_shader_disasm(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     target = str(params.get("target", ""))
@@ -272,8 +268,7 @@ def _handle_shader_disasm(
 def _handle_shader_all(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -307,8 +302,6 @@ def _handle_shader_all(
 def _handle_shader_list_info(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
     _build_shader_cache(state)
     sid = int(params.get("id", 0))
     info_meta = state.shader_meta.get(sid)
@@ -320,8 +313,6 @@ def _handle_shader_list_info(
 def _handle_shader_list_disasm(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
     _build_shader_cache(state)
     sid = int(params.get("id", 0))
     if sid not in state.disasm_cache:
@@ -329,7 +320,7 @@ def _handle_shader_list_disasm(
     return _result_response(request_id, {"id": sid, "disasm": state.disasm_cache[sid]}), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "shader_targets": _handle_shader_targets,
     "shader_reflect": _handle_shader_reflect,
     "shader_constants": _handle_shader_constants,

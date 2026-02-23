@@ -292,7 +292,11 @@ def _ensure_shader_populated(
 ) -> dict[str, Any] | None:
     """Trigger dynamic shader subtree population if needed."""
     m = _SHADER_PATH_RE.match(path)
-    if m and state.vfs_tree.get_draw_subtree(int(m.group(1))) is None:
+    if (
+        m
+        and state.vfs_tree is not None
+        and state.vfs_tree.get_draw_subtree(int(m.group(1))) is None
+    ):
         from rdc.vfs.tree_cache import populate_draw_subtree
 
         eid = int(m.group(1))
@@ -300,5 +304,6 @@ def _ensure_shader_populated(
         if err:
             return _error_response(request_id, -32002, err)
         pipe = state.adapter.get_pipeline_state()  # type: ignore[union-attr]
+        assert state.vfs_tree is not None
         populate_draw_subtree(state.vfs_tree, eid, pipe)
     return None

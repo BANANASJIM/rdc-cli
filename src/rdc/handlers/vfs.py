@@ -13,6 +13,7 @@ from rdc.handlers._helpers import (
     _resolve_vfs_path,
     _result_response,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -70,6 +71,7 @@ def _ls_long_children(
 
 
 def _long_passes(node: VfsNode, state: DaemonState) -> list[dict[str, Any]]:
+    assert state.vfs_tree is not None
     pass_map = {p["name"]: p for p in (state.vfs_tree.pass_list or [])}
     safe_map = state.vfs_tree.pass_name_map
     result: list[dict[str, Any]] = []
@@ -89,6 +91,7 @@ def _long_passes(node: VfsNode, state: DaemonState) -> list[dict[str, Any]]:
 
 
 def _long_draws(node: VfsNode, parent: str, state: DaemonState) -> list[dict[str, Any]]:
+    assert state.vfs_tree is not None
     flat = _get_flat_actions(state)
     eid_map = {str(a.eid): a for a in flat}
     result: list[dict[str, Any]] = []
@@ -123,6 +126,7 @@ def _long_draws(node: VfsNode, parent: str, state: DaemonState) -> list[dict[str
 
 
 def _long_events(node: VfsNode, parent: str, state: DaemonState) -> list[dict[str, Any]]:
+    assert state.vfs_tree is not None
     flat = _get_flat_actions(state)
     eid_map = {str(a.eid): a for a in flat}
     result: list[dict[str, Any]] = []
@@ -241,6 +245,7 @@ def _long_shaders(node: VfsNode, state: DaemonState) -> list[dict[str, Any]]:
 
 
 def _long_default(node: VfsNode, parent: str, state: DaemonState) -> list[dict[str, Any]]:
+    assert state.vfs_tree is not None
     result: list[dict[str, Any]] = []
     for name in node.children:
         child_path = f"{parent}/{name}" if parent != "/" else f"/{name}"
@@ -258,8 +263,7 @@ def _long_default(node: VfsNode, parent: str, state: DaemonState) -> list[dict[s
 def _handle_vfs_ls(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     path = str(params.get("path", "/"))
     long = bool(params.get("long", False))
     path, err = _resolve_vfs_path(path, state)
@@ -304,8 +308,7 @@ def _handle_vfs_ls(
 def _handle_vfs_tree(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     path = str(params.get("path", "/"))
     depth = int(params.get("depth", 2))
     path, err = _resolve_vfs_path(path, state)
@@ -343,7 +346,7 @@ def _handle_vfs_tree(
     return _result_response(request_id, {"path": path, "tree": _subtree(path, depth)}), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "vfs_ls": _handle_vfs_ls,
     "vfs_tree": _handle_vfs_tree,
 }
