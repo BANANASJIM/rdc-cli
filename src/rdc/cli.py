@@ -13,6 +13,13 @@ from rdc.commands.assert_ci import (
 )
 from rdc.commands.assert_image import assert_image_cmd
 from rdc.commands.capture import capture_cmd
+from rdc.commands.capturefile import (
+    embed_deps_cmd,
+    gpus_cmd,
+    section_cmd,
+    sections_cmd,
+    thumbnail_cmd,
+)
 from rdc.commands.completion import completion_cmd
 from rdc.commands.counters import counters_cmd
 from rdc.commands.debug import debug_group
@@ -126,6 +133,11 @@ main.add_command(shader_restore_cmd, name="shader-restore")
 main.add_command(shader_restore_all_cmd, name="shader-restore-all")
 main.add_command(tex_stats_cmd, name="tex-stats")
 main.add_command(install_skill_cmd, name="install-skill")
+main.add_command(thumbnail_cmd, name="thumbnail")
+main.add_command(gpus_cmd, name="gpus")
+main.add_command(sections_cmd, name="sections")
+main.add_command(section_cmd, name="section")
+main.add_command(embed_deps_cmd, name="embed-deps")
 
 
 if __name__ == "__main__":
