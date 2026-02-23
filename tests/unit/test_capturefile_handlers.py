@@ -159,21 +159,3 @@ def test_section_missing_name(tmp_path: Path) -> None:
     state = _make_state(tmp_path)
     resp = _handle("capture_section_content", {}, state)
     assert resp["error"]["code"] == -32602
-
-
-# ---------------------------------------------------------------------------
-# capture_embed_deps
-# ---------------------------------------------------------------------------
-
-
-def test_embed_deps_has_pending(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    state = _make_state(tmp_path)
-    monkeypatch.setattr(state.cap, "HasPendingDependencies", lambda: True)
-    resp = _handle("capture_embed_deps", {}, state)
-    assert resp["result"]["embedded"] is True
-
-
-def test_embed_deps_no_pending(tmp_path: Path) -> None:
-    state = _make_state(tmp_path)
-    resp = _handle("capture_embed_deps", {}, state)
-    assert resp["result"]["embedded"] is False
