@@ -10,7 +10,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/rdc-cli/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Pipe-friendly TSV output, JSON mode, 33 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
+Pipe-friendly TSV output, JSON mode, 54 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
 
 ```bash
 rdc open capture.rdc          # start session
@@ -95,7 +95,7 @@ rdc completion fish > ~/.config/fish/completions/rdc.fish
 
 ```bash
 pixi run sync                 # install deps + activate git hooks
-pixi run check                # lint + typecheck + test (653 tests, 92% coverage)
+pixi run check                # lint + typecheck + test (1609 tests, 95.29% coverage)
 pixi run verify               # full packaging verification (19 checks)
 ```
 
