@@ -1177,8 +1177,8 @@ class StructuredFile:
 
 @dataclass
 class CaptureOptions:
-    allowFullscreen: bool = True
-    allowVSync: bool = True
+    allowFullscreen: bool = False
+    allowVSync: bool = False
     apiValidation: bool = False
     captureCallstacks: bool = False
     captureCallstacksOnlyActions: bool = False
@@ -1187,7 +1187,7 @@ class CaptureOptions:
     hookIntoChildren: bool = False
     refAllResources: bool = False
     captureAllCmdLists: bool = False
-    debugOutputMute: bool = True
+    debugOutputMute: bool = False
     softMemoryLimit: int = 0
 
 
@@ -1805,5 +1805,9 @@ def CreateTargetControl(
     return MockTargetControl()
 
 
-def GetDefaultCaptureOptions(opts: CaptureOptions) -> None:
-    pass
+def GetDefaultCaptureOptions() -> CaptureOptions:
+    opts = CaptureOptions()
+    opts.allowFullscreen = True
+    opts.allowVSync = True
+    opts.debugOutputMute = True
+    return opts

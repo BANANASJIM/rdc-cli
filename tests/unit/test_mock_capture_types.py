@@ -12,9 +12,10 @@ import mock_renderdoc as rd  # noqa: E402
 
 class TestCaptureOptions:
     def test_capture_options_defaults(self) -> None:
+        """SWIG zero-initializes all fields; real defaults come from GetDefaultCaptureOptions()."""
         opts = rd.CaptureOptions()
-        assert opts.allowFullscreen is True
-        assert opts.allowVSync is True
+        assert opts.allowFullscreen is False
+        assert opts.allowVSync is False
         assert opts.apiValidation is False
         assert opts.captureCallstacks is False
         assert opts.captureCallstacksOnlyActions is False
@@ -23,13 +24,13 @@ class TestCaptureOptions:
         assert opts.hookIntoChildren is False
         assert opts.refAllResources is False
         assert opts.captureAllCmdLists is False
-        assert opts.debugOutputMute is True
+        assert opts.debugOutputMute is False
         assert opts.softMemoryLimit == 0
 
     def test_capture_options_writable(self) -> None:
         opts = rd.CaptureOptions()
-        opts.allowFullscreen = False
-        opts.allowVSync = False
+        opts.allowFullscreen = True
+        opts.allowVSync = True
         opts.apiValidation = True
         opts.captureCallstacks = True
         opts.captureCallstacksOnlyActions = True
@@ -38,11 +39,11 @@ class TestCaptureOptions:
         opts.hookIntoChildren = True
         opts.refAllResources = True
         opts.captureAllCmdLists = True
-        opts.debugOutputMute = False
+        opts.debugOutputMute = True
         opts.softMemoryLimit = 1024
 
-        assert opts.allowFullscreen is False
-        assert opts.allowVSync is False
+        assert opts.allowFullscreen is True
+        assert opts.allowVSync is True
         assert opts.apiValidation is True
         assert opts.captureCallstacks is True
         assert opts.captureCallstacksOnlyActions is True
@@ -51,7 +52,7 @@ class TestCaptureOptions:
         assert opts.hookIntoChildren is True
         assert opts.refAllResources is True
         assert opts.captureAllCmdLists is True
-        assert opts.debugOutputMute is False
+        assert opts.debugOutputMute is True
         assert opts.softMemoryLimit == 1024
 
 
@@ -257,5 +258,8 @@ class TestModuleLevelFunctions:
         assert isinstance(tc, rd.MockTargetControl)
 
     def test_get_default_capture_options(self) -> None:
-        opts = rd.CaptureOptions()
-        rd.GetDefaultCaptureOptions(opts)
+        opts = rd.GetDefaultCaptureOptions()
+        assert isinstance(opts, rd.CaptureOptions)
+        assert opts.allowFullscreen is True
+        assert opts.allowVSync is True
+        assert opts.debugOutputMute is True
