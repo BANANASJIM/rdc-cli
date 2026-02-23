@@ -20,11 +20,11 @@ jobs:
       - uses: KSXGitHub/github-actions-deploy-aur@9dfe151cf48f26a957bbd0379c120e79cb990e13 # v2.7.2
         with:
           pkgname: rdc-cli-git
-          pkgbuild-path: aur/PKGBUILD
-          commit-username: ${{ secrets.AUR_USERNAME }}
-          commit-email: ${{ secrets.AUR_EMAIL }}
-          ssh-private-key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit-message: "Update PKGBUILD"
+          pkgbuild: aur/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update PKGBUILD"
 
   aur-stable:
     name: Publish rdc-cli (stable)
@@ -56,8 +56,8 @@ jobs:
       - uses: KSXGitHub/github-actions-deploy-aur@9dfe151cf48f26a957bbd0379c120e79cb990e13 # v2.7.2
         with:
           pkgname: rdc-cli
-          pkgbuild-path: aur/stable/PKGBUILD
-          commit-username: ${{ secrets.AUR_USERNAME }}
-          commit-email: ${{ secrets.AUR_EMAIL }}
-          ssh-private-key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit-message: "Update rdc-cli to v${{ steps.ver.outputs.version }}"
+          pkgbuild: aur/stable/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update rdc-cli to v${{ steps.ver.outputs.version }}"
