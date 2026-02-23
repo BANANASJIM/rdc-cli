@@ -10,6 +10,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -72,8 +73,7 @@ def _handle_pixel_history(
     Returns:
         Tuple of (response dict, keep_running bool).
     """
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     for key in ("x", "y"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -137,8 +137,7 @@ def _handle_pick_pixel(
     Returns:
         Tuple of (response dict, keep_running bool).
     """
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     for key in ("x", "y"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -189,7 +188,7 @@ def _handle_pick_pixel(
     ), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "pixel_history": _handle_pixel_history,
     "pick_pixel": _handle_pick_pixel,
 }

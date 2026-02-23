@@ -9,6 +9,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -97,7 +98,13 @@ def _handle_shutdown(
     return _result_response(request_id, {"ok": True}), False
 
 
-HANDLERS: dict[str, Any] = {
+_handle_ping._no_replay = True  # type: ignore[attr-defined]
+_handle_status._no_replay = True  # type: ignore[attr-defined]
+_handle_goto._no_replay = True  # type: ignore[attr-defined]
+_handle_shutdown._no_replay = True  # type: ignore[attr-defined]
+_handle_count._no_replay = True  # type: ignore[attr-defined]
+
+HANDLERS: dict[str, Handler] = {
     "ping": _handle_ping,
     "status": _handle_status,
     "goto": _handle_goto,
