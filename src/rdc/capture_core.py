@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import signal
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -23,6 +25,7 @@ class CaptureResult:
     api: str = ""
     local: bool = True
     ident: int = 0
+    pid: int = 0
     error: str = ""
 
 
@@ -59,6 +62,18 @@ def build_capture_options(opts: dict[str, Any]) -> Any:
         if cli_key in opts:
             setattr(cap_opts, api_field, opts[cli_key])
     return cap_opts
+
+
+def terminate_process(pid: int) -> bool:
+    """Send SIGTERM to a process. Returns True if signal was sent."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+        return True
+    except OSError:
+        log.debug("process %d already exited or not accessible", pid)
+        return False
 
 
 def execute_and_capture(
@@ -103,9 +118,14 @@ def execute_and_capture(
     if trigger:
         return CaptureResult(success=True, ident=result.ident)
 
-    tc = rd.CreateTargetControl("", result.ident, "rdc-cli", True)
+    ident = result.ident
+    tc = rd.CreateTargetControl("", ident, "rdc-cli", True)
     try:
-        return _run_target_control_loop(tc, frame=frame, timeout=timeout)
+        pid = tc.GetPID()
+        cap = _run_target_control_loop(tc, frame=frame, timeout=timeout)
+        cap.ident = ident
+        cap.pid = pid
+        return cap
     finally:
         tc.Shutdown()
 

@@ -11,7 +11,7 @@ from typing import Any
 
 import click
 
-from rdc.capture_core import build_capture_options, execute_and_capture
+from rdc.capture_core import build_capture_options, execute_and_capture, terminate_process
 from rdc.discover import find_renderdoc
 
 
@@ -42,6 +42,7 @@ def _find_renderdoccmd() -> str | None:
 @click.option("--trigger", is_flag=True, help="Inject only; do not auto-capture.")
 @click.option("--timeout", type=float, default=60.0, help="Capture timeout in seconds.")
 @click.option("--wait-for-exit", is_flag=True, help="Wait for process to exit.")
+@click.option("--keep-alive", is_flag=True, help="Keep target process running after capture.")
 @click.option("--auto-open", is_flag=True, help="Open capture after success.")
 @click.option("--api-validation", is_flag=True, help="Enable API validation.")
 @click.option("--callstacks", is_flag=True, help="Capture callstacks.")
@@ -61,6 +62,7 @@ def capture_cmd(
     trigger: bool,
     timeout: float,
     wait_for_exit: bool,
+    keep_alive: bool,
     auto_open: bool,
     api_validation: bool,
     callstacks: bool,
@@ -109,6 +111,8 @@ def capture_cmd(
             timeout=timeout,
             wait_for_exit=wait_for_exit,
         )
+        if result.success and result.ident and not trigger and not keep_alive:
+            terminate_process(result.ident)
         _emit_result(result, use_json, auto_open)
         return
 
