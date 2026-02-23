@@ -40,7 +40,7 @@ jobs:
         run: uv run ruff format --check src tests
 
       - name: Verify skill reference is fresh
-        run: diff <(uv run python scripts/gen-skill-ref.py) .claude/skills/rdc-cli/references/commands-quick-ref.md
+        run: diff <(uv run python scripts/gen-skill-ref.py) src/rdc/_skills/references/commands-quick-ref.md
         shell: bash
 
   security:

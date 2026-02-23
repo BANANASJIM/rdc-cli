@@ -41,6 +41,9 @@ rdc = "rdc.cli:main"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+"rdc._skills" = ["**/*.md"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

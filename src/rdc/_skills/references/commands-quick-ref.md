@@ -392,6 +392,17 @@ Show capture metadata.
 |------|------|------|---------|
 | `--json` | JSON output | flag |  |
 
+## `rdc install-skill`
+
+Install rdc-cli skill files to ~/.claude/skills/rdc-cli/.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--check` | Verify installed files are current. | flag |  |
+| `--remove` | Remove installed skill files. | flag |  |
+
 ## `rdc log`
 
 Show debug/validation messages from the capture.
