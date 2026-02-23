@@ -49,4 +49,10 @@ def test_doctor_shows_build_hint_when_renderdoc_missing(monkeypatch: pytest.Monk
     result = CliRunner().invoke(doctor_cmd, [])
     assert result.exit_code == 1
     assert "not found" in result.output
-    assert "cmake -B build -DENABLE_PYRENDERDOC=ON" in result.output
+    assert "build-renderdoc.sh" in result.output
+
+
+def test_doctor_hint_contains_docs_url() -> None:
+    from rdc.commands.doctor import _RENDERDOC_BUILD_HINT
+
+    assert "https://bananasjim.github.io/rdc-cli/" in _RENDERDOC_BUILD_HINT

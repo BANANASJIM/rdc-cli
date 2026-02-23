@@ -32,12 +32,11 @@ def _check_platform() -> CheckResult:
 
 
 _RENDERDOC_BUILD_HINT = """\
-  To build the renderdoc Python module:
-    git clone --depth 1 https://github.com/baldurk/renderdoc.git
-    cd renderdoc
-    cmake -B build -DENABLE_PYRENDERDOC=ON -DENABLE_QRENDERDOC=OFF
-    cmake --build build -j$(nproc)
-    export RENDERDOC_PYTHON_PATH=$PWD/build/lib"""
+  renderdoc is not available on PyPI and must be built from source.
+  Quick build script (no pixi required):
+    bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
+  Full instructions: https://bananasjim.github.io/rdc-cli/
+  Then re-run: rdc doctor"""
 
 
 def _import_renderdoc() -> tuple[Any | None, CheckResult]:

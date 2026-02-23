@@ -30,6 +30,15 @@ rdc close                     # end session
 
 ---
 
+> **Prerequisite -- renderdoc Python module**
+> `rdc` requires `renderdoc.cpython-*.so`, which is **not available on PyPI**.
+> Build it once with the provided script (requires cmake, ninja, Vulkan headers):
+> ```bash
+> bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
+> ```
+> Full instructions: <https://bananasjim.github.io/rdc-cli/>
+> AUR users: `yay -S rdc-cli-git` handles this automatically.
+
 ## Install
 
 **PyPI** (recommended)
@@ -54,14 +63,11 @@ pixi install && pixi run sync
 
 ## Setup renderdoc
 
-`rdc` requires the renderdoc Python module (`renderdoc.cpython-*.so`), which is **not** included in most system packages. Your Python version must match the one used to compile renderdoc.
+`rdc` requires the renderdoc Python module (`renderdoc.cpython-*.so`), which is **not** included in most system packages. Build it once with the provided script:
 
 ```bash
-git clone --depth 1 https://github.com/baldurk/renderdoc.git
-cd renderdoc
-cmake -B build -DENABLE_PYRENDERDOC=ON -DENABLE_QRENDERDOC=OFF
-cmake --build build -j$(nproc)
-export RENDERDOC_PYTHON_PATH=$PWD/build/lib
+bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
+export RENDERDOC_PYTHON_PATH="$HOME/.local/renderdoc"
 ```
 
 Module discovery order:
