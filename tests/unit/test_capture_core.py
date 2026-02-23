@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import signal
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -134,6 +135,7 @@ class TestExecuteAndCapture:
         assert result.success is True
         assert result.path == "/tmp/cap.rdc"
         assert result.api == "Vulkan"
+        assert result.ident == 12345
 
     def test_capture_queue_frame(self) -> None:
         from rdc.capture_core import execute_and_capture
@@ -149,6 +151,7 @@ class TestExecuteAndCapture:
         result = execute_and_capture(rd, "/usr/bin/app", frame=5)
         assert result.success is True
         assert result.frame == 5
+        assert result.ident == 12345
         assert rd._calls["queue"] == [(5, 1)]
 
     def test_capture_timeout(self) -> None:
@@ -190,3 +193,58 @@ class TestExecuteAndCapture:
         assert result.ident == 12345
         # Should NOT enter the message loop — no tc_create calls
         assert rd._calls["tc_create"] == []
+
+    def test_capture_timeout_has_ident(self) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd(messages=[])
+        result = execute_and_capture(rd, "/usr/bin/app", timeout=0.05)
+        assert result.success is False
+        assert result.ident == 12345
+
+    def test_capture_disconnect_has_ident(self) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        msg = mock_rd.TargetControlMessage(type=mock_rd.TargetControlMessageType.Disconnected)
+        rd = _make_mock_rd(messages=[msg])
+        result = execute_and_capture(rd, "/usr/bin/app")
+        assert result.success is False
+        assert result.ident == 12345
+
+
+class TestTerminateProcess:
+    def test_sends_sigterm(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import terminate_process
+
+        calls: list[tuple[int, int]] = []
+        monkeypatch.setattr("os.kill", lambda pid, sig: calls.append((pid, sig)))
+
+        assert terminate_process(42) is True
+        assert calls == [(42, signal.SIGTERM)]
+
+    def test_process_already_exited(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import terminate_process
+
+        def fake_kill(pid: int, sig: int) -> None:
+            raise ProcessLookupError
+
+        monkeypatch.setattr("os.kill", fake_kill)
+        assert terminate_process(42) is False
+
+    def test_permission_denied(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import terminate_process
+
+        def fake_kill(pid: int, sig: int) -> None:
+            raise PermissionError
+
+        monkeypatch.setattr("os.kill", fake_kill)
+        assert terminate_process(42) is False
+
+    def test_invalid_pid(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import terminate_process
+
+        calls: list[tuple[int, int]] = []
+        monkeypatch.setattr("os.kill", lambda pid, sig: calls.append((pid, sig)))
+
+        assert terminate_process(0) is False
+        assert calls == []

@@ -147,6 +147,7 @@ Execute application and capture a frame.
 | `--trigger` | Inject only; do not auto-capture. | flag |  |
 | `--timeout` | Capture timeout in seconds. | float | 60.0 |
 | `--wait-for-exit` | Wait for process to exit. | flag |  |
+| `--keep-alive` | Keep target process running after capture. | flag |  |
 | `--auto-open` | Open capture after success. | flag |  |
 | `--api-validation` | Enable API validation. | flag |  |
 | `--callstacks` | Capture callstacks. | flag |  |
