@@ -7,7 +7,6 @@ import json
 from click.testing import CliRunner
 
 from rdc.commands.capturefile import (
-    embed_deps_cmd,
     gpus_cmd,
     section_cmd,
     sections_cmd,
@@ -120,30 +119,3 @@ def test_section_cmd_json(monkeypatch) -> None:
     assert result.exit_code == 0
     parsed = json.loads(result.output)
     assert parsed["encoding"] == "utf-8"
-
-
-# ---------------------------------------------------------------------------
-# embed-deps
-# ---------------------------------------------------------------------------
-
-
-def test_embed_deps_cmd(monkeypatch) -> None:
-    _patch(monkeypatch, {"embedded": True})
-    result = CliRunner().invoke(embed_deps_cmd, [])
-    assert result.exit_code == 0
-    assert "embedded" in result.output
-
-
-def test_embed_deps_cmd_no_pending(monkeypatch) -> None:
-    _patch(monkeypatch, {"embedded": False})
-    result = CliRunner().invoke(embed_deps_cmd, [])
-    assert result.exit_code == 0
-    assert "no pending" in result.output
-
-
-def test_embed_deps_cmd_json(monkeypatch) -> None:
-    _patch(monkeypatch, {"embedded": True})
-    result = CliRunner().invoke(embed_deps_cmd, ["--json"])
-    assert result.exit_code == 0
-    parsed = json.loads(result.output)
-    assert parsed["embedded"] is True

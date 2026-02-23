@@ -14,7 +14,6 @@ from rdc.commands.assert_ci import (
 from rdc.commands.assert_image import assert_image_cmd
 from rdc.commands.capture import capture_cmd
 from rdc.commands.capturefile import (
-    embed_deps_cmd,
     gpus_cmd,
     section_cmd,
     sections_cmd,
@@ -137,7 +136,6 @@ main.add_command(thumbnail_cmd, name="thumbnail")
 main.add_command(gpus_cmd, name="gpus")
 main.add_command(sections_cmd, name="sections")
 main.add_command(section_cmd, name="section")
-main.add_command(embed_deps_cmd, name="embed-deps")
 
 
 if __name__ == "__main__":

@@ -71,7 +71,7 @@ def _make_mock_rd(
 @pytest.fixture()
 def _patch_discover(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch find_renderdoc to return mock_rd module."""
-    monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: mock_rd)
+    monkeypatch.setattr("rdc.capture_core.find_renderdoc", lambda: mock_rd)
 
 
 class TestBuildCaptureOptions:

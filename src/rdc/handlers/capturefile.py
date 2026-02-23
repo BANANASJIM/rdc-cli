@@ -1,4 +1,4 @@
-"""CaptureFile handlers: thumbnail, gpus, sections, section content, embed deps."""
+"""CaptureFile handlers: thumbnail, gpus, sections, section content."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _handle_capture_thumbnail(
     if state.cap is None:
         return _error_response(request_id, -32002, "no capture file open"), True
     maxsize = int(params.get("maxsize", 0))
-    file_type = int(params.get("fileType", 0))
+    file_type = int(params.get("fileType", 2))  # default PNG
     thumb = state.cap.GetThumbnail(file_type, maxsize)
     data_b64 = base64.b64encode(thumb.data).decode() if thumb.data else ""
     return _result_response(
@@ -107,22 +107,9 @@ def _handle_capture_section_content(
         ), True
 
 
-def _handle_capture_embed_deps(
-    request_id: int, params: dict[str, Any], state: DaemonState
-) -> tuple[dict[str, Any], bool]:
-    """Embed pending shader dependencies into capture file."""
-    if state.cap is None:
-        return _error_response(request_id, -32002, "no capture file open"), True
-    if state.cap.HasPendingDependencies():
-        state.cap.EmbedDependenciesIntoCapture()
-        return _result_response(request_id, {"embedded": True}), True
-    return _result_response(request_id, {"embedded": False}), True
-
-
 HANDLERS: dict[str, Handler] = {
     "capture_thumbnail": _handle_capture_thumbnail,
     "capture_gpus": _handle_capture_gpus,
     "capture_sections": _handle_capture_sections,
     "capture_section_content": _handle_capture_section_content,
-    "capture_embed_deps": _handle_capture_embed_deps,
 }
