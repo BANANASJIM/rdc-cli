@@ -15,6 +15,7 @@ from typing import Any
 _CLEAR = 0x0001
 _DRAWCALL = 0x0002
 _DISPATCH = 0x0004
+_MESHDRAW = 0x0008
 _COPY = 0x0400
 _INDEXED = 0x10000
 _PUSH_MARKER = 0x0040
@@ -132,7 +133,12 @@ def walk_actions(
 
 def filter_by_type(flat: list[FlatAction], action_type: str) -> list[FlatAction]:
     """Filter flattened actions by type string (draw/dispatch/clear/copy)."""
-    type_map = {"draw": _DRAWCALL, "dispatch": _DISPATCH, "clear": _CLEAR, "copy": _COPY}
+    type_map: dict[str, int] = {
+        "draw": _DRAWCALL | _MESHDRAW,
+        "dispatch": _DISPATCH,
+        "clear": _CLEAR,
+        "copy": _COPY,
+    }
     flag = type_map.get(action_type.lower())
     if flag is None:
         return []
@@ -179,7 +185,7 @@ def find_action_by_eid(actions: list[Any], target_eid: int) -> Any | None:
 
 def _triangles_for_action(a: FlatAction) -> int:
     """Compute triangle count for a draw call."""
-    if not (a.flags & _DRAWCALL):
+    if not (a.flags & (_DRAWCALL | _MESHDRAW)):
         return 0
     return (a.num_indices // 3) * a.num_instances
 
@@ -190,7 +196,7 @@ def aggregate_stats(flat: list[FlatAction]) -> CaptureStats:
     pass_map: dict[str, PassStats] = {}
 
     for a in flat:
-        if a.flags & _DRAWCALL:
+        if a.flags & (_DRAWCALL | _MESHDRAW):
             stats.total_draws += 1
             tris = _triangles_for_action(a)
             stats.total_triangles += tris
@@ -218,7 +224,7 @@ def aggregate_stats(flat: list[FlatAction]) -> CaptureStats:
 
 def get_top_draws(flat: list[FlatAction], limit: int = 3) -> list[FlatAction]:
     """Return top draw calls by triangle count."""
-    draws = [a for a in flat if a.flags & _DRAWCALL]
+    draws = [a for a in flat if a.flags & (_DRAWCALL | _MESHDRAW)]
     draws.sort(key=_triangles_for_action, reverse=True)
     return draws[:limit]
 
@@ -289,7 +295,7 @@ def count_resources(resources: list[Any]) -> int:
 
 def collect_shader_map(
     actions: list[Any],
-    pipe_states: dict[int, Any],
+    pipe_states: dict[int, dict[int, int]],
 ) -> list[dict[str, Any]]:
     """Collect shader-map rows from draw/dispatch actions."""
     rows: list[dict[str, Any]] = []
@@ -299,24 +305,26 @@ def collect_shader_map(
 
 def _collect_recursive(
     actions: list[Any],
-    pipe_states: dict[int, Any],
+    pipe_states: dict[int, dict[int, int]],
     rows: list[dict[str, Any]],
 ) -> None:
     stage_cols = {0: "vs", 1: "hs", 2: "ds", 3: "gs", 4: "ps", 5: "cs"}
     for a in actions:
         flags = int(a.flags)
-        if (flags & _DRAWCALL) or (flags & _DISPATCH):
+        if (flags & (_DRAWCALL | _MESHDRAW)) or (flags & _DISPATCH):
             eid = a.eventId
-            state = pipe_states.get(eid)
-            if state is not None:
+            snap = pipe_states.get(eid)
+            if snap is not None:
+                is_dispatch = bool(flags & _DISPATCH) and not (flags & (_DRAWCALL | _MESHDRAW))
                 row: dict[str, Any] = {"eid": eid}
                 for stage_val, col in stage_cols.items():
-                    sid = state.GetShader(stage_val)
-                    sid_int = int(sid)
-                    if sid_int == 0:
+                    if is_dispatch and stage_val != 5:
+                        row[col] = "-"
+                    elif not is_dispatch and stage_val == 5:
                         row[col] = "-"
                     else:
-                        row[col] = sid_int
+                        sid = snap.get(stage_val, 0)
+                        row[col] = sid if sid != 0 else "-"
                 rows.append(row)
         if a.children:
             _collect_recursive(a.children, pipe_states, rows)
@@ -437,7 +445,7 @@ def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
 
 
 def _subtree_has_draws(action: Any) -> bool:
-    if int(action.flags) & _DRAWCALL:
+    if int(action.flags) & (_DRAWCALL | _MESHDRAW):
         return True
     for c in action.children:
         if _subtree_has_draws(c):
@@ -457,7 +465,7 @@ def _window_stats(begin: Any, window: list[Any], sf: Any = None) -> dict[str, An
         flags = int(a.flags)
         min_eid = min(min_eid, a.eventId)
         max_eid = max(max_eid, a.eventId)
-        if flags & _DRAWCALL:
+        if flags & (_DRAWCALL | _MESHDRAW):
             draws += 1
             triangles += (a.numIndices // 3) * max(a.numInstances, 1)
         elif flags & _DISPATCH:
@@ -490,7 +498,7 @@ def _subtree_stats(action: Any, sf: Any = None) -> dict[str, Any]:
         flags = int(a.flags)
         min_eid = min(min_eid, a.eventId)
         max_eid = max(max_eid, a.eventId)
-        if flags & _DRAWCALL:
+        if flags & (_DRAWCALL | _MESHDRAW):
             draws += 1
             triangles += (a.numIndices // 3) * max(a.numInstances, 1)
         elif flags & _DISPATCH:

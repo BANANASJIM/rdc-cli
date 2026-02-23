@@ -57,7 +57,7 @@ def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
     payload = _request(method, 1, {"_token": token, **params}).to_dict()
     try:
         response = send_request(host, port, payload)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         msg = f"daemon unreachable: {exc}"
         if _json_mode():
             click.echo(json.dumps({"error": {"message": msg}}), err=True)

@@ -107,6 +107,27 @@ def _make_pipe_state(
     return state
 
 
+def _make_snap(
+    vs: int = 0,
+    hs: int = 0,
+    ds: int = 0,
+    gs: int = 0,
+    ps: int = 0,
+    cs: int = 0,
+) -> dict[int, int]:
+    """Create a shader-stage snapshot dict (matches _pipe_states_cache format)."""
+    return {0: vs, 1: hs, 2: ds, 3: gs, 4: ps, 5: cs}
+
+
+def _mesh_draw(eid: int, name: str, indices: int = 0) -> mrd.ActionDescription:
+    return mrd.ActionDescription(
+        eventId=eid,
+        flags=mrd.ActionFlags.MeshDispatch,
+        numIndices=indices,
+        _name=name,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Tests: count aggregation logic
 # ---------------------------------------------------------------------------
@@ -190,7 +211,7 @@ class TestShaderMapCollection:
         from rdc.services.query_service import collect_shader_map
 
         actions = [_indexed_draw(42, "draw")]
-        states = {42: _make_pipe_state(vs=10, ps=11)}
+        states = {42: _make_snap(vs=10, ps=11)}
         rows = collect_shader_map(actions, states)
         assert len(rows) == 1
         assert rows[0] == {
@@ -208,8 +229,8 @@ class TestShaderMapCollection:
 
         actions = [_indexed_draw(42, "d1"), _indexed_draw(43, "d2")]
         states = {
-            42: _make_pipe_state(vs=10, gs=12, ps=11),
-            43: _make_pipe_state(vs=10, hs=20, ds=21, ps=11),
+            42: _make_snap(vs=10, gs=12, ps=11),
+            43: _make_snap(vs=10, hs=20, ds=21, ps=11),
         }
         rows = collect_shader_map(actions, states)
         assert len(rows) == 2
@@ -220,7 +241,7 @@ class TestShaderMapCollection:
         from rdc.services.query_service import collect_shader_map
 
         actions = [_dispatch(50, "dispatch")]
-        states = {50: _make_pipe_state(cs=99)}
+        states = {50: _make_snap(cs=99)}
         rows = collect_shader_map(actions, states)
         assert len(rows) == 1
         assert rows[0]["cs"] == 99
@@ -423,3 +444,90 @@ class TestDaemonShaderMapMethod:
         assert rows[0]["vs"] == 10
         assert rows[0]["ps"] == 11
         assert rows[0]["hs"] == "-"
+
+
+# ---------------------------------------------------------------------------
+# Tests: B15 — shader-map column restriction per action type
+# ---------------------------------------------------------------------------
+
+
+class TestShaderMapStageRestriction:
+    """Dispatches should only populate CS; draws should not populate CS."""
+
+    def test_shader_map_dispatch_only_populates_cs(self) -> None:
+        from rdc.services.query_service import collect_shader_map
+
+        actions = [_dispatch(10, "vkCmdDispatch")]
+        states = {10: _make_snap(cs=99)}
+        rows = collect_shader_map(actions, states)
+        assert len(rows) == 1
+        assert rows[0]["cs"] == 99
+        assert rows[0]["vs"] == "-"
+        assert rows[0]["ps"] == "-"
+
+    def test_shader_map_dispatch_no_graphics_shader_leak(self) -> None:
+        from rdc.services.query_service import collect_shader_map
+
+        # Snapshot has non-zero PS (stage 4) but action is dispatch
+        actions = [_dispatch(10, "vkCmdDispatch")]
+        states = {10: _make_snap(ps=77, cs=99)}
+        rows = collect_shader_map(actions, states)
+        assert rows[0]["ps"] == "-"
+        assert rows[0]["cs"] == 99
+
+    def test_shader_map_mixed_draw_and_dispatch(self) -> None:
+        from rdc.services.query_service import collect_shader_map
+
+        actions = [_indexed_draw(8, "draw"), _dispatch(11, "dispatch")]
+        states = {
+            8: _make_snap(vs=10, ps=11),
+            11: _make_snap(cs=99),
+        }
+        rows = collect_shader_map(actions, states)
+        assert len(rows) == 2
+        # Draw: graphics stages populated, cs = "-"
+        assert rows[0]["vs"] == 10
+        assert rows[0]["ps"] == 11
+        assert rows[0]["cs"] == "-"
+        # Dispatch: only cs populated
+        assert rows[1]["cs"] == 99
+        assert rows[1]["vs"] == "-"
+        assert rows[1]["ps"] == "-"
+
+    def test_shader_map_draw_does_not_show_cs(self) -> None:
+        from rdc.services.query_service import collect_shader_map
+
+        # Snapshot has non-zero CS (stage 5) but action is draw
+        actions = [_indexed_draw(8, "draw")]
+        states = {8: _make_snap(vs=10, ps=11, cs=55)}
+        rows = collect_shader_map(actions, states)
+        assert rows[0]["cs"] == "-"
+        assert rows[0]["vs"] == 10
+
+
+# ---------------------------------------------------------------------------
+# Tests: B16 — mesh dispatch counted as draw in shader-map and count
+# ---------------------------------------------------------------------------
+
+
+class TestMeshDispatchShaderMap:
+    """MeshDispatch actions should appear in shader-map and count as draws."""
+
+    def test_count_mesh_dispatch_as_draw(self) -> None:
+        from rdc.services.query_service import count_from_actions
+
+        actions = [_mesh_draw(10, "vkCmdDrawMeshTasksEXT")]
+        assert count_from_actions(actions, "draws") == 1
+
+    def test_shader_map_includes_mesh_dispatch(self) -> None:
+        from rdc.services.query_service import collect_shader_map
+
+        actions = [_mesh_draw(10, "vkCmdDrawMeshTasksEXT")]
+        states = {10: _make_snap(vs=5, ps=6)}
+        rows = collect_shader_map(actions, states)
+        assert len(rows) == 1
+        assert rows[0]["eid"] == 10
+        # Mesh draws are treated like graphics draws (stages 0-4, not cs)
+        assert rows[0]["vs"] == 5
+        assert rows[0]["ps"] == 6
+        assert rows[0]["cs"] == "-"
