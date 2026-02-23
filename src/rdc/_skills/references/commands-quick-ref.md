@@ -357,16 +357,6 @@ List draw calls.
 | `--jsonl` | JSONL output | flag |  |
 | `-q, --quiet` | Only EID column | flag |  |
 
-## `rdc embed-deps`
-
-Embed pending shader dependencies into capture file.
-
-**Options:**
-
-| Flag | Help | Type | Default |
-|------|------|------|---------|
-| `--json` | Output as JSON. | flag |  |
-
 ## `rdc event`
 
 Show single API call detail.
