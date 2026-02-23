@@ -1,4 +1,4 @@
-"""CaptureFile CLI commands: thumbnail, gpus, sections, section, embed-deps."""
+"""CaptureFile CLI commands: thumbnail, gpus, sections, section."""
 
 from __future__ import annotations
 
@@ -61,16 +61,3 @@ def section_cmd(name: str, use_json: bool) -> None:
         click.echo(json.dumps(result))
     else:
         click.echo(result["contents"])
-
-
-@click.command("embed-deps")
-@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
-def embed_deps_cmd(use_json: bool) -> None:
-    """Embed pending shader dependencies into capture file."""
-    result = call("capture_embed_deps", {})
-    if use_json:
-        click.echo(json.dumps(result))
-    elif result["embedded"]:
-        click.echo("embedded dependencies")
-    else:
-        click.echo("no pending dependencies")

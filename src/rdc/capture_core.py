@@ -105,14 +105,13 @@ def execute_and_capture(
 
     tc = rd.CreateTargetControl("", result.ident, "rdc-cli", True)
     try:
-        return _run_target_control_loop(tc, rd, frame=frame, timeout=timeout)
+        return _run_target_control_loop(tc, frame=frame, timeout=timeout)
     finally:
         tc.Shutdown()
 
 
 def _run_target_control_loop(
     tc: Any,
-    rd: Any,
     *,
     frame: int | None = None,
     timeout: float = 60.0,
