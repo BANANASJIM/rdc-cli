@@ -101,8 +101,8 @@ def test_pick_pixel_eid_override() -> None:
 def test_pick_pixel_unknown_pixel_returns_zero() -> None:
     state = _make_state()
     resp, _ = _handle_request(_req("pick_pixel", {"x": 999, "y": 999}), state)
-    r = resp["result"]
-    assert r["color"] == {"r": 0.0, "g": 0.0, "b": 0.0, "a": 0.0}
+    assert resp["error"]["code"] == -32001
+    assert "out of bounds" in resp["error"]["message"]
 
 
 def test_pick_pixel_keep_running_true() -> None:
@@ -160,6 +160,47 @@ def test_pick_pixel_msaa_rejected() -> None:
     resp, _ = _handle_request(_req("pick_pixel", {"x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32001
     assert "MSAA" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# Bounds checking
+# ---------------------------------------------------------------------------
+
+
+def test_pick_pixel_out_of_bounds_x() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("pick_pixel", {"x": 1024, "y": 0}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of bounds" in resp["error"]["message"]
+
+
+def test_pick_pixel_out_of_bounds_y() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("pick_pixel", {"x": 0, "y": 768}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of bounds" in resp["error"]["message"]
+
+
+def test_pick_pixel_at_boundary() -> None:
+    pv = rd.PixelValue(floatValue=[0.1, 0.2, 0.3, 1.0])
+    state = _make_state(pick_pixel={(1023, 767): pv})
+    resp, _ = _handle_request(_req("pick_pixel", {"x": 1023, "y": 767}), state)
+    assert "result" in resp
+    assert resp["result"]["color"] == {"r": 0.1, "g": 0.2, "b": 0.3, "a": 1.0}
+
+
+def test_pixel_history_out_of_bounds() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("pixel_history", {"x": 1024, "y": 0}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of bounds" in resp["error"]["message"]
+
+
+def test_pick_pixel_negative_coords() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req("pick_pixel", {"x": -1, "y": 0}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of bounds" in resp["error"]["message"]
 
 
 # ---------------------------------------------------------------------------
