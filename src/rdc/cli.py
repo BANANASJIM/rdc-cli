@@ -21,6 +21,7 @@ from rdc.commands.doctor import doctor_cmd
 from rdc.commands.events import draw_cmd, draws_cmd, event_cmd, events_cmd
 from rdc.commands.export import buffer_cmd, rt_cmd, texture_cmd
 from rdc.commands.info import info_cmd, log_cmd, stats_cmd
+from rdc.commands.install_skill import install_skill_cmd
 from rdc.commands.mesh import mesh_cmd
 from rdc.commands.pick_pixel import pick_pixel_cmd
 from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
@@ -124,6 +125,7 @@ main.add_command(shader_replace_cmd, name="shader-replace")
 main.add_command(shader_restore_cmd, name="shader-restore")
 main.add_command(shader_restore_all_cmd, name="shader-restore-all")
 main.add_command(tex_stats_cmd, name="tex-stats")
+main.add_command(install_skill_cmd, name="install-skill")
 
 
 if __name__ == "__main__":
