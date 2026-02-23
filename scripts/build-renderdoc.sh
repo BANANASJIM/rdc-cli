@@ -52,12 +52,9 @@ if [ ! -d "$BUILD_DIR/renderdoc-swig" ]; then
 fi
 
 # Strip LTO flags (breaks SWIG bindings on Arch)
-export CFLAGS="${CFLAGS:-}"
-export CXXFLAGS="${CXXFLAGS:-}"
-export LDFLAGS="${LDFLAGS:-}"
-CFLAGS="${CFLAGS//-flto=auto/}"
-CXXFLAGS="${CXXFLAGS//-flto=auto/}"
-LDFLAGS="${LDFLAGS//-flto=auto/}"
+export CFLAGS="${CFLAGS:-}"; CFLAGS="${CFLAGS//-flto=auto/}"
+export CXXFLAGS="${CXXFLAGS:-}"; CXXFLAGS="${CXXFLAGS//-flto=auto/}"
+export LDFLAGS="${LDFLAGS:-}"; LDFLAGS="${LDFLAGS//-flto=auto/}"
 
 # Configure
 echo "--- cmake configure ---"
