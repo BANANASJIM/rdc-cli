@@ -279,14 +279,18 @@ def _handle_stats(
     stats = aggregate_stats(flat)
     top = get_top_draws(flat, limit=3)
 
-    from rdc.services.query_service import _build_pass_list
+    # Find a representative draw EID per pass for RT enrichment
+    from rdc.services.query_service import _DRAWCALL
 
-    pass_list = _build_pass_list(state.adapter.get_root_actions(), state.structured_file)
+    pass_first_draw: dict[str, int] = {}
+    for a in flat:
+        if (a.flags & _DRAWCALL) and a.pass_name not in pass_first_draw:
+            pass_first_draw[a.pass_name] = a.eid
     for ps in stats.per_pass:
-        matched = next((p for p in pass_list if p["name"] == ps.name), None)
-        if matched is None:
+        draw_eid = pass_first_draw.get(ps.name)
+        if draw_eid is None:
             continue
-        err = _set_frame_event(state, matched["begin_eid"])
+        err = _set_frame_event(state, draw_eid)
         if err:
             continue
         try:
