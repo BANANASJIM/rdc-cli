@@ -55,6 +55,8 @@ const expectedPages = [
   'docs/usage/index.html',
   'docs/commands/index.html',
   'docs/vfs/index.html',
+  'docs/ai-integration/index.html',
+  'docs/examples/index.html',
 ];
 
 for (const page of expectedPages) {
@@ -151,8 +153,8 @@ test('landing page has dynamic command count from stats.json', () => {
   assert(indexHtml.includes(count), `Missing "${count}" commands count (from stats.json)`);
 });
 
-test('landing page has all 8 command categories', () => {
-  const categories = ['Session', 'Inspection', 'GPU State', 'Resources', 'Export', 'Search', 'VFS', 'Utility'];
+test('landing page has all 12 command categories', () => {
+  const categories = ['Session', 'Inspection', 'GPU State', 'Debug', 'Shader Edit', 'Resources', 'Export', 'Assertions', 'Diff', 'Search', 'VFS', 'Utility'];
   for (const cat of categories) {
     assert(indexHtml.includes(cat), `Missing command category: ${cat}`);
   }

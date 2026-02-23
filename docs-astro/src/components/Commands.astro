@@ -4,14 +4,18 @@ import stats from "../data/stats.json";
 const base = import.meta.env.BASE_URL;
 
 const categories = [
-  { name: 'Session', color: 'from-gpu-accent/20', accent: 'text-gpu-accent', commands: ['open', 'close', 'status', 'goto'] },
+  { name: 'Session', color: 'from-gpu-accent/20', accent: 'text-gpu-accent', commands: ['open', 'close', 'status', 'goto', 'capture', 'doctor'] },
   { name: 'Inspection', color: 'from-gpu-green/20', accent: 'text-gpu-green', commands: ['info', 'stats', 'events', 'draws', 'event', 'draw', 'log'] },
   { name: 'GPU State', color: 'from-gpu-purple/20', accent: 'text-gpu-purple', commands: ['pipeline', 'bindings', 'shader', 'shaders', 'shader-map'] },
+  { name: 'Debug', color: 'from-red-500/20', accent: 'text-red-400', commands: ['debug', 'pixel', 'pick-pixel', 'tex-stats'] },
+  { name: 'Shader Edit', color: 'from-yellow-500/20', accent: 'text-yellow-400', commands: ['shader-build', 'shader-replace', 'shader-restore', 'shader-restore-all', 'shader-encodings'] },
   { name: 'Resources', color: 'from-gpu-orange/20', accent: 'text-gpu-orange', commands: ['resources', 'resource', 'passes', 'pass', 'usage'] },
-  { name: 'Export', color: 'from-gpu-pink/20', accent: 'text-gpu-pink', commands: ['texture', 'rt', 'buffer'] },
-  { name: 'Search', color: 'from-yellow-500/20', accent: 'text-yellow-400', commands: ['search', 'counters'] },
+  { name: 'Export', color: 'from-gpu-pink/20', accent: 'text-gpu-pink', commands: ['texture', 'rt', 'buffer', 'mesh', 'snapshot'] },
+  { name: 'Assertions', color: 'from-emerald-500/20', accent: 'text-emerald-400', commands: ['assert-pixel', 'assert-image', 'assert-clean', 'assert-count', 'assert-state'] },
+  { name: 'Diff', color: 'from-sky-500/20', accent: 'text-sky-400', commands: ['diff'] },
+  { name: 'Search', color: 'from-amber-500/20', accent: 'text-amber-400', commands: ['search', 'counters'] },
   { name: 'VFS', color: 'from-gpu-cyan/20', accent: 'text-gpu-cyan', commands: ['ls', 'cat', 'tree'] },
-  { name: 'Utility', color: 'from-gray-500/20', accent: 'text-gray-400', commands: ['doctor', 'completion', 'capture', 'count'] },
+  { name: 'Utility', color: 'from-gray-500/20', accent: 'text-gray-400', commands: ['count', 'completion', 'script', 'install-skill'] },
 ];
 ---
 

@@ -1,0 +1,80 @@
+---
+---
+
+<section id="philosophy" class="py-32 relative section-glow">
+  <div class="max-w-6xl mx-auto px-6">
+    <h2 class="text-3xl md:text-5xl font-extrabold text-center mb-4 tracking-tight">
+      <span class="gradient-text">Design Philosophy</span>
+    </h2>
+    <p class="text-center text-gray-400 mb-20 max-w-2xl mx-auto">
+      rdc-cli is <strong class="text-gray-200">not</strong> a replacement for RenderDoc.
+      It turns <code class="text-gpu-accent">.rdc</code> capture data into pipe-friendly text streams
+      that integrate with Unix tools, CI systems, and AI agents.
+    </p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div class="glass-card p-7">
+        <div class="flex items-start gap-4">
+          <div class="font-mono font-bold text-2xl text-gpu-green shrink-0 w-10 h-10 flex items-center justify-center rounded-lg" style="background: rgba(0,230,118,0.15); text-shadow: 0 0 20px currentColor;">
+            &gt;
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-100 mb-2">TSV by Default</h3>
+            <p class="text-sm text-gray-400 leading-relaxed">
+              Every command outputs tab-separated values. Pipe through
+              <code>grep</code>, <code>awk</code>, <code>cut</code>, <code>sort</code> &mdash;
+              standard Unix tools just work. Add <code>--json</code> for structured output.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="flex items-start gap-4">
+          <div class="font-mono font-bold text-2xl text-gpu-orange shrink-0 w-10 h-10 flex items-center justify-center rounded-lg" style="background: rgba(255,145,0,0.15); text-shadow: 0 0 20px currentColor;">
+            2
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-100 mb-2">Two-Layer Architecture</h3>
+            <p class="text-sm text-gray-400 leading-relaxed">
+              A background daemon holds the capture open. CLI commands send JSON-RPC
+              queries over TCP. Load once, query many &mdash; no per-command startup cost.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="flex items-start gap-4">
+          <div class="font-mono font-bold text-2xl text-red-400 shrink-0 w-10 h-10 flex items-center justify-center rounded-lg" style="background: rgba(248,113,113,0.15); text-shadow: 0 0 20px currentColor;">
+            !
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-100 mb-2">Stderr for Metadata</h3>
+            <p class="text-sm text-gray-400 leading-relaxed">
+              Data goes to stdout, diagnostics to stderr. Pipes never break because
+              of progress messages or warnings. Exit codes follow Unix convention:
+              0 success, 1 failure, 2 error.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-7">
+        <div class="flex items-start gap-4">
+          <div class="font-mono font-bold text-2xl text-gpu-purple shrink-0 w-10 h-10 flex items-center justify-center rounded-lg" style="background: rgba(179,136,255,0.15); text-shadow: 0 0 20px currentColor;">
+            /
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-gray-100 mb-2">Stable VFS Paths</h3>
+            <p class="text-sm text-gray-400 leading-relaxed">
+              Every piece of capture data has a stable path like
+              <code>/draws/142/shader/ps</code>. Paths are deterministic across
+              sessions &mdash; safe for scripts and agents.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
