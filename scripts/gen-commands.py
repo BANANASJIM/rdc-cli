@@ -139,6 +139,9 @@ def _build_usage(name: str, cmd: click.Command) -> str:
 
 def _help_to_html(text: str) -> str:
     """Convert backtick-wrapped text to <code> tags."""
+    import html  # noqa: PLC0415
+
+    text = html.escape(text)
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
 
 

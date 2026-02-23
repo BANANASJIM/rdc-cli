@@ -138,7 +138,15 @@ const base = import.meta.env.BASE_URL;
     // Key-value lines (like rdc info)
     const kvMatch = line.match(/^(\w[\w\s]*?)\s{2,}(.+)$/);
     if (kvMatch) {
-      div.innerHTML = `<span class="text-gray-500">${kvMatch[1]}</span>  <span class="text-gray-300">${kvMatch[2]}</span>`;
+      const k = document.createElement('span');
+      k.className = 'text-gray-500';
+      k.textContent = kvMatch[1];
+      div.appendChild(k);
+      div.appendChild(document.createTextNode('  '));
+      const v = document.createElement('span');
+      v.className = 'text-gray-300';
+      v.textContent = kvMatch[2];
+      div.appendChild(v);
       return div;
     }
 
