@@ -1,0 +1,82 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="VFS Path System">
+  <p>
+    rdc-cli exposes all capture data through a virtual filesystem (VFS). Every
+    draw call, resource, pipeline state, and shader is accessible via a stable
+    path. This makes it easy to browse, script, and integrate with tools.
+  </p>
+
+  <h2>Path Namespace</h2>
+
+  <pre><code>/
+├── info                         # capture metadata
+├── events/                      # all events
+│   └── &lt;eid&gt;/                   # single event details
+├── draws/                       # draw calls
+│   └── &lt;eid&gt;/
+│       ├── pipeline/
+│       │   ├── vertex-input
+│       │   ├── rasterizer
+│       │   ├── depth-stencil
+│       │   ├── color-blend
+│       │   ├── shader/
+│       │   │   ├── vs           # vertex shader
+│       │   │   ├── ps           # pixel shader
+│       │   │   └── ...
+│       │   └── push-constants
+│       ├── bindings/
+│       │   └── &lt;set&gt;/
+│       │       └── &lt;binding&gt;
+│       └── descriptors/
+├── resources/                   # all resources
+│   └── &lt;id&gt;/
+│       ├── info
+│       ├── usage
+│       └── data                 # binary content
+├── passes/                      # render passes
+│   └── &lt;id&gt;/
+├── textures/                    # texture resources
+│   └── &lt;id&gt;/
+├── buffers/                     # buffer resources
+│   └── &lt;id&gt;/
+└── shaders/                     # shader resources</code></pre>
+
+  <h2>Browsing</h2>
+
+  <pre><code># List top level
+rdc ls /
+# → events/  draws/  resources/  passes/  textures/  buffers/  shaders/  info
+
+# Drill into a draw call
+rdc ls /draws/5/
+# → pipeline/  bindings/  descriptors/
+
+# Read a shader
+rdc cat /draws/5/pipeline/shader/ps
+
+# Tree view
+rdc tree /draws/5/ --depth 2</code></pre>
+
+  <h2>Binary Safety</h2>
+  <p>
+    Some VFS nodes contain binary data (textures, buffers). When outputting to
+    a TTY, rdc-cli will refuse to print binary content and prompt you to use
+    <code>-o</code> to save to a file instead. This protects your terminal.
+  </p>
+
+  <pre><code># This will warn about binary content on TTY
+rdc cat /textures/5/data
+
+# Use -o to save to file
+rdc cat /textures/5/data -o texture.bin</code></pre>
+
+  <h2>Stable Paths</h2>
+  <p>
+    VFS paths are stable across sessions for the same capture file. This means
+    you can use them reliably in scripts and CI pipelines. Event IDs and
+    resource IDs come from the capture itself and don't change between runs.
+  </p>
+</Docs>

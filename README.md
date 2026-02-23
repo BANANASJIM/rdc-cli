@@ -1,16 +1,22 @@
 ```
-          _
- _ __ __| | ___
-| '__/ _` |/ __|
-| | | (_| | (__
-|_|  \__,_|\___|
+ _____  _____   _____
+|  __ \|  __ \ / ____|
+| |__) | |  | | |
+|  _  /| |  | | |
+| | \ \| |__| | |____
+|_|  \_\_____/ \_____|  cli
 ```
 
 [![PyPI](https://img.shields.io/pypi/v/rdc-cli)](https://pypi.org/project/rdc-cli/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/rdc-cli/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Commands](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/commands.json)](https://bananasjim.github.io/rdc-cli/)
+[![Tests](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/tests.json)](https://bananasjim.github.io/rdc-cli/)
+[![Coverage](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/coverage.json)](https://bananasjim.github.io/rdc-cli/)
 
-Pipe-friendly TSV output, JSON mode, 54 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
+Pipe-friendly TSV output, JSON mode, 53 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
+
+**[Full documentation →](https://bananasjim.github.io/rdc-cli/)**
 
 ```bash
 rdc open capture.rdc          # start session
@@ -95,7 +101,7 @@ rdc completion fish > ~/.config/fish/completions/rdc.fish
 
 ```bash
 pixi run sync                 # install deps + activate git hooks
-pixi run check                # lint + typecheck + test (1609 tests, 95.29% coverage)
+pixi run check                # lint + typecheck + test (1641 tests, 95.79% coverage)
 pixi run verify               # full packaging verification (19 checks)
 ```
 

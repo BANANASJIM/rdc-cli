@@ -1,0 +1,128 @@
+name: Docs
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(grep -m1 '^version' pyproject.toml | sed 's/.*= *"\(.*\)"/\1/')
+            echo "version=${VER}-dev" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Compute test stats
+        id: test_stats
+        run: |
+          TEST_COUNT=$(uv run pytest tests/unit --co -q 2>/dev/null \
+            | grep -E '^[0-9]+ item' | grep -o '^[0-9]*' || echo "0")
+          COV_PCT=$(uv run pytest tests/unit --cov=rdc --cov-report=term-missing \
+            --no-header -rN -q 2>/dev/null \
+            | grep 'TOTAL' | awk '{print $NF}' || echo "")
+          echo "test_count=${TEST_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "coverage=${COV_PCT}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate stats.json
+        env:
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+          TEST_COUNT: ${{ steps.test_stats.outputs.test_count }}
+          COVERAGE: ${{ steps.test_stats.outputs.coverage }}
+        run: |
+          mkdir -p docs-astro/src/data
+          uv run python scripts/gen-stats.py \
+            --version "$DOC_VERSION" \
+            --test-count "$TEST_COUNT" \
+            --coverage "$COVERAGE" \
+            > docs-astro/src/data/stats.json
+          cat docs-astro/src/data/stats.json
+
+      - name: Build mkdocs
+        run: uv run --with "mkdocs<2" --with mkdocs-material --with mkdocs-click mkdocs build -d _site
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs-astro/package-lock.json
+
+      - name: Build Astro
+        run: |
+          cd docs-astro
+          npm ci
+          npm run build
+
+      - name: Merge mkdocs into Astro output
+        run: |
+          mkdir -p docs-astro/dist/docs
+          cp -r _site/* docs-astro/dist/docs/
+
+      - name: Generate badge endpoint JSONs
+        run: |
+          mkdir -p docs-astro/dist/badges
+          python3 -c "
+          import json, pathlib
+          s = json.loads(pathlib.Path('docs-astro/src/data/stats.json').read_text())
+          badges = [
+              ('commands', str(s.get('command_count', '')), 'brightgreen'),
+              ('tests',    str(s.get('test_count', '')),    'blue'),
+              ('coverage', s.get('coverage', ''),           'green'),
+          ]
+          for name, message, color in badges:
+              pathlib.Path(f'docs-astro/dist/badges/{name}.json').write_text(
+                  json.dumps({'schemaVersion': 1, 'label': name, 'message': message, 'color': color})
+              )
+          print('Badges generated:', [b[0] for b in badges])
+          "
+
+      - name: Deploy to gh-pages branch
+        env:
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd docs-astro/dist
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "deploy: v${DOC_VERSION}"
+          git push --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:gh-pages
+
+      - name: Update repo metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          CMD=$(python3 -c "import json; print(json.load(open('docs-astro/src/data/stats.json'))['command_count'])")
+          gh repo edit \
+            --description "Unix-friendly CLI for RenderDoc — ${CMD} commands, TSV/JSON, daemon sessions (v${DOC_VERSION})" \
+            || true
+          gh repo edit --homepage "https://bananasjim.github.io/rdc-cli/" || true
