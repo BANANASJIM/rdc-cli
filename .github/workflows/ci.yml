@@ -55,6 +55,24 @@ jobs:
       - run: uv sync --extra dev
       - run: uv run --with pip-audit pip-audit
 
+  validate-aur:
+    name: Validate AUR PKGBUILD
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install makedepends from PKGBUILD
+        run: |
+          deps=$(sed -n '/^makedepends=(/,/)/p' aur/PKGBUILD \
+                 | grep -oP "'[^']+'" | tr -d "'" | tr '\n' ' ')
+          pacman -Syu --noconfirm base-devel $deps
+
+      - name: Build wheel (no-isolation, same as PKGBUILD)
+        run: python -m build --wheel --no-isolation
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: "0.0.0"
+
   typecheck:
     name: Type check (mypy)
     runs-on: ubuntu-latest
