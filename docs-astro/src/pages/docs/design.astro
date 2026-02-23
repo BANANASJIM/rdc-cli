@@ -1,0 +1,191 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="Why This Design">
+  <p>
+    rdc-cli exists because RenderDoc captures GPU data but traps it behind a GUI.
+    Scripts, CI pipelines, and AI agents cannot access this data programmatically.
+    rdc-cli solves this by exposing capture data through a Unix-friendly CLI with
+    pipe-friendly output.
+  </p>
+
+  <h2 id="problem">The Problem</h2>
+
+  <p>
+    RenderDoc is the industry-standard open-source GPU debugger. It captures every
+    API call, shader, texture, buffer, and render target in a single .rdc file. But
+    all this data is locked inside a GUI application. There is no built-in way to:
+  </p>
+
+  <ul>
+    <li>Query capture data from a script or CI pipeline</li>
+    <li>Diff two captures programmatically</li>
+    <li>Assert rendering correctness in automated tests</li>
+    <li>Let an AI agent explore GPU state iteratively</li>
+  </ul>
+
+  <p>
+    rdc-cli bridges this gap: it turns .rdc files into streams of tab-separated
+    text that Unix tools can process.
+  </p>
+
+  <h2 id="daemon">Why a Daemon</h2>
+
+  <p>
+    A 1 GB capture takes 30&ndash;60 seconds to load via
+    <code>OpenCapture()</code>. Reloading for every command is impractical.
+    rdc-cli uses a daemon architecture:
+  </p>
+
+  <ul>
+    <li><code>rdc open capture.rdc</code> starts a background daemon that loads the capture once</li>
+    <li>Subsequent commands (<code>draws</code>, <code>pipeline</code>, <code>shader</code>, etc.) send JSON-RPC requests over TCP localhost</li>
+    <li>The daemon holds the ReplayController in memory &mdash; queries complete in milliseconds</li>
+    <li><code>rdc close</code> shuts down the daemon</li>
+  </ul>
+
+  <p>
+    <strong>Why TCP instead of Unix sockets?</strong> TCP works identically on Linux,
+    macOS, and Windows &mdash; zero platform-specific code.
+  </p>
+
+  <p>
+    <strong>Why single-threaded?</strong> RenderDoc's ReplayController must be called
+    from the thread that created it. The daemon uses an asyncio event loop and
+    serializes all requests.
+  </p>
+
+  <h2 id="tsv">Why TSV by Default</h2>
+
+  <p>
+    Every command outputs tab-separated values by default. This means:
+  </p>
+
+  <ul>
+    <li>Pipe to <code>grep</code>, <code>awk</code>, <code>cut</code>, <code>sort</code>, <code>diff</code>, <code>join</code> &mdash; they all just work</li>
+    <li>Add <code>--json</code> for structured output when you need it (jq, CI assertions, AI agents)</li>
+    <li>Add <code>--jsonl</code> for streaming JSON (one object per line)</li>
+    <li>stderr carries metadata and summaries &mdash; stdout is always clean data</li>
+  </ul>
+
+  <p>Composability in practice:</p>
+
+  <pre><code>rdc draws --sort tri_count | tail -5        # heaviest 5 draws
+rdc resources --type texture | wc -l        # count textures
+rdc shader-map | grep "a1b2" | cut -f1      # find EIDs using a shader</code></pre>
+
+  <p>
+    Exit codes follow <code>diff(1)</code> semantics: 0 = success/no difference,
+    1 = difference found, 2 = error.
+  </p>
+
+  <h2 id="vfs">Why VFS Paths</h2>
+
+  <p>
+    Capture data is organized as a virtual filesystem. Two layers with strict separation:
+  </p>
+
+  <p>
+    <strong>Navigation layer</strong> (ls, cat, tree) &mdash; pure addressing, no business logic:
+  </p>
+
+  <pre><code>rdc ls /draws/142/shader     # &rarr; vs  ps
+rdc cat /draws/142/shader/ps # &rarr; shader disassembly
+rdc tree / --depth 2         # &rarr; full structure</code></pre>
+
+  <p>
+    <strong>Query layer</strong> (draws, resources, pipeline, etc.) &mdash; business logic with filtering:
+  </p>
+
+  <pre><code>rdc draws --sort tri_count --limit 10
+rdc resources --type texture --sort size</code></pre>
+
+  <p>
+    <strong>Why not FUSE?</strong> FUSE adds kernel module complexity, mount/unmount
+    management, and platform dependencies. Path-string addressing with ls/cat/tree
+    covers every use case without any of that overhead.
+  </p>
+
+  <p>
+    Every piece of data has a stable, deterministic path like
+    <code>/draws/142/shader/ps/disasm</code>. AI agents can navigate iteratively
+    &mdash; <code>ls</code> to discover, <code>cat</code> to read.
+  </p>
+
+  <h2 id="ci">Why CI Assertions</h2>
+
+  <p>
+    Five purpose-built assertion commands cover the most common CI checks:
+  </p>
+
+  <ul>
+    <li><strong>assert-pixel</strong> &mdash; verify pixel color at (x,y) within tolerance</li>
+    <li><strong>assert-image</strong> &mdash; pixel-by-pixel image comparison</li>
+    <li><strong>assert-clean</strong> &mdash; no validation errors above severity threshold</li>
+    <li><strong>assert-count</strong> &mdash; numeric metric assertions (draws, triangles, etc.)</li>
+    <li><strong>assert-state</strong> &mdash; pipeline state value at EID matches expected</li>
+  </ul>
+
+  <p>For anything else, compose with Unix tools:</p>
+
+  <pre><code>test "$(rdc count draws)" -ge 10   # at least 10 draws
+rdc log | grep -i error &amp;&amp; exit 1  # fail on errors</code></pre>
+
+  <h2 id="ai-agents">Why AI-Agent Friendly</h2>
+
+  <p>
+    rdc-cli is designed for programmatic consumption:
+  </p>
+
+  <ul>
+    <li><strong>Deterministic paths</strong> &mdash; <code>/draws/142/shader/ps</code> always means the same thing</li>
+    <li><strong>Machine-parseable output</strong> &mdash; TSV and JSON, never mixed formats on stdout</li>
+    <li><strong>Iterative exploration</strong> &mdash; <code>ls</code> to discover structure, <code>cat</code> to read data, just like a real filesystem</li>
+    <li><strong>Escape hatch</strong> &mdash; <code>rdc script</code> executes arbitrary Python inside the daemon when the 60 built-in commands aren't enough</li>
+  </ul>
+
+  <p>
+    The Claude Code skill (<code>rdc install-skill</code>) teaches AI agents the
+    full command vocabulary and VFS namespace.
+  </p>
+
+  <h2 id="tradeoffs">Key Trade-offs</h2>
+
+  <p>Design decisions have trade-offs:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Decision</th>
+        <th>Trade-off</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Single-threaded daemon</td>
+        <td>No parallel queries, but zero race conditions and simpler code</td>
+      </tr>
+      <tr>
+        <td>TSV default (not JSON)</td>
+        <td>Requires <code>--json</code> flag for structured data, but pipes work out of the box</td>
+      </tr>
+      <tr>
+        <td>GLSL-only shader edit</td>
+        <td>SPIR-V text assembly causes segfaults in RenderDoc; safety over coverage</td>
+      </tr>
+      <tr>
+        <td>No FUSE</td>
+        <td>Cannot mount as real filesystem, but no kernel dependencies</td>
+      </tr>
+      <tr>
+        <td>Session token auth</td>
+        <td>Security relies on file permissions (0600), not encryption</td>
+      </tr>
+      <tr>
+        <td>TCP localhost</td>
+        <td>No TLS currently; remote capture support is planned for a future phase</td>
+      </tr>
+    </tbody>
+  </table>
+</Docs>

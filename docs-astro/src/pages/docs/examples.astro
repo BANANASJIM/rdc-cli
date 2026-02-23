@@ -112,4 +112,251 @@ rdc mesh 142 -o geometry.obj            {"# post-transform mesh"}</code></pre>
   <h2 id="shell-pipelines">Shell Pipeline Power</h2>
 
   <pre><code set:text={shellPipelines}></code></pre>
+
+  <h2 id="capture-frame">Capture a Frame</h2>
+
+  <pre><code>{"# Basic capture"}
+rdc capture ./myapp -o frame.rdc
+
+{"# Capture with API validation and callstacks"}
+rdc capture ./myapp -o frame.rdc --api-validation --callstacks
+
+{"# Capture specific frame number"}
+rdc capture ./myapp -o frame.rdc --frame 100
+
+{"# Capture and immediately open for analysis"}
+rdc capture ./myapp -o frame.rdc --auto-open
+
+{"# JSON output for CI pipelines"}
+rdc capture ./myapp -o frame.rdc --json</code></pre>
+
+  <h2 id="e2e-ci">End-to-End CI Pipeline</h2>
+
+  <pre><code>{"#!/bin/bash"}
+set -e
+
+{"# 1. Capture a frame"}
+rdc capture ./myapp -o test.rdc --api-validation --timeout 30
+
+{"# 2. Open for analysis"}
+rdc open test.rdc
+
+{"# 3. Assert no validation errors"}
+rdc assert-clean
+
+{"# 4. Assert expected draw count"}
+rdc assert-count draws --expect 50 --op ge
+
+{"# 5. Assert pixel color"}
+rdc assert-pixel 142 256 256 --expect "1.0 0.0 0.0 1.0"
+
+{"# 6. Clean up"}
+rdc close</code></pre>
+
+  <h2 id="target-control">Target Control (Live Capture)</h2>
+
+  <pre><code>{"# Inject and get target ident"}
+rdc capture ./myapp --trigger
+{"# → prints ident=12345"}
+
+{"# Attach to running target"}
+rdc attach 12345
+
+{"# Trigger a capture manually"}
+rdc capture-trigger
+
+{"# List captured frames"}
+rdc capture-list
+
+{"# Copy a capture locally"}
+rdc capture-copy 0 snapshot.rdc
+
+{"# Open and analyze"}
+rdc open snapshot.rdc</code></pre>
+
+  <h2 id="multi-session">Multi-Session A/B Comparison</h2>
+
+  <pre><code>{"# Open two captures in named sessions"}
+rdc --session before open before.rdc
+rdc --session after open after.rdc
+
+{"# Compare draws side-by-side"}
+diff &lt;(rdc --session before draws) &lt;(rdc --session after draws)
+
+{"# Compare specific pipeline states"}
+diff &lt;(rdc --session before pipeline 142) &lt;(rdc --session after pipeline 142)
+
+{"# Compare shader disassembly"}
+diff &lt;(rdc --session before cat /draws/142/shader/ps) \
+     &lt;(rdc --session after cat /draws/142/shader/ps)
+
+{"# Clean up both sessions"}
+rdc --session before close
+rdc --session after close</code></pre>
+
+  <h2 id="render-pass">Render Pass Analysis</h2>
+
+  <pre><code>{"# List all render passes"}
+rdc passes
+
+{"# Inspect a specific pass"}
+rdc pass GBuffer
+
+{"# List draws in a pass"}
+rdc draws --pass GBuffer
+
+{"# Find passes with many draws"}
+rdc passes --json | jq '.[] | select(.draw_count > 50)'</code></pre>
+
+  <h2 id="pixel-ladder">Pixel Investigation Ladder</h2>
+
+  <pre><code>{"# Step 1: Read pixel color at (400, 300)"}
+rdc pick-pixel 142 400 300
+
+{"# Step 2: Full pixel history — who modified this pixel?"}
+rdc pixel 142 400 300
+
+{"# Step 3: Debug the pixel shader that drew it"}
+rdc debug pixel 142 400 300
+
+{"# Step 4: Step-by-step shader trace"}
+rdc debug pixel 142 400 300 --trace
+
+{"# Step 5: Dump variables at a specific line"}
+rdc debug pixel 142 400 300 --dump-at 15</code></pre>
+
+  <h2 id="buffer-decode">Buffer Decode via VFS</h2>
+
+  <pre><code>{"# Read decoded constant buffer values"}
+rdc cat /draws/142/cbuffer/0/0
+
+{"# Read decoded vertex buffer"}
+rdc cat /draws/142/vbuffer
+
+{"# Read decoded index buffer"}
+rdc cat /draws/142/ibuffer
+
+{"# View descriptor bindings"}
+rdc cat /draws/142/descriptors
+
+{"# Export raw buffer data"}
+rdc cat /buffers/55/data > vertex_buffer.bin</code></pre>
+
+  <h2 id="rdc-script">Custom Queries with rdc script</h2>
+
+  <pre><code>{"# Inline Python: count unique shader hashes"}
+rdc script -c "
+shaders = set()
+for a in controller.GetRootActions():
+    if a.flags &amp; rd.ActionFlags.Drawcall:
+        controller.SetFrameEvent(a.eventId, True)
+        pipe = controller.GetPipelineState()
+        ps = pipe.GetShader(rd.ShaderStage.Pixel)
+        if int(ps):
+            shaders.add(int(ps))
+print(len(shaders))
+"
+
+{"# Run a script file"}
+rdc script analysis.py -- --verbose</code></pre>
+
+  <h2 id="perf-profiling">Performance Profiling</h2>
+
+  <pre><code>{"# List available GPU counters"}
+rdc counters --list
+
+{"# Profile a specific draw call"}
+rdc counters --eid 142
+
+{"# Profile with specific counter IDs"}
+rdc counters --ids 1,2,5 --eid 142
+
+{"# JSON output for analysis"}
+rdc counters --eid 142 --json</code></pre>
+
+  <h2 id="resource-hunting">Resource Hunting</h2>
+
+  <pre><code>{"# Find largest resources"}
+rdc resources --sort size | tail -10
+
+{"# Find all textures"}
+rdc resources --type texture
+
+{"# Search by name"}
+rdc resources --name "albedo"
+
+{"# Trace a resource's usage across the frame"}
+rdc usage 88
+
+{"# Detailed resource metadata"}
+rdc resource 88</code></pre>
+
+  <h2 id="shader-search">Shader Search &amp; Analysis</h2>
+
+  <pre><code>{"# Search all shaders for a pattern"}
+rdc search "shadowMap"
+
+{"# Find which draws use a shader"}
+rdc shader-map | grep "a1b2c3"
+
+{"# List unique shaders"}
+rdc shaders
+
+{"# View shader reflection data"}
+rdc shader 142 ps --reflect
+
+{"# View constant buffer values"}
+rdc shader 142 ps --constants</code></pre>
+
+  <h2 id="validation-debug">Validation Error Debugging</h2>
+
+  <pre><code>{"# Check for validation errors"}
+rdc log
+
+{"# Filter by severity"}
+rdc log --level error
+
+{"# Assert no errors in CI"}
+rdc assert-clean --min-severity error
+
+{"# Check pipeline state for issues"}
+rdc pipeline 142
+rdc bindings 142</code></pre>
+
+  <h2 id="texture-analysis">Texture Analysis</h2>
+
+  <pre><code>{"# Texture statistics (min/max values)"}
+rdc tex-stats 142
+
+{"# With histogram"}
+rdc tex-stats 142 --histogram
+
+{"# Export texture as PNG"}
+rdc texture 88 -o albedo.png
+
+{"# Export render target"}
+rdc rt 142 -o render_target.png
+
+{"# Export with debug overlay"}
+rdc rt 142 -o wireframe.png --overlay wireframe</code></pre>
+
+  <h2 id="vfs-exploration">VFS Deep Exploration</h2>
+
+  <pre><code>{"# Top-level structure"}
+rdc tree / --depth 1
+
+{"# Browse draw calls"}
+rdc ls /draws
+rdc ls /draws/142
+
+{"# Explore shader stages"}
+rdc ls /draws/142/shader
+rdc cat /draws/142/shader/ps/disasm
+
+{"# Browse passes"}
+rdc ls -l /passes
+
+{"# Navigate via current event alias"}
+rdc goto 142
+rdc cat /current/shader/ps</code></pre>
 </Docs>
