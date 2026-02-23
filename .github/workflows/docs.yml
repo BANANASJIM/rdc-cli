@@ -35,7 +35,7 @@ jobs:
           enable-cache: true
 
       - name: Install Python dependencies
-        run: uv sync
+        run: uv sync --extra dev
 
       - name: Compute test stats
         id: test_stats
