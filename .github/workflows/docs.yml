@@ -1,0 +1,104 @@
+name: Docs
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Generate stats.json
+        run: |
+          mkdir -p docs-astro/src/data
+          uv run python scripts/gen-stats.py \
+            --version "${{ steps.version.outputs.version }}" \
+            > docs-astro/src/data/stats.json
+          cat docs-astro/src/data/stats.json
+
+      - name: Build mkdocs
+        run: uv run --with mkdocs-material --with mkdocs-click mkdocs build -d _site
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs-astro/package-lock.json
+
+      - name: Build Astro
+        run: |
+          cd docs-astro
+          npm ci
+          npm run build
+
+      - name: Merge mkdocs into Astro output
+        run: |
+          mkdir -p docs-astro/dist/docs
+          cp -r _site/* docs-astro/dist/docs/
+
+      - name: Generate badge endpoint JSONs
+        run: |
+          mkdir -p docs-astro/dist/badges
+          python3 -c "
+          import json, pathlib
+          s = json.loads(pathlib.Path('docs-astro/src/data/stats.json').read_text())
+          badges = [
+              ('commands', str(s.get('command_count', '')), 'brightgreen'),
+              ('tests',    str(s.get('test_count', '')),    'blue'),
+              ('coverage', s.get('coverage', ''),           'green'),
+          ]
+          for name, message, color in badges:
+              pathlib.Path(f'docs-astro/dist/badges/{name}.json').write_text(
+                  json.dumps({'schemaVersion': 1, 'label': name, 'message': message, 'color': color})
+              )
+          print('Badges generated:', [b[0] for b in badges])
+          "
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: docs-astro/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+      - name: Update repo metadata
+        run: |
+          CMD=$(python3 -c "import json; print(json.load(open('docs-astro/src/data/stats.json'))['command_count'])")
+          VER="${{ steps.version.outputs.version }}"
+          gh repo edit \
+            --description "Unix-friendly CLI for RenderDoc — ${CMD} commands, TSV/JSON, daemon sessions (v${VER})" \
+            || true
+          gh repo edit --homepage "https://bananasjim.github.io/rdc-cli/" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
