@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
+import signal
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
+
+import pytest
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request, _load_replay, _set_frame_event
@@ -197,3 +202,134 @@ class TestLoadReplay:
         err = _load_replay(state)
         assert err is not None
         assert "renderdoc" in err
+
+
+# --- P1-SEC-3: temp dir cleanup tests ---
+
+
+class TestTempDirCleanup:
+    """atexit registration and cleanup callback for temp dirs."""
+
+    def test_load_replay_registers_atexit(self) -> None:
+        """_load_replay registers _cleanup_temp via atexit after mkdtemp."""
+        import mock_renderdoc as mock_rd
+
+        sys.modules["renderdoc"] = mock_rd  # type: ignore[assignment]
+        try:
+            state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+            with patch("atexit.register") as mock_atexit:
+                _load_replay(state)
+                mock_atexit.assert_called_once()
+                # The registered function should be _cleanup_temp
+                from rdc.daemon_server import _cleanup_temp
+
+                mock_atexit.assert_called_once_with(_cleanup_temp, state)
+        finally:
+            sys.modules.pop("renderdoc", None)
+
+    def test_cleanup_temp_deletes_dir(self, tmp_path: Path) -> None:
+        """Calling _cleanup_temp removes the temp dir."""
+        from rdc.daemon_server import _cleanup_temp
+
+        temp = tmp_path / "rdc-test"
+        temp.mkdir()
+        (temp / "data.bin").write_bytes(b"gpu data")
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        state.temp_dir = temp
+        _cleanup_temp(state)
+        assert not temp.exists()
+
+    def test_cleanup_temp_no_error_if_already_removed(self, tmp_path: Path) -> None:
+        """_cleanup_temp must not raise if the temp dir is already gone."""
+        from rdc.daemon_server import _cleanup_temp
+
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        state.temp_dir = tmp_path / "nonexistent"
+        _cleanup_temp(state)  # should not raise
+
+
+class TestSigtermHandler:
+    """SIGTERM handler installation in main()."""
+
+    def test_main_installs_sigterm_handler(self) -> None:
+        """main() installs a SIGTERM handler that calls sys.exit(0)."""
+        with (
+            patch("rdc.daemon_server.argparse.ArgumentParser") as mock_parser_cls,
+            patch("rdc.daemon_server.run_server"),
+            patch("signal.signal") as mock_signal,
+        ):
+            mock_args = SimpleNamespace(
+                host="127.0.0.1",
+                port=9999,
+                capture="test.rdc",
+                token="tok",
+                idle_timeout=1800,
+                no_replay=True,
+            )
+            mock_parser_cls.return_value.parse_args.return_value = mock_args
+
+            from rdc.daemon_server import main
+
+            main()
+
+            # Find the SIGTERM call
+            sigterm_calls = [c for c in mock_signal.call_args_list if c[0][0] == signal.SIGTERM]
+            assert len(sigterm_calls) == 1
+            handler = sigterm_calls[0][0][1]
+            # Handler should call sys.exit(0)
+            with pytest.raises(SystemExit) as exc_info:
+                handler(signal.SIGTERM, None)
+            assert exc_info.value.code == 0
+
+
+# --- P1-OBS-1: _process_request exception logging tests ---
+
+
+class TestProcessRequest:
+    """_process_request extracts the try/except from run_server."""
+
+    def _state(self) -> DaemonState:
+        return DaemonState(capture="capture.rdc", current_eid=0, token="tok")
+
+    def test_exception_is_logged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Handler raising RuntimeError logs via logger.exception with method name."""
+        from rdc.daemon_server import _DISPATCH, _process_request
+
+        def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
+            raise RuntimeError("boom")
+
+        monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
+        state = self._state()
+        request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
+        with patch.object(logging.getLogger("rdc.daemon"), "exception") as mock_log:
+            resp, running = _process_request(request, state)
+            mock_log.assert_called_once()
+            assert "test_boom" in mock_log.call_args[0][0] % mock_log.call_args[0][1:]
+
+    def test_exception_returns_internal_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Exception returns JSON-RPC -32603 internal error."""
+        from rdc.daemon_server import _DISPATCH, _process_request
+
+        def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
+            raise RuntimeError("boom")
+
+        monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
+        state = self._state()
+        request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
+        resp, _running = _process_request(request, state)
+        assert resp["error"]["code"] == -32603
+
+    def test_exception_keeps_running_for_non_shutdown(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Non-shutdown exception returns running=True."""
+        from rdc.daemon_server import _DISPATCH, _process_request
+
+        def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
+            raise RuntimeError("boom")
+
+        monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
+        state = self._state()
+        request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
+        _resp, running = _process_request(request, state)
+        assert running is True
