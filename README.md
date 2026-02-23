@@ -14,21 +14,79 @@
 [![Tests](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/tests.json)](https://bananasjim.github.io/rdc-cli/)
 [![Coverage](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/coverage.json)](https://bananasjim.github.io/rdc-cli/)
 
-Pipe-friendly TSV output, JSON mode, 51 commands, daemon-backed session for interactive exploration of [RenderDoc](https://renderdoc.org/) `.rdc` captures.
+**Turn RenderDoc captures into Unix text streams.** rdc-cli does not replace RenderDoc — it makes `.rdc` file contents accessible to `grep`, `awk`, `sort`, `diff`, `jq`, and AI agents.
 
 **[Full documentation →](https://bananasjim.github.io/rdc-cli/)**
 
 ```bash
-rdc open capture.rdc            # start session
-rdc draws                       # list draw calls (TSV)
-rdc pipeline 142                # pipeline state at EID 142
-rdc shader 142 ps               # pixel shader disassembly
-rdc texture 5 -o out.png        # export texture
-rdc debug 142 ps 400 300        # debug pixel shader at (400,300)
-rdc assert-pixel 142 400 300 \
-    --expect 0.5,0.0,0.0,1.0   # CI pixel assertion
-rdc draws --json | jq '...'     # machine-readable output
-rdc close                       # end session
+rdc open scene.rdc
+rdc draws | grep Shadow | sort -t$'\t' -k3 -rn | head -5   # top 5 shadow draws by tri count
+rdc shader 142 ps | grep shadowMap                           # find shadow sampling in PS
+rdc cat /draws/142/shader/ps/constants                       # inspect bound constants
+rdc diff before.rdc after.rdc --draws | grep '~'             # what changed between two frames?
+rdc close
+```
+
+## Why rdc-cli?
+
+RenderDoc is excellent at capturing GPU frames and replaying them interactively. But its GUI doesn't compose — you can't pipe a draw call list into `sort`, diff two captures in CI, or let an AI agent inspect shader state.
+
+rdc-cli bridges that gap:
+
+- **TSV by default** — every command outputs tab-separated text that pipes directly into Unix tools. Raw numbers, not human-friendly formatting (use `--table` for that).
+- **VFS path namespace** — GPU state is navigable like a filesystem: `/draws/142/shader/ps`, `/passes/GBuffer/draws`, `/resources/88`. Explore with `ls`, read with `cat`.
+- **Daemon architecture** — load the capture once, then query as many times as you want. No per-command startup cost.
+- **Built for CI** — `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` with `diff(1)`-compatible exit codes (0=pass, 1=fail, 2=error).
+- **AI-agent friendly** — structured output (`--json`, `--jsonl`), deterministic VFS paths, and a [Claude Code skill](https://bananasjim.github.io/rdc-cli/) for automated GPU frame analysis.
+- **Escape hatch** — `rdc script` runs arbitrary Python inside the daemon with full access to the renderdoc module, for anything the CLI doesn't cover yet.
+
+## Quick examples
+
+**Explore a capture like a filesystem:**
+
+```bash
+rdc ls /                              # top-level: draws, passes, resources, shaders, ...
+rdc ls /draws/142                     # what's inside this draw call?
+rdc cat /draws/142/pipeline/om        # output merger state
+rdc tree /passes --depth 2            # pass structure at a glance
+```
+
+**Shader debugging — no GUI needed:**
+
+```bash
+rdc shader 142 ps                     # pixel shader disassembly
+rdc shader 142 ps --constants         # current constant buffer values
+rdc debug pixel 142 400 300 --trace   # step-by-step PS execution trace
+rdc search "shadowMap"                # grep across all shaders in the frame
+```
+
+**Export and scripting:**
+
+```bash
+rdc texture 5 -o albedo.png           # export a texture
+rdc rt 142 -o render.png              # export render target
+rdc buffer 88 -o verts.bin            # export raw buffer
+rdc snapshot 142 -o ./snap/           # pipeline + shaders + render targets
+rdc draws --json | jq '.[] | select(.tri_count > 10000)'  # filter with jq
+```
+
+**CI assertions:**
+
+```bash
+rdc open frame.rdc
+rdc assert-pixel 142 400 300 --expect "0.5 0.0 0.0 1.0" --tolerance 0.01
+rdc assert-state 142 topology --expect TriangleList
+rdc assert-image golden.png actual.png --threshold 0.001
+rdc assert-clean --min-severity HIGH
+rdc close
+```
+
+**Two-frame diff:**
+
+```bash
+rdc diff before.rdc after.rdc --shortstat        # summary: draws ±N, resources ±N
+rdc diff before.rdc after.rdc --draws             # per-draw changes
+rdc diff before.rdc after.rdc --framebuffer       # pixel-level image diff
 ```
 
 ## Install
@@ -58,23 +116,39 @@ pixi install && pixi run sync
 
 ## Commands
 
-Run `rdc --help` for the full command list, or `rdc <command> --help` for details.
+Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See the [full command reference](https://bananasjim.github.io/rdc-cli/docs/cli-reference/rdc/) for every option.
 
 | Category | Commands |
 |----------|----------|
 | Session | `open`, `close`, `status`, `goto` |
 | Inspection | `info`, `stats`, `events`, `draws`, `event`, `draw`, `log` |
 | GPU state | `pipeline`, `bindings`, `shader`, `shaders`, `shader-map` |
-| Debug | `debug`, `pixel`, `pick-pixel`, `tex-stats` |
-| Shader Edit | `shader-build`, `shader-replace`, `shader-restore`, `shader-restore-all`, `shader-encodings` |
+| Debug | `debug pixel`, `debug vertex`, `debug thread`, `pixel`, `pick-pixel`, `tex-stats` |
+| Shader edit | `shader-build`, `shader-replace`, `shader-restore`, `shader-restore-all`, `shader-encodings` |
 | Resources | `resources`, `resource`, `passes`, `pass`, `usage` |
 | Export | `texture`, `rt`, `buffer`, `mesh`, `snapshot` |
 | Search | `search`, `counters` |
 | Assertions | `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` |
+| Diff | `diff` (with `--draws`, `--stats`, `--framebuffer`, `--pipeline`, etc.) |
 | VFS | `ls`, `cat`, `tree` |
-| Utility | `doctor`, `completion`, `capture`, `count`, `script`, `diff` |
+| Utility | `doctor`, `completion`, `capture`, `count`, `script`, `install-skill` |
 
-All commands support `--json` for machine-readable output.
+All list commands output TSV. All commands support `--json`. Footer/summary goes to stderr — stdout is always clean data.
+
+### Common options
+
+Options available on most list/query commands (not every command supports all):
+
+```
+--json           JSON output (all commands)
+--jsonl          streaming JSON, one object per line (list commands)
+--no-header      drop TSV header for awk/cut (list commands)
+-q / --quiet     IDs only for xargs (list commands)
+--sort <field>   sort by field (events, resources, shaders)
+--limit <N>      truncate rows (events, search)
+--filter <pat>   name glob filter (events)
+-o <path>        output to file (export commands)
+```
 
 ### Shell completions
 
@@ -87,9 +161,9 @@ rdc completion fish > ~/.config/fish/completions/rdc.fish
 ## Development
 
 ```bash
-pixi run sync                 # install deps + activate git hooks
-pixi run check                # lint + typecheck + test (1729 tests, 95.51% coverage)
-pixi run verify               # full packaging verification (19 checks)
+pixi run sync                 # install deps + git hooks + renderdoc symlink
+pixi run check                # lint + typecheck + test
+pixi run verify               # full packaging verification
 ```
 
 GPU integration tests require a real renderdoc module:

@@ -40,8 +40,8 @@ jobs:
       - name: Compute test stats
         id: test_stats
         run: |
-          TEST_COUNT=$(uv run pytest tests/unit --co -q 2>/dev/null \
-            | grep -E '^[0-9]+ item' | grep -o '^[0-9]*' || echo "0")
+          TEST_COUNT=$(uv run pytest tests/unit --co 2>/dev/null \
+            | grep -oP '^\d+(?= tests? collected)' || echo "0")
           COV_PCT=$(uv run pytest tests/unit --cov=rdc --cov-report=term-missing \
             --no-header -rN -q 2>/dev/null \
             | grep 'TOTAL' | awk '{print $NF}' || echo "")
