@@ -128,15 +128,33 @@ Export buffer raw data.
 
 ## `rdc capture`
 
-Thin wrapper around renderdoccmd capture.
+Execute application and capture a frame.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `executable` | text | no |
 
 **Options:**
 
 | Flag | Help | Type | Default |
 |------|------|------|---------|
-| `--api` | Capture API (maps to --opt-api). | text |  |
-| `-o, --output` | Output capture file path. | path |  |
-| `--list-apis` | List capture APIs via renderdoccmd and exit. | flag |  |
+| `-o, --output` | Output .rdc file path. | path |  |
+| `--api` | Capture API name. | text |  |
+| `--list-apis` | List capture APIs and exit. | flag |  |
+| `--frame` | Queue capture at frame N. | integer |  |
+| `--trigger` | Inject only; do not auto-capture. | flag |  |
+| `--timeout` | Capture timeout in seconds. | float | 60.0 |
+| `--wait-for-exit` | Wait for process to exit. | flag |  |
+| `--auto-open` | Open capture after success. | flag |  |
+| `--api-validation` | Enable API validation. | flag |  |
+| `--callstacks` | Capture callstacks. | flag |  |
+| `--hook-children` | Hook child processes. | flag |  |
+| `--ref-all-resources` | Reference all resources. | flag |  |
+| `--soft-memory-limit` | Soft memory limit (MB). | integer |  |
+| `--delay-for-debugger` | Debugger attach delay (s). | integer |  |
+| `--json` | Output as JSON. | flag |  |
 
 ## `rdc cat`
 
@@ -339,6 +357,16 @@ List draw calls.
 | `--jsonl` | JSONL output | flag |  |
 | `-q, --quiet` | Only EID column | flag |  |
 
+## `rdc embed-deps`
+
+Embed pending shader dependencies into capture file.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc event`
 
 Show single API call detail.
@@ -381,6 +409,16 @@ Update current event id via daemon.
 | Name | Type | Required |
 |------|------|----------|
 | `eid` | integer | yes |
+
+## `rdc gpus`
+
+List GPUs available at capture time.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | Output as JSON. | flag |  |
 
 ## `rdc info`
 
@@ -652,6 +690,32 @@ Search shader disassembly text for PATTERN (regex).
 | `-i, --case-sensitive` | Case-sensitive search. | flag |  |
 | `--json` | JSON output. | flag |  |
 
+## `rdc section`
+
+Extract named section contents.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `name` | text | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc sections`
+
+List all embedded sections.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc shader`
 
 Show shader metadata for a stage at EID.
@@ -850,6 +914,17 @@ Export texture as PNG.
 | `-o, --output` | Write to file | path |  |
 | `--mip` | Mip level (default 0) | integer | 0 |
 | `--raw` | Force raw output even on TTY | flag |  |
+
+## `rdc thumbnail`
+
+Export capture thumbnail.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--maxsize` | Max thumbnail dimension. | integer | 0 |
+| `--json` | Output as JSON. | flag |  |
 
 ## `rdc tree`
 

@@ -1658,8 +1658,8 @@ class MockTargetControl:
     def QueueCapture(self, frameNumber: int, numFrames: int = 1) -> None:
         pass
 
-    def CopyCapture(self, captureId: int, localpath: str) -> None:
-        pass
+    def CopyCapture(self, captureId: int, localpath: str) -> str:
+        return self._copy_result or localpath
 
     def DeleteCapture(self, captureId: int) -> None:
         pass
