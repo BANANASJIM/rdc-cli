@@ -28,8 +28,14 @@ import Docs from '../../layouts/Docs.astro';
   <pre><code>rdc goto &lt;EID&gt;</code></pre>
 
   <h3 id="capture">capture</h3>
-  <p>Thin wrapper around <code>renderdoccmd capture</code>.</p>
-  <pre><code>rdc capture &lt;executable&gt; [args...]</code></pre>
+  <p>Execute an application and capture a GPU frame. Uses the RenderDoc Python API
+    (<code>ExecuteAndInject</code>) when available, falling back to <code>renderdoccmd</code>.</p>
+  <pre><code>rdc capture &lt;executable&gt; [args...] [-o OUTPUT]
+  [--frame N] [--trigger] [--timeout N] [--wait-for-exit]
+  [--auto-open] [--api-validation] [--callstacks]
+  [--hook-children] [--ref-all-resources]
+  [--soft-memory-limit N] [--delay-for-debugger N]
+  [--json]</code></pre>
 
   <h3 id="doctor">doctor</h3>
   <p>Run environment checks for rdc-cli.</p>
@@ -230,6 +236,46 @@ Modes:
   --stats          Compare per-pass statistics
   --framebuffer    Pixel-level framebuffer diff
   --pipeline       Compare pipeline states at matching EIDs</code></pre>
+
+  <!-- Target Control -->
+  <h2 id="target-control">Target Control</h2>
+  <p>Live interaction with a running RenderDoc-injected target process.</p>
+
+  <h3 id="attach">attach</h3>
+  <p>Attach to a running RenderDoc target by ident.</p>
+  <pre><code>rdc attach &lt;IDENT&gt;</code></pre>
+
+  <h3 id="capture-trigger">capture-trigger</h3>
+  <p>Trigger a capture on the attached target.</p>
+  <pre><code>rdc capture-trigger [--frames N]</code></pre>
+
+  <h3 id="capture-list">capture-list</h3>
+  <p>List captures from the attached target.</p>
+  <pre><code>rdc capture-list [--timeout N] [--json]</code></pre>
+
+  <h3 id="capture-copy">capture-copy</h3>
+  <p>Copy a capture from the target to a local path.</p>
+  <pre><code>rdc capture-copy &lt;CAPTURE_ID&gt; &lt;DEST&gt;</code></pre>
+
+  <!-- Capture Metadata -->
+  <h2 id="capture-metadata">Capture Metadata</h2>
+  <p>Inspect capture file metadata without full replay.</p>
+
+  <h3 id="thumbnail">thumbnail</h3>
+  <p>Export capture thumbnail image.</p>
+  <pre><code>rdc thumbnail [-o OUTPUT] [--maxsize N]</code></pre>
+
+  <h3 id="gpus">gpus</h3>
+  <p>List GPUs available at capture time.</p>
+  <pre><code>rdc gpus [--json]</code></pre>
+
+  <h3 id="sections">sections</h3>
+  <p>List all embedded sections with properties.</p>
+  <pre><code>rdc sections [--json]</code></pre>
+
+  <h3 id="section">section</h3>
+  <p>Extract named section contents to file or stdout.</p>
+  <pre><code>rdc section &lt;NAME&gt; [-o OUTPUT]</code></pre>
 
   <!-- VFS Navigation -->
   <h2 id="vfs">VFS Navigation</h2>
