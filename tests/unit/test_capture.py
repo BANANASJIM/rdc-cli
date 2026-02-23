@@ -25,6 +25,7 @@ def _make_capture_result(
     api: str = "Vulkan",
     local: bool = True,
     ident: int = 0,
+    pid: int = 0,
     error: str = "",
 ) -> Any:
     from rdc.capture_core import CaptureResult
@@ -37,6 +38,7 @@ def _make_capture_result(
         api=api,
         local=local,
         ident=ident,
+        pid=pid,
         error=error,
     )
 
@@ -210,9 +212,9 @@ def _setup_capture_with_terminate(monkeypatch: Any, **result_kw: Any) -> list[in
 
 
 def test_default_terminates_process(monkeypatch: Any) -> None:
-    """By default, successful capture terminates the target process (using ident as PID)."""
+    """By default, successful capture terminates the target process using its PID."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=True, path="/tmp/t.rdc", ident=1234
+        monkeypatch, success=True, path="/tmp/t.rdc", pid=1234
     )
     result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
     assert result.exit_code == 0
@@ -222,7 +224,7 @@ def test_default_terminates_process(monkeypatch: Any) -> None:
 def test_keep_alive_skips_termination(monkeypatch: Any) -> None:
     """--keep-alive prevents process termination."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=True, path="/tmp/t.rdc", ident=1234
+        monkeypatch, success=True, path="/tmp/t.rdc", pid=1234
     )
     result = CliRunner().invoke(capture_cmd, ["--keep-alive", "--", "/usr/bin/app"])
     assert result.exit_code == 0
@@ -231,16 +233,16 @@ def test_keep_alive_skips_termination(monkeypatch: Any) -> None:
 
 def test_trigger_skips_termination(monkeypatch: Any) -> None:
     """--trigger mode does not terminate the process."""
-    terminated = _setup_capture_with_terminate(monkeypatch, success=True, path="", ident=1234)
+    terminated = _setup_capture_with_terminate(monkeypatch, success=True, path="", pid=1234)
     result = CliRunner().invoke(capture_cmd, ["--trigger", "--", "/usr/bin/app"])
     assert result.exit_code == 0
     assert terminated == []
 
 
 def test_failed_capture_skips_termination(monkeypatch: Any) -> None:
-    """Failed capture does not attempt termination even with valid ident."""
+    """Failed capture does not attempt termination even with valid pid."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=False, error="inject failed", ident=1234
+        monkeypatch, success=False, error="inject failed", pid=1234
     )
     result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
     assert result.exit_code != 0
