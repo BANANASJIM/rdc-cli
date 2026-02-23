@@ -35,7 +35,7 @@ const base = import.meta.env.BASE_URL;
       Designed for <span class="text-gpu-accent font-medium">CI pipelines</span> and <span class="text-gpu-purple font-medium">AI agents</span>.
     </p>
 
-    <!-- Typed.js terminal -->
+    <!-- Terminal session replay -->
     <div class="max-w-2xl mx-auto mb-14">
       <div class="terminal-window glow-accent">
         <div class="terminal-header">
@@ -44,11 +44,8 @@ const base = import.meta.env.BASE_URL;
           <span class="terminal-dot bg-[#28c840]"></span>
           <span class="ml-auto text-[10px] text-gray-500 font-mono tracking-wider uppercase">rdc-cli</span>
         </div>
-        <div class="terminal-body text-left min-h-[3rem]">
-          <div class="flex items-start">
-            <span class="text-gpu-green mr-2 select-none font-bold">$</span>
-            <span id="typed-output" class="text-gray-200"></span>
-          </div>
+        <div id="replay-terminal" class="terminal-body text-left overflow-y-auto text-xs md:text-sm transition-[height] duration-300 ease-out" style="min-height: 2.5rem; max-height: 24rem;">
+          <div id="replay-lines"></div>
         </div>
       </div>
     </div>
@@ -83,27 +80,118 @@ const base = import.meta.env.BASE_URL;
 </section>
 
 <script>
-  import Typed from 'typed.js';
+  import playlists from '../data/replay.json';
 
-  new Typed('#typed-output', {
-    strings: [
-      'rdc open capture.rdc',
-      'rdc draws --json | jq \'.[] | select(.flags == "Drawcall")\'',
-      'rdc pipeline 142 --section shader',
-      'rdc shader 142 ps --target "SPIR-V (RenderDoc)"',
-      'rdc resources --type texture --sort size',
-      'rdc texture 5 -o albedo.png',
-      'rdc search "main" --scope shaders',
-      'rdc ls /draws/142/pipeline/',
-      'rdc counters --list | head',
-      'rdc close',
-    ],
-    typeSpeed: 35,
-    backSpeed: 15,
-    backDelay: 2500,
-    startDelay: 500,
-    loop: true,
-    showCursor: true,
-    cursorChar: '\u2588',
-  });
+  const container = document.getElementById('replay-lines')!;
+  const terminal = document.getElementById('replay-terminal')!;
+
+  const TYPE_SPEED = 20;
+  const OUTPUT_LINE_DELAY = 30;
+  const SCENE_PAUSE = 1400;
+  const RESTART_PAUSE = 2000;
+
+  let playlistIndex = 0;
+
+  function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+  function scrollToBottom() {
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function createPromptLine(): { el: HTMLDivElement; span: HTMLSpanElement } {
+    const el = document.createElement('div');
+    el.className = 'flex items-start';
+    el.innerHTML = '<span class="text-gpu-green mr-2 select-none font-bold shrink-0">$</span>';
+    const span = document.createElement('span');
+    span.className = 'text-gray-200';
+    el.appendChild(span);
+    const cursor = document.createElement('span');
+    cursor.className = 'replay-cursor';
+    cursor.textContent = '\u2588';
+    el.appendChild(cursor);
+    container.appendChild(el);
+    return { el, span };
+  }
+
+  async function typeCommand(text: string) {
+    const { el, span } = createPromptLine();
+    scrollToBottom();
+    for (const ch of text) {
+      span.textContent += ch;
+      scrollToBottom();
+      await sleep(TYPE_SPEED);
+    }
+    el.querySelector('.replay-cursor')?.remove();
+  }
+
+  function renderOutputLine(line: string): HTMLDivElement {
+    const div = document.createElement('div');
+    div.className = 'text-gray-400 pl-0 whitespace-pre';
+
+    // TSV header (all-caps tab-separated)
+    if (/^\t*[A-Z_]+(\t[A-Z_]+)+$/.test(line)) {
+      div.className = 'text-gray-500 pl-0 whitespace-pre';
+      div.textContent = line.replace(/\t/g, '  ');
+      return div;
+    }
+
+    // Key-value lines (like rdc info)
+    const kvMatch = line.match(/^(\w[\w\s]*?)\s{2,}(.+)$/);
+    if (kvMatch) {
+      const k = document.createElement('span');
+      k.className = 'text-gray-500';
+      k.textContent = kvMatch[1];
+      div.appendChild(k);
+      div.appendChild(document.createTextNode('  '));
+      const v = document.createElement('span');
+      v.className = 'text-gray-300';
+      v.textContent = kvMatch[2];
+      div.appendChild(v);
+      return div;
+    }
+
+    // TSV data rows
+    if (line.includes('\t')) {
+      div.textContent = line.replace(/\t/g, '  ');
+      div.className = 'text-gray-300 pl-0 whitespace-pre';
+      return div;
+    }
+
+    // JSON
+    if (/^\s*[{}\[\]"]/.test(line)) {
+      div.className = 'text-gray-400 pl-0 whitespace-pre';
+      div.textContent = line;
+      return div;
+    }
+
+    div.textContent = line;
+    return div;
+  }
+
+  async function showOutput(output: string) {
+    if (!output) return;
+    for (const line of output.split('\n')) {
+      container.appendChild(renderOutputLine(line));
+      scrollToBottom();
+      await sleep(OUTPUT_LINE_DELAY);
+    }
+  }
+
+  async function runReplay() {
+    while (true) {
+      const playlist = playlists[playlistIndex % playlists.length];
+      playlistIndex++;
+      container.innerHTML = '';
+
+      for (const scene of playlist) {
+        await typeCommand(scene.cmd);
+        await sleep(200);
+        await showOutput(scene.output);
+        await sleep(SCENE_PAUSE);
+      }
+      await sleep(RESTART_PAUSE);
+    }
+  }
+
+  runReplay();
 </script>

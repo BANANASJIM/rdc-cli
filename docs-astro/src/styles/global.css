@@ -101,6 +101,14 @@ html.light {
     color: #d1d5db;
   }
 
+  .replay-cursor {
+    @apply text-gpu-accent;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
   /* Glow effects */
   .glow-accent {
     box-shadow: 0 0 25px rgb(var(--accent) / 0.1), 0 0 50px rgb(var(--accent) / 0.04);

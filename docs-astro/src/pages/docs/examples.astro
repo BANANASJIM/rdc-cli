@@ -27,6 +27,38 @@ rdc stats                       # per-pass breakdown
 rdc draws --limit 10            # top draw calls
 rdc close</code></pre>
 
+  <h2 id="quick-metrics">Quick Metrics with count</h2>
+
+  <pre><code>{"# How many events / draws / shaders / resources / passes?"}
+rdc count events
+rdc count draws
+rdc count shaders
+rdc count resources
+rdc count passes</code></pre>
+
+  <h2 id="output-formats">Output Format Cheatsheet</h2>
+
+  <pre><code>{"# Default TSV — pipe into sort, awk, cut"}
+rdc draws
+
+{"# JSON — for jq processing"}
+rdc draws --json
+
+{"# Streaming JSONL — one object per line, good for large lists"}
+rdc events --jsonl
+
+{"# No header — cleaner for awk/cut scripts"}
+rdc draws --no-header
+
+{"# Quiet — IDs only, great for xargs loops"}
+rdc draws -q
+{"# → 11\n14\n19"}
+
+{"# Combine: export all draw render targets"}
+for eid in $(rdc draws -q); do
+  rdc rt "$eid" -o "rt_${"${eid}"}.png"
+done</code></pre>
+
   <h2 id="heaviest-draw">Find the Heaviest Draw Call</h2>
 
   <pre><code>{"# TSV approach"}
@@ -66,6 +98,19 @@ rdc assert-image expected.png actual.png --threshold 1.0
 
 rdc close</code></pre>
 
+  <h2 id="compute-shader">Compute Shader Analysis</h2>
+
+  <pre><code>{"# Compute dispatches have a different pipeline type"}
+rdc pipeline 8                    {"# → COMP_PIPE=345"}
+rdc shader 8 cs                   {"# compute shader disassembly"}
+rdc shader 8 cs --constants       {"# bound uniform values"}
+
+{"# Check bindings (storage buffers, images)"}
+rdc bindings 8                    {"# → cs rw Pos_var"}
+
+{"# GPU counters for compute work"}
+rdc counters --eid 8              {"# → CS invocations: 24576"}</code></pre>
+
   <h2 id="comparing-captures">Comparing Two Captures</h2>
 
   <pre><code>{"# Overall summary"}
@@ -79,6 +124,25 @@ rdc diff before.rdc after.rdc --framebuffer
 
 {"# Per-pass statistics diff"}
 rdc diff before.rdc after.rdc --stats</code></pre>
+
+  <h2 id="advanced-assertions">Advanced Assertions</h2>
+
+  <pre><code>{"# Assert pipeline state with dot-path navigation"}
+rdc assert-state 11 topology --expect TriangleList
+rdc assert-state 11 "vs.shader" --expect "133"
+rdc assert-state 11 "vs.entry" --expect "main"
+
+{"# Assert counts with comparison operators"}
+rdc assert-count draws --expect 1 --op eq        {"# exactly 1 draw"}
+rdc assert-count draws --expect 100 --op ge       {"# at least 100 draws"}
+rdc assert-count events --expect 6                {"# default: eq"}
+
+{"# Assert no high-severity validation messages"}
+rdc assert-clean --min-severity HIGH
+
+{"# Visual regression with threshold"}
+rdc assert-image golden.png actual.png --threshold 0.001
+rdc assert-image golden.png actual.png --json     {"# → diff_ratio in JSON"}</code></pre>
 
   <h2 id="shader-hot-reload">Shader Hot-Reload</h2>
 
@@ -339,6 +403,21 @@ rdc rt 142 -o render_target.png
 
 {"# Export with debug overlay"}
 rdc rt 142 -o wireframe.png --overlay wireframe</code></pre>
+
+  <h2 id="tessellation-mdi">Working with Advanced Vulkan Features</h2>
+
+  <pre><code>{"# Tessellation: view high-poly output"}
+rdc mesh 33                       {"# → 688 vertices, 358 faces"}
+rdc counters --eid 33             {"# → VS invocations: 692"}
+
+{"# Multi-draw indirect: all sub-commands expand"}
+rdc draws                         {"# → 225+ DrawIndexedIndirect sub-commands"}
+rdc pipeline 28                   {"# → gfx_pipe=2818, TriangleList"}
+
+{"# Dynamic rendering (Vulkan 1.3)"}
+rdc passes                        {"# → vkCmdBeginRendering passes"}
+rdc pipeline 15                   {"# → gfx_pipe=330, TriangleList"}
+rdc pick-pixel 640 360 15         {"# → pixel color at dynamic pass draw"}</code></pre>
 
   <h2 id="vfs-exploration">VFS Deep Exploration</h2>
 

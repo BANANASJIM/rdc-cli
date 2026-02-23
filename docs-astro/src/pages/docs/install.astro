@@ -7,15 +7,19 @@ import Docs from '../../layouts/Docs.astro';
   <pre><code>pipx install rdc-cli</code></pre>
   <p>
     This installs the <code>rdc</code> command. You still need the renderdoc
-    Python module — see below.
+    Python module — the easiest way is the one-liner build script below.
   </p>
 
   <h2>AUR (Arch Linux)</h2>
-  <pre><code>yay -S rdc-cli-git</code></pre>
   <p>
-    The AUR package builds the renderdoc Python module automatically, so no
+    The AUR packages build the renderdoc Python module automatically, so no
     extra setup is needed.
   </p>
+  <pre><code># Stable: tracks tagged releases (e.g. v0.3.2)
+yay -S rdc-cli
+
+# Git: tracks latest master
+yay -S rdc-cli-git</code></pre>
 
   <h2>From Source</h2>
   <pre><code>git clone https://github.com/BANANASJIM/rdc-cli.git
@@ -30,7 +34,14 @@ pixi install && pixi run sync</code></pre>
     used to compile renderdoc.
   </p>
 
-  <h3>Building from Source</h3>
+  <h3>Build Script (Recommended)</h3>
+  <p>
+    One-liner that clones, builds, and installs the renderdoc Python module
+    (~3 min, needs <code>cmake</code>, <code>ninja</code>, <code>python3-dev</code>):
+  </p>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash</code></pre>
+
+  <h3>Building Manually</h3>
   <pre><code>git clone --depth 1 https://github.com/baldurk/renderdoc.git
 cd renderdoc
 cmake -B build -DENABLE_PYRENDERDOC=ON -DENABLE_QRENDERDOC=OFF
@@ -41,6 +52,7 @@ export RENDERDOC_PYTHON_PATH=$PWD/build/lib</code></pre>
   <p>rdc-cli searches for the renderdoc module in this order:</p>
   <ol>
     <li><code>RENDERDOC_PYTHON_PATH</code> environment variable</li>
+    <li><code>~/.local/renderdoc</code> (where the build script installs)</li>
     <li><code>/usr/lib/renderdoc</code>, <code>/usr/local/lib/renderdoc</code></li>
     <li>Sibling directory of <code>renderdoccmd</code> on PATH</li>
   </ol>

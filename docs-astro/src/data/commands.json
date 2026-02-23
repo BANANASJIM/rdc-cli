@@ -1,0 +1,467 @@
+{
+  "categories": [
+    {
+      "name": "Session",
+      "id": "session",
+      "description": null,
+      "commands": [
+        {
+          "name": "open",
+          "id": "open",
+          "help": "Create local default session and start daemon skeleton.",
+          "usage": "rdc open <CAPTURE> [--preload]"
+        },
+        {
+          "name": "close",
+          "id": "close",
+          "help": "Close daemon-backed session.",
+          "usage": "rdc close"
+        },
+        {
+          "name": "status",
+          "id": "status",
+          "help": "Show current daemon-backed session status.",
+          "usage": "rdc status"
+        },
+        {
+          "name": "goto",
+          "id": "goto",
+          "help": "Update current event id via daemon.",
+          "usage": "rdc goto <EID>"
+        },
+        {
+          "name": "capture",
+          "id": "capture",
+          "help": "Execute application and capture a frame.",
+          "usage": "rdc capture <EXECUTABLE> [ARGS...] [-o OUTPUT]\n  [--frame N] [--trigger] [--timeout N] [--wait-for-exit]\n  [--keep-alive] [--auto-open] [--api-validation] [--callstacks]\n  [--hook-children] [--ref-all-resources]\n  [--soft-memory-limit N] [--delay-for-debugger N]\n  [--api TEXT] [--list-apis] [--json]"
+        },
+        {
+          "name": "doctor",
+          "id": "doctor",
+          "help": "Run environment checks for rdc-cli.",
+          "usage": "rdc doctor"
+        }
+      ]
+    },
+    {
+      "name": "Inspection",
+      "id": "inspection",
+      "description": null,
+      "commands": [
+        {
+          "name": "info",
+          "id": "info",
+          "help": "Show capture metadata.",
+          "usage": "rdc info [--json]"
+        },
+        {
+          "name": "stats",
+          "id": "stats",
+          "help": "Show per-pass breakdown, top draws, largest resources.",
+          "usage": "rdc stats [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "events",
+          "id": "events",
+          "help": "List all events.",
+          "usage": "rdc events [--type TEXT] [--filter TEXT] [--limit INTEGER] [--range TEXT] [--no-header] [--json] [--jsonl] [-q]"
+        },
+        {
+          "name": "draws",
+          "id": "draws",
+          "help": "List draw calls.",
+          "usage": "rdc draws [--pass TEXT] [--sort TEXT] [--limit INTEGER] [--no-header] [--json] [--jsonl] [-q]"
+        },
+        {
+          "name": "event",
+          "id": "event",
+          "help": "Show single API call detail.",
+          "usage": "rdc event <EID> [--json]"
+        },
+        {
+          "name": "draw",
+          "id": "draw",
+          "help": "Show draw call detail.",
+          "usage": "rdc draw [EID] [--json]"
+        },
+        {
+          "name": "log",
+          "id": "log",
+          "help": "Show debug/validation messages from the capture.",
+          "usage": "rdc log [--level CHOICE] [--eid INTEGER] [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "counters",
+          "id": "counters",
+          "help": "Query GPU performance counters.",
+          "usage": "rdc counters [--list] [--eid INTEGER] [--name TEXT] [--json] [--no-header] [--jsonl] [-q]"
+        }
+      ]
+    },
+    {
+      "name": "Draw Analysis",
+      "id": "draw-analysis",
+      "description": null,
+      "commands": [
+        {
+          "name": "pipeline",
+          "id": "pipeline",
+          "help": "Show pipeline summary for current or specified EID.",
+          "usage": "rdc pipeline [EID] [SECTION] [--json]"
+        },
+        {
+          "name": "bindings",
+          "id": "bindings",
+          "help": "Show bound resources per shader stage.",
+          "usage": "rdc bindings [EID] [--binding INTEGER] [--set INTEGER] [--json] [--no-header] [--jsonl] [-q]"
+        }
+      ]
+    },
+    {
+      "name": "Resources",
+      "id": "resources-section",
+      "description": null,
+      "commands": [
+        {
+          "name": "resources",
+          "id": "resources",
+          "help": "List all resources.",
+          "usage": "rdc resources [--json] [--type TEXT] [--name TEXT] [--sort CHOICE] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "resource",
+          "id": "resource",
+          "help": "Show details of a specific resource.",
+          "usage": "rdc resource <RESID> [--json]"
+        },
+        {
+          "name": "usage",
+          "id": "usage",
+          "help": "Show resource usage (which events read/write a resource).",
+          "usage": "rdc usage [RESOURCE-ID] [--all] [--type TEXT] [--usage TEXT] [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "shader",
+          "id": "shader",
+          "help": "Show shader metadata for a stage at EID.",
+          "usage": "rdc shader [EID] [STAGE] [--reflect] [--constants] [--source] [--target TEXT] [--targets] [-o PATH] [--all] [--json]"
+        },
+        {
+          "name": "shaders",
+          "id": "shaders",
+          "help": "List unique shaders in capture.",
+          "usage": "rdc shaders [--stage CHOICE] [--sort CHOICE] [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "shader-map",
+          "id": "shader-map",
+          "help": "Output EID-to-shader mapping as TSV.",
+          "usage": "rdc shader-map [--no-header] [--json] [--jsonl] [-q]"
+        },
+        {
+          "name": "search",
+          "id": "search",
+          "help": "Search shader disassembly text for PATTERN (regex).",
+          "usage": "rdc search <PATTERN> [--stage TEXT] [--limit INTEGER] [-C INTEGER] [-i] [--json]"
+        },
+        {
+          "name": "passes",
+          "id": "passes",
+          "help": "List render passes.",
+          "usage": "rdc passes [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "pass",
+          "id": "pass",
+          "help": "Show detail for a single render pass by index or name.",
+          "usage": "rdc pass <IDENTIFIER> [--json]"
+        }
+      ]
+    },
+    {
+      "name": "Export",
+      "id": "export",
+      "description": null,
+      "commands": [
+        {
+          "name": "texture",
+          "id": "texture",
+          "help": "Export texture as PNG.",
+          "usage": "rdc texture <ID> [-o PATH] [--mip INTEGER] [--raw]"
+        },
+        {
+          "name": "buffer",
+          "id": "buffer",
+          "help": "Export buffer raw data.",
+          "usage": "rdc buffer <ID> [-o PATH] [--raw]"
+        },
+        {
+          "name": "rt",
+          "id": "rt",
+          "help": "Export render target as PNG.",
+          "usage": "rdc rt [EID] [-o PATH] [--target INTEGER] [--raw] [--overlay CHOICE] [--width INTEGER] [--height INTEGER]"
+        },
+        {
+          "name": "mesh",
+          "id": "mesh",
+          "help": "Export post-transform mesh as OBJ.",
+          "usage": "rdc mesh [EID] [--stage CHOICE] [-o PATH] [--json] [--no-header]"
+        },
+        {
+          "name": "snapshot",
+          "id": "snapshot",
+          "help": "Export a complete rendering state snapshot for a draw event.",
+          "usage": "rdc snapshot <EID> -o <PATH> [--json]"
+        }
+      ]
+    },
+    {
+      "name": "Pixel & Debug",
+      "id": "pixel-debug",
+      "description": null,
+      "commands": [
+        {
+          "name": "pixel",
+          "id": "pixel",
+          "help": "Query pixel history at (X, Y) for the current or specified event.",
+          "usage": "rdc pixel <X> <Y> [EID] [--target INTEGER] [--sample INTEGER] [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "pick-pixel",
+          "id": "pick-pixel",
+          "help": "Read pixel color at (X, Y) from the current render target.",
+          "usage": "rdc pick-pixel <X> <Y> [EID] [--target INTEGER] [--json]"
+        },
+        {
+          "name": "tex-stats",
+          "id": "tex-stats",
+          "help": "Show texture min/max statistics and optional histogram.",
+          "usage": "rdc tex-stats <RESOURCE-ID> [EID] [--mip INTEGER] [--slice INTEGER] [--histogram] [--json]"
+        },
+        {
+          "name": "debug pixel",
+          "id": "debug-pixel",
+          "help": "Debug pixel shader at (X, Y) for event EID.",
+          "usage": "rdc debug pixel <EID> <X> <Y> [--trace] [--dump-at INTEGER] [--sample INTEGER] [--primitive INTEGER] [--json] [--no-header]"
+        },
+        {
+          "name": "debug vertex",
+          "id": "debug-vertex",
+          "help": "Debug vertex shader for vertex VTX_ID at event EID.",
+          "usage": "rdc debug vertex <EID> <VTX-ID> [--trace] [--dump-at INTEGER] [--instance INTEGER] [--json] [--no-header]"
+        },
+        {
+          "name": "debug thread",
+          "id": "debug-thread",
+          "help": "Debug compute shader thread at workgroup (GX,GY,GZ) thread (TX,TY,TZ).",
+          "usage": "rdc debug thread <EID> <GX> <GY> <GZ> <TX> <TY> <TZ> [--trace] [--dump-at INTEGER] [--json] [--no-header]"
+        }
+      ]
+    },
+    {
+      "name": "Shader Edit-Replay",
+      "id": "shader-edit-replay",
+      "description": null,
+      "commands": [
+        {
+          "name": "shader-encodings",
+          "id": "shader-encodings",
+          "help": "List available shader encodings for this capture.",
+          "usage": "rdc shader-encodings [--json]"
+        },
+        {
+          "name": "shader-build",
+          "id": "shader-build",
+          "help": "Build a shader from source file.",
+          "usage": "rdc shader-build <SOURCE-FILE> --stage <CHOICE> [--entry TEXT] [--encoding TEXT] [--json] [-q]"
+        },
+        {
+          "name": "shader-replace",
+          "id": "shader-replace",
+          "help": "Replace shader at EID/STAGE with a built shader.",
+          "usage": "rdc shader-replace <EID> <STAGE> --with <INTEGER> [--json]"
+        },
+        {
+          "name": "shader-restore",
+          "id": "shader-restore",
+          "help": "Restore original shader at EID/STAGE.",
+          "usage": "rdc shader-restore <EID> <STAGE> [--json]"
+        },
+        {
+          "name": "shader-restore-all",
+          "id": "shader-restore-all",
+          "help": "Restore all replaced shaders and free built resources.",
+          "usage": "rdc shader-restore-all [--json]"
+        }
+      ]
+    },
+    {
+      "name": "CI Assertions",
+      "id": "ci-assertions",
+      "description": null,
+      "commands": [
+        {
+          "name": "assert-pixel",
+          "id": "assert-pixel",
+          "help": "Assert pixel RGBA at (x, y) matches expected value within tolerance.",
+          "usage": "rdc assert-pixel <EID> <X> <Y> --expect <TEXT> [--tolerance FLOAT] [--target INTEGER] [--json]"
+        },
+        {
+          "name": "assert-image",
+          "id": "assert-image",
+          "help": "Compare two images pixel-by-pixel.",
+          "usage": "rdc assert-image <EXPECTED> <ACTUAL> [--threshold FLOAT] [--diff-output FILE] [--json]"
+        },
+        {
+          "name": "assert-clean",
+          "id": "assert-clean",
+          "help": "Assert capture log has no messages at or above given severity.",
+          "usage": "rdc assert-clean [--min-severity CHOICE] [--json]"
+        },
+        {
+          "name": "assert-count",
+          "id": "assert-count",
+          "help": "Assert a capture metric satisfies a numeric comparison.",
+          "usage": "rdc assert-count <WHAT> --expect <INTEGER> [--op CHOICE] [--pass TEXT] [--json]"
+        },
+        {
+          "name": "assert-state",
+          "id": "assert-state",
+          "help": "Assert pipeline state value at EID matches expected.",
+          "usage": "rdc assert-state <EID> <KEY-PATH> --expect <TEXT> [--json]"
+        }
+      ]
+    },
+    {
+      "name": "Capture Diff",
+      "id": "capture-diff",
+      "description": null,
+      "commands": [
+        {
+          "name": "diff",
+          "id": "diff",
+          "help": "Compare two RenderDoc captures side-by-side.",
+          "usage": "rdc diff <CAPTURE-A> <CAPTURE-B> [--draws] [--resources] [--passes] [--stats] [--framebuffer] [--pipeline MARKER] [--json] [--format CHOICE] [--shortstat] [--no-header] [--verbose] [--timeout FLOAT] [--target INTEGER] [--threshold FLOAT] [--eid INTEGER] [--diff-output PATH]"
+        }
+      ]
+    },
+    {
+      "name": "Target Control",
+      "id": "target-control",
+      "description": "Live interaction with a running RenderDoc-injected target process.",
+      "commands": [
+        {
+          "name": "attach",
+          "id": "attach",
+          "help": "Attach to a running RenderDoc target by ident.",
+          "usage": "rdc attach <IDENT> [--host TEXT]"
+        },
+        {
+          "name": "capture-trigger",
+          "id": "capture-trigger",
+          "help": "Trigger a capture on the attached target.",
+          "usage": "rdc capture-trigger [--ident INTEGER] [--host TEXT] [--num-frames INTEGER]"
+        },
+        {
+          "name": "capture-list",
+          "id": "capture-list",
+          "help": "List captures from the attached target.",
+          "usage": "rdc capture-list [--ident INTEGER] [--host TEXT] [--timeout FLOAT] [--json]"
+        },
+        {
+          "name": "capture-copy",
+          "id": "capture-copy",
+          "help": "Copy a capture from the target to a local path.",
+          "usage": "rdc capture-copy <CAPTURE-ID> <DEST> [--ident INTEGER] [--host TEXT] [--timeout FLOAT]"
+        }
+      ]
+    },
+    {
+      "name": "Capture Metadata",
+      "id": "capture-metadata",
+      "description": "Inspect capture file metadata without full replay.",
+      "commands": [
+        {
+          "name": "thumbnail",
+          "id": "thumbnail",
+          "help": "Export capture thumbnail.",
+          "usage": "rdc thumbnail [--maxsize INTEGER] [-o PATH] [--json]"
+        },
+        {
+          "name": "gpus",
+          "id": "gpus",
+          "help": "List GPUs available at capture time.",
+          "usage": "rdc gpus [--json]"
+        },
+        {
+          "name": "sections",
+          "id": "sections",
+          "help": "List all embedded sections.",
+          "usage": "rdc sections [--json]"
+        },
+        {
+          "name": "section",
+          "id": "section",
+          "help": "Extract named section contents.",
+          "usage": "rdc section <NAME> [--json]"
+        }
+      ]
+    },
+    {
+      "name": "VFS Navigation",
+      "id": "vfs",
+      "description": null,
+      "commands": [
+        {
+          "name": "ls",
+          "id": "ls",
+          "help": "List VFS directory contents.",
+          "usage": "rdc ls [PATH] [-F] [-l] [--json] [--no-header] [--jsonl] [-q]"
+        },
+        {
+          "name": "cat",
+          "id": "cat",
+          "help": "Output VFS leaf node content.",
+          "usage": "rdc cat <PATH> [--json] [--raw] [-o PATH]"
+        },
+        {
+          "name": "tree",
+          "id": "tree",
+          "help": "Display VFS subtree structure.",
+          "usage": "rdc tree [PATH] [--depth INTEGER RANGE] [--json]"
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "id": "utilities",
+      "description": null,
+      "commands": [
+        {
+          "name": "count",
+          "id": "count",
+          "help": "Output a single integer count to stdout.",
+          "usage": "rdc count <WHAT> [--pass TEXT]"
+        },
+        {
+          "name": "completion",
+          "id": "completion",
+          "help": "Generate shell completion script.",
+          "usage": "rdc completion [SHELL]"
+        },
+        {
+          "name": "script",
+          "id": "script",
+          "help": "Execute a Python script inside the daemon process.",
+          "usage": "rdc script <SCRIPT-FILE> [--arg KEY=VALUE] [--json]"
+        },
+        {
+          "name": "install-skill",
+          "id": "install-skill",
+          "help": "Install rdc-cli skill files to ~/.claude/skills/rdc-cli/.",
+          "usage": "rdc install-skill [--check] [--remove]"
+        }
+      ]
+    }
+  ]
+}
