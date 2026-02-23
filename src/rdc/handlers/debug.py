@@ -1,4 +1,4 @@
-"""Shader debug handlers: debug_pixel, debug_vertex."""
+"""Shader debug handlers: debug_pixel, debug_vertex, debug_thread."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from rdc.handlers._helpers import (
     _STAGE_NAMES,
     _error_response,
+    _get_flat_actions,
     _result_response,
     _set_frame_event,
 )
@@ -194,7 +195,56 @@ def _handle_debug_vertex(
     ), True
 
 
+def _handle_debug_thread(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    """Handle debug_thread JSON-RPC request."""
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
+    for key in ("eid", "gx", "gy", "gz", "tx", "ty", "tz"):
+        if key not in params:
+            return _error_response(request_id, -32602, f"missing required param: {key}"), True
+
+    eid = int(params["eid"])
+    gx, gy, gz = int(params["gx"]), int(params["gy"]), int(params["gz"])
+    tx, ty, tz = int(params["tx"]), int(params["ty"]), int(params["tz"])
+
+    err = _set_frame_event(state, eid)
+    if err:
+        return _error_response(request_id, -32002, err), True
+
+    from rdc.services.query_service import _DISPATCH
+
+    actions = _get_flat_actions(state)
+    action = next((a for a in actions if a.eid == eid), None)
+    if action is None or not (int(action.flags) & _DISPATCH):
+        return _error_response(request_id, -32602, "event is not a Dispatch"), True
+
+    controller = state.adapter.controller
+    trace = controller.DebugThread((gx, gy, gz), (tx, ty, tz))
+
+    if trace is None or trace.debugger is None:
+        return _error_response(request_id, -32007, "thread debug not available"), True
+
+    steps = _run_debug_loop(controller, trace)
+    stage_name = _STAGE_NAMES.get(int(trace.stage), "cs")
+    inp, out = _extract_inputs_outputs(steps)
+
+    return _result_response(
+        request_id,
+        {
+            "eid": eid,
+            "stage": stage_name,
+            "total_steps": len(steps),
+            "inputs": inp,
+            "outputs": out,
+            "trace": steps,
+        },
+    ), True
+
+
 HANDLERS: dict[str, Any] = {
     "debug_pixel": _handle_debug_pixel,
     "debug_vertex": _handle_debug_vertex,
+    "debug_thread": _handle_debug_thread,
 }

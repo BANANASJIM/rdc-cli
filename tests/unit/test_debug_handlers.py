@@ -399,3 +399,344 @@ def test_free_trace_called_on_success() -> None:
     resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 1, "y": 1}), state)
     assert "result" in resp
     assert len(free_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Helper: dispatch state builder
+# ---------------------------------------------------------------------------
+
+
+def _make_dispatch_state(
+    ctrl: rd.MockReplayController | None = None,
+) -> DaemonState:
+    if ctrl is None:
+        ctrl = rd.MockReplayController()
+    ctrl._actions = [
+        rd.ActionDescription(eventId=150, flags=rd.ActionFlags.Dispatch, _name="vkCmdDispatch"),
+    ]
+    state = DaemonState(capture="test.rdc", current_eid=150, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 150
+    state.rd = rd
+    return state
+
+
+# ---------------------------------------------------------------------------
+# debug_thread happy path (DT-14)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_happy_path() -> None:
+    """2-step CS trace returns correct structure."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    change0 = _make_change("gl_GlobalInvocationID", "uint", [0.0] * 16, [0.0] * 16)
+    change1 = _make_change("outBuffer", "float", [0.0] * 16, [1.0, 2.0, 3.0, 4.0] + [0.0] * 12)
+
+    states = [
+        _make_debug_state(step=0, inst=0, changes=[change0]),
+        _make_debug_state(step=1, inst=1, changes=[change1]),
+    ]
+
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [states]
+
+    state = _make_dispatch_state(ctrl)
+    resp, running = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+
+    assert running
+    r = resp["result"]
+    assert r["eid"] == 150
+    assert r["stage"] == "cs"
+    assert r["total_steps"] == 2
+    assert len(r["trace"]) == 2
+    assert len(r["inputs"]) == 1
+    assert r["inputs"][0]["name"] == "gl_GlobalInvocationID"
+    assert len(r["outputs"]) == 1
+    assert r["outputs"][0]["name"] == "outBuffer"
+
+
+# ---------------------------------------------------------------------------
+# debug_thread missing params (DT-15, DT-16, DT-17)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_missing_eid() -> None:
+    state = _make_dispatch_state()
+    resp, _ = _handle_request(
+        _req("debug_thread", {"gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}), state
+    )
+    assert resp["error"]["code"] == -32602
+    assert "eid" in resp["error"]["message"]
+
+
+def test_debug_thread_missing_gx() -> None:
+    state = _make_dispatch_state()
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}), state
+    )
+    assert resp["error"]["code"] == -32602
+    assert "gx" in resp["error"]["message"]
+
+
+def test_debug_thread_missing_tx() -> None:
+    state = _make_dispatch_state()
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "ty": 0, "tz": 0}), state
+    )
+    assert resp["error"]["code"] == -32602
+    assert "tx" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# debug_thread no adapter (DT-18)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_no_adapter() -> None:
+    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert resp["error"]["code"] == -32002
+
+
+# ---------------------------------------------------------------------------
+# debug_thread eid out of range (DT-19)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_eid_out_of_range() -> None:
+    state = _make_dispatch_state()
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 9999, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert resp["error"]["code"] == -32002
+
+
+# ---------------------------------------------------------------------------
+# debug_thread not a dispatch (DT-20)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_not_a_dispatch() -> None:
+    """Action at EID has Drawcall flag instead of Dispatch."""
+    state = _make_state()  # Drawcall-flagged action at eid=100
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 100, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert resp["error"]["code"] == -32602
+    assert "not a Dispatch" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# debug_thread no trace (DT-21)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_no_trace() -> None:
+    """DebugThread returns empty trace (no debugger)."""
+    state = _make_dispatch_state()
+    resp, running = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert running
+    assert resp["error"]["code"] == -32007
+    assert "thread debug not available" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# debug_thread multiple batches (DT-22)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_multiple_batches() -> None:
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    batch1 = [_make_debug_state(step=0, inst=0), _make_debug_state(step=1, inst=1)]
+    batch2 = [_make_debug_state(step=2, inst=2)]
+
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [batch1, batch2]
+
+    state = _make_dispatch_state(ctrl)
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert resp["result"]["total_steps"] == 3
+
+
+# ---------------------------------------------------------------------------
+# debug_thread source mapping (DT-23)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_source_mapping() -> None:
+    ctrl = rd.MockReplayController()
+    debugger = object()
+
+    inst_info = [
+        rd.InstructionSourceInfo(
+            instruction=0,
+            lineInfo=rd.LineColumnInfo(fileIndex=0, lineStart=55),
+        ),
+    ]
+    source_files = [rd.SourceFile(filename="shader.comp", contents="void main() {}")]
+
+    trace = _make_trace(
+        debugger=debugger,
+        stage=rd.ShaderStage.Compute,
+        inst_info=inst_info,
+        source_files=source_files,
+    )
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state(step=0, inst=0)]]
+
+    state = _make_dispatch_state(ctrl)
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    step = resp["result"]["trace"][0]
+    assert step["file"] == "shader.comp"
+    assert step["line"] == 55
+
+
+# ---------------------------------------------------------------------------
+# debug_thread FreeTrace called on success (DT-24)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_free_trace_called_on_success() -> None:
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
+
+    free_calls: list[object] = []
+
+    def tracking_free(t: object) -> None:
+        free_calls.append(t)
+
+    ctrl.FreeTrace = tracking_free  # type: ignore[assignment]
+
+    state = _make_dispatch_state(ctrl)
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert "result" in resp
+    assert len(free_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# debug_thread FreeTrace called on exception (DT-25)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_free_trace_called_on_exception() -> None:
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+
+    free_calls: list[object] = []
+
+    def tracking_free(t: object) -> None:
+        free_calls.append(t)
+
+    ctrl.FreeTrace = tracking_free  # type: ignore[assignment]
+
+    def exploding_continue(dbg: object) -> list:
+        raise RuntimeError("boom")
+
+    ctrl.ContinueDebug = exploding_continue  # type: ignore[assignment]
+
+    state = _make_dispatch_state(ctrl)
+    params = {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+    try:
+        _handle_request(_req("debug_thread", params), state)
+    except RuntimeError:
+        pass
+    assert len(free_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# debug_thread cs stage name (DT-26)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_cs_stage_name() -> None:
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(0, 0, 0, 0, 0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
+
+    state = _make_dispatch_state(ctrl)
+    resp, _ = _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
+    )
+    assert resp["result"]["stage"] == "cs"
+
+
+# ---------------------------------------------------------------------------
+# debug_thread group and thread assembled (DT-27)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_group_and_thread_assembled() -> None:
+    ctrl = rd.MockReplayController()
+    debugger = object()
+
+    recorded_calls: list[tuple] = []
+    original_debug_thread = ctrl.DebugThread
+
+    def tracking_debug_thread(
+        group: tuple[int, int, int], thread: tuple[int, int, int]
+    ) -> rd.ShaderDebugTrace:
+        recorded_calls.append((group, thread))
+        return original_debug_thread(group, thread)
+
+    ctrl.DebugThread = tracking_debug_thread  # type: ignore[assignment]
+
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Compute)
+    ctrl._debug_thread_map[(1, 2, 3, 4, 5, 6)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
+
+    state = _make_dispatch_state(ctrl)
+    _handle_request(
+        _req("debug_thread", {"eid": 150, "gx": 1, "gy": 2, "gz": 3, "tx": 4, "ty": 5, "tz": 6}),
+        state,
+    )
+    assert len(recorded_calls) == 1
+    assert recorded_calls[0] == ((1, 2, 3), (4, 5, 6))
+
+
+# ---------------------------------------------------------------------------
+# debug_thread all required params individually (DT-28)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_all_required_params() -> None:
+    """Each of the 7 required params individually missing returns -32602."""
+    required = ["eid", "gx", "gy", "gz", "tx", "ty", "tz"]
+    full = {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+    state = _make_dispatch_state()
+    for key in required:
+        partial = {k: v for k, v in full.items() if k != key}
+        resp, _ = _handle_request(_req("debug_thread", partial), state)
+        assert resp["error"]["code"] == -32602, f"Expected -32602 when missing {key}"
+        assert key in resp["error"]["message"]
