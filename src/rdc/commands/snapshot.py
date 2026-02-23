@@ -10,16 +10,27 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call, require_session
+from rdc.daemon_client import send_request
 from rdc.formatters.json_fmt import write_json
+from rdc.protocol import _request
 
 
 def _try_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
-    """Call a daemon method, returning None on failure instead of exiting."""
+    """Call daemon method silently, returning None on failure."""
     try:
-        return _daemon_call(method, params)
+        host, port, token = require_session()
     except SystemExit:
         return None
+    payload = _request(method, 1, {"_token": token, **params}).to_dict()
+    try:
+        resp = send_request(host, port, payload)
+    except OSError:
+        return None
+    if "error" in resp:
+        return None
+    result: dict[str, Any] = resp.get("result", {})
+    return result
 
 
 @click.command("snapshot")
@@ -34,7 +45,7 @@ def snapshot_cmd(eid: int, output: str, use_json: bool) -> None:
     files: list[str] = []
 
     # Pipeline (fatal on failure)
-    pipeline_data = _daemon_call("pipeline", {"eid": eid})
+    pipeline_data = call("pipeline", {"eid": eid})
     pipe_path = out_dir / "pipeline.json"
     pipe_path.write_text(json.dumps(pipeline_data, indent=2) + "\n")
     files.append("pipeline.json")
