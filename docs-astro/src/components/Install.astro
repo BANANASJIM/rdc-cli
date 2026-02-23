@@ -18,12 +18,14 @@
           <span class="text-[10px] text-gray-500 tracking-wider">recommended</span>
         </div>
         <div class="group relative terminal-window">
-          <div class="px-5 py-4 font-mono text-sm text-gray-200">
-            <span class="text-gpu-green select-none font-bold">$ </span>pipx install rdc-cli
+          <div class="px-5 py-4 font-mono text-sm text-gray-200 space-y-1">
+            <div><span class="text-gpu-green select-none font-bold">$ </span>pipx install rdc-cli</div>
+            <div class="text-gray-500"># build renderdoc Python module (~3 min, one-time)</div>
+            <div><span class="text-gpu-green select-none font-bold">$ </span>curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash</div>
           </div>
           <button
             class="copy-btn absolute top-3 right-3 px-2.5 py-1 text-[10px] text-gray-500 bg-gpu-card rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:text-gpu-accent hover:bg-gpu-accent/10 uppercase tracking-wider font-bold"
-            data-copy="pipx install rdc-cli"
+            data-copy="pipx install rdc-cli && curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash"
           >
             Copy
           </button>
@@ -33,15 +35,16 @@
       <div class="install-block opacity-0">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-[10px] font-bold text-gpu-purple uppercase tracking-[0.2em]">AUR</span>
-          <span class="text-[10px] text-gray-500 tracking-wider">Arch Linux</span>
+          <span class="text-[10px] text-gray-500 tracking-wider">Arch Linux — includes renderdoc</span>
         </div>
         <div class="group relative terminal-window">
-          <div class="px-5 py-4 font-mono text-sm text-gray-200">
-            <span class="text-gpu-green select-none font-bold">$ </span>yay -S rdc-cli-git
+          <div class="px-5 py-4 font-mono text-sm text-gray-200 space-y-1">
+            <div><span class="text-gpu-green select-none font-bold">$ </span>yay -S rdc-cli<span class="text-gray-500">       # stable: tagged releases</span></div>
+            <div><span class="text-gpu-green select-none font-bold">$ </span>yay -S rdc-cli-git<span class="text-gray-500">   # git: latest master</span></div>
           </div>
           <button
             class="copy-btn absolute top-3 right-3 px-2.5 py-1 text-[10px] text-gray-500 bg-gpu-card rounded-md opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:text-gpu-accent hover:bg-gpu-accent/10 uppercase tracking-wider font-bold"
-            data-copy="yay -S rdc-cli-git"
+            data-copy="yay -S rdc-cli"
           >
             Copy
           </button>

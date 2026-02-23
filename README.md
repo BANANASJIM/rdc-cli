@@ -27,20 +27,33 @@ rdc diff before.rdc after.rdc --draws | grep '~'             # what changed betw
 rdc close
 ```
 
-## Why rdc-cli?
+## Install
 
-RenderDoc is excellent at capturing GPU frames and replaying them interactively. But its GUI doesn't compose — you can't pipe a draw call list into `sort`, diff two captures in CI, or let an AI agent inspect shader state.
+**PyPI** (recommended — any Linux distro)
 
-rdc-cli bridges that gap:
+```bash
+pipx install rdc-cli                  # install the CLI
+# Build the renderdoc Python module (one-time, ~3 min, needs cmake + ninja)
+curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash
+rdc doctor                            # verify everything works
+```
 
-- **TSV by default** — every command outputs tab-separated text that pipes directly into Unix tools. Raw numbers, not human-friendly formatting (use `--table` for that).
-- **VFS path namespace** — GPU state is navigable like a filesystem: `/draws/142/shader/ps`, `/passes/GBuffer/draws`, `/resources/88`. Explore with `ls`, read with `cat`.
-- **Daemon architecture** — load the capture once, then query as many times as you want. No per-command startup cost.
-- **Built for CI** — `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` with `diff(1)`-compatible exit codes (0=pass, 1=fail, 2=error).
-- **AI-agent friendly** — structured output (`--json`, `--jsonl`), deterministic VFS paths, and a [Claude Code skill](https://bananasjim.github.io/rdc-cli/) for automated GPU frame analysis.
-- **Escape hatch** — `rdc script` runs arbitrary Python inside the daemon with full access to the renderdoc module, for anything the CLI doesn't cover yet.
+**AUR** (Arch Linux — builds renderdoc automatically, no extra setup)
 
-## Quick examples
+```bash
+yay -S rdc-cli        # stable: tracks tagged releases
+yay -S rdc-cli-git    # git: tracks latest master
+```
+
+**From source**
+
+```bash
+git clone https://github.com/BANANASJIM/rdc-cli.git
+cd rdc-cli
+pixi install && pixi run sync
+```
+
+## Quickstart
 
 **Explore a capture like a filesystem:**
 
@@ -89,30 +102,18 @@ rdc diff before.rdc after.rdc --draws             # per-draw changes
 rdc diff before.rdc after.rdc --framebuffer       # pixel-level image diff
 ```
 
-## Install
+## Why rdc-cli?
 
-**PyPI** (recommended)
+RenderDoc is excellent at capturing GPU frames and replaying them interactively. But its GUI doesn't compose — you can't pipe a draw call list into `sort`, diff two captures in CI, or let an AI agent inspect shader state.
 
-```bash
-pipx install rdc-cli
-# build renderdoc Python module (one-time, ~3 min, needs cmake/ninja/python3)
-curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash
-rdc doctor   # verify installation
-```
+rdc-cli bridges that gap:
 
-**AUR** (Arch Linux — builds renderdoc Python module automatically)
-
-```bash
-yay -S rdc-cli-git
-```
-
-**From source**
-
-```bash
-git clone https://github.com/BANANASJIM/rdc-cli.git
-cd rdc-cli
-pixi install && pixi run sync
-```
+- **TSV by default** — every command outputs tab-separated text that pipes directly into Unix tools. Raw numbers, not human-friendly formatting (use `--table` for that).
+- **VFS path namespace** — GPU state is navigable like a filesystem: `/draws/142/shader/ps`, `/passes/GBuffer/draws`, `/resources/88`. Explore with `ls`, read with `cat`.
+- **Daemon architecture** — load the capture once, then query as many times as you want. No per-command startup cost.
+- **Built for CI** — `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` with `diff(1)`-compatible exit codes (0=pass, 1=fail, 2=error).
+- **AI-agent friendly** — structured output (`--json`, `--jsonl`), deterministic VFS paths, and a [Claude Code skill](https://bananasjim.github.io/rdc-cli/) for automated GPU frame analysis.
+- **Escape hatch** — `rdc script` runs arbitrary Python inside the daemon with full access to the renderdoc module, for anything the CLI doesn't cover yet.
 
 ## Commands
 
