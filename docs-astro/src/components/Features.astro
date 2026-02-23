@@ -22,7 +22,7 @@ const features = [
     description: 'Browse captures like a filesystem. Tab-complete through draws and state.',
     color: 'text-gpu-green',
     glow: 'rgba(0,230,118,0.15)',
-    example: 'rdc cat /draws/142/pipeline/shader/ps',
+    example: 'rdc cat /draws/142/shader/ps',
   },
   {
     icon: '\u25C8',
@@ -31,6 +31,22 @@ const features = [
     color: 'text-gpu-orange',
     glow: 'rgba(255,145,0,0.15)',
     example: 'rdc open cap.rdc && rdc draws && rdc close',
+  },
+  {
+    icon: '\u2713',
+    title: 'CI Assertions',
+    description: 'Built-in pixel, image, state, and count assertions. Exit code 0/1/2 for pass/fail/error.',
+    color: 'text-emerald-400',
+    glow: 'rgba(52,211,153,0.15)',
+    example: 'rdc assert-pixel 142 400 300 --expect "1 0 0 1"',
+  },
+  {
+    icon: '\u26A1',
+    title: 'AI Agent Ready',
+    description: 'Claude Code skill auto-installs. VFS paths + JSON output make captures agent-navigable.',
+    color: 'text-gpu-purple',
+    glow: 'rgba(179,136,255,0.15)',
+    example: 'rdc install-skill && rdc ls /draws/142/',
   },
 ];
 ---
@@ -44,7 +60,7 @@ const features = [
       Every design decision optimized for pipelines, scripting, and agent-driven workflows.
     </p>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5" id="features-grid">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="features-grid">
       {features.map((f, i) => (
         <div
           class="feature-card glass-card p-7 opacity-0"

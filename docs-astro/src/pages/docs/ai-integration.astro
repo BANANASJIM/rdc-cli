@@ -1,0 +1,116 @@
+---
+import Docs from '../../layouts/Docs.astro';
+
+const base = import.meta.env.BASE_URL;
+---
+
+<Docs title="AI Agent Integration">
+  <p>
+    rdc-cli is designed from the ground up for AI agent consumption &mdash;
+    not just human users. Every command outputs machine-parseable TSV or JSON,
+    and the VFS path system lets agents explore captures without memorizing
+    command arguments.
+  </p>
+
+  <h2 id="claude-code-skill">Claude Code Skill</h2>
+
+  <p>
+    rdc-cli ships with a built-in Claude Code skill. After installing, Claude Code
+    auto-discovers rdc-cli commands and can open, inspect, and debug GPU captures
+    on your behalf.
+  </p>
+
+  <pre><code>rdc install-skill</code></pre>
+
+  <p>
+    This copies skill definition files to <code>~/.claude/skills/rdc-cli/</code>.
+    Once installed, Claude Code recognizes trigger phrases like:
+  </p>
+
+  <ul>
+    <li><em>"open capture"</em>, <em>".rdc"</em>, <em>"renderdoc"</em></li>
+    <li><em>"shader debug"</em>, <em>"pixel trace"</em></li>
+    <li><em>"GPU state"</em>, <em>"draw calls"</em>, <em>"pipeline"</em></li>
+  </ul>
+
+  <h2 id="agent-friendly-design">Agent-Friendly Design</h2>
+
+  <h3>VFS Path Navigation</h3>
+  <p>
+    The virtual filesystem lets agents explore capture structure iteratively.
+    Start broad with <code>rdc ls /</code> and drill down into specific draws,
+    shaders, and state &mdash; no need to know the exact command for each query.
+  </p>
+
+  <h3>Machine-Parseable Output</h3>
+  <p>
+    TSV output works with standard Unix tools. <code>--json</code> output works
+    with <code>jq</code> and any JSON parser. Metadata goes to stderr so stdout
+    is always clean data.
+  </p>
+
+  <h3>Stable Paths</h3>
+  <p>
+    Every piece of data has a deterministic path like
+    <code>/draws/142/shader/ps</code>. Paths are stable across
+    sessions, so agents can build reliable scripts.
+  </p>
+
+  <h2 id="recommended-workflow">Recommended Agent Workflow</h2>
+
+  <p>A typical agent session follows this pattern:</p>
+
+  <pre><code># Open the capture
+rdc open capture.rdc
+
+# Discover structure
+rdc ls /
+
+# Find draw calls
+rdc draws
+
+# Explore a specific draw
+rdc ls /draws/142/
+
+# Read shader source
+rdc cat /draws/142/shader/ps
+
+# Check constant buffer values
+rdc shader 142 ps --constants
+
+# Done
+rdc close</code></pre>
+
+  <h2 id="system-prompt">System Prompt Snippet</h2>
+
+  <p>
+    If you are building a custom AI agent that uses rdc-cli, include this
+    context in your system prompt:
+  </p>
+
+  <pre><code>You have access to rdc-cli, a Unix CLI for RenderDoc .rdc captures.
+
+Key commands:
+- rdc open &lt;file.rdc&gt;   Open a capture (starts daemon)
+- rdc ls [PATH]          Browse capture via VFS paths
+- rdc cat &lt;PATH&gt;         Read VFS leaf content
+- rdc draws              List draw calls
+- rdc pipeline &lt;EID&gt;     Show GPU pipeline state
+- rdc shader &lt;EID&gt; &lt;STAGE&gt; --source   Read shader code
+- rdc debug pixel &lt;EID&gt; &lt;X&gt; &lt;Y&gt;      Debug pixel shader
+- rdc close              Close session
+
+All commands support --json for structured output.
+VFS root: / (explore with ls, drill down with cat)
+Paths: /draws/&lt;EID&gt;/, /resources/&lt;ID&gt;/, /passes/&lt;N&gt;/</code></pre>
+
+  <h2 id="tips">Tips for Agent Developers</h2>
+
+  <ul>
+    <li>Always use <code>--json</code> when parsing output programmatically</li>
+    <li>Use <code>rdc count draws</code> to get counts without parsing lists</li>
+    <li>Check <code>rdc status</code> before commands to verify a session is open</li>
+    <li>Use <code>rdc doctor</code> to verify the environment is configured correctly</li>
+    <li>The <code>rdc script</code> command runs arbitrary Python inside the daemon for advanced queries</li>
+  </ul>
+</Docs>

@@ -1,0 +1,115 @@
+---
+import Docs from '../../layouts/Docs.astro';
+
+const shellPipelines = `# Find all draws using a specific shader
+rdc shader-map | grep "HASH_PREFIX" | cut -f1
+
+# Export all textures
+for id in $(rdc resources --type texture -q); do
+  rdc texture "$id" -o "tex_\${id}.png"
+done
+
+# Count triangles per pass
+rdc draws --json | jq 'group_by(.pass) | .[] | {pass: .[0].pass, tris: [.[].tri_count] | add}'`;
+---
+
+<Docs title="Examples">
+  <p>
+    Real-world workflow recipes for common rdc-cli tasks. Each example
+    assumes a daemon session is running (<code>rdc open capture.rdc</code>).
+  </p>
+
+  <h2 id="basic-analysis">Basic Capture Analysis</h2>
+
+  <pre><code>rdc open scene.rdc
+rdc info                        # API, GPU, driver
+rdc stats                       # per-pass breakdown
+rdc draws --limit 10            # top draw calls
+rdc close</code></pre>
+
+  <h2 id="heaviest-draw">Find the Heaviest Draw Call</h2>
+
+  <pre><code>{"# TSV approach"}
+rdc draws --sort tri_count | tail -1
+
+{"# JSON approach"}
+rdc draws --json | jq 'sort_by(.tri_count) | last'</code></pre>
+
+  <h2 id="debug-pixel">Debug a Pixel Color</h2>
+
+  <pre><code>{"# Quick result"}
+rdc debug pixel 142 400 300
+
+{"# Full step-by-step trace"}
+rdc debug pixel 142 400 300 --trace
+
+{"# Dump variables at a specific source line"}
+rdc debug pixel 142 400 300 --dump-at 15</code></pre>
+
+  <h2 id="ci-assertions">CI/CD Pipeline Assertions</h2>
+
+  <pre><code>{"#!/bin/bash"}
+set -e
+rdc open test_capture.rdc
+
+{"# No validation errors"}
+rdc assert-clean
+
+{"# At least 12 draw calls"}
+rdc assert-count draws --expect 12 --op ge
+
+{"# Verify pixel color at coordinates"}
+rdc assert-pixel 142 256 256 --expect "1.0 0.0 0.0 1.0"
+
+{"# Visual regression test"}
+rdc assert-image expected.png actual.png --threshold 1.0
+
+rdc close</code></pre>
+
+  <h2 id="comparing-captures">Comparing Two Captures</h2>
+
+  <pre><code>{"# Overall summary"}
+rdc diff before.rdc after.rdc
+
+{"# Draw call changes"}
+rdc diff before.rdc after.rdc --draws
+
+{"# Pixel-level framebuffer diff"}
+rdc diff before.rdc after.rdc --framebuffer
+
+{"# Per-pass statistics diff"}
+rdc diff before.rdc after.rdc --stats</code></pre>
+
+  <h2 id="shader-hot-reload">Shader Hot-Reload</h2>
+
+  <pre><code>{"# Extract current shader"}
+rdc shader 142 ps --source -o original.frag
+
+{"# ... edit original.frag in your editor ..."}
+
+{"# Compile the modified shader (returns shader_id)"}
+rdc shader-build original.frag --stage ps
+
+{"# Hot-swap the shader in the capture"}
+rdc shader-replace 142 ps --with 1
+
+{"# Check the visual result"}
+rdc rt 142 -o modified.png
+
+{"# Revert all changes"}
+rdc shader-restore-all</code></pre>
+
+  <h2 id="export-offline">Export Everything for Offline Analysis</h2>
+
+  <pre><code>{"# Complete snapshot: pipeline + shaders + render target"}
+rdc snapshot 142 -o ./snapshot/
+
+{"# Individual exports"}
+rdc texture 5 -o albedo.png             {"# specific texture"}
+rdc buffer 3 -o vertex_data.bin         {"# raw buffer data"}
+rdc mesh 142 -o geometry.obj            {"# post-transform mesh"}</code></pre>
+
+  <h2 id="shell-pipelines">Shell Pipeline Power</h2>
+
+  <pre><code set:text={shellPipelines}></code></pre>
+</Docs>
