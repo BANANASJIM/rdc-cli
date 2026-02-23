@@ -211,6 +211,18 @@ class TestExecuteAndCapture:
         assert result.success is False
         assert result.ident == 12345
 
+    def test_create_target_control_returns_none(self) -> None:
+        """CreateTargetControl returning None (process exited) gives error with ident."""
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd()
+        rd.CreateTargetControl = lambda *_args, **_kw: None
+
+        result = execute_and_capture(rd, "/usr/bin/app")
+        assert result.success is False
+        assert result.ident == 12345
+        assert "failed to connect" in result.error
+
 
 class TestTerminateProcess:
     def test_sends_sigterm(self, monkeypatch: pytest.MonkeyPatch) -> None:

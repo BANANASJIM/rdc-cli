@@ -32,9 +32,8 @@ def _find_renderdoccmd() -> str | None:
 
 @click.command(
     "capture",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+    context_settings={"allow_extra_args": True, "allow_interspersed_args": False},
 )
-@click.argument("executable", required=False)
 @click.option("-o", "--output", type=click.Path(path_type=Path), help="Output .rdc file path.")
 @click.option("--api", "api_name", type=str, help="Capture API name.")
 @click.option("--list-apis", is_flag=True, help="List capture APIs and exit.")
@@ -54,7 +53,6 @@ def _find_renderdoccmd() -> str | None:
 @click.pass_context
 def capture_cmd(
     ctx: click.Context,
-    executable: str | None,
     output: Path | None,
     api_name: str | None,
     list_apis: bool,
@@ -72,13 +70,18 @@ def capture_cmd(
     delay_for_debugger: int | None,
     use_json: bool,
 ) -> None:
-    """Execute application and capture a frame."""
+    """Execute application and capture a frame.
+
+    Usage: rdc capture [OPTIONS] -- EXECUTABLE [APP_ARGS...]
+    """
     if list_apis:
         _run_list_apis()
         return
 
-    if not executable:
-        raise click.UsageError("EXECUTABLE is required")
+    if not ctx.args:
+        raise click.UsageError("EXECUTABLE is required (use -- before executable)")
+    executable = ctx.args[0]
+    app_args = ctx.args[1:]
 
     opts: dict[str, Any] = {}
     if api_validation:
@@ -102,7 +105,7 @@ def capture_cmd(
         result = execute_and_capture(
             rd,
             executable,
-            args=" ".join(ctx.args),
+            args=" ".join(app_args),
             workdir="",
             output=output_path,
             opts=cap_opts,
@@ -111,7 +114,7 @@ def capture_cmd(
             timeout=timeout,
             wait_for_exit=wait_for_exit,
         )
-        if result.success and result.ident and not trigger and not keep_alive:
+        if not trigger and not keep_alive and result.success and result.ident:
             terminate_process(result.ident)
         _emit_result(result, use_json, auto_open)
         return
@@ -119,7 +122,7 @@ def capture_cmd(
     click.echo("warning: renderdoc module unavailable, falling back to renderdoccmd", err=True)
     if opts:
         click.echo("warning: CaptureOptions flags ignored in fallback mode", err=True)
-    _fallback_renderdoccmd(executable, ctx.args, output_path, api_name)
+    _fallback_renderdoccmd(executable, app_args, output_path, api_name)
 
 
 def _emit_result(result: Any, use_json: bool, auto_open: bool) -> None:

@@ -53,7 +53,7 @@ def test_python_api_success(monkeypatch: Any) -> None:
         lambda opts: MagicMock(),
     )
 
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app", "-o", "/tmp/test.rdc"])
+    result = CliRunner().invoke(capture_cmd, ["-o", "/tmp/test.rdc", "--", "/usr/bin/app"])
     assert result.exit_code == 0
     assert "/tmp/test.rdc" in result.output
 
@@ -70,7 +70,7 @@ def test_fallback_renderdoccmd(monkeypatch: Any) -> None:
 
     monkeypatch.setattr("subprocess.run", fake_run)
 
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app", "-o", "/tmp/out.rdc"])
+    result = CliRunner().invoke(capture_cmd, ["-o", "/tmp/out.rdc", "--", "/usr/bin/app"])
     assert result.exit_code == 0
     assert "warning" in result.output
     assert "falling back" in result.output
@@ -106,9 +106,8 @@ def test_json_output(monkeypatch: Any) -> None:
         lambda opts: MagicMock(),
     )
 
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app", "--json"])
+    result = CliRunner().invoke(capture_cmd, ["--json", "--", "/usr/bin/app"])
     assert result.exit_code == 0
-    # JSON output is on stdout; find the JSON line in mixed output
     for line in result.output.splitlines():
         line = line.strip()
         if line.startswith("{"):
@@ -139,11 +138,12 @@ def test_all_options(monkeypatch: Any) -> None:
     result = CliRunner().invoke(
         capture_cmd,
         [
-            "/usr/bin/app",
             "--api-validation",
             "--callstacks",
             "--hook-children",
             "--ref-all-resources",
+            "--",
+            "/usr/bin/app",
         ],
     )
     assert result.exit_code == 0
@@ -168,9 +168,30 @@ def test_capture_trigger_mode(monkeypatch: Any) -> None:
         lambda opts: MagicMock(),
     )
 
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app", "--trigger"])
+    result = CliRunner().invoke(capture_cmd, ["--trigger", "--", "/usr/bin/app"])
     assert result.exit_code == 0
     assert call_kwargs[0]["trigger"] is True
+
+
+def test_app_args_forwarded(monkeypatch: Any) -> None:
+    """Application arguments after -- are forwarded to execute_and_capture."""
+    call_kwargs: list[dict[str, Any]] = []
+
+    def fake_capture(*args: Any, **kwargs: Any) -> Any:
+        call_kwargs.append({"args": args, "kwargs": kwargs})
+        return _make_capture_result()
+
+    monkeypatch.setattr("rdc.commands.capture.find_renderdoc", lambda: MagicMock())
+    monkeypatch.setattr("rdc.commands.capture.execute_and_capture", fake_capture)
+    monkeypatch.setattr("rdc.commands.capture.build_capture_options", lambda opts: MagicMock())
+
+    result = CliRunner().invoke(
+        capture_cmd, ["--", "/usr/bin/app", "--width", "800", "--height", "600"]
+    )
+    assert result.exit_code == 0
+    # app is 2nd positional arg (after rd), args= is keyword
+    assert call_kwargs[0]["args"][1] == "/usr/bin/app"
+    assert call_kwargs[0]["kwargs"]["args"] == "--width 800 --height 600"
 
 
 def _setup_capture_with_terminate(monkeypatch: Any, **result_kw: Any) -> list[int]:
@@ -189,38 +210,45 @@ def _setup_capture_with_terminate(monkeypatch: Any, **result_kw: Any) -> list[in
 
 
 def test_default_terminates_process(monkeypatch: Any) -> None:
-    """By default, successful capture terminates the target process."""
+    """By default, successful capture terminates the target process (using ident as PID)."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=True, path="/tmp/t.rdc", ident=42
+        monkeypatch, success=True, path="/tmp/t.rdc", ident=1234
     )
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app"])
+    result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
     assert result.exit_code == 0
-    assert terminated == [42]
+    assert terminated == [1234]
 
 
 def test_keep_alive_skips_termination(monkeypatch: Any) -> None:
     """--keep-alive prevents process termination."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=True, path="/tmp/t.rdc", ident=42
+        monkeypatch, success=True, path="/tmp/t.rdc", ident=1234
     )
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app", "--keep-alive"])
+    result = CliRunner().invoke(capture_cmd, ["--keep-alive", "--", "/usr/bin/app"])
     assert result.exit_code == 0
     assert terminated == []
 
 
 def test_trigger_skips_termination(monkeypatch: Any) -> None:
     """--trigger mode does not terminate the process."""
-    terminated = _setup_capture_with_terminate(monkeypatch, success=True, path="", ident=42)
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app", "--trigger"])
+    terminated = _setup_capture_with_terminate(monkeypatch, success=True, path="", ident=1234)
+    result = CliRunner().invoke(capture_cmd, ["--trigger", "--", "/usr/bin/app"])
     assert result.exit_code == 0
     assert terminated == []
 
 
 def test_failed_capture_skips_termination(monkeypatch: Any) -> None:
-    """Failed capture does not attempt termination."""
+    """Failed capture does not attempt termination even with valid ident."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=False, error="inject failed", ident=42
+        monkeypatch, success=False, error="inject failed", ident=1234
     )
-    result = CliRunner().invoke(capture_cmd, ["/usr/bin/app"])
+    result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
     assert result.exit_code != 0
     assert terminated == []
+
+
+def test_missing_executable() -> None:
+    """No arguments after -- raises usage error."""
+    result = CliRunner().invoke(capture_cmd, [])
+    assert result.exit_code != 0
+    assert "EXECUTABLE" in result.output

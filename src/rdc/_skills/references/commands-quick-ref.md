@@ -130,12 +130,6 @@ Export buffer raw data.
 
 Execute application and capture a frame.
 
-**Arguments:**
-
-| Name | Type | Required |
-|------|------|----------|
-| `executable` | text | no |
-
 **Options:**
 
 | Flag | Help | Type | Default |
