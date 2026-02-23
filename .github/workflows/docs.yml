@@ -36,11 +36,24 @@ jobs:
       - name: Install Python dependencies
         run: uv sync
 
+      - name: Compute test stats
+        id: test_stats
+        run: |
+          TEST_COUNT=$(uv run pytest tests/unit --co -q 2>/dev/null \
+            | grep -E '^[0-9]+ item' | grep -o '^[0-9]*' || echo "0")
+          COV_PCT=$(uv run pytest tests/unit --cov=rdc --cov-report=term-missing \
+            --no-header -rN -q 2>/dev/null \
+            | grep 'TOTAL' | awk '{print $NF}' || echo "")
+          echo "test_count=${TEST_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "coverage=${COV_PCT}" >> "$GITHUB_OUTPUT"
+
       - name: Generate stats.json
         run: |
           mkdir -p docs-astro/src/data
           uv run python scripts/gen-stats.py \
             --version "${{ steps.version.outputs.version }}" \
+            --test-count "${{ steps.test_stats.outputs.test_count }}" \
+            --coverage "${{ steps.test_stats.outputs.coverage }}" \
             > docs-astro/src/data/stats.json
           cat docs-astro/src/data/stats.json
 
