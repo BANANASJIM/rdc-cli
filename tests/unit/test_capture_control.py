@@ -161,15 +161,43 @@ def test_capture_list_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_capture_copy_success(monkeypatch: pytest.MonkeyPatch) -> None:
     _save_state()
-    tc = _make_mock_tc()
+
+    copied_msg = MagicMock()
+    copied_msg.type = 5  # CaptureCopied
+
+    tc = _make_mock_tc(messages=[copied_msg])
     rd = _make_mock_rd(tc)
     monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
 
-    result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc"])
+    result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc", "--timeout", "1"])
     assert result.exit_code == 0
     assert "copied" in result.output
     tc.CopyCapture.assert_called_once_with(0, "/tmp/out.rdc")
     tc.Shutdown.assert_called_once()
+
+
+def test_capture_copy_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    _save_state()
+    tc = _make_mock_tc()  # default Noop messages -> will timeout
+    rd = _make_mock_rd(tc)
+    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+
+    result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc", "--timeout", "0.05"])
+    assert result.exit_code != 0
+
+
+def test_capture_copy_disconnected(monkeypatch: pytest.MonkeyPatch) -> None:
+    _save_state()
+
+    disconnect_msg = MagicMock()
+    disconnect_msg.type = 1  # Disconnected
+
+    tc = _make_mock_tc(messages=[disconnect_msg])
+    rd = _make_mock_rd(tc)
+    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+
+    result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc", "--timeout", "1"])
+    assert result.exit_code != 0
 
 
 def test_capture_copy_no_state(monkeypatch: pytest.MonkeyPatch) -> None:

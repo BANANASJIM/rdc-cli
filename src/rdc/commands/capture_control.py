@@ -142,13 +142,31 @@ def capture_list_cmd(ident: int | None, host: str, timeout: float, use_json: boo
 @click.argument("dest", type=str)
 @click.option("--ident", type=int, default=None, help="Target ident (default: most recent).")
 @click.option("--host", default="localhost", help="Target host.")
-def capture_copy_cmd(capture_id: int, dest: str, ident: int | None, host: str) -> None:
+@click.option("--timeout", type=float, default=30.0, help="Timeout in seconds.")
+def capture_copy_cmd(
+    capture_id: int, dest: str, ident: int | None, host: str, timeout: float
+) -> None:
     """Copy a capture from the target to a local path."""
     resolved = _resolve_ident(ident)
     rd = _require_renderdoc()
     tc = _connect(rd, host, resolved)
     try:
         tc.CopyCapture(capture_id, dest)
-        click.echo(f"copied: capture {capture_id} -> {dest}")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if not tc.Connected():
+                click.echo("error: disconnected while waiting for copy", err=True)
+                raise SystemExit(1)
+            msg = tc.ReceiveMessage(None)
+            msg_type = int(msg.type)
+            if msg_type == 5:  # CaptureCopied
+                click.echo(f"copied: capture {capture_id} -> {dest}")
+                return
+            if msg_type == 1:  # Disconnected
+                click.echo("error: disconnected while waiting for copy", err=True)
+                raise SystemExit(1)
+            time.sleep(0.01)
+        click.echo("error: timeout waiting for capture copy", err=True)
+        raise SystemExit(1)
     finally:
         tc.Shutdown()

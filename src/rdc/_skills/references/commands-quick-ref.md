@@ -184,6 +184,7 @@ Copy a capture from the target to a local path.
 |------|------|------|---------|
 | `--ident` | Target ident (default: most recent). | integer |  |
 | `--host` | Target host. | text | localhost |
+| `--timeout` | Timeout in seconds. | float | 30.0 |
 
 ## `rdc capture-list`
 
