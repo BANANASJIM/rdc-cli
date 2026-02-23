@@ -121,8 +121,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOC_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          CMD=$(python3 -c "import json; print(json.load(open('docs-astro/src/data/stats.json'))['command_count'])")
           gh repo edit \
-            --description "Unix-friendly CLI for RenderDoc — ${CMD} commands, TSV/JSON, daemon sessions (v${DOC_VERSION})" \
+            --description "Scriptable CLI for RenderDoc captures — built for terminal workflows, CI pipelines, and AI agents (v${DOC_VERSION})" \
             || true
           gh repo edit --homepage "https://bananasjim.github.io/rdc-cli/" || true
