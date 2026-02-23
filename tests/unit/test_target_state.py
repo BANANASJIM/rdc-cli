@@ -9,6 +9,7 @@ import pytest
 from rdc.target_state import (
     TargetControlState,
     delete_target_state,
+    load_latest_target_state,
     load_target_state,
     save_target_state,
 )
@@ -49,6 +50,21 @@ def test_delete(tmp_path: Path) -> None:
     assert load_target_state(12345) is None
     state_file = tmp_path / ".rdc" / "target" / "12345.json"
     assert not state_file.exists()
+
+
+def test_load_latest_picks_most_recent() -> None:
+    older = TargetControlState(ident=1, target_name="a", pid=10, api="Vulkan", connected_at=100.0)
+    newer = TargetControlState(ident=2, target_name="b", pid=20, api="D3D12", connected_at=200.0)
+    save_target_state(older)
+    save_target_state(newer)
+    latest = load_latest_target_state()
+    assert latest is not None
+    assert latest.ident == 2
+    assert latest.connected_at == 200.0
+
+
+def test_load_latest_empty_dir() -> None:
+    assert load_latest_target_state() is None
 
 
 def test_corrupt_file(tmp_path: Path) -> None:
