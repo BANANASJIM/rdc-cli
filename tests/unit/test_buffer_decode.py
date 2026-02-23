@@ -363,3 +363,154 @@ class TestIbufferDecode:
         r = resp["result"]
         assert r["format"] == "none"
         assert r["indices"] == []
+
+
+# --- P2-MAINT-1: buffer decode helper unit tests ---
+
+
+class TestDecodeFloatComponents:
+    """Unit tests for _decode_float_components helper."""
+
+    def test_comp_width_4_float(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = struct.pack("<3f", 1.0, 2.0, 3.0)
+        result = _decode_float_components(data, 0, 4, 3)
+        assert result == pytest.approx([1.0, 2.0, 3.0])
+
+    def test_comp_width_4_single(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = struct.pack("<f", -0.5)
+        result = _decode_float_components(data, 0, 4, 1)
+        assert result == pytest.approx([-0.5])
+
+    def test_comp_width_2_half(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = struct.pack("<2e", 1.0, 0.5)
+        result = _decode_float_components(data, 0, 2, 2)
+        assert result == pytest.approx([1.0, 0.5])
+
+    def test_comp_width_1_byte_normalize(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = bytes([0, 128, 255])
+        result = _decode_float_components(data, 0, 1, 3)
+        assert result == pytest.approx([0.0, 128 / 255.0, 1.0])
+
+    def test_comp_width_1_single(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = bytes([200])
+        result = _decode_float_components(data, 0, 1, 1)
+        assert result == pytest.approx([200 / 255.0])
+
+    def test_comp_count_4(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = struct.pack("<4f", 1.0, 2.0, 3.0, 4.0)
+        result = _decode_float_components(data, 0, 4, 4)
+        assert result == pytest.approx([1.0, 2.0, 3.0, 4.0])
+
+    def test_with_offset(self) -> None:
+        from rdc.handlers.buffer import _decode_float_components
+
+        data = b"\x00\x00\x00\x00" + struct.pack("<2f", 5.0, 6.0)
+        result = _decode_float_components(data, 4, 4, 2)
+        assert result == pytest.approx([5.0, 6.0])
+
+
+class TestDecodeIndexBuffer:
+    """Unit tests for _decode_index_buffer helper."""
+
+    def test_stride_2_uint16(self) -> None:
+        from rdc.handlers.buffer import _decode_index_buffer
+
+        data = struct.pack("<4H", 0, 1, 2, 3)
+        result = _decode_index_buffer(data, 2)
+        assert result == [0, 1, 2, 3]
+
+    def test_stride_4_uint32(self) -> None:
+        from rdc.handlers.buffer import _decode_index_buffer
+
+        data = struct.pack("<3I", 100, 200, 300)
+        result = _decode_index_buffer(data, 4)
+        assert result == [100, 200, 300]
+
+    def test_stride_1_byte(self) -> None:
+        from rdc.handlers.buffer import _decode_index_buffer
+
+        data = bytes([0, 5, 10])
+        result = _decode_index_buffer(data, 1)
+        assert result == [0, 5, 10]
+
+
+class TestVbufferDecodeGolden:
+    """Golden-value comparison: refactored vbuffer_decode matches original output."""
+
+    def test_vbuffer_golden(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(_req("vbuffer_decode", eid=10), state)
+        r = resp["result"]
+        # 3 vertices, 5 components each (POSITION.xyz + TEXCOORD.xy)
+        expected_v0 = [-1.0, -1.0, 0.0, 0.0, 0.0]
+        expected_v1 = [1.0, -1.0, 0.0, 1.0, 0.0]
+        expected_v2 = [0.0, 1.0, 0.0, 0.5, 1.0]
+        assert r["vertices"][0] == pytest.approx(expected_v0)
+        assert r["vertices"][1] == pytest.approx(expected_v1)
+        assert r["vertices"][2] == pytest.approx(expected_v2)
+
+
+class TestIbufferDecodeGolden:
+    """Golden-value comparison: refactored ibuffer_decode matches original output."""
+
+    def test_ibuffer_golden(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(_req("ibuffer_decode", eid=10), state)
+        r = resp["result"]
+        assert r["indices"] == [0, 1, 2]
+        assert r["format"] == "uint16"
+
+
+class TestMeshDataGolden:
+    """Golden-value comparison: refactored mesh_data matches expected output."""
+
+    def test_mesh_data_golden(self, state: DaemonState) -> None:
+        """mesh_data with PostVS data returns correct vertices and indices."""
+        vdata = struct.pack("<12f", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0)
+        idata = struct.pack("<3H", 0, 1, 2)
+        mesh = SimpleNamespace(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=16,
+            vertexByteOffset=0,
+            vertexByteSize=len(vdata),
+            numIndices=3,
+            indexResourceId=ResourceId(98),
+            indexByteOffset=0,
+            indexByteSize=len(idata),
+            indexByteStride=2,
+            format=ResourceFormat(name="R32G32B32A32_FLOAT", compByteWidth=4, compCount=4),
+            topology="TriangleList",
+        )
+        orig_get = state.adapter.controller.GetBufferData
+        orig_postvs = state.adapter.controller.GetPostVSData
+
+        def _get(rid: Any, offset: int, length: int) -> bytes:
+            if int(rid) == 99:
+                return vdata
+            if int(rid) == 98:
+                return idata
+            return orig_get(rid, offset, length)
+
+        state.adapter.controller.GetBufferData = _get
+        state.adapter.controller.GetPostVSData = lambda inst, view, stage: mesh
+        resp, _ = _handle_request(_req("mesh_data", eid=10, stage="vs-out"), state)
+        r = resp["result"]
+        assert r["vertex_count"] == 3
+        assert r["vertices"][0] == pytest.approx([1.0, 2.0, 3.0, 4.0])
+        assert r["vertices"][1] == pytest.approx([5.0, 6.0, 7.0, 8.0])
+        assert r["vertices"][2] == pytest.approx([9.0, 10.0, 11.0, 12.0])
+        assert r["indices"] == [0, 1, 2]
+
+        # Restore
+        state.adapter.controller.GetBufferData = orig_get
+        state.adapter.controller.GetPostVSData = orig_postvs

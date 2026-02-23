@@ -13,16 +13,38 @@ from rdc.handlers._helpers import (
     _set_frame_event,
     get_pipeline_for_stage,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
 
 
+def _decode_float_components(
+    data: bytes, offset: int, comp_width: int, comp_count: int
+) -> list[float]:
+    """Decode comp_count float components of comp_width bytes each starting at offset."""
+    result: list[float] = []
+    for i in range(comp_count):
+        off = offset + i * comp_width
+        if comp_width == 4:
+            result.append(struct.unpack_from("<f", data, off)[0])
+        elif comp_width == 2:
+            result.append(struct.unpack_from("<e", data, off)[0])
+        else:  # comp_width == 1
+            result.append(data[off] / 255.0)
+    return result
+
+
+def _decode_index_buffer(data: bytes, stride: int) -> list[int]:
+    """Decode a flat index buffer with given per-index stride."""
+    fmt = {1: "B", 2: "<H", 4: "<I"}[stride]
+    item_size = struct.calcsize(fmt)
+    return [struct.unpack_from(fmt, data, i)[0] for i in range(0, len(data), item_size)]
+
+
 def _handle_buf_info(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
     res_id = int(params.get("id", 0))
     buf = state.buf_map.get(res_id)
     if buf is None:
@@ -42,8 +64,7 @@ def _handle_buf_info(
 def _handle_buf_raw(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "temp directory not available"), True
     res_id = int(params.get("id", 0))
@@ -63,8 +84,7 @@ def _handle_buf_raw(
 def _handle_postvs(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -86,8 +106,7 @@ def _handle_postvs(
 def _handle_cbuffer_decode(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     cb_set = int(params.get("set", 0))
     cb_binding = int(params.get("binding", 0))
@@ -179,8 +198,7 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
 def _handle_vbuffer_decode(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -234,19 +252,17 @@ def _handle_vbuffer_decode(  # noqa: PLR0912
             vb = vbuffers[slot] if slot < len(vbuffers) else None
             stride = getattr(vb, "byteStride", 0) if vb else 0
             base = vi_idx * stride + cd["byteOffset"]
-            for c in range(cd["compCount"]):
-                off = base + c * cd["compByteWidth"]
-                if off + cd["compByteWidth"] <= len(data):
-                    if cd["compByteWidth"] == 4:
-                        vtx_row.append(struct.unpack_from("<f", data, off)[0])
-                    elif cd["compByteWidth"] == 2:
-                        vtx_row.append(struct.unpack_from("<e", data, off)[0])
-                    elif cd["compByteWidth"] == 1:
-                        vtx_row.append(data[off] / 255.0)
+            cw = cd["compByteWidth"]
+            cc = cd["compCount"]
+            if base + cw * cc <= len(data) and cw in (1, 2, 4):
+                vtx_row.extend(_decode_float_components(data, base, cw, cc))
+            else:
+                for c in range(cc):
+                    off = base + c * cw
+                    if off + cw <= len(data) and cw in (1, 2, 4):
+                        vtx_row.extend(_decode_float_components(data, off, cw, 1))
                     else:
                         vtx_row.append(0.0)
-                else:
-                    vtx_row.append(0.0)
         vertices.append(vtx_row)
     return _result_response(
         request_id, {"eid": eid, "columns": columns, "vertices": vertices}
@@ -260,8 +276,7 @@ def _handle_mesh_data(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     """Decode post-transform vertex data into position arrays."""
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     stage_name = str(params.get("stage", "vs-out"))
     stage_val = _MESH_STAGE_MAP.get(stage_name)
     if stage_val is None:
@@ -293,19 +308,17 @@ def _handle_mesh_data(
     vertices: list[list[float]] = []
     for i in range(num_verts):
         base = i * stride
-        comps: list[float] = []
-        for c in range(comp_count):
-            off = base + c * comp_width
-            if off + comp_width <= len(raw):
-                if comp_width == 4:
-                    comps.append(struct.unpack_from("<f", raw, off)[0])
-                elif comp_width == 2:
-                    comps.append(struct.unpack_from("<e", raw, off)[0])
+        if base + comp_width * comp_count <= len(raw) and comp_width in (1, 2, 4):
+            vertices.append(_decode_float_components(raw, base, comp_width, comp_count))
+        else:
+            comps: list[float] = []
+            for c in range(comp_count):
+                off = base + c * comp_width
+                if off + comp_width <= len(raw) and comp_width in (1, 2, 4):
+                    comps.extend(_decode_float_components(raw, off, comp_width, 1))
                 else:
                     comps.append(0.0)
-            else:
-                comps.append(0.0)
-        vertices.append(comps)
+            vertices.append(comps)
     # Decode index buffer
     irid = int(getattr(mesh, "indexResourceId", 0))
     indices: list[int] = []
@@ -315,11 +328,7 @@ def _handle_mesh_data(
         i_stride = getattr(mesh, "indexByteStride", 0)
         if i_stride in (2, 4) and i_size > 0:
             iraw = controller.GetBufferData(mesh.indexResourceId, i_offset, i_size)
-            fmt_str = "<H" if i_stride == 2 else "<I"
-            for j in range(len(iraw) // i_stride):
-                off = j * i_stride
-                if off + i_stride <= len(iraw):
-                    indices.append(struct.unpack_from(fmt_str, iraw, off)[0])
+            indices = _decode_index_buffer(iraw, i_stride)
     topology = _enum_name(getattr(mesh, "topology", ""))
     return _result_response(
         request_id,
@@ -340,8 +349,7 @@ def _handle_mesh_data(
 def _handle_ibuffer_decode(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -357,18 +365,12 @@ def _handle_ibuffer_decode(
     offset = getattr(ib, "byteOffset", 0)
     size = getattr(ib, "byteSize", 0)
     data = controller.GetBufferData(rid, offset, size)
-    fmt_str = "<H" if stride == 2 else "<I"
-    count = len(data) // stride if stride > 0 else 0
-    indices: list[int] = []
-    for i in range(count):
-        off = i * stride
-        if off + stride <= len(data):
-            indices.append(struct.unpack_from(fmt_str, data, off)[0])
+    indices = _decode_index_buffer(data, stride)
     fmt_name = "uint16" if stride == 2 else "uint32"
     return _result_response(request_id, {"eid": eid, "format": fmt_name, "indices": indices}), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "buf_info": _handle_buf_info,
     "buf_raw": _handle_buf_raw,
     "postvs": _handle_postvs,

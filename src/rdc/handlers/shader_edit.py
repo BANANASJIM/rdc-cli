@@ -10,6 +10,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -32,8 +33,7 @@ _ENCODING_VALUES: dict[str, int] = {v.upper(): k for k, v in _ENCODING_NAMES.ite
 def _handle_shader_encodings(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     controller = state.adapter.controller
     raw = controller.GetTargetShaderEncodings()
     encodings = sorted(
@@ -46,8 +46,7 @@ def _handle_shader_encodings(
 def _handle_shader_build(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if "source" not in params:
         return _error_response(request_id, -32602, "missing required param: source"), True
     stage = str(params.get("stage", "")).lower()
@@ -76,8 +75,7 @@ def _handle_shader_build(
 def _handle_shader_replace(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     for key in ("shader_id", "eid"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -110,8 +108,7 @@ def _handle_shader_replace(
 def _handle_shader_restore(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     if "eid" not in params:
         return _error_response(request_id, -32602, "missing required param: eid"), True
     stage = str(params.get("stage", "")).lower()
@@ -138,9 +135,7 @@ def _handle_shader_restore(
 def _handle_shader_restore_all(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
-
+    assert state.adapter is not None
     controller = state.adapter.controller
     restored_count = len(state.shader_replacements)
     freed_count = len(state.built_shaders)
@@ -158,7 +153,7 @@ def _handle_shader_restore_all(
     ), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "shader_encodings": _handle_shader_encodings,
     "shader_build": _handle_shader_build,
     "shader_replace": _handle_shader_replace,

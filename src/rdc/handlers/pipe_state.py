@@ -13,6 +13,7 @@ from rdc.handlers._helpers import (
     _sanitize_size,
     _set_frame_event,
 )
+from rdc.handlers._types import Handler
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
@@ -21,8 +22,7 @@ if TYPE_CHECKING:
 def _handle_pipe_topology(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -36,8 +36,7 @@ def _handle_pipe_topology(
 def _handle_pipe_viewport(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -61,8 +60,7 @@ def _handle_pipe_viewport(
 def _handle_pipe_scissor(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -85,8 +83,7 @@ def _handle_pipe_scissor(
 def _handle_pipe_blend(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -116,8 +113,7 @@ def _handle_pipe_blend(
 def _handle_pipe_stencil(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -144,8 +140,7 @@ def _handle_pipe_stencil(
 def _handle_pipe_vinputs(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -171,8 +166,7 @@ def _handle_pipe_vinputs(
 def _handle_pipe_samplers(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -206,8 +200,7 @@ def _handle_pipe_samplers(
 def _handle_pipe_vbuffers(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -231,8 +224,7 @@ def _handle_pipe_vbuffers(
 def _handle_pipe_ibuffer(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -254,8 +246,7 @@ def _handle_pipe_ibuffer(
 def _handle_pipe_push_constants(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -278,8 +269,7 @@ def _handle_pipe_push_constants(
 def _handle_pipe_rasterizer(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -307,8 +297,7 @@ def _handle_pipe_rasterizer(
 def _handle_pipe_depth_stencil(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -335,8 +324,7 @@ def _handle_pipe_depth_stencil(
 def _handle_pipe_msaa(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+    assert state.adapter is not None
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
@@ -352,7 +340,7 @@ def _handle_pipe_msaa(
     return _result_response(request_id, ms_data), True
 
 
-HANDLERS: dict[str, Any] = {
+HANDLERS: dict[str, Handler] = {
     "pipe_topology": _handle_pipe_topology,
     "pipe_viewport": _handle_pipe_viewport,
     "pipe_scissor": _handle_pipe_scissor,

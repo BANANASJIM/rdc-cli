@@ -298,6 +298,7 @@ class TestProcessRequest:
         def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
             raise RuntimeError("boom")
 
+        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
         state = self._state()
         request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
@@ -313,6 +314,7 @@ class TestProcessRequest:
         def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
             raise RuntimeError("boom")
 
+        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
         state = self._state()
         request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
@@ -328,8 +330,68 @@ class TestProcessRequest:
         def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
             raise RuntimeError("boom")
 
+        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
         state = self._state()
         request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
         _resp, running = _process_request(request, state)
         assert running is True
+
+
+# --- P1-MAINT-1: adapter-guard middleware tests ---
+
+
+class TestAdapterGuardMiddleware:
+    """Middleware in _handle_request blocks replay-required handlers when adapter=None."""
+
+    def _state(self) -> DaemonState:
+        return DaemonState(capture="capture.rdc", current_eid=0, token="tok")
+
+    def test_ping_no_adapter(self) -> None:
+        """ping has _no_replay=True, so it works without adapter."""
+        state = self._state()
+        resp, running = _handle_request(
+            {"id": 1, "method": "ping", "params": {"_token": "tok"}}, state
+        )
+        assert running is True
+        assert "result" in resp
+        assert resp["result"]["ok"] is True
+
+    def test_status_no_adapter(self) -> None:
+        """status has _no_replay=True, so it works without adapter."""
+        state = self._state()
+        resp, running = _handle_request(
+            {"id": 2, "method": "status", "params": {"_token": "tok"}}, state
+        )
+        assert running is True
+        assert "result" in resp
+
+    def test_shutdown_no_adapter(self) -> None:
+        """shutdown has _no_replay=True, so it works without adapter."""
+        state = self._state()
+        resp, running = _handle_request(
+            {"id": 3, "method": "shutdown", "params": {"_token": "tok"}}, state
+        )
+        assert running is False
+        assert resp["result"]["ok"] is True
+
+    def test_replay_required_blocked_by_middleware(self) -> None:
+        """A replay-required handler returns -32002 when adapter=None."""
+        state = self._state()
+        # draws is a replay-required handler
+        resp, running = _handle_request(
+            {"id": 4, "method": "draws", "params": {"_token": "tok"}}, state
+        )
+        assert running is True
+        assert "error" in resp
+        assert resp["error"]["code"] == -32002
+        assert "no replay loaded" in resp["error"]["message"]
+
+    def test_multiple_replay_required_methods_blocked(self) -> None:
+        """Several replay-required methods are blocked by middleware."""
+        state = self._state()
+        for method in ("buf_info", "tex_info", "shader_targets", "vfs_ls"):
+            resp, running = _handle_request(
+                {"id": 5, "method": method, "params": {"_token": "tok"}}, state
+            )
+            assert resp["error"]["code"] == -32002, f"{method} should be blocked"
