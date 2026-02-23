@@ -103,6 +103,12 @@ def _handle_pixel_history(
     tex = state.tex_map.get(int(rt_rid))
     if tex is not None and getattr(tex, "msSamp", 1) > 1:
         return _error_response(request_id, -32001, "MSAA pixel history not supported"), True
+    if tex is not None and not (0 <= x < tex.width and 0 <= y < tex.height):
+        return _error_response(
+            request_id,
+            -32001,
+            f"coordinates ({x}, {y}) out of bounds for target [{tex.width}x{tex.height}]",
+        ), True
 
     rd = state.rd
     sub = rd.Subresource() if rd else type("Sub", (), {"sample": 0})()
@@ -166,6 +172,12 @@ def _handle_pick_pixel(
     tex = state.tex_map.get(int(rt_rid))
     if tex is not None and getattr(tex, "msSamp", 1) > 1:
         return _error_response(request_id, -32001, "MSAA pick-pixel not supported"), True
+    if tex is not None and not (0 <= x < tex.width and 0 <= y < tex.height):
+        return _error_response(
+            request_id,
+            -32001,
+            f"coordinates ({x}, {y}) out of bounds for target [{tex.width}x{tex.height}]",
+        ), True
 
     rd = state.rd
     sub = rd.Subresource() if rd else type("Sub", (), {"sample": 0})()

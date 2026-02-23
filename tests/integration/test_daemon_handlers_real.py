@@ -1735,6 +1735,27 @@ class TestPickPixelReal:
         result = _call(self.state, "pick_pixel", {"x": 320, "y": 240, "eid": draw_eid})
         assert result["eid"] == draw_eid
 
+    def test_pick_pixel_out_of_bounds_real(self) -> None:
+        """PP-G-06: pick_pixel with x=width returns bounds error."""
+        draw_eid = self._first_draw_eid()
+        # Get render target dimensions from pipeline state
+        _call(self.state, "pick_pixel", {"x": 0, "y": 0, "eid": draw_eid})  # ensure eid set
+        pipe = self.state.adapter.get_pipeline_state()  # type: ignore[union-attr]
+        targets = pipe.GetOutputTargets()
+        rt_rid = next(int(t.resource) for t in targets if int(t.resource) != 0)
+        tex = self.state.tex_map[rt_rid]
+        width = tex.width
+
+        req = {
+            "id": 1,
+            "method": "pick_pixel",
+            "params": {"_token": self.state.token, "x": width, "y": 0, "eid": draw_eid},
+        }
+        resp, running = _handle_request(req, self.state)
+        assert running
+        assert resp["error"]["code"] == -32001
+        assert "out of bounds" in resp["error"]["message"]
+
 
 class TestTexStatsReal:
     """GPU integration tests for tex_stats handler with real replay."""
