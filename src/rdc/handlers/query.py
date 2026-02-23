@@ -252,22 +252,24 @@ def _handle_info(
 
     flat = _get_flat_actions(state)
     stats = aggregate_stats(flat)
-    return _result_response(
-        request_id,
-        {
-            "Capture": state.capture,
-            "API": state.api_name,
-            "Events": len(flat),
-            "Draw Calls": (
-                f"{stats.total_draws} "
-                f"({stats.indexed_draws} indexed, "
-                f"{stats.non_indexed_draws} non-indexed, "
-                f"{stats.dispatches} dispatches)"
-            ),
-            "Clears": stats.clears,
-            "Copies": stats.copies,
-        },
-    ), True
+    result: dict[str, Any] = {
+        "Capture": state.capture,
+        "API": state.api_name,
+        "Events": len(flat),
+        "Draw Calls": (
+            f"{stats.total_draws} "
+            f"({stats.indexed_draws} indexed, "
+            f"{stats.non_indexed_draws} non-indexed, "
+            f"{stats.dispatches} dispatches)"
+        ),
+        "Clears": stats.clears,
+        "Copies": stats.copies,
+    }
+    if state.cap is not None:
+        result["has_callstacks"] = state.cap.HasCallstacks()
+        result["machine_ident"] = state.cap.RecordedMachineIdent()
+        result["timestamp_base"] = state.cap.TimestampBase()
+    return _result_response(request_id, result), True
 
 
 def _handle_stats(
