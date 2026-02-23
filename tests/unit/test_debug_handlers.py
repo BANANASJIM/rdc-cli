@@ -740,3 +740,49 @@ def test_debug_thread_all_required_params() -> None:
         resp, _ = _handle_request(_req("debug_thread", partial), state)
         assert resp["error"]["code"] == -32602, f"Expected -32602 when missing {key}"
         assert key in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# _run_debug_loop error handling
+# ---------------------------------------------------------------------------
+
+
+def test_continue_debug_exception_returns_error() -> None:
+    """ContinueDebug raising RuntimeError returns error with -32603."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    trace = _make_trace(debugger=debugger)
+    ctrl._debug_pixel_map[(0, 0)] = trace
+
+    def exploding_continue(dbg: object) -> list:
+        raise RuntimeError("internal boom")
+
+    ctrl.ContinueDebug = exploding_continue  # type: ignore[assignment]
+
+    state = _make_state(ctrl)
+    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    assert running
+    assert "error" in resp
+    assert resp["error"]["code"] == -32603
+    assert "RuntimeError" in resp["error"]["message"]
+    assert "internal boom" in resp["error"]["message"]
+
+
+def test_valid_trace_returns_result_with_fields() -> None:
+    """Happy path regression: valid trace returns result with inputs, outputs, total_steps."""
+    ctrl = rd.MockReplayController()
+    debugger = object()
+    change = _make_change("fragCoord", "float", [0.0] * 16, [1.0, 0.0, 0.0, 1.0] + [0.0] * 12)
+    trace = _make_trace(debugger=debugger, stage=rd.ShaderStage.Pixel)
+    ctrl._debug_pixel_map[(0, 0)] = trace
+    ctrl._debug_states[id(debugger)] = [[_make_debug_state(step=0, inst=0, changes=[change])]]
+
+    state = _make_state(ctrl)
+    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    assert running
+    assert "result" in resp
+    r = resp["result"]
+    assert "inputs" in r
+    assert "outputs" in r
+    assert "total_steps" in r
+    assert r["total_steps"] == 1

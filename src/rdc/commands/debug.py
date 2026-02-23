@@ -10,6 +10,15 @@ from rdc.commands.info import _daemon_call
 from rdc.formatters.json_fmt import write_json
 
 
+def _check_debug_result(result: dict[str, Any]) -> None:
+    """Exit rc=1 if debug result is missing required fields."""
+    required = ("stage", "eid", "total_steps")
+    missing = [k for k in required if k not in result]
+    if missing:
+        click.echo(f"error: incomplete debug result (missing {missing})", err=True)
+        raise SystemExit(1)
+
+
 @click.group("debug")
 def debug_group() -> None:
     """Debug shader execution (pixel, vertex, or compute thread trace)."""
@@ -89,6 +98,7 @@ def pixel_cmd(
         params["primitive"] = primitive
 
     result = _daemon_call("debug_pixel", params)
+    _check_debug_result(result)
 
     if use_json:
         write_json(result)
@@ -141,6 +151,7 @@ def thread_cmd(
         "tz": tz,
     }
     result = _daemon_call("debug_thread", params)
+    _check_debug_result(result)
 
     if use_json:
         write_json(result)
@@ -178,6 +189,7 @@ def vertex_cmd(
     params: dict[str, Any] = {"eid": eid, "vtx_id": vtx_id, "instance": instance}
 
     result = _daemon_call("debug_vertex", params)
+    _check_debug_result(result)
 
     if use_json:
         write_json(result)
