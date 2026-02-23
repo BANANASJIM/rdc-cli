@@ -775,3 +775,43 @@ def test_debug_pixel_success_plain_rc0(monkeypatch: Any) -> None:
     _patch_helpers(monkeypatch, {"result": _PIXEL_HAPPY_RESPONSE})
     result = CliRunner().invoke(main, ["debug", "pixel", "120", "512", "384"])
     assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# B10: transport overflow / ValueError handling
+# ---------------------------------------------------------------------------
+
+
+def _patch_helpers_raise(monkeypatch: Any, exc: Exception) -> None:
+    """Patch load_session and send_request to raise *exc*."""
+    import rdc.commands._helpers as helpers_mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
+
+    def _raise(*_a: Any, **_kw: Any) -> None:
+        raise exc
+
+    monkeypatch.setattr(helpers_mod, "send_request", _raise)
+
+
+def test_debug_thread_transport_error_json_rc1(monkeypatch: Any) -> None:
+    """ValueError from transport overflow exits rc=1 with JSON error on stderr."""
+    _patch_helpers_raise(monkeypatch, ValueError("recv_line: message exceeds max_bytes limit"))
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--json"])
+    assert result.exit_code == 1
+    assert "unreachable" in result.stderr or "max_bytes" in result.stderr
+
+
+def test_debug_thread_transport_error_plain_rc1(monkeypatch: Any) -> None:
+    """ValueError from transport overflow exits rc=1 in plain mode."""
+    _patch_helpers_raise(monkeypatch, ValueError("recv_line: message exceeds max_bytes limit"))
+    result = CliRunner().invoke(main, _THREAD_ARGS)
+    assert result.exit_code == 1
+
+
+def test_debug_thread_error_json_rc1(monkeypatch: Any) -> None:
+    """Daemon error response in --json mode exits rc=1."""
+    _patch_helpers(monkeypatch, _ERROR_RESPONSE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--json"])
+    assert result.exit_code == 1

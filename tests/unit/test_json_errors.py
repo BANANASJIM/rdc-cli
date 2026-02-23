@@ -206,3 +206,27 @@ def test_assert_ci_plain_error_no_session(monkeypatch: Any) -> None:
 def test_json_mode_false_without_context() -> None:
     """_json_mode() returns False when called outside a Click invocation."""
     assert _json_mode() is False
+
+
+# ---------------------------------------------------------------------------
+# B10: call() catches ValueError (transport overflow)
+# ---------------------------------------------------------------------------
+
+
+def _raise_value_error(*_a: Any, **_kw: Any) -> None:
+    raise ValueError("recv_line: message exceeds max_bytes limit")
+
+
+def test_call_catches_value_error(monkeypatch: Any) -> None:
+    """call() must catch ValueError and exit rc=1."""
+    monkeypatch.setattr(helpers_mod, "load_session", lambda: _fake_session())
+    monkeypatch.setattr(helpers_mod, "send_request", _raise_value_error)
+
+    @click.command("dummy")
+    def cmd() -> None:
+        call("ping", {})
+
+    runner = CliRunner()
+    result = runner.invoke(cmd, [])
+    assert result.exit_code == 1
+    assert "daemon unreachable" in result.stderr

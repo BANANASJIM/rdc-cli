@@ -5,7 +5,7 @@ from __future__ import annotations
 import socket
 
 
-def recv_line(sock: socket.socket, max_bytes: int = 10 * 1024 * 1024) -> str:
+def recv_line(sock: socket.socket, max_bytes: int = 256 * 1024 * 1024) -> str:
     """Read one newline-terminated line from a socket.
 
     Args:

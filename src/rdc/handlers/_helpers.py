@@ -99,9 +99,10 @@ def _action_type_str(flags: int) -> str:
         _DRAWCALL,
         _END_PASS,
         _INDEXED,
+        _MESHDRAW,
     )
 
-    if flags & _DRAWCALL:
+    if flags & (_DRAWCALL | _MESHDRAW):
         return "DrawIndexed" if flags & _INDEXED else "Draw"
     if flags & _DISPATCH:
         return "Dispatch"
@@ -127,7 +128,7 @@ def _build_shader_cache(state: DaemonState) -> None:
         return
 
     from rdc.services.query_service import _DISPATCH as _QS_DISPATCH
-    from rdc.services.query_service import _DRAWCALL
+    from rdc.services.query_service import _DRAWCALL, _MESHDRAW
 
     controller = state.adapter.controller
     target = get_default_disasm_target(controller)
@@ -141,10 +142,14 @@ def _build_shader_cache(state: DaemonState) -> None:
         assert state.adapter is not None
         for a in actions:
             flags = int(a.flags)
-            if (flags & _DRAWCALL) or (flags & _QS_DISPATCH):
+            if (flags & (_DRAWCALL | _MESHDRAW)) or (flags & _QS_DISPATCH):
                 _set_frame_event(state, a.eventId)
                 pipe = state.adapter.get_pipeline_state()
-                state._pipe_states_cache[a.eventId] = pipe
+                # Snapshot shader IDs (pipe is a mutable reference)
+                stage_snap: dict[int, int] = {}
+                for sv in range(6):
+                    stage_snap[sv] = int(pipe.GetShader(sv))
+                state._pipe_states_cache[a.eventId] = stage_snap
 
                 for stage_val, stage_name in _STAGE_NAMES.items():
                     sid = int(pipe.GetShader(stage_val))

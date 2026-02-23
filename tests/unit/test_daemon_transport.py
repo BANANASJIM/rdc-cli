@@ -123,3 +123,54 @@ def test_recv_line_eof() -> None:
     mock_sock.recv.return_value = b""
     result = recv_line(mock_sock)
     assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# B10: large-message transport tests
+# ---------------------------------------------------------------------------
+
+
+def test_recv_line_default_limit_is_large_enough_for_debug() -> None:
+    """A ~1 MB debug trace payload must not hit the default limit."""
+    # Build a JSON payload resembling a debug trace (~1 MB)
+    step = '{"step":0,"instruction":0,"file":"s.comp","line":1,"changes":[]}'
+    trace_body = ",".join([step] * 20_000)
+    payload = f'{{"result":{{"trace":[{trace_body}]}}}}\n'.encode()
+    assert len(payload) > 1_000_000  # sanity: > 1 MB
+
+    chunks = [payload[i : i + 4096] for i in range(0, len(payload), 4096)]
+    call_iter = iter(chunks)
+    mock_sock = MagicMock()
+    mock_sock.recv.side_effect = lambda _sz: next(call_iter)
+
+    result = recv_line(mock_sock)
+    assert "trace" in result
+
+
+def test_recv_line_large_message_at_limit() -> None:
+    """Exactly max_bytes bytes ending with newline should succeed."""
+    limit = 200
+    body = b"A" * (limit - 1) + b"\n"
+    assert len(body) == limit
+
+    chunks = [body[i : i + 4096] for i in range(0, len(body), 4096)]
+    call_iter = iter(chunks)
+    mock_sock = MagicMock()
+    mock_sock.recv.side_effect = lambda _sz: next(call_iter)
+
+    result = recv_line(mock_sock, max_bytes=limit)
+    assert result == "A" * (limit - 1)
+
+
+def test_recv_line_large_message_just_over_limit() -> None:
+    """One byte over max_bytes must raise ValueError."""
+    limit = 200
+    body = b"A" * (limit + 1)
+
+    chunks = [body[i : i + 4096] for i in range(0, len(body), 4096)]
+    call_iter = iter(chunks)
+    mock_sock = MagicMock()
+    mock_sock.recv.side_effect = lambda _sz: next(call_iter)
+
+    with pytest.raises(ValueError, match="max_bytes"):
+        recv_line(mock_sock, max_bytes=limit)

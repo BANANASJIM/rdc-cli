@@ -104,7 +104,7 @@ class DaemonState:
     rd: Any = None
     disasm_cache: dict[int, str] = field(default_factory=dict)
     shader_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
-    _pipe_states_cache: dict[int, Any] = field(default_factory=dict)
+    _pipe_states_cache: dict[int, dict[int, int]] = field(default_factory=dict)
     built_shaders: dict[int, Any] = field(default_factory=dict)
     shader_replacements: dict[int, Any] = field(default_factory=dict)
     replay_output: Any = None

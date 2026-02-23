@@ -461,3 +461,79 @@ class TestEventMultiChunk:
     def test_last_chunk_wins_api_call(self):
         resp, _ = _handle_request(_req("event", eid=42), self._make_multi_chunk_state())
         assert resp["result"]["API Call"] == "vkCmdDrawIndexed"
+
+
+# ---------------------------------------------------------------------------
+# Tests: B16 — mesh dispatch (MeshDispatch = 0x0008) classified as draw
+# ---------------------------------------------------------------------------
+
+
+def _build_mesh_actions():
+    """Action tree with a single mesh dispatch action."""
+    mesh_draw = ActionDescription(
+        eventId=10,
+        flags=ActionFlags.MeshDispatch,
+        numIndices=0,
+        numInstances=1,
+        _name="vkCmdDrawMeshTasksEXT",
+    )
+    return [mesh_draw]
+
+
+def _make_mesh_state():
+    actions = _build_mesh_actions()
+    sf = StructuredFile()
+    controller = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: SimpleNamespace(),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+    )
+    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
+    state.structured_file = sf
+    state.api_name = "Vulkan"
+    state.max_eid = 10
+    from rdc.vfs.tree_cache import build_vfs_skeleton
+
+    state.vfs_tree = build_vfs_skeleton(actions, [], sf=sf)
+    return state
+
+
+class TestMeshDispatchClassification:
+    def test_mesh_dispatch_action_type_str(self):
+        from rdc.handlers._helpers import _action_type_str
+
+        assert _action_type_str(0x0008) == "Draw"
+        assert _action_type_str(0x0008) != "Other"
+
+    def test_mesh_dispatch_classified_as_draw_in_events(self):
+        resp, _ = _handle_request(_req("events"), _make_mesh_state())
+        events = resp["result"]["events"]
+        mesh_ev = [e for e in events if e["eid"] == 10]
+        assert len(mesh_ev) == 1
+        assert mesh_ev[0]["type"] != "Other"
+        assert mesh_ev[0]["type"] == "Draw"
+
+    def test_mesh_dispatch_included_in_draws_list(self):
+        resp, _ = _handle_request(_req("draws"), _make_mesh_state())
+        draws = resp["result"]["draws"]
+        mesh_draws = [d for d in draws if d["eid"] == 10]
+        assert len(mesh_draws) == 1
+
+    def test_mesh_dispatch_counted_as_draw(self):
+        resp, _ = _handle_request(_req("count", what="draws"), _make_mesh_state())
+        assert resp["result"]["value"] == 1
+
+    def test_mesh_dispatch_in_info_draw_calls(self):
+        resp, _ = _handle_request(_req("info"), _make_mesh_state())
+        draw_calls = resp["result"]["Draw Calls"]
+        assert "1 " in draw_calls
+
+    def test_mesh_dispatch_not_classified_as_dispatch(self):
+        resp, _ = _handle_request(_req("count", what="dispatches"), _make_mesh_state())
+        assert resp["result"]["value"] == 0

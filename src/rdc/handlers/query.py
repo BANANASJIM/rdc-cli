@@ -283,11 +283,11 @@ def _handle_stats(
     top = get_top_draws(flat, limit=3)
 
     # Find a representative draw EID per pass for RT enrichment
-    from rdc.services.query_service import _DRAWCALL
+    from rdc.services.query_service import _DRAWCALL, _MESHDRAW
 
     pass_first_draw: dict[str, int] = {}
     for a in flat:
-        if (a.flags & _DRAWCALL) and a.pass_name not in pass_first_draw:
+        if (a.flags & (_DRAWCALL | _MESHDRAW)) and a.pass_name not in pass_first_draw:
             pass_first_draw[a.pass_name] = a.eid
     for ps in stats.per_pass:
         draw_eid = pass_first_draw.get(ps.name)
