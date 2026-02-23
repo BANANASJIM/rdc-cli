@@ -1291,6 +1291,7 @@ class MockReplayController:
         self._pixel_history_map: dict[tuple[int, int], list[PixelModification]] = {}
         self._debug_pixel_map: dict[tuple[int, int], ShaderDebugTrace] = {}
         self._debug_vertex_map: dict[int, ShaderDebugTrace] = {}
+        self._debug_thread_map: dict[tuple[int, int, int, int, int, int], ShaderDebugTrace] = {}
         self._debug_states: dict[int, list[list[ShaderDebugState]]] = {}
         self._mesh_data: dict[int, MeshFormat] = {}
         self._target_encodings: list[int] = [3, 2]
@@ -1406,6 +1407,11 @@ class MockReplayController:
 
     def DebugVertex(self, vtx: int, inst: int, idx: int, view: int) -> ShaderDebugTrace:
         return self._debug_vertex_map.get(vtx, ShaderDebugTrace())
+
+    def DebugThread(
+        self, group: tuple[int, int, int], thread: tuple[int, int, int]
+    ) -> ShaderDebugTrace:
+        return self._debug_thread_map.get((*group, *thread), ShaderDebugTrace())
 
     def ContinueDebug(self, debugger: Any) -> list[ShaderDebugState]:
         key = id(debugger)

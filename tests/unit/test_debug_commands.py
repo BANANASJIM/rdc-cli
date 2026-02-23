@@ -413,3 +413,319 @@ def test_debug_no_subcommand() -> None:
 def test_debug_in_main_help() -> None:
     result = CliRunner().invoke(main, ["--help"])
     assert "debug" in result.output
+
+
+# ---------------------------------------------------------------------------
+# debug thread: fixture data
+# ---------------------------------------------------------------------------
+
+_THREAD_HAPPY_RESPONSE: dict[str, Any] = {
+    "eid": 150,
+    "stage": "cs",
+    "total_steps": 3,
+    "inputs": [
+        {
+            "name": "gl_GlobalInvocationID",
+            "type": "uint",
+            "rows": 1,
+            "cols": 3,
+            "before": [0, 0, 0],
+            "after": [0, 0, 0],
+        },
+    ],
+    "outputs": [
+        {
+            "name": "outBuffer",
+            "type": "float",
+            "rows": 1,
+            "cols": 4,
+            "before": [0.0, 0.0, 0.0, 0.0],
+            "after": [1.0, 2.0, 3.0, 4.0],
+        },
+    ],
+    "trace": [
+        {
+            "step": 0,
+            "instruction": 0,
+            "file": "shader.comp",
+            "line": 12,
+            "changes": [
+                {
+                    "name": "gl_GlobalInvocationID",
+                    "type": "uint",
+                    "rows": 1,
+                    "cols": 3,
+                    "before": [0, 0, 0],
+                    "after": [0, 0, 0],
+                },
+            ],
+        },
+        {
+            "step": 1,
+            "instruction": 1,
+            "file": "shader.comp",
+            "line": 13,
+            "changes": [
+                {
+                    "name": "temp",
+                    "type": "float",
+                    "rows": 1,
+                    "cols": 1,
+                    "before": [0.0],
+                    "after": [0.5],
+                },
+            ],
+        },
+        {
+            "step": 2,
+            "instruction": 5,
+            "file": "shader.comp",
+            "line": 20,
+            "changes": [
+                {
+                    "name": "outBuffer",
+                    "type": "float",
+                    "rows": 1,
+                    "cols": 4,
+                    "before": [0.0, 0.0, 0.0, 0.0],
+                    "after": [1.0, 2.0, 3.0, 4.0],
+                },
+            ],
+        },
+    ],
+}
+
+_THREAD_EMPTY_TRACE: dict[str, Any] = {
+    "eid": 150,
+    "stage": "cs",
+    "total_steps": 0,
+    "inputs": [],
+    "outputs": [],
+    "trace": [],
+}
+
+_THREAD_MULTI_CHANGE: dict[str, Any] = {
+    "eid": 150,
+    "stage": "cs",
+    "total_steps": 1,
+    "inputs": [],
+    "outputs": [],
+    "trace": [
+        {
+            "step": 0,
+            "instruction": 0,
+            "file": "shader.comp",
+            "line": 10,
+            "changes": [
+                {
+                    "name": "a",
+                    "type": "float",
+                    "rows": 1,
+                    "cols": 1,
+                    "before": [0.0],
+                    "after": [1.0],
+                },
+                {
+                    "name": "b",
+                    "type": "uint",
+                    "rows": 1,
+                    "cols": 1,
+                    "before": [0],
+                    "after": [42],
+                },
+            ],
+        },
+    ],
+}
+
+_THREAD_ARGS = ["debug", "thread", "150", "0", "0", "0", "0", "0", "0"]
+
+
+# ---------------------------------------------------------------------------
+# debug thread: default summary (DT-01)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_default_summary(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, _THREAD_ARGS)
+    assert result.exit_code == 0
+    assert "stage:" in result.output
+    assert "cs" in result.output
+    assert "steps:" in result.output
+    assert "inputs:" in result.output
+    assert "outputs:" in result.output
+
+
+# ---------------------------------------------------------------------------
+# debug thread: --trace TSV (DT-02)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_trace_tsv(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--trace"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "STEP\tINSTR\tFILE\tLINE\tVAR\tTYPE\tVALUE"
+    assert len(lines) == 4  # header + 3 steps (1 change each)
+    assert "gl_GlobalInvocationID" in lines[1]
+    assert "temp" in lines[2]
+    assert "outBuffer" in lines[3]
+
+
+# ---------------------------------------------------------------------------
+# debug thread: --trace empty (DT-03)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_trace_empty(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_EMPTY_TRACE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--trace"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "STEP\tINSTR\tFILE\tLINE\tVAR\tTYPE\tVALUE"
+    assert len(lines) == 1
+
+
+# ---------------------------------------------------------------------------
+# debug thread: --dump-at (DT-04)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_dump_at(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--dump-at", "13"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "VAR\tTYPE\tVALUE"
+    assert any("gl_GlobalInvocationID" in line for line in lines)
+    assert any("temp" in line for line in lines)
+
+
+# ---------------------------------------------------------------------------
+# debug thread: --dump-at no match (DT-05)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_dump_at_no_match(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--dump-at", "9999"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert lines[0] == "VAR\tTYPE\tVALUE"
+    # all vars accumulated
+    assert any("gl_GlobalInvocationID" in line for line in lines)
+
+
+# ---------------------------------------------------------------------------
+# debug thread: --json (DT-06)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_json(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["stage"] == "cs"
+    assert data["total_steps"] == 3
+    assert "trace" in data
+    assert "inputs" in data
+    assert "outputs" in data
+
+
+# ---------------------------------------------------------------------------
+# debug thread: --no-header (DT-07)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_no_header(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--trace", "--no-header"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert not lines[0].startswith("STEP\tINSTR")
+
+
+# ---------------------------------------------------------------------------
+# debug thread: params forwarded (DT-08)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_params_forwarded(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    CliRunner().invoke(main, ["debug", "thread", "150", "1", "2", "0", "3", "4", "5"])
+    p = _captured_params["params"]
+    assert p["eid"] == 150
+    assert p["gx"] == 1
+    assert p["gy"] == 2
+    assert p["gz"] == 0
+    assert p["tx"] == 3
+    assert p["ty"] == 4
+    assert p["tz"] == 5
+
+
+# ---------------------------------------------------------------------------
+# debug thread: method name (DT-09)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_method_name(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
+    CliRunner().invoke(main, _THREAD_ARGS)
+    assert _captured_params["method"] == "debug_thread"
+
+
+# ---------------------------------------------------------------------------
+# debug thread: help (DT-10)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_help() -> None:
+    result = CliRunner().invoke(main, ["debug", "thread", "--help"])
+    assert result.exit_code == 0
+    assert "EID" in result.output
+    assert "GX" in result.output
+    assert "GY" in result.output
+    assert "GZ" in result.output
+    assert "TX" in result.output
+    assert "TY" in result.output
+    assert "TZ" in result.output
+    assert "--trace" in result.output
+
+
+# ---------------------------------------------------------------------------
+# debug thread: missing arg exits nonzero (DT-11)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_missing_arg_exits_nonzero() -> None:
+    result = CliRunner().invoke(main, ["debug", "thread", "150", "0", "0"])
+    assert result.exit_code == 2
+
+
+# ---------------------------------------------------------------------------
+# debug thread: multiple changes (DT-12)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_thread_multiple_changes(monkeypatch: Any) -> None:
+    _patch(monkeypatch, _THREAD_MULTI_CHANGE)
+    result = CliRunner().invoke(main, [*_THREAD_ARGS, "--trace"])
+    assert result.exit_code == 0
+    lines = result.output.strip().split("\n")
+    assert len(lines) == 3  # header + 2 changes
+    assert "a" in lines[1]
+    assert "b" in lines[2]
+
+
+# ---------------------------------------------------------------------------
+# debug thread: group help includes thread (DT-13)
+# ---------------------------------------------------------------------------
+
+
+def test_debug_group_help_includes_thread() -> None:
+    result = CliRunner().invoke(main, ["debug", "--help"])
+    assert result.exit_code == 0
+    assert "thread" in result.output

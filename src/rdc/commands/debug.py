@@ -1,4 +1,4 @@
-"""rdc debug commands -- shader execution trace (pixel and vertex)."""
+"""rdc debug commands -- shader execution trace (pixel, vertex, thread)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from rdc.formatters.json_fmt import write_json
 
 @click.group("debug")
 def debug_group() -> None:
-    """Debug shader execution (pixel or vertex trace)."""
+    """Debug shader execution (pixel, vertex, or compute thread trace)."""
 
 
 def _format_value_str(values: list[float | int]) -> str:
@@ -89,6 +89,58 @@ def pixel_cmd(
         params["primitive"] = primitive
 
     result = _daemon_call("debug_pixel", params)
+
+    if use_json:
+        write_json(result)
+        return
+
+    if dump_at is not None:
+        _print_dump_at(result, dump_at, no_header)
+        return
+
+    if show_trace:
+        _print_trace(result, no_header)
+        return
+
+    _print_summary(result)
+
+
+@debug_group.command("thread")
+@click.argument("eid", type=int)
+@click.argument("gx", type=int)
+@click.argument("gy", type=int)
+@click.argument("gz", type=int)
+@click.argument("tx", type=int)
+@click.argument("ty", type=int)
+@click.argument("tz", type=int)
+@click.option("--trace", "show_trace", is_flag=True, help="Full execution trace (TSV)")
+@click.option("--dump-at", "dump_at", type=int, default=None, help="Var snapshot at LINE")
+@click.option("--json", "use_json", is_flag=True, help="JSON output")
+@click.option("--no-header", is_flag=True, help="Suppress TSV header row")
+def thread_cmd(
+    eid: int,
+    gx: int,
+    gy: int,
+    gz: int,
+    tx: int,
+    ty: int,
+    tz: int,
+    show_trace: bool,
+    dump_at: int | None,
+    use_json: bool,
+    no_header: bool,
+) -> None:
+    """Debug compute shader thread at workgroup (GX,GY,GZ) thread (TX,TY,TZ)."""
+    params: dict[str, Any] = {
+        "eid": eid,
+        "gx": gx,
+        "gy": gy,
+        "gz": gz,
+        "tx": tx,
+        "ty": ty,
+        "tz": tz,
+    }
+    result = _daemon_call("debug_thread", params)
 
     if use_json:
         write_json(result)
