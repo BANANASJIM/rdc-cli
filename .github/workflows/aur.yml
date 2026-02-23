@@ -1,0 +1,63 @@
+name: AUR Publish
+
+on:
+  push:
+    branches: [master]
+    paths: ["aur/PKGBUILD"]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  aur-git:
+    name: Publish rdc-cli-git
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'branch'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: KSXGitHub/github-actions-deploy-aur@9dfe151cf48f26a957bbd0379c120e79cb990e13 # v2.7.2
+        with:
+          pkgname: rdc-cli-git
+          pkgbuild-path: aur/PKGBUILD
+          commit-username: ${{ secrets.AUR_USERNAME }}
+          commit-email: ${{ secrets.AUR_EMAIL }}
+          ssh-private-key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit-message: "Update PKGBUILD"
+
+  aur-stable:
+    name: Publish rdc-cli (stable)
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute tarball sha256
+        id: sha
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          SHA=$(curl -fsSL "https://github.com/BANANASJIM/rdc-cli/archive/refs/tags/v${VERSION}.tar.gz" | sha256sum | awk '{print $1}')
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Patch PKGBUILD
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" aur/stable/PKGBUILD
+          sed -i "s/'PLACEHOLDER'/'${SHA256}'/" aur/stable/PKGBUILD
+
+      - uses: KSXGitHub/github-actions-deploy-aur@9dfe151cf48f26a957bbd0379c120e79cb990e13 # v2.7.2
+        with:
+          pkgname: rdc-cli
+          pkgbuild-path: aur/stable/PKGBUILD
+          commit-username: ${{ secrets.AUR_USERNAME }}
+          commit-email: ${{ secrets.AUR_EMAIL }}
+          ssh-private-key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit-message: "Update rdc-cli to v${{ steps.ver.outputs.version }}"
