@@ -49,7 +49,7 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --extra dev
-      - run: uv run pip-audit
+      - run: uv run --with pip-audit pip-audit
 
   typecheck:
     name: Type check (mypy)
