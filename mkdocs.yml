@@ -1,0 +1,39 @@
+site_name: rdc-cli
+site_description: Unix-friendly CLI for RenderDoc .rdc captures
+site_url: https://bananasjim.github.io/rdc-cli/docs/
+repo_url: https://github.com/BANANASJIM/rdc-cli
+repo_name: BANANASJIM/rdc-cli
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - content.code.copy
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocs-click
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Usage: usage.md
+  - VFS: vfs.md
+  - CLI Reference: cli-reference.md
