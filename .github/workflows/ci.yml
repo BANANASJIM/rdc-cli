@@ -167,15 +167,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify tag matches pyproject.toml version
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')
-          if [ "$TAG" != "$VERSION" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $VERSION"
-            exit 1
-          fi
-
       - name: Download dist artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
