@@ -227,7 +227,10 @@ def _handle_log(
             eid_filter = int(eid_filter)
         except (TypeError, ValueError):
             return _error_response(request_id, -32602, "eid must be an integer"), True
-    msgs = controller.GetDebugMessages() if hasattr(controller, "GetDebugMessages") else []
+    if state._debug_messages_cache is None:
+        raw = controller.GetDebugMessages() if hasattr(controller, "GetDebugMessages") else []
+        state._debug_messages_cache = list(raw)
+    msgs = state._debug_messages_cache
     log_rows: list[dict[str, Any]] = []
     for m in msgs:
         lvl = _LOG_SEVERITY_MAP.get(int(m.severity), "UNKNOWN")
@@ -275,6 +278,34 @@ def _handle_stats(
     flat = _get_flat_actions(state)
     stats = aggregate_stats(flat)
     top = get_top_draws(flat, limit=3)
+
+    from rdc.services.query_service import _build_pass_list
+
+    pass_list = _build_pass_list(state.adapter.get_root_actions(), state.structured_file)
+    for ps in stats.per_pass:
+        matched = next((p for p in pass_list if p["name"] == ps.name), None)
+        if matched is None:
+            continue
+        err = _set_frame_event(state, matched["begin_eid"])
+        if err:
+            continue
+        try:
+            pipe = state.adapter.get_pipeline_state()
+            targets = pipe.GetOutputTargets()
+            non_null = [t for t in targets if int(t.resource) != 0]
+            ps.attachments = len(non_null)
+            depth_id = int(pipe.GetDepthTarget().resource)
+            if depth_id != 0:
+                ps.attachments += 1
+            if non_null:
+                rid = int(non_null[0].resource)
+                tex = state.tex_map.get(rid)
+                if tex is not None:
+                    ps.rt_w = tex.width
+                    ps.rt_h = tex.height
+        except Exception:
+            pass  # fallback to defaults (0)
+
     per_pass = [
         {
             "name": ps.name,

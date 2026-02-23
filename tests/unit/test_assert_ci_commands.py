@@ -622,3 +622,63 @@ def test_assert_commands_help_exits_0() -> None:
     for cmd in _ASSERT_CMDS:
         r = _run(cmd, "--help")
         assert r.exit_code == 0, f"{cmd} --help failed"
+
+
+# ---------------------------------------------------------------------------
+# PR#84: JSON-aware error formatting in assert_ci
+# ---------------------------------------------------------------------------
+
+
+def test_assert_pixel_bad_expect_json_error(monkeypatch: Any) -> None:
+    """--json with bad --expect format outputs JSON error on stderr."""
+    _patch(monkeypatch, _pixel_resp([(88, True, _RGBA_A)]))
+    r = CliRunner().invoke(
+        main, ["assert-pixel", "88", "0", "0", "--expect", "red green blue alpha", "--json"]
+    )
+    assert r.exit_code == 2
+    data = json.loads(r.stderr.strip())
+    assert "error" in data
+    assert "numeric" in data["error"]["message"]
+
+
+def test_assert_pixel_bad_expect_count_json_error(monkeypatch: Any) -> None:
+    """--json with wrong number of floats outputs JSON error."""
+    _patch(monkeypatch, _pixel_resp([(88, True, _RGBA_A)]))
+    r = CliRunner().invoke(
+        main, ["assert-pixel", "88", "0", "0", "--expect", "1.0 2.0 3.0", "--json"]
+    )
+    assert r.exit_code == 2
+    data = json.loads(r.stderr.strip())
+    assert "error" in data
+    assert "4 floats" in data["error"]["message"]
+
+
+def test_assert_pixel_no_passing_json_error(monkeypatch: Any) -> None:
+    """--json with no passing modification outputs JSON error."""
+    _patch(monkeypatch, _pixel_resp([(88, False, _RGBA_A)]))
+    r = CliRunner().invoke(main, ["assert-pixel", "88", "0", "0", "--expect", _EXPECT, "--json"])
+    assert r.exit_code == 2
+    data = json.loads(r.stderr.strip())
+    assert "error" in data
+    assert "no passing" in data["error"]["message"]
+
+
+def test_assert_state_invalid_section_json_error(monkeypatch: Any) -> None:
+    """--json with invalid section outputs JSON error."""
+    r = CliRunner().invoke(main, ["assert-state", "120", "nosuch.field", "--expect", "x", "--json"])
+    assert r.exit_code == 2
+    data = json.loads(r.stderr.strip())
+    assert "error" in data
+    assert "invalid section" in data["error"]["message"]
+
+
+def test_assert_state_key_not_found_json_error(monkeypatch: Any) -> None:
+    """--json with key not found outputs JSON error."""
+    _patch(monkeypatch, {"eid": 120, "topology": "TriangleList"})
+    r = CliRunner().invoke(
+        main, ["assert-state", "120", "topology.nosuchkey", "--expect", "x", "--json"]
+    )
+    assert r.exit_code == 2
+    data = json.loads(r.stderr.strip())
+    assert "error" in data
+    assert "not found" in data["error"]["message"]

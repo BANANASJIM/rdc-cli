@@ -140,15 +140,18 @@ def _handle_debug_pixel(
     inputs.primitive = int(params.get("primitive", 0xFFFFFFFF))
 
     controller = state.adapter.controller
-    trace = controller.DebugPixel(x, y, inputs)
+    try:
+        trace = controller.DebugPixel(x, y, inputs)
+    except Exception as exc:
+        return _error_response(request_id, -32603, f"DebugPixel failed: {exc}"), True
 
     if trace is None or trace.debugger is None:
         return _error_response(request_id, -32007, "no fragment at pixel"), True
 
+    stage_name = _STAGE_NAMES.get(int(trace.stage), "ps")
     steps, loop_err = _run_debug_loop(controller, trace)
     if loop_err:
         return _error_response(request_id, -32603, loop_err), True
-    stage_name = _STAGE_NAMES.get(int(trace.stage), "ps")
     inp, out = _extract_inputs_outputs(steps)
 
     return _result_response(
@@ -184,15 +187,18 @@ def _handle_debug_vertex(
         return _error_response(request_id, -32002, err), True
 
     controller = state.adapter.controller
-    trace = controller.DebugVertex(vtx_id, instance, idx, view)
+    try:
+        trace = controller.DebugVertex(vtx_id, instance, idx, view)
+    except Exception as exc:
+        return _error_response(request_id, -32603, f"DebugVertex failed: {exc}"), True
 
     if trace is None or trace.debugger is None:
         return _error_response(request_id, -32007, "vertex debug not available"), True
 
+    stage_name = _STAGE_NAMES.get(int(trace.stage), "vs")
     steps, loop_err = _run_debug_loop(controller, trace)
     if loop_err:
         return _error_response(request_id, -32603, loop_err), True
-    stage_name = _STAGE_NAMES.get(int(trace.stage), "vs")
     inp, out = _extract_inputs_outputs(steps)
 
     return _result_response(
@@ -233,15 +239,18 @@ def _handle_debug_thread(
         return _error_response(request_id, -32602, "event is not a Dispatch"), True
 
     controller = state.adapter.controller
-    trace = controller.DebugThread((gx, gy, gz), (tx, ty, tz))
+    try:
+        trace = controller.DebugThread((gx, gy, gz), (tx, ty, tz))
+    except Exception as exc:
+        return _error_response(request_id, -32603, f"DebugThread failed: {exc}"), True
 
     if trace is None or trace.debugger is None:
         return _error_response(request_id, -32007, "thread debug not available"), True
 
+    stage_name = _STAGE_NAMES.get(int(trace.stage), "cs")
     steps, loop_err = _run_debug_loop(controller, trace)
     if loop_err:
         return _error_response(request_id, -32603, loop_err), True
-    stage_name = _STAGE_NAMES.get(int(trace.stage), "cs")
     inp, out = _extract_inputs_outputs(steps)
 
     return _result_response(

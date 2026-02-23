@@ -15,6 +15,16 @@ from rdc.daemon_client import send_request
 from rdc.protocol import _request
 from rdc.session_state import load_session
 
+
+def _err_exit(msg: str) -> None:
+    """Print error (JSON or plain text based on context) and exit(2)."""
+    if _json_mode():
+        click.echo(json.dumps({"error": {"message": msg}}), err=True)
+    else:
+        click.echo(f"error: {msg}", err=True)
+    sys.exit(2)
+
+
 _SEVERITY_RANK: dict[str, int] = {"HIGH": 0, "MEDIUM": 1, "LOW": 2, "INFO": 3, "UNKNOWN": 4}
 
 _OPS: dict[str, Any] = {
@@ -99,16 +109,13 @@ def _traverse_path(data: Any, path: list[str]) -> Any:
             try:
                 data = data[int(seg)]
             except (ValueError, IndexError):
-                click.echo(f"error: invalid path segment '{seg}'", err=True)
-                sys.exit(2)
+                _err_exit(f"invalid path segment '{seg}'")
         elif isinstance(data, dict):
             if seg not in data:
-                click.echo(f"error: key '{seg}' not found", err=True)
-                sys.exit(2)
+                _err_exit(f"key '{seg}' not found")
             data = data[seg]
         else:
-            click.echo(f"error: cannot traverse into {type(data).__name__}", err=True)
-            sys.exit(2)
+            _err_exit(f"cannot traverse into {type(data).__name__}")
     return data
 
 
@@ -138,20 +145,17 @@ def assert_pixel_cmd(
     """Assert pixel RGBA at (x, y) matches expected value within tolerance."""
     parts = expect.split()
     if len(parts) != 4:
-        click.echo("error: --expect must have exactly 4 floats (R G B A)", err=True)
-        sys.exit(2)
+        _err_exit("--expect must have exactly 4 floats (R G B A)")
     try:
         expected = [float(v) for v in parts]
     except ValueError:
-        click.echo("error: --expect values must be numeric", err=True)
-        sys.exit(2)
+        _err_exit("--expect values must be numeric")
 
     result = _assert_call("pixel_history", {"eid": eid, "x": x, "y": y, "target": target})
     mods = result.get("modifications", [])
     passing = [m for m in mods if m.get("passed")]
     if not passing:
-        click.echo("error: no passing modification found", err=True)
-        sys.exit(2)
+        _err_exit("no passing modification found")
 
     last = passing[-1]
     pm = last["post_mod"]
@@ -296,8 +300,7 @@ def assert_state_cmd(eid: int, key_path: str, expect: str, output_json: bool) ->
     """Assert pipeline state value at EID matches expected."""
     section, field_path = _parse_key_path(key_path)
     if section not in _VALID_SECTIONS:
-        click.echo(f"error: invalid section '{section}'", err=True)
-        sys.exit(2)
+        _err_exit(f"invalid section '{section}'")
 
     result = _assert_call("pipeline", {"eid": eid, "section": section})
     # Unwrap shader stage results — handler wraps them in {"row": {..., "section_detail": {...}}}
