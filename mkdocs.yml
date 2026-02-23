@@ -29,11 +29,9 @@ theme:
 
 plugins:
   - search
+
+markdown_extensions:
   - mkdocs-click
 
 nav:
-  - Home: index.md
-  - Installation: install.md
-  - Usage: usage.md
-  - VFS: vfs.md
   - CLI Reference: cli-reference.md

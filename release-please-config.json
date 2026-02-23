@@ -3,6 +3,7 @@
     ".": {
       "release-type": "python",
       "package-name": "rdc-cli",
+      "include-component-in-tag": false,
       "bump-minor-pre-major": true,
       "changelog-sections": [
         {

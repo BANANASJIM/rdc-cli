@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import stats from '../data/stats.json';
 
 interface Props {
   title?: string;
@@ -8,7 +9,7 @@ interface Props {
 
 const {
   title = 'rdc-cli — Unix-friendly CLI for RenderDoc',
-  description = 'Pipe-friendly TSV output, JSON mode, 33 commands, daemon-backed session for interactive GPU capture exploration.',
+  description = `Pipe-friendly TSV output, JSON mode, ${stats.command_count} commands, daemon-backed session for interactive GPU capture exploration.`,
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL;

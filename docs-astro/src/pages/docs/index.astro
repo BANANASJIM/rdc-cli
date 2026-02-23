@@ -1,5 +1,6 @@
 ---
 import Docs from '../../layouts/Docs.astro';
+import stats from '../../data/stats.json';
 
 const base = import.meta.env.BASE_URL;
 ---
@@ -8,7 +9,7 @@ const base = import.meta.env.BASE_URL;
   <p>
     <strong>rdc-cli</strong> is a Unix-friendly command-line interface for
     <a href="https://renderdoc.org/">RenderDoc</a> GPU captures.
-    It provides pipe-friendly TSV output, JSON mode, and 33 commands for exploring
+    It provides pipe-friendly TSV output, JSON mode, and {stats.command_count} commands for exploring
     <code>.rdc</code> capture files — designed for CI pipelines and AI agents.
   </p>
 
@@ -54,7 +55,7 @@ rdc close</code></pre>
   <ul>
     <li><a href={`${base}docs/install/`}>Installation</a> — PyPI, AUR, from source, renderdoc setup</li>
     <li><a href={`${base}docs/usage/`}>Usage Patterns</a> — common workflows and examples</li>
-    <li><a href={`${base}docs/commands/`}>Command Reference</a> — all 33 commands</li>
+    <li><a href={`${base}docs/commands/`}>Command Reference</a> — all {stats.command_count} commands</li>
     <li><a href={`${base}docs/vfs/`}>VFS Paths</a> — virtual filesystem namespace</li>
   </ul>
 </Docs>

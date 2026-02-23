@@ -7,26 +7,27 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: gh-pages
   cancel-in-progress: false
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Extract version from tag
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ "$GITHUB_REF_NAME" == v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            VER=$(grep -m1 '^version' pyproject.toml | sed 's/.*= *"\(.*\)"/\1/')
+            echo "version=${VER}-dev" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up uv
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
@@ -48,17 +49,21 @@ jobs:
           echo "coverage=${COV_PCT}" >> "$GITHUB_OUTPUT"
 
       - name: Generate stats.json
+        env:
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+          TEST_COUNT: ${{ steps.test_stats.outputs.test_count }}
+          COVERAGE: ${{ steps.test_stats.outputs.coverage }}
         run: |
           mkdir -p docs-astro/src/data
           uv run python scripts/gen-stats.py \
-            --version "${{ steps.version.outputs.version }}" \
-            --test-count "${{ steps.test_stats.outputs.test_count }}" \
-            --coverage "${{ steps.test_stats.outputs.coverage }}" \
+            --version "$DOC_VERSION" \
+            --test-count "$TEST_COUNT" \
+            --coverage "$COVERAGE" \
             > docs-astro/src/data/stats.json
           cat docs-astro/src/data/stats.json
 
       - name: Build mkdocs
-        run: uv run --with mkdocs-material --with mkdocs-click mkdocs build -d _site
+        run: uv run --with "mkdocs<2" --with mkdocs-material --with mkdocs-click mkdocs build -d _site
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -96,22 +101,28 @@ jobs:
           print('Badges generated:', [b[0] for b in badges])
           "
 
-      - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
-        with:
-          path: docs-astro/dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Deploy to gh-pages branch
+        env:
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd docs-astro/dist
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "deploy: v${DOC_VERSION}"
+          git push --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:gh-pages
 
       - name: Update repo metadata
-        run: |
-          CMD=$(python3 -c "import json; print(json.load(open('docs-astro/src/data/stats.json'))['command_count'])")
-          VER="${{ steps.version.outputs.version }}"
-          gh repo edit \
-            --description "Unix-friendly CLI for RenderDoc — ${CMD} commands, TSV/JSON, daemon sessions (v${VER})" \
-            || true
-          gh repo edit --homepage "https://bananasjim.github.io/rdc-cli/" || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOC_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          CMD=$(python3 -c "import json; print(json.load(open('docs-astro/src/data/stats.json'))['command_count'])")
+          gh repo edit \
+            --description "Unix-friendly CLI for RenderDoc — ${CMD} commands, TSV/JSON, daemon sessions (v${DOC_VERSION})" \
+            || true
+          gh repo edit --homepage "https://bananasjim.github.io/rdc-cli/" || true
