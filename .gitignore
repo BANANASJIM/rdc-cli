@@ -14,3 +14,6 @@ dist/
 CLAUDE.md
 tests/fixtures/vulkan_samples
 .local/
+.claude/
+docs/
+scripts/*.py
