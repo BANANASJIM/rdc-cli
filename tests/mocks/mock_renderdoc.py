@@ -401,18 +401,18 @@ class CounterResult:
 
 @dataclass
 class ResourceId:
-    value: int = 0
+    _id: int = 0
 
     def __int__(self) -> int:
-        return self.value
+        return self._id
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, ResourceId):
-            return self.value == other.value
+            return self._id == other._id
         return NotImplemented
 
     def __hash__(self) -> int:
-        return hash(self.value)
+        return hash(self._id)
 
     @classmethod
     def Null(cls) -> ResourceId:
@@ -1301,6 +1301,13 @@ class MockReplayController:
         self._built_counter: int = 1000
         self._replacements: dict[int, int] = {}
         self._freed: set[int] = set()
+        self._save_texture_fails: bool = False
+        self._texture_data: dict[int, bytes] = {}
+        self._buffer_data: dict[int, bytes] = {}
+        self._raise_on_texture_id: set[int] = set()
+        self._raise_on_buffer_id: set[int] = set()
+        self._debug_step_index: dict[int, int] = {}
+        self._freed_traces: set[int] = set()
 
     def GetRootActions(self) -> list[ActionDescription]:
         return self._actions
@@ -1333,16 +1340,25 @@ class MockReplayController:
     def SaveTexture(self, texsave: Any, path: str) -> bool:
         """Mock SaveTexture -- writes dummy PNG-like bytes to path."""
         assert hasattr(texsave, "resourceId"), "texsave must have resourceId"
+        if self._save_texture_fails:
+            return False
         Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
         return True
 
     def GetTextureData(self, resource_id: Any, sub: Any) -> bytes:
-        """Mock GetTextureData -- returns dummy raw bytes."""
-        return b"\x00\xff" * 512
+        """Mock GetTextureData -- returns per-resource or default bytes."""
+        rid = int(resource_id)
+        if rid in self._raise_on_texture_id:
+            raise RuntimeError(f"simulated error for texture {rid}")
+        return self._texture_data.get(rid, b"\x00\xff" * 512)
 
     def GetBufferData(self, resource_id: Any, offset: int, length: int) -> bytes:
-        """Mock GetBufferData -- returns dummy buffer bytes."""
-        return b"\xab\xcd" * 256
+        """Mock GetBufferData -- returns per-resource or default bytes with slicing."""
+        rid = int(resource_id)
+        if rid in self._raise_on_buffer_id:
+            raise RuntimeError(f"simulated error for buffer {rid}")
+        data = self._buffer_data.get(rid, b"\xab\xcd" * 256)
+        return data[offset : offset + length] if length > 0 else data[offset:]
 
     def GetCBufferVariableContents(
         self,
@@ -1423,12 +1439,17 @@ class MockReplayController:
     def ContinueDebug(self, debugger: Any) -> list[ShaderDebugState]:
         key = id(debugger)
         batches = self._debug_states.get(key, [])
-        if batches:
-            return batches.pop(0)
+        idx = self._debug_step_index.get(key, 0)
+        if idx < len(batches):
+            self._debug_step_index[key] = idx + 1
+            return batches[idx]
         return []
 
     def FreeTrace(self, trace: Any) -> None:
-        pass
+        tid = id(trace)
+        if tid in self._freed_traces:
+            raise RuntimeError("double-free of trace")
+        self._freed_traces.add(tid)
 
     def GetTargetShaderEncodings(self) -> list[int]:
         return list(self._target_encodings)
