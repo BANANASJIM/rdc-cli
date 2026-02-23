@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 import click
@@ -10,7 +11,16 @@ from rdc.daemon_client import send_request
 from rdc.protocol import _request
 from rdc.session_state import load_session
 
-__all__ = ["require_session", "call"]
+__all__ = ["require_session", "call", "_json_mode"]
+
+
+def _json_mode() -> bool:
+    """Return True if the current Click context has a JSON output flag set."""
+    ctx = click.get_current_context(silent=True)
+    if ctx is None:
+        return False
+    params = ctx.params
+    return bool(params.get("use_json") or params.get("output_json") or params.get("as_json"))
 
 
 def require_session() -> tuple[str, int, str]:
@@ -21,7 +31,11 @@ def require_session() -> tuple[str, int, str]:
     """
     session = load_session()
     if session is None:
-        click.echo("error: no active session (run 'rdc open' first)", err=True)
+        msg = "no active session (run 'rdc open' first)"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
         raise SystemExit(1)
     return session.host, session.port, session.token
 
@@ -44,9 +58,17 @@ def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
         response = send_request(host, port, payload)
     except OSError as exc:
-        click.echo(f"error: daemon unreachable: {exc}", err=True)
+        msg = f"daemon unreachable: {exc}"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
         raise SystemExit(1) from exc
     if "error" in response:
-        click.echo(f"error: {response['error']['message']}", err=True)
+        msg = response["error"]["message"]
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
         raise SystemExit(1)
     return cast(dict[str, Any], response["result"])

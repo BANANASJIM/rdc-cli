@@ -9,6 +9,7 @@ from typing import Any
 
 import click
 
+from rdc.commands._helpers import _json_mode
 from rdc.commands.unix_helpers import _COUNT_TARGETS
 from rdc.daemon_client import send_request
 from rdc.protocol import _request
@@ -55,16 +56,28 @@ def _assert_call(method: str, params: dict[str, Any] | None = None) -> dict[str,
     """JSON-RPC call with exit(2) on any error."""
     session = load_session()
     if session is None:
-        click.echo("error: no active session", err=True)
+        msg = "no active session"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
         sys.exit(2)
     payload = _request(method, 1, {"_token": session.token, **(params or {})}).to_dict()
     try:
         resp = send_request(session.host, session.port, payload)
     except Exception as exc:
-        click.echo(f"error: daemon unreachable: {exc}", err=True)
+        msg = f"daemon unreachable: {exc}"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
         sys.exit(2)
     if "error" in resp:
-        click.echo(f"error: {resp['error']['message']}", err=True)
+        msg = resp["error"]["message"]
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
         sys.exit(2)
     return resp["result"]  # type: ignore[no-any-return]
 
