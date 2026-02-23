@@ -1806,3 +1806,123 @@ class TestTexStatsReal:
         draw_eid = self._first_draw_eid()
         result = _call(self.state, "tex_stats", {"id": tex_id, "eid": draw_eid})
         assert result["eid"] == draw_eid
+
+
+class TestHelloTriangleDebug:
+    """GPU integration tests for debug handlers with hello_triangle capture."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self,
+        hello_triangle_replay: tuple[Any, Any, Any],
+        rd_module: Any,
+    ) -> None:
+        cap, controller, sf = hello_triangle_replay
+        version = parse_version_tuple(rd_module.GetVersionString())
+        adapter = RenderDocAdapter(controller=controller, version=version)
+
+        self.state = DaemonState(capture="hello_triangle.rdc", current_eid=0, token="test-token")
+        self.state.adapter = adapter
+        self.state.cap = cap
+        self.state.structured_file = sf
+
+        api_props = adapter.get_api_properties()
+        pt = getattr(api_props, "pipelineType", "Unknown")
+        self.state.api_name = getattr(pt, "name", str(pt))
+
+        root_actions = adapter.get_root_actions()
+        self.state.max_eid = _max_eid(root_actions)
+
+        resources = adapter.get_resources()
+        textures = adapter.get_textures()
+        buffers = adapter.get_buffers()
+
+        self.state.tex_map = {int(t.resourceId): t for t in textures}
+        self.state.buf_map = {int(b.resourceId): b for b in buffers}
+        self.state.res_names = {int(r.resourceId): r.name for r in resources}
+        self.state.res_types = {
+            int(r.resourceId): getattr(
+                getattr(r, "type", None), "name", str(getattr(r, "type", ""))
+            )
+            for r in resources
+        }
+        self.state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
+        self.state.rd = rd_module
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        draws = result["events"]
+        assert len(draws) > 0, "no draw calls in hello_triangle capture"
+        return draws[0]["eid"]
+
+    def test_debug_vertex_success(self) -> None:
+        """debug_vertex on first draw, vertex=0 returns valid result."""
+        draw_eid = self._first_draw_eid()
+        result = _call(
+            self.state,
+            "debug_vertex",
+            {"eid": draw_eid, "vtx_id": 0},
+        )
+        assert "inputs" in result
+        assert "outputs" in result
+        assert "total_steps" in result
+        assert result["total_steps"] > 0
+
+    def test_debug_pixel_success(self) -> None:
+        """debug_pixel on first draw at center returns valid result."""
+        draw_eid = self._first_draw_eid()
+        result = _call(
+            self.state,
+            "debug_pixel",
+            {"eid": draw_eid, "x": 640, "y": 360},
+        )
+        assert "inputs" in result
+        assert "outputs" in result
+        assert "total_steps" in result
+        assert result["total_steps"] > 0
+
+
+class TestAssertStateReal:
+    """GPU integration tests for assert-state leaf comparison fix."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def _first_draw_eid(self) -> int:
+        result = _call(self.state, "events", {"type": "draw"})
+        return result["events"][0]["eid"]
+
+    def test_pipeline_topology_flat_dict(self) -> None:
+        """Pipeline with section=topology returns flat dict with 'topology' key."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "topology"})
+        assert "topology" in result
+        assert isinstance(result["topology"], str)
+
+    def test_pipeline_vs_row_with_section_detail(self) -> None:
+        """Pipeline with section=vs returns row with section_detail."""
+        draw_eid = self._first_draw_eid()
+        result = _call(self.state, "pipeline", {"eid": draw_eid, "section": "vs"})
+        assert "row" in result
+        assert "section_detail" in result["row"]
+
+
+class TestCountShadersReal:
+    """GPU integration tests for count shaders."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> None:
+        self.state = _make_state(vkcube_replay, rd_module)
+
+    def test_count_shaders_positive(self) -> None:
+        """count shaders returns a positive integer."""
+        result = _call(self.state, "count", {"what": "shaders"})
+        assert isinstance(result["value"], int)
+        assert result["value"] > 0
+
+    def test_count_shaders_matches_list(self) -> None:
+        """count shaders matches length of shaders list result."""
+        count_result = _call(self.state, "count", {"what": "shaders"})
+        shaders_result = _call(self.state, "shaders")
+        assert count_result["value"] == len(shaders_result["rows"])

@@ -104,7 +104,19 @@ def test_tex_stats_histogram_values() -> None:
 
 
 def test_tex_stats_mip_slice_forwarded() -> None:
-    state = _make_state()
+    ctrl = rd.MockReplayController()
+    rid = rd.ResourceId(42)
+    ctrl._textures = [
+        rd.TextureDescription(resourceId=rid, width=256, height=256, mips=4, arraysize=4),
+    ]
+    ctrl._actions = [
+        rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
+    ]
+    state = DaemonState(capture="test.rdc", current_eid=100, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+    state.rd = rd
+    state.tex_map = {int(t.resourceId): t for t in ctrl._textures}
     resp, _ = _handle_request(_req({"id": 42, "mip": 2, "slice": 3}), state)
     r = resp["result"]
     assert r["mip"] == 2
@@ -206,3 +218,56 @@ def test_mock_get_histogram_configured() -> None:
         rd.ResourceId(42), rd.Subresource(), rd.CompType.Typeless, 0.0, 1.0, ch_mask
     )
     assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# Mip/slice bounds validation
+# ---------------------------------------------------------------------------
+
+
+def test_tex_stats_mip_out_of_range() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req({"id": 42, "mip": 5}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of range" in resp["error"]["message"]
+
+
+def test_tex_stats_mip_upper_boundary() -> None:
+    ctrl = rd.MockReplayController()
+    rid = rd.ResourceId(42)
+    ctrl._textures = [
+        rd.TextureDescription(resourceId=rid, width=256, height=256, mips=4),
+    ]
+    ctrl._actions = [
+        rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
+    ]
+    state = DaemonState(capture="test.rdc", current_eid=100, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+    state.rd = rd
+    state.tex_map = {int(t.resourceId): t for t in ctrl._textures}
+    resp, _ = _handle_request(_req({"id": 42, "mip": 3}), state)
+    assert "result" in resp
+    assert resp["result"]["mip"] == 3
+
+
+def test_tex_stats_slice_out_of_range() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req({"id": 42, "slice": 5}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of range" in resp["error"]["message"]
+
+
+def test_tex_stats_negative_mip() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req({"id": 42, "mip": -1}), state)
+    assert resp["error"]["code"] == -32001
+    assert "out of range" in resp["error"]["message"]
+
+
+def test_tex_stats_valid_mip0_slice0() -> None:
+    state = _make_state()
+    resp, _ = _handle_request(_req({"id": 42, "mip": 0, "slice": 0}), state)
+    assert "result" in resp
+    assert resp["result"]["mip"] == 0
+    assert resp["result"]["slice"] == 0

@@ -135,3 +135,69 @@ def test_shader_map_quiet(monkeypatch) -> None:
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
     assert lines == ["10", "20"]
+
+
+# ── count shaders ──────────────────────────────────────────────────
+
+
+def test_count_shaders(monkeypatch) -> None:
+    _patch_helpers(monkeypatch, {"value": 5})
+    result = CliRunner().invoke(main, ["count", "shaders"])
+    assert result.exit_code == 0
+    assert "5" in result.output
+
+
+def test_count_shaders_handler(monkeypatch) -> None:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
+    import mock_renderdoc as rd
+
+    from rdc.adapter import RenderDocAdapter
+    from rdc.daemon_server import DaemonState, _handle_request
+
+    ctrl = rd.MockReplayController()
+    ctrl._actions = [
+        rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall, _name="draw"),
+    ]
+    state = DaemonState(capture="test.rdc", current_eid=10, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 10
+    state.rd = rd
+    req = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "count",
+        "params": {"_token": "tok", "what": "shaders"},
+    }
+    resp, _ = _handle_request(req, state)
+    assert "result" in resp
+    assert isinstance(resp["result"]["value"], int)
+
+
+def test_assert_count_shaders_pass(monkeypatch) -> None:
+    import rdc.commands.assert_ci as mod
+
+    def fake(method, params=None):
+        return {"value": 3}
+
+    monkeypatch.setattr(mod, "_assert_call", fake)
+    result = CliRunner().invoke(main, ["assert-count", "shaders", "--expect", "3"])
+    assert result.exit_code == 0
+
+
+def test_assert_count_shaders_fail(monkeypatch) -> None:
+    import rdc.commands.assert_ci as mod
+
+    def fake(method, params=None):
+        return {"value": 3}
+
+    monkeypatch.setattr(mod, "_assert_call", fake)
+    result = CliRunner().invoke(main, ["assert-count", "shaders", "--expect", "5"])
+    assert result.exit_code == 1
+
+
+def test_count_invalid_target() -> None:
+    result = CliRunner().invoke(main, ["count", "invalid_target"])
+    assert result.exit_code == 2

@@ -58,6 +58,16 @@ def _handle_count(
         resources = state.adapter.get_resources()
         value = count_resources(resources)
         return _result_response(request_id, {"value": value}), True
+    if what == "shaders":
+        if state.adapter is None:
+            return _error_response(request_id, -32002, "no replay loaded"), True
+        from rdc.handlers._helpers import _collect_pipe_states
+        from rdc.services.query_service import shader_inventory
+
+        actions = state.adapter.get_root_actions()
+        pipe_states = _collect_pipe_states(actions, state)
+        rows = shader_inventory(pipe_states)
+        return _result_response(request_id, {"value": len(rows)}), True
     try:
         if state.adapter is None:
             return _error_response(request_id, -32002, "no replay loaded"), True

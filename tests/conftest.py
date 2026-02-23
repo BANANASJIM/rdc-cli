@@ -56,6 +56,23 @@ def vkcube_replay(rd_init: Any) -> Generator[tuple[Any, Any, Any], None, None]:
 
 
 @pytest.fixture(scope="session")
+def hello_triangle_replay(rd_init: Any) -> Generator[tuple[Any, Any, Any], None, None]:
+    """Open hello_triangle.rdc and yield (cap, controller, structured_file)."""
+    rd = rd_init
+    cap = rd.OpenCaptureFile()
+    rdc_path = str(FIXTURES_DIR / "hello_triangle.rdc")
+    result = cap.OpenFile(rdc_path, "", None)
+    assert result == rd.ResultCode.Succeeded
+    assert cap.LocalReplaySupport() == rd.ReplaySupport.Supported
+    result, controller = cap.OpenCapture(rd.ReplayOptions(), None)
+    assert result == rd.ResultCode.Succeeded
+    sf = cap.GetStructuredData()
+    yield cap, controller, sf
+    controller.Shutdown()
+    cap.Shutdown()
+
+
+@pytest.fixture(scope="session")
 def adapter(vkcube_replay: tuple[Any, Any, Any], rd_module: Any) -> Any:
     """Return a RenderDocAdapter wrapping the real controller."""
     from rdc.adapter import RenderDocAdapter, parse_version_tuple
