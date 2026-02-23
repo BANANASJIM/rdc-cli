@@ -120,6 +120,8 @@ def execute_and_capture(
 
     ident = result.ident
     tc = rd.CreateTargetControl("", ident, "rdc-cli", True)
+    if tc is None:
+        return CaptureResult(error="failed to connect to target", ident=ident)
     try:
         pid = tc.GetPID()
         cap = _run_target_control_loop(tc, frame=frame, timeout=timeout)
