@@ -61,8 +61,6 @@ jobs:
     container: archlinux:latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0  # setuptools-scm needs git history
 
       - name: Install makedepends from PKGBUILD
         run: |
@@ -70,11 +68,10 @@ jobs:
                  | grep -oP "'[^']+'" | tr -d "'" | tr '\n' ' ')
           pacman -Syu --noconfirm base-devel $deps
 
-      - name: Mark repo safe for setuptools-scm
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - name: Build wheel (no-isolation, same as PKGBUILD)
         run: python -m build --wheel --no-isolation
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: "0.0.0"
 
   typecheck:
     name: Type check (mypy)
