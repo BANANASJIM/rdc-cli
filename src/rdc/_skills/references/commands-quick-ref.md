@@ -909,6 +909,7 @@ Export capture thumbnail.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--maxsize` | Max thumbnail dimension. | integer | 0 |
+| `-o, --output` | Write image to file. | path |  |
 | `--json` | Output as JSON. | flag |  |
 
 ## `rdc tree`

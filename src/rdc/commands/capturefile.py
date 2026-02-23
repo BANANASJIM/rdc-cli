@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import sys
+from pathlib import Path
 
 import click
 
@@ -11,11 +14,15 @@ from rdc.commands._helpers import call
 
 @click.command("thumbnail")
 @click.option("--maxsize", type=int, default=0, help="Max thumbnail dimension.")
+@click.option("-o", "--output", type=click.Path(path_type=Path), help="Write image to file.")
 @click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
-def thumbnail_cmd(maxsize: int, use_json: bool) -> None:
+def thumbnail_cmd(maxsize: int, output: Path | None, use_json: bool) -> None:
     """Export capture thumbnail."""
     result = call("capture_thumbnail", {"maxsize": maxsize})
-    if use_json:
+    if output:
+        output.write_bytes(base64.b64decode(result["data"]))
+        click.echo(f"thumbnail saved: {output}", file=sys.stderr)
+    elif use_json:
         click.echo(json.dumps(result))
     else:
         click.echo(f"thumbnail: {result['width']}x{result['height']}")

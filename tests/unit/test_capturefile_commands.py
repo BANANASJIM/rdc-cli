@@ -35,6 +35,15 @@ def test_thumbnail_cmd(monkeypatch) -> None:
     assert "4x4" in result.output
 
 
+def test_thumbnail_cmd_output(monkeypatch, tmp_path) -> None:
+    _patch(monkeypatch, {"data": "AQID", "width": 4, "height": 4})
+    out = tmp_path / "thumb.png"
+    result = CliRunner().invoke(thumbnail_cmd, ["-o", str(out)])
+    assert result.exit_code == 0
+    assert out.read_bytes() == b"\x01\x02\x03"
+    assert "thumbnail saved:" in result.output
+
+
 def test_thumbnail_cmd_json(monkeypatch) -> None:
     _patch(monkeypatch, {"data": "AQID", "width": 4, "height": 4})
     result = CliRunner().invoke(thumbnail_cmd, ["--json"])
