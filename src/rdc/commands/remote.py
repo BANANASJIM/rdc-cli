@@ -223,8 +223,8 @@ def remote_capture_cmd(
 
     if result.remote_path:
         click.echo(result.remote_path)
-        host_str = f"{host}:{port}"
-        click.echo(f"next: rdc open --remote {host_str} {result.remote_path}", err=True)
+        url = build_conn_url(host, port)
+        click.echo(f"next: rdc open --remote {url} {result.remote_path}", err=True)
     else:
         click.echo(result.path)
         click.echo(f"next: rdc open {result.path}", err=True)

@@ -246,6 +246,14 @@ def _stop_ping_thread(state: DaemonState) -> None:
         state._ping_thread.join(timeout=5.0)
 
 
+def _cleanup_temp_capture(state: DaemonState) -> None:
+    """Remove temp metadata directory created for remote replay, if any."""
+    lcp = state.local_capture_path
+    if lcp and "rdc-remote-" in lcp:
+        shutil.rmtree(Path(lcp).parent, ignore_errors=True)
+        state.local_capture_path = ""
+
+
 def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     """Connect to remote RenderDoc server and open capture for replay.
 
@@ -283,6 +291,7 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
             try:
                 remote.CopyCaptureFromRemote(remote_path, str(local_tmp), None)
             except Exception as exc:  # noqa: BLE001
+                shutil.rmtree(local_tmp.parent, ignore_errors=True)
                 remote.ShutdownConnection()
                 return f"CopyCaptureFromRemote failed: {exc}"
             state.local_capture_path = str(local_tmp)
@@ -291,12 +300,14 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
             rd.RemoteServer.NoPreference, remote_path, rd.ReplayOptions(), None
         )
         if result != rd.ResultCode.Succeeded:
+            _cleanup_temp_capture(state)
             remote.ShutdownConnection()
             return f"remote OpenCapture failed: {result}"
 
         cap = rd.OpenCaptureFile()
         open_result = cap.OpenFile(state.local_capture_path, "", None)
         if open_result != rd.ResultCode.Succeeded:
+            _cleanup_temp_capture(state)
             remote.CloseCapture(controller)
             remote.ShutdownConnection()
             return f"local OpenFile (metadata) failed: {open_result}"
@@ -310,6 +321,8 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
         _init_adapter_state(state)
         _start_ping_thread(state)
     except Exception as exc:  # noqa: BLE001
+        _stop_ping_thread(state)
+        _cleanup_temp_capture(state)
         remote.ShutdownConnection()
         return f"remote replay setup failed: {exc}"
     return None

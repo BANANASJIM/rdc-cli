@@ -73,7 +73,7 @@ def serve_cmd(
     ip_list = allow_ips.split(",") if allow_ips else None
     conf_path = _remoteserver_conf_path()
     conf_path.parent.mkdir(parents=True, exist_ok=True)
-    conf_path.write_text(_generate_config(ip_list, no_exec))
+    _platform.secure_write_text(conf_path, _generate_config(ip_list, no_exec))
 
     proc = _start_remoteserver(str(cmd_path), port, host)
 
@@ -86,7 +86,11 @@ def serve_cmd(
         proc.wait()
     except KeyboardInterrupt:
         proc.terminate()
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
     if proc.returncode and proc.returncode != 0:
         raise SystemExit(1)
