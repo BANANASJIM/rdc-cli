@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import mock_renderdoc as rd
+from conftest import make_daemon_state
 from mock_renderdoc import (
     AddressMode,
     Descriptor,
@@ -17,7 +18,6 @@ from mock_renderdoc import (
     UsedDescriptor,
 )
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
@@ -35,18 +35,7 @@ def _make_state_with_pipe(pipe: MockPipeState, **overrides: object) -> DaemonSta
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    defaults: dict[str, object] = {
-        "capture": "test.rdc",
-        "current_eid": 0,
-        "token": "test-token",
-        "adapter": adapter,
-        "rd": rd,
-        "api_name": "Vulkan",
-        "max_eid": 100,
-    }
-    defaults.update(overrides)
-    return DaemonState(**defaults)  # type: ignore[arg-type]
+    return make_daemon_state(ctrl=ctrl, token="test-token", rd=rd, **overrides)  # type: ignore[arg-type]
 
 
 def _call(state: DaemonState, method: str, **params: object) -> dict:

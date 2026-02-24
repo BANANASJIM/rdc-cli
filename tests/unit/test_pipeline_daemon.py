@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
@@ -13,15 +12,9 @@ def _make_state() -> DaemonState:
     ctrl = rd.MockReplayController()
     a = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)
     ctrl._actions = [a]
-    vs_id = rd.ResourceId(1)
-    ps_id = rd.ResourceId(2)
-    ctrl._pipe_state._shaders[rd.ShaderStage.Vertex] = vs_id
-    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
-    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 100
-    return state
+    ctrl._pipe_state._shaders[rd.ShaderStage.Vertex] = rd.ResourceId(1)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = rd.ResourceId(2)
+    return make_daemon_state(capture="x.rdc", ctrl=ctrl)
 
 
 def _make_state_with_shader_meta() -> DaemonState:

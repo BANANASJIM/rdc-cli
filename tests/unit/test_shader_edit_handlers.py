@@ -5,19 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
 def _make_state(ctrl: rd.MockReplayController) -> DaemonState:
-    adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = adapter
-    state.max_eid = 1000
-    state.rd = rd
-    return state
+    return make_daemon_state(ctrl=ctrl, max_eid=1000, rd=rd)
 
 
 # ── shader_encodings ──────────────────────────────────────────────────

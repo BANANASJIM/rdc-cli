@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from click.testing import CliRunner
+from conftest import assert_json_output
 
 from rdc.cli import main
 from rdc.commands import debug as debug_mod
@@ -276,8 +276,7 @@ def test_debug_pixel_dump_at_no_match(monkeypatch: Any) -> None:
 def test_debug_pixel_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _PIXEL_HAPPY_RESPONSE)
     result = CliRunner().invoke(main, ["debug", "pixel", "120", "512", "384", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["stage"] == "ps"
     assert data["total_steps"] == 3
     assert "trace" in data
@@ -374,8 +373,7 @@ def test_debug_vertex_instance_forwarded(monkeypatch: Any) -> None:
 def test_debug_vertex_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _VERTEX_HAPPY_RESPONSE)
     result = CliRunner().invoke(main, ["debug", "vertex", "120", "0", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["stage"] == "vs"
     assert data["total_steps"] == 2
 
@@ -626,8 +624,7 @@ def test_debug_thread_dump_at_no_match(monkeypatch: Any) -> None:
 def test_debug_thread_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _THREAD_HAPPY_RESPONSE)
     result = CliRunner().invoke(main, [*_THREAD_ARGS, "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["stage"] == "cs"
     assert data["total_steps"] == 3
     assert "trace" in data

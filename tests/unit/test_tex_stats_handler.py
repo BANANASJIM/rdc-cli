@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
@@ -28,11 +27,12 @@ def _make_state(
     if histogram is not None:
         ctrl._histogram_map.update(histogram)
 
-    state = DaemonState(capture="test.rdc", current_eid=100, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.max_eid = 100
-    state.rd = rd
-    state.tex_map = {int(t.resourceId): t for t in ctrl._textures}
+    state = make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tex_map={int(t.resourceId): t for t in ctrl._textures},
+    )
     return state
 
 
@@ -100,11 +100,12 @@ def test_tex_stats_mip_slice_forwarded() -> None:
     ctrl._actions = [
         rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
     ]
-    state = DaemonState(capture="test.rdc", current_eid=100, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.max_eid = 100
-    state.rd = rd
-    state.tex_map = {int(t.resourceId): t for t in ctrl._textures}
+    state = make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tex_map={int(t.resourceId): t for t in ctrl._textures},
+    )
     resp, _ = _handle_request(rpc_request("tex_stats", {"id": 42, "mip": 2, "slice": 3}), state)
     r = resp["result"]
     assert r["mip"] == 2
@@ -229,11 +230,12 @@ def test_tex_stats_mip_upper_boundary() -> None:
     ctrl._actions = [
         rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
     ]
-    state = DaemonState(capture="test.rdc", current_eid=100, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.max_eid = 100
-    state.rd = rd
-    state.tex_map = {int(t.resourceId): t for t in ctrl._textures}
+    state = make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tex_map={int(t.resourceId): t for t in ctrl._textures},
+    )
     resp, _ = _handle_request(rpc_request("tex_stats", {"id": 42, "mip": 3}), state)
     assert "result" in resp
     assert resp["result"]["mip"] == 3

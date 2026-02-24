@@ -4,30 +4,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
 def _make_state() -> DaemonState:
-    controller = SimpleNamespace(
-        GetRootActions=lambda: [],
-        GetResources=lambda: [],
-        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
-        GetPipelineState=lambda: SimpleNamespace(),
-        SetFrameEvent=lambda eid, force: None,
-        GetStructuredFile=lambda: SimpleNamespace(chunks=[]),
-        GetDebugMessages=lambda: [],
-        Shutdown=lambda: None,
-    )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 10
-    return state
+    return make_daemon_state(max_eid=10)
 
 
 def _write_script(tmp_path: Path, content: str, name: str = "script.py") -> Path:

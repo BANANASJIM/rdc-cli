@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import json
-
 from click.testing import CliRunner
+from conftest import assert_json_output
 
 import rdc.commands.pick_pixel as mod
 from rdc.cli import main
@@ -41,8 +40,7 @@ def test_pick_pixel_default_output(monkeypatch):
 def test_pick_pixel_json(monkeypatch):
     _patch(monkeypatch)
     r = CliRunner().invoke(pick_pixel_cmd, ["512", "384", "--json"])
-    assert r.exit_code == 0
-    data = json.loads(r.output)
+    data = assert_json_output(r)
     assert "color" in data
     assert data["color"]["r"] == 0.5
     assert data["color"]["g"] == 0.3

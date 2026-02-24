@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -25,7 +25,6 @@ from mock_renderdoc import (
     TextureDescription,
 )
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 from rdc.vfs.tree_cache import build_vfs_skeleton
 
@@ -93,7 +92,7 @@ def _make_state(pipe_state=None):
     sf = _build_sf()
     resources = _build_resources()
     pipe = pipe_state or MockPipeState()
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: resources,
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -103,11 +102,12 @@ def _make_state(pipe_state=None):
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.structured_file = sf
-    state.api_name = "Vulkan"
-    state.max_eid = 300
+    state = make_daemon_state(
+        ctrl=ctrl,
+        version=(1, 33),
+        max_eid=300,
+        structured_file=sf,
+    )
     state.vfs_tree = build_vfs_skeleton(actions, resources, sf=sf)
     return state
 
@@ -293,7 +293,7 @@ def _make_state_with_resources(pipe_state=None):
     )
     buf = BufferDescription(resourceId=ResourceId(200), length=4096)
     pipe = pipe_state or MockPipeState()
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: resources,
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -303,11 +303,20 @@ def _make_state_with_resources(pipe_state=None):
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.structured_file = sf
-    state.api_name = "Vulkan"
-    state.max_eid = 300
+    state = make_daemon_state(
+        ctrl=ctrl,
+        version=(1, 33),
+        max_eid=300,
+        structured_file=sf,
+        tex_map={100: tex},
+        buf_map={200: buf},
+        res_names={100: "tex0", 200: "buf0"},
+        res_types={100: "Texture2D", 200: "Buffer"},
+        res_rid_map={
+            100: SimpleNamespace(byteSize=8294400),
+            200: SimpleNamespace(byteSize=4096),
+        },
+    )
     state.vfs_tree = build_vfs_skeleton(
         actions,
         resources,
@@ -315,14 +324,6 @@ def _make_state_with_resources(pipe_state=None):
         buffers=[buf],
         sf=sf,
     )
-    state.tex_map = {100: tex}
-    state.buf_map = {200: buf}
-    state.res_names = {100: "tex0", 200: "buf0"}
-    state.res_types = {100: "Texture2D", 200: "Buffer"}
-    state.res_rid_map = {
-        100: SimpleNamespace(byteSize=8294400),
-        200: SimpleNamespace(byteSize=4096),
-    }
     return state
 
 

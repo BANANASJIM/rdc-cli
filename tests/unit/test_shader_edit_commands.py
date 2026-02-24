@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from click.testing import CliRunner
+from conftest import assert_json_output
 
 from rdc.cli import main
 from rdc.commands import shader_edit as shader_edit_mod
@@ -51,8 +51,7 @@ def test_shader_encodings_default(monkeypatch: Any) -> None:
 def test_shader_encodings_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _ENCODINGS_RESPONSE)
     result = CliRunner().invoke(main, ["shader-encodings", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert len(data["encodings"]) == 2
     assert data["encodings"][0]["name"] == "GLSL"
 
@@ -92,8 +91,7 @@ def test_shader_build_json(monkeypatch: Any, tmp_path: Any) -> None:
     src = tmp_path / "test.frag"
     src.write_text("#version 450\nvoid main(){}\n")
     result = CliRunner().invoke(main, ["shader-build", str(src), "--stage", "ps", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["shader_id"] == 42
 
 

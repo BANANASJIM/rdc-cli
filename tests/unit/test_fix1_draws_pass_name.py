@@ -5,11 +5,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
-from rdc.daemon_server import DaemonState, _handle_request
+from rdc.daemon_server import _handle_request
 from rdc.services.query_service import _build_pass_list, pass_name_for_eid
+from rdc.vfs.tree_cache import build_vfs_skeleton
 
 
 def _build_actions(pass_name: str = "vkCmdBeginRenderPass(C=Load)") -> list:
@@ -35,19 +35,14 @@ def _build_actions(pass_name: str = "vkCmdBeginRenderPass(C=Load)") -> list:
     return [begin, *draws, end]
 
 
-def _make_state(actions: list | None = None) -> DaemonState:
+def _make_state(actions: list | None = None):
     acts = actions or _build_actions()
     ctrl = rd.MockReplayController()
     ctrl._actions = acts
-    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 100
-    state.structured_file = SimpleNamespace(chunks=[])
-    from rdc.vfs.tree_cache import build_vfs_skeleton
-
+    sf = SimpleNamespace(chunks=[])
+    state = make_daemon_state(capture="x.rdc", ctrl=ctrl, structured_file=sf)
     resources = state.adapter.get_resources()
-    state.vfs_tree = build_vfs_skeleton(acts, resources, sf=state.structured_file)
+    state.vfs_tree = build_vfs_skeleton(acts, resources, sf=sf)
     return state
 
 

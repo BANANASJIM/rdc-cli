@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -16,7 +16,6 @@ from mock_renderdoc import (
     StructuredFile,
 )
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
@@ -66,7 +65,7 @@ def _build_sf():
 def _make_state():
     actions = _build_actions()
     sf = _build_sf()
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: [],
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -76,11 +75,7 @@ def _make_state():
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.structured_file = sf
-    state.api_name = "Vulkan"
-    state.max_eid = 300
+    state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=300, structured_file=sf)
     from rdc.vfs.tree_cache import build_vfs_skeleton
 
     state.vfs_tree = build_vfs_skeleton(actions, [], sf=sf)
@@ -244,7 +239,7 @@ def _make_pass_state():
         GetOutputTargets=lambda: [SimpleNamespace(resource=_IntLike(10))],
         GetDepthTarget=lambda: SimpleNamespace(resource=_IntLike(20)),
     )
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: [],
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -253,12 +248,7 @@ def _make_pass_state():
         GetStructuredFile=lambda: sf,
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.structured_file = sf
-    state.api_name = "Vulkan"
-    state.max_eid = 300
-    return state
+    return make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=300, structured_file=sf)
 
 
 def _make_log_state(messages=None):
@@ -266,7 +256,7 @@ def _make_log_state(messages=None):
     actions = _build_actions()
     sf = _build_sf()
     msgs = messages or []
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: [],
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -276,12 +266,7 @@ def _make_log_state(messages=None):
         GetDebugMessages=lambda: msgs,
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.structured_file = sf
-    state.api_name = "Vulkan"
-    state.max_eid = 300
-    return state
+    return make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=300, structured_file=sf)
 
 
 class TestPassHandler:
@@ -422,7 +407,7 @@ class TestEventMultiChunk:
                 APIEvent(eventId=42, chunkIndex=1),
             ],
         )
-        controller = SimpleNamespace(
+        ctrl = SimpleNamespace(
             GetRootActions=lambda: [action],
             GetResources=lambda: [],
             GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -432,11 +417,7 @@ class TestEventMultiChunk:
             GetDebugMessages=lambda: [],
             Shutdown=lambda: None,
         )
-        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-        state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-        state.structured_file = sf
-        state.api_name = "Vulkan"
-        state.max_eid = 42
+        state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=42, structured_file=sf)
         from rdc.vfs.tree_cache import build_vfs_skeleton
 
         state.vfs_tree = build_vfs_skeleton([action], [], sf=sf)
@@ -474,7 +455,7 @@ def _build_mesh_actions():
 def _make_mesh_state():
     actions = _build_mesh_actions()
     sf = StructuredFile()
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: [],
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -484,11 +465,7 @@ def _make_mesh_state():
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.structured_file = sf
-    state.api_name = "Vulkan"
-    state.max_eid = 10
+    state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=10, structured_file=sf)
     from rdc.vfs.tree_cache import build_vfs_skeleton
 
     state.vfs_tree = build_vfs_skeleton(actions, [], sf=sf)

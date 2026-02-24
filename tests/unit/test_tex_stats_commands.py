@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from click.testing import CliRunner
+from conftest import assert_json_output
 
 from rdc.cli import main
 from rdc.commands import tex_stats as tex_stats_mod
@@ -71,8 +71,7 @@ def test_tex_stats_float_format(monkeypatch: Any) -> None:
 def test_tex_stats_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _HAPPY_RESPONSE)
     result = CliRunner().invoke(main, ["tex-stats", "42", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert "min" in data
     assert "max" in data
     assert data["min"]["r"] == 0.0
@@ -96,8 +95,7 @@ def test_tex_stats_histogram_table(monkeypatch: Any) -> None:
 def test_tex_stats_histogram_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _HISTOGRAM_RESPONSE)
     result = CliRunner().invoke(main, ["tex-stats", "42", "--histogram", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert "histogram" in data
     assert len(data["histogram"]) == 256
 

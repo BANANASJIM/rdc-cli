@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from click.testing import CliRunner
+from conftest import assert_json_output, assert_jsonl_output
 
 from rdc.cli import main
 from rdc.commands import usage as usage_mod
@@ -49,8 +49,7 @@ def test_usage_single_tsv(monkeypatch: Any) -> None:
 def test_usage_single_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _SINGLE_RESPONSE)
     result = CliRunner().invoke(main, ["usage", "97", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["id"] == 97
     assert len(data["entries"]) == 3
 
@@ -135,9 +134,7 @@ def test_usage_single_no_header(monkeypatch: Any) -> None:
 def test_usage_single_jsonl(monkeypatch: Any) -> None:
     _patch(monkeypatch, _SINGLE_RESPONSE)
     result = CliRunner().invoke(main, ["usage", "97", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 3
+    lines = assert_jsonl_output(result, 3)
     assert lines[0]["eid"] == 6
     assert lines[0]["usage"] == "Clear"
 
@@ -171,9 +168,7 @@ def test_usage_all_no_header(monkeypatch: Any) -> None:
 def test_usage_all_jsonl(monkeypatch: Any) -> None:
     _patch(monkeypatch, _ALL_RESPONSE)
     result = CliRunner().invoke(main, ["usage", "--all", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 4
+    lines = assert_jsonl_output(result, 4)
     assert lines[0]["id"] == 97
     assert lines[0]["name"] == "2D Image 97"
     assert lines[0]["eid"] == 6

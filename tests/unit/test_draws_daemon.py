@@ -7,10 +7,9 @@ from typing import Any
 from unittest.mock import patch
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
-from rdc.daemon_server import DaemonState, _handle_request
+from rdc.daemon_server import _handle_request
 from rdc.services.query_service import FlatAction
 
 
@@ -37,15 +36,14 @@ def _build_actions(pass_name: str = "vkCmdBeginRenderPass(C=Load)") -> list:
     return [begin, *draws, end]
 
 
-def _make_state(actions: list | None = None) -> DaemonState:
+def _make_state(actions: list | None = None) -> Any:
     ctrl = rd.MockReplayController()
     ctrl._actions = actions or _build_actions()
-    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 100
-    state.structured_file = SimpleNamespace(chunks=[])
-    return state
+    return make_daemon_state(
+        capture="x.rdc",
+        ctrl=ctrl,
+        structured_file=SimpleNamespace(chunks=[]),
+    )
 
 
 # ---------------------------------------------------------------------------
