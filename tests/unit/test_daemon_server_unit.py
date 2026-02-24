@@ -395,3 +395,40 @@ class TestAdapterGuardMiddleware:
                 {"id": 5, "method": method, "params": {"_token": "tok"}}, state
             )
             assert resp["error"]["code"] == -32002, f"{method} should be blocked"
+
+
+class TestConnectionTimeout:
+    """B21: daemon must handle connection timeouts."""
+
+    def test_run_server_source_has_settimeout_and_timeout_error(self) -> None:
+        """run_server sets conn.settimeout and catches TimeoutError."""
+        import inspect
+
+        from rdc.daemon_server import run_server
+
+        source = inspect.getsource(run_server)
+        assert "settimeout" in source
+        assert "TimeoutError" in source
+
+    def test_recv_line_raises_on_timeout(self) -> None:
+        """recv_line propagates socket.timeout as TimeoutError."""
+        import socket
+
+        from rdc._transport import recv_line
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        port = server.getsockname()[1]
+
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.connect(("127.0.0.1", port))
+        conn, _ = server.accept()
+        conn.settimeout(0.1)
+
+        with pytest.raises(TimeoutError):
+            recv_line(conn)
+
+        conn.close()
+        client.close()
+        server.close()

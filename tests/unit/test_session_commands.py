@@ -118,3 +118,16 @@ def test_require_session_cleans_stale_pid(monkeypatch: pytest.MonkeyPatch) -> No
     with pytest.raises(SystemExit):
         helpers_mod.require_session()
     assert deleted
+
+
+def test_open_no_replay_mode_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """B23: open command warns when renderdoc is unavailable."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    runner = CliRunner()
+
+    result = runner.invoke(main, ["open", "capture.rdc"])
+    assert result.exit_code == 0
+    assert "no-replay mode" in result.output
+    assert "warning" in result.stderr
