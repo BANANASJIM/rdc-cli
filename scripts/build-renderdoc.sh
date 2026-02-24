@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# DEPRECATED: use scripts/build_renderdoc.py instead.
+# Kept for curl-pipe users on systems without Python 3.10+.
 # Build renderdoc v1.41 Python module from source.
 # Usage: bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh) [INSTALL_DIR]
 # Output: INSTALL_DIR/renderdoc.so + librenderdoc.so (default: ~/.local/renderdoc/)

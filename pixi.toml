@@ -13,7 +13,7 @@ PYTHONPATH = "src"
 
 [tasks]
 sync = "uv sync --extra dev && git config core.hooksPath .githooks && bash scripts/ensure-renderdoc.sh"
-setup-renderdoc = "bash scripts/setup-renderdoc.sh"
+setup-renderdoc = "python scripts/build_renderdoc.py .local/renderdoc --build-dir .local/renderdoc-build"
 lint = "uv run ruff check src tests && uv run ruff format --check src tests"
 typecheck = "uv run mypy src"
 test = "uv run pytest tests/unit -v --cov=rdc --cov-report=term-missing --cov-fail-under=80"
