@@ -51,8 +51,9 @@ rdc doctor
 ```bash
 pipx install rdc-cli
 # Remote replay (no local renderdoc needed):
-rdc remote connect linux-host:39920    # connect to a Linux/Windows target
-rdc remote trigger && rdc remote copy  # capture + pull .rdc file
+rdc remote connect linux-host:39920      # connect to a Linux/Windows target
+rdc remote list                          # list capturable apps
+rdc remote capture /path/to/app          # capture + pull .rdc file
 # Optional: local replay (needs cmake + ninja + Xcode CLI tools)
 python scripts/build_renderdoc.py
 rdc doctor

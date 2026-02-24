@@ -57,4 +57,4 @@ No unit tests — documentation only.
 
 ## Coverage Target
 
-Existing coverage maintained (≥95%). All 16 new cases must pass; no GPU fixtures required.
+Existing coverage maintained (≥95%). All 17 new cases must pass; no GPU fixtures required.

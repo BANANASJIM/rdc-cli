@@ -246,10 +246,13 @@ def _check_mac_homebrew() -> CheckResult:
         )
     try:
         proc = subprocess.run(["brew", "--version"], capture_output=True, text=True, timeout=5)
+        if proc.returncode != 0:
+            detail = proc.stderr.strip() or "brew --version failed"
+            return CheckResult("mac-homebrew", False, detail)
         version = proc.stdout.strip().split("\n")[0] if proc.stdout else "unknown"
         return CheckResult("mac-homebrew", True, version)
     except Exception:  # noqa: BLE001
-        return CheckResult("mac-homebrew", True, "brew found (version unknown)")
+        return CheckResult("mac-homebrew", False, "brew found but version check failed")
 
 
 def _check_mac_renderdoc_dylib() -> CheckResult:
