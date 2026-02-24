@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import atexit
-import os
 import secrets
-import signal
 import threading
 from dataclasses import dataclass
 from typing import Any
 
+from rdc import _platform
 from rdc.daemon_client import send_request
 from rdc.protocol import shutdown_request
 from rdc.services.session_service import pick_port, start_daemon, wait_for_ping
@@ -117,10 +116,7 @@ def stop_diff_session(ctx: DiffContext) -> None:
 
     for pid in (ctx.pid_a, ctx.pid_b):
         if is_pid_alive(pid):
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except (ProcessLookupError, OSError):
-                pass
+            _platform.terminate_process(pid)
 
 
 def _do_query(

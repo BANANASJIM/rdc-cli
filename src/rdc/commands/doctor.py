@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import platform
 import shutil
 import sys
 from dataclasses import dataclass
@@ -23,12 +22,13 @@ def _check_python() -> CheckResult:
 
 
 def _check_platform() -> CheckResult:
-    system = platform.system().lower()
-    if system == "linux":
+    if sys.platform == "linux":
         return CheckResult("platform", True, "linux")
-    if system == "darwin":
+    if sys.platform == "darwin":
         return CheckResult("platform", True, "darwin (dev-host only for replay)")
-    return CheckResult("platform", False, f"unsupported system: {system}")
+    if sys.platform == "win32":
+        return CheckResult("platform", True, "windows (experimental)")
+    return CheckResult("platform", False, f"unsupported platform: {sys.platform}")
 
 
 _RENDERDOC_BUILD_HINT = """\

@@ -229,7 +229,7 @@ class TestTerminateProcess:
         from rdc.capture_core import terminate_process
 
         calls: list[tuple[int, int]] = []
-        monkeypatch.setattr("os.kill", lambda pid, sig: calls.append((pid, sig)))
+        monkeypatch.setattr("rdc._platform.os.kill", lambda pid, sig: calls.append((pid, sig)))
 
         assert terminate_process(42) is True
         assert calls == [(42, signal.SIGTERM)]
@@ -240,7 +240,7 @@ class TestTerminateProcess:
         def fake_kill(pid: int, sig: int) -> None:
             raise ProcessLookupError
 
-        monkeypatch.setattr("os.kill", fake_kill)
+        monkeypatch.setattr("rdc._platform.os.kill", fake_kill)
         assert terminate_process(42) is False
 
     def test_permission_denied(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -249,14 +249,14 @@ class TestTerminateProcess:
         def fake_kill(pid: int, sig: int) -> None:
             raise PermissionError
 
-        monkeypatch.setattr("os.kill", fake_kill)
+        monkeypatch.setattr("rdc._platform.os.kill", fake_kill)
         assert terminate_process(42) is False
 
     def test_invalid_pid(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from rdc.capture_core import terminate_process
 
         calls: list[tuple[int, int]] = []
-        monkeypatch.setattr("os.kill", lambda pid, sig: calls.append((pid, sig)))
+        monkeypatch.setattr("rdc._platform.os.kill", lambda pid, sig: calls.append((pid, sig)))
 
         assert terminate_process(0) is False
         assert calls == []

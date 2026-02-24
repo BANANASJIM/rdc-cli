@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from rdc import _platform
 
 log = logging.getLogger(__name__)
 
@@ -21,18 +22,14 @@ class TargetControlState:
 
 
 def _state_path(ident: int) -> Path:
-    return Path.home() / ".rdc" / "target" / f"{ident}.json"
+    return _platform.data_dir() / "target" / f"{ident}.json"
 
 
 def save_target_state(state: TargetControlState) -> None:
     """Write target control state to disk with restricted permissions."""
     path = _state_path(state.ident)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    os.chmod(path.parent, 0o700)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(json.dumps(asdict(state), indent=2))
-    os.chmod(path, 0o600)
+    _platform.secure_dir_permissions(path.parent)
+    _platform.secure_write_text(path, json.dumps(asdict(state), indent=2))
 
 
 def load_target_state(ident: int) -> TargetControlState | None:
@@ -62,7 +59,7 @@ def delete_target_state(ident: int) -> None:
 
 def load_latest_target_state() -> TargetControlState | None:
     """Load the most recently saved target state (by connected_at). Returns None if none exist."""
-    target_dir = Path.home() / ".rdc" / "target"
+    target_dir = _platform.data_dir() / "target"
     if not target_dir.is_dir():
         return None
     best: TargetControlState | None = None

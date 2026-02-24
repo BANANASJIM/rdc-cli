@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
-import signal
 import time
 from dataclasses import dataclass
 from typing import Any
 
+from rdc import _platform
 from rdc.discover import find_renderdoc
 
 log = logging.getLogger(__name__)
@@ -66,14 +65,10 @@ def build_capture_options(opts: dict[str, Any]) -> Any:
 
 def terminate_process(pid: int) -> bool:
     """Send SIGTERM to a process. Returns True if signal was sent."""
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, signal.SIGTERM)
-        return True
-    except OSError:
+    result = _platform.terminate_process(pid)
+    if not result and pid > 0:
         log.debug("process %d already exited or not accessible", pid)
-        return False
+    return result
 
 
 def execute_and_capture(

@@ -642,7 +642,6 @@ wheels = [
 
 [[package]]
 name = "rdc-cli"
-version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

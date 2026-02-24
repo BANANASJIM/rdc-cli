@@ -27,7 +27,7 @@ def test_is_pid_alive_wrong_process(monkeypatch: pytest.MonkeyPatch) -> None:
     """PID alive but cmdline doesn't contain 'rdc' -> False."""
     pid = os.getpid()
     monkeypatch.setattr(
-        "rdc.session_state.Path.read_bytes",
+        "rdc._platform.Path.read_bytes",
         lambda _self: b"nginx\x00--daemon\x00",
     )
     assert is_pid_alive(pid) is False
@@ -37,7 +37,7 @@ def test_is_pid_alive_correct_process(monkeypatch: pytest.MonkeyPatch) -> None:
     """PID alive and cmdline contains 'rdc' -> True."""
     pid = os.getpid()
     monkeypatch.setattr(
-        "rdc.session_state.Path.read_bytes",
+        "rdc._platform.Path.read_bytes",
         lambda _self: b"python\x00-m\x00rdc\x00daemon\x00",
     )
     assert is_pid_alive(pid) is True
@@ -47,7 +47,7 @@ def test_is_pid_alive_no_proc(monkeypatch: pytest.MonkeyPatch) -> None:
     """When /proc doesn't exist, falls back to kill-only check."""
     pid = os.getpid()
     monkeypatch.setattr(
-        "rdc.session_state.Path.read_bytes",
+        "rdc._platform.Path.read_bytes",
         lambda _self: (_ for _ in ()).throw(OSError("no /proc")),
     )
     assert is_pid_alive(pid) is True

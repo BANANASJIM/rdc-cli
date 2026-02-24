@@ -260,12 +260,11 @@ def test_close_session_fallback_kill_on_shutdown_error(
 
     killed_pids: list[int] = []
 
-    def fake_kill(pid: int, sig: int) -> None:
+    def fake_terminate(pid: int) -> bool:
         killed_pids.append(pid)
+        return True
 
-    import os as _os
-
-    monkeypatch.setattr(_os, "kill", fake_kill)
+    monkeypatch.setattr("rdc.services.session_service._platform.terminate_process", fake_terminate)
     monkeypatch.setattr(session_service, "is_pid_alive", lambda pid: True)
 
     ok, msg = session_service.close_session()
