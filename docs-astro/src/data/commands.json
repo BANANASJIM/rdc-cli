@@ -162,7 +162,7 @@
           "name": "search",
           "id": "search",
           "help": "Search shader disassembly text for PATTERN (regex).",
-          "usage": "rdc search <PATTERN> [--stage TEXT] [--limit INTEGER] [-C INTEGER] [-i] [--json]"
+          "usage": "rdc search <PATTERN> [--stage TEXT] [--limit INTEGER] [-C INTEGER] [--case-sensitive] [--json]"
         },
         {
           "name": "passes",
@@ -429,6 +429,31 @@
           "id": "tree",
           "help": "Display VFS subtree structure.",
           "usage": "rdc tree [PATH] [--depth INTEGER RANGE] [--json]"
+        }
+      ]
+    },
+    {
+      "name": "Remote",
+      "id": "remote",
+      "description": "Connect to a remote RenderDoc server for remote capture.",
+      "commands": [
+        {
+          "name": "remote connect",
+          "id": "remote-connect",
+          "help": "Connect to a remote RenderDoc server.",
+          "usage": "rdc remote connect <URL> [--json]"
+        },
+        {
+          "name": "remote list",
+          "id": "remote-list",
+          "help": "List capturable applications on a remote host.",
+          "usage": "rdc remote list [--url TEXT] [--json]"
+        },
+        {
+          "name": "remote capture",
+          "id": "remote-capture",
+          "help": "Capture on a remote host and transfer to local.",
+          "usage": "rdc remote capture <APP> -o <PATH> [--url TEXT] [--args TEXT] [--workdir TEXT] [--frame INTEGER] [--timeout FLOAT] [--api-validation] [--callstacks] [--hook-children] [--ref-all-resources] [--soft-memory-limit INTEGER] [--json]"
         }
       ]
     },

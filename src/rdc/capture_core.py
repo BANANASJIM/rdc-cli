@@ -131,7 +131,7 @@ def execute_and_capture(
         return CaptureResult(error="failed to connect to target", ident=ident)
     try:
         pid = tc.GetPID()
-        cap = _run_target_control_loop(tc, frame=frame, timeout=timeout)
+        cap = run_target_control_loop(tc, frame=frame, timeout=timeout)
         cap.ident = ident
         cap.pid = pid
         return cap
@@ -139,7 +139,7 @@ def execute_and_capture(
         tc.Shutdown()
 
 
-def _run_target_control_loop(
+def run_target_control_loop(
     tc: Any,
     *,
     frame: int | None = None,
