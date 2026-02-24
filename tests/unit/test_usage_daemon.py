@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
 
 
 def _state_with_usage() -> DaemonState:
@@ -46,13 +42,6 @@ def _state_with_usage() -> DaemonState:
     return state
 
 
-def _req(method: str, params: dict | None = None) -> dict:
-    p = {"_token": "tok"}
-    if params:
-        p.update(params)
-    return {"jsonrpc": "2.0", "id": 1, "method": method, "params": p}
-
-
 # ---------------------------------------------------------------------------
 # usage (single resource)
 # ---------------------------------------------------------------------------
@@ -60,7 +49,7 @@ def _req(method: str, params: dict | None = None) -> dict:
 
 def test_usage_happy_path() -> None:
     state = _state_with_usage()
-    resp, running = _handle_request(_req("usage", {"id": 97}), state)
+    resp, running = _handle_request(rpc_request("usage", {"id": 97}), state)
     assert running
     r = resp["result"]
     assert r["id"] == 97
@@ -74,7 +63,7 @@ def test_usage_happy_path() -> None:
 
 def test_usage_empty_entries() -> None:
     state = _state_with_usage()
-    resp, running = _handle_request(_req("usage", {"id": 200}), state)
+    resp, running = _handle_request(rpc_request("usage", {"id": 200}), state)
     assert running
     r = resp["result"]
     assert r["id"] == 200
@@ -83,14 +72,14 @@ def test_usage_empty_entries() -> None:
 
 def test_usage_not_found() -> None:
     state = _state_with_usage()
-    resp, _ = _handle_request(_req("usage", {"id": 999}), state)
+    resp, _ = _handle_request(rpc_request("usage", {"id": 999}), state)
     assert resp["error"]["code"] == -32001
     assert "999" in resp["error"]["message"]
 
 
 def test_usage_no_adapter() -> None:
     state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    resp, _ = _handle_request(_req("usage", {"id": 97}), state)
+    resp, _ = _handle_request(rpc_request("usage", {"id": 97}), state)
     assert resp["error"]["code"] == -32002
 
 
@@ -101,7 +90,7 @@ def test_usage_no_adapter() -> None:
 
 def test_usage_all_no_filters() -> None:
     state = _state_with_usage()
-    resp, running = _handle_request(_req("usage_all"), state)
+    resp, running = _handle_request(rpc_request("usage_all"), state)
     assert running
     r = resp["result"]
     # 3 rows for rid 97, 1 row for rid 105, 0 for rid 200 (empty)
@@ -111,7 +100,7 @@ def test_usage_all_no_filters() -> None:
 
 def test_usage_all_type_filter() -> None:
     state = _state_with_usage()
-    resp, _ = _handle_request(_req("usage_all", {"type": "Texture"}), state)
+    resp, _ = _handle_request(rpc_request("usage_all", {"type": "Texture"}), state)
     r = resp["result"]
     # Only rid 97 (Texture) has entries; rid 200 (Texture) has none
     assert r["total"] == 3
@@ -121,7 +110,7 @@ def test_usage_all_type_filter() -> None:
 
 def test_usage_all_usage_filter() -> None:
     state = _state_with_usage()
-    resp, _ = _handle_request(_req("usage_all", {"usage": "ColorTarget"}), state)
+    resp, _ = _handle_request(rpc_request("usage_all", {"usage": "ColorTarget"}), state)
     r = resp["result"]
     assert r["total"] == 1
     assert r["rows"][0]["usage"] == "ColorTarget"
@@ -130,7 +119,9 @@ def test_usage_all_usage_filter() -> None:
 
 def test_usage_all_both_filters() -> None:
     state = _state_with_usage()
-    resp, _ = _handle_request(_req("usage_all", {"type": "Texture", "usage": "Clear"}), state)
+    resp, _ = _handle_request(
+        rpc_request("usage_all", {"type": "Texture", "usage": "Clear"}), state
+    )
     r = resp["result"]
     assert r["total"] == 1
     row = r["rows"][0]
@@ -140,5 +131,5 @@ def test_usage_all_both_filters() -> None:
 
 def test_usage_all_no_adapter() -> None:
     state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    resp, _ = _handle_request(_req("usage_all"), state)
+    resp, _ = _handle_request(rpc_request("usage_all"), state)
     assert resp["error"]["code"] == -32002

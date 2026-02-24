@@ -25,7 +25,7 @@ def _save_state() -> None:
 
 def _mock_rd(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     rd = MagicMock()
-    monkeypatch.setattr("rdc.commands.remote.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
     return rd
 
 

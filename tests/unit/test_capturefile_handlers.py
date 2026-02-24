@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import base64
-import sys
 from pathlib import Path
 from typing import Any
 
+import mock_renderdoc as mock_rd
 import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as mock_rd  # noqa: E402
 
 
 def _make_state(tmp_path: Path) -> Any:

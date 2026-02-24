@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -115,15 +112,9 @@ def _make_state(pipe_state=None):
     return state
 
 
-def _req(method, **params):
-    p = {"_token": "tok"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
-
-
 class TestVfsLs:
     def test_root(self):
-        resp, _ = _handle_request(_req("vfs_ls", path="/"), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/"}), _make_state())
         result = resp["result"]
         assert result["path"] == "/"
         assert result["kind"] == "dir"
@@ -134,14 +125,14 @@ class TestVfsLs:
         assert "current" in names
 
     def test_draws_dir(self):
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws"), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws"}), _make_state())
         result = resp["result"]
         names = [c["name"] for c in result["children"]]
         assert "42" in names
         assert "300" in names
 
     def test_draw_eid(self):
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws/42"), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws/42"}), _make_state())
         result = resp["result"]
         names = [c["name"] for c in result["children"]]
         assert "pipeline" in names
@@ -151,7 +142,7 @@ class TestVfsLs:
     def test_draw_shader_dynamic_populate(self):
         pipe = _make_pipe_with_shaders()
         state = _make_state(pipe_state=pipe)
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws/42/shader"), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws/42/shader"}), state)
         result = resp["result"]
         names = [c["name"] for c in result["children"]]
         assert "vs" in names
@@ -159,26 +150,26 @@ class TestVfsLs:
         assert "hs" not in names
 
     def test_nonexistent_path(self):
-        resp, _ = _handle_request(_req("vfs_ls", path="/nonexistent"), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/nonexistent"}), _make_state())
         assert resp["error"]["code"] == -32001
         assert "not found" in resp["error"]["message"]
 
     def test_current_no_eid(self):
         state = _make_state()
         state.current_eid = 0
-        resp, _ = _handle_request(_req("vfs_ls", path="/current"), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/current"}), state)
         assert resp["error"]["code"] == -32002
 
     def test_no_adapter(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-        resp, _ = _handle_request(_req("vfs_ls", path="/"), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/"}), state)
         assert resp["error"]["code"] == -32002
 
     def test_current_resolves(self):
         pipe = _make_pipe_with_shaders()
         state = _make_state(pipe_state=pipe)
         state.current_eid = 42
-        resp, _ = _handle_request(_req("vfs_ls", path="/current"), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/current"}), state)
         result = resp["result"]
         assert result["path"] == "/draws/42"
         names = [c["name"] for c in result["children"]]
@@ -187,7 +178,7 @@ class TestVfsLs:
 
 class TestVfsTree:
     def test_root_depth1(self):
-        resp, _ = _handle_request(_req("vfs_tree", path="/", depth=1), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/", "depth": 1}), _make_state())
         result = resp["result"]
         assert result["path"] == "/"
         tree = result["tree"]
@@ -200,7 +191,9 @@ class TestVfsTree:
         assert draws_node["children"] == []
 
     def test_draw_eid_depth2(self):
-        resp, _ = _handle_request(_req("vfs_tree", path="/draws/42", depth=2), _make_state())
+        resp, _ = _handle_request(
+            rpc_request("vfs_tree", {"path": "/draws/42", "depth": 2}), _make_state()
+        )
         result = resp["result"]
         tree = result["tree"]
         assert tree["name"] == "42"
@@ -211,35 +204,37 @@ class TestVfsTree:
         assert "summary" in pipe_children
 
     def test_depth_zero(self):
-        resp, _ = _handle_request(_req("vfs_tree", path="/", depth=0), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/", "depth": 0}), _make_state())
         assert resp["error"]["code"] == -32602
         assert "depth must be 1-8" in resp["error"]["message"]
 
     def test_depth_nine(self):
-        resp, _ = _handle_request(_req("vfs_tree", path="/", depth=9), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/", "depth": 9}), _make_state())
         assert resp["error"]["code"] == -32602
         assert "depth must be 1-8" in resp["error"]["message"]
 
     def test_nonexistent_path(self):
-        resp, _ = _handle_request(_req("vfs_tree", path="/nonexistent", depth=1), _make_state())
+        resp, _ = _handle_request(
+            rpc_request("vfs_tree", {"path": "/nonexistent", "depth": 1}), _make_state()
+        )
         assert resp["error"]["code"] == -32001
 
     def test_no_adapter(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-        resp, _ = _handle_request(_req("vfs_tree", path="/", depth=1), state)
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/", "depth": 1}), state)
         assert resp["error"]["code"] == -32002
 
     def test_current_resolves(self):
         state = _make_state()
         state.current_eid = 42
-        resp, _ = _handle_request(_req("vfs_tree", path="/current", depth=1), state)
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/current", "depth": 1}), state)
         result = resp["result"]
         assert result["path"] == "/draws/42"
 
     def test_current_no_eid(self):
         state = _make_state()
         state.current_eid = 0
-        resp, _ = _handle_request(_req("vfs_tree", path="/current", depth=1), state)
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/current", "depth": 1}), state)
         assert resp["error"]["code"] == -32002
 
 
@@ -250,7 +245,7 @@ class TestVfsDynamicPopulateChildPath:
         """vfs_ls on /draws/<eid>/shader/ps should auto-populate without prior ls on /shader."""
         pipe = _make_pipe_with_shaders()
         state = _make_state(pipe_state=pipe)
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws/42/shader/ps"), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws/42/shader/ps"}), state)
         result = resp["result"]
         assert result["kind"] == "dir"
         names = [c["name"] for c in result["children"]]
@@ -261,7 +256,9 @@ class TestVfsDynamicPopulateChildPath:
         """vfs_tree on /draws/<eid>/shader should trigger populate."""
         pipe = _make_pipe_with_shaders()
         state = _make_state(pipe_state=pipe)
-        resp, _ = _handle_request(_req("vfs_tree", path="/draws/42/shader", depth=2), state)
+        resp, _ = _handle_request(
+            rpc_request("vfs_tree", {"path": "/draws/42/shader", "depth": 2}), state
+        )
         result = resp["result"]
         tree = result["tree"]
         names = [c["name"] for c in tree["children"]]
@@ -272,7 +269,7 @@ class TestVfsDynamicPopulateChildPath:
         """vfs_tree on /draws/<eid> with depth>=2 must populate shader children."""
         pipe = _make_pipe_with_shaders()
         state = _make_state(pipe_state=pipe)
-        resp, _ = _handle_request(_req("vfs_tree", path="/draws/42", depth=3), state)
+        resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/draws/42", "depth": 3}), state)
         tree = resp["result"]["tree"]
         shader_node = next(c for c in tree["children"] if c["name"] == "shader")
         stage_names = [c["name"] for c in shader_node["children"]]
@@ -332,7 +329,7 @@ def _make_state_with_resources(pipe_state=None):
 class TestVfsLsLong:
     def test_long_false_unchanged(self):
         """long=False returns existing format without columns."""
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws"), _make_state())
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws"}), _make_state())
         result = resp["result"]
         assert "columns" not in result
         assert "long" not in result
@@ -341,7 +338,7 @@ class TestVfsLsLong:
 
     def test_long_passes(self):
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/passes", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/passes", "long": True}), state)
         result = resp["result"]
         assert result["long"] is True
         assert result["columns"] == ["NAME", "DRAWS", "DISPATCHES", "TRIANGLES"]
@@ -354,7 +351,7 @@ class TestVfsLsLong:
 
     def test_long_draws(self):
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws", "long": True}), state)
         result = resp["result"]
         assert result["long"] is True
         assert result["columns"] == ["EID", "NAME", "TYPE", "TRIANGLES", "INSTANCES"]
@@ -368,7 +365,7 @@ class TestVfsLsLong:
 
     def test_long_events(self):
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/events", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/events", "long": True}), state)
         result = resp["result"]
         assert result["columns"] == ["EID", "NAME", "TYPE"]
         assert len(result["children"]) > 0
@@ -378,7 +375,9 @@ class TestVfsLsLong:
 
     def test_long_resources(self):
         state = _make_state_with_resources()
-        resp, _ = _handle_request(_req("vfs_ls", path="/resources", long=True), state)
+        resp, _ = _handle_request(
+            rpc_request("vfs_ls", {"path": "/resources", "long": True}), state
+        )
         result = resp["result"]
         assert result["columns"] == ["ID", "NAME", "TYPE", "SIZE"]
         children = result["children"]
@@ -389,7 +388,7 @@ class TestVfsLsLong:
 
     def test_long_textures(self):
         state = _make_state_with_resources()
-        resp, _ = _handle_request(_req("vfs_ls", path="/textures", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/textures", "long": True}), state)
         result = resp["result"]
         assert result["columns"] == ["ID", "NAME", "WIDTH", "HEIGHT", "FORMAT"]
         children = result["children"]
@@ -401,7 +400,7 @@ class TestVfsLsLong:
 
     def test_long_buffers(self):
         state = _make_state_with_resources()
-        resp, _ = _handle_request(_req("vfs_ls", path="/buffers", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/buffers", "long": True}), state)
         result = resp["result"]
         assert result["columns"] == ["ID", "NAME", "LENGTH"]
         children = result["children"]
@@ -427,7 +426,7 @@ class TestVfsLsLong:
         controller = state.adapter.controller
         controller.DisassembleShader = lambda p, r, t: "; disasm"
         controller.GetDisassemblyTargets = lambda verbose=False: ["SPIR-V"]
-        resp, _ = _handle_request(_req("vfs_ls", path="/shaders", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/shaders", "long": True}), state)
         result = resp["result"]
         assert result["columns"] == ["ID", "STAGES", "ENTRY", "INPUTS", "OUTPUTS"]
         children = result["children"]
@@ -439,7 +438,7 @@ class TestVfsLsLong:
 
     def test_long_other_dir(self):
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/counters", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/counters", "long": True}), state)
         result = resp["result"]
         assert result["columns"] == ["NAME", "TYPE"]
         for c in result["children"]:
@@ -448,18 +447,20 @@ class TestVfsLsLong:
 
     def test_long_not_found_returns_error(self):
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/nonexistent", long=True), state)
+        resp, _ = _handle_request(
+            rpc_request("vfs_ls", {"path": "/nonexistent", "long": True}), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_long_no_adapter_returns_error(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws", "long": True}), state)
         assert resp["error"]["code"] == -32002
 
     def test_long_draws_triangles_computed(self):
         """Triangle count = (num_indices // 3) * num_instances."""
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws", "long": True}), state)
         draw42 = next(c for c in resp["result"]["children"] if c["name"] == "42")
         # 3600 indices / 3 = 1200 triangles * 1 instance = 1200
         assert draw42["triangles"] == 1200
@@ -467,7 +468,7 @@ class TestVfsLsLong:
     def test_long_draws_type_str(self):
         """Draw type string uses _action_type_str."""
         state = _make_state()
-        resp, _ = _handle_request(_req("vfs_ls", path="/draws", long=True), state)
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws", "long": True}), state)
         draw42 = next(c for c in resp["result"]["children"] if c["name"] == "42")
         assert draw42["type"] == "DrawIndexed"
         dispatch300 = next(c for c in resp["result"]["children"] if c["name"] == "300")

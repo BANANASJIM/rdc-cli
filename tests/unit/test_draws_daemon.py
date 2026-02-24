@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
@@ -51,12 +48,6 @@ def _make_state(actions: list | None = None) -> DaemonState:
     return state
 
 
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "tok"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
-
-
 # ---------------------------------------------------------------------------
 # Fix 2 call-site: _handle_draws passes actions+sf to filter_by_pass
 # ---------------------------------------------------------------------------
@@ -74,7 +65,7 @@ class TestDrawsPassFilterCallSite:
             return flat  # pass everything through
 
         with patch("rdc.services.query_service.filter_by_pass", side_effect=_spy_fbp):
-            _handle_request(_req("draws", **{"pass": "Colour Pass #1"}), state)
+            _handle_request(rpc_request("draws", {"pass": "Colour Pass #1"}), state)
 
         assert "actions" in captured, "filter_by_pass was not called"
         assert captured["actions"] is not None
@@ -91,7 +82,7 @@ class TestDrawsPassFilterCallSite:
             return flat
 
         with patch("rdc.services.query_service.filter_by_pass", side_effect=_spy_fbp):
-            _handle_request(_req("draws"), state)
+            _handle_request(rpc_request("draws"), state)
 
         assert call_count == 0
 
@@ -117,7 +108,7 @@ class TestDrawsSummaryFiltered:
             patch("rdc.daemon_server._get_flat_actions", return_value=all_flat),
             patch("rdc.services.query_service.filter_by_pass", return_value=filtered),
         ):
-            resp, _ = _handle_request(_req("draws", **{"pass": "SomePass"}), state)
+            resp, _ = _handle_request(rpc_request("draws", {"pass": "SomePass"}), state)
 
         summary = resp["result"]["summary"]
         assert summary.startswith("3 draw calls"), f"Got: {summary!r}"
@@ -128,7 +119,7 @@ class TestDrawsSummaryFiltered:
         state = _make_state()
 
         with patch("rdc.daemon_server._get_flat_actions", return_value=all_flat):
-            resp, _ = _handle_request(_req("draws"), state)
+            resp, _ = _handle_request(rpc_request("draws"), state)
 
         summary = resp["result"]["summary"]
         assert summary.startswith("7 draw calls"), f"Got: {summary!r}"
@@ -136,7 +127,7 @@ class TestDrawsSummaryFiltered:
     def test_summary_count_matches_draws_list(self) -> None:
         """Summary count equals len(draws) in the response."""
         state = _make_state()
-        resp, _ = _handle_request(_req("draws"), state)
+        resp, _ = _handle_request(rpc_request("draws"), state)
         result = resp["result"]
         draws = result["draws"]
         summary = result["summary"]
@@ -146,7 +137,7 @@ class TestDrawsSummaryFiltered:
     def test_summary_includes_dispatches_and_clears(self) -> None:
         """Summary format includes dispatches and clears counts."""
         state = _make_state()
-        resp, _ = _handle_request(_req("draws"), state)
+        resp, _ = _handle_request(rpc_request("draws"), state)
         summary = resp["result"]["summary"]
         assert "dispatches" in summary
         assert "clears" in summary
@@ -160,7 +151,7 @@ class TestDrawsSummaryFiltered:
 
         state = _make_state()
         with patch("rdc.daemon_server._get_flat_actions", return_value=all_flat):
-            resp, _ = _handle_request(_req("draws"), state)
+            resp, _ = _handle_request(rpc_request("draws"), state)
 
         summary = resp["result"]["summary"]
         # 5 draws, 2 dispatches — summary must report all 5 draws, not 7

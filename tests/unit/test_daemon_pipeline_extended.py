@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as mock_rd
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -39,12 +37,6 @@ def _build_actions() -> list[ActionDescription]:
 
 def _build_resources() -> list[ResourceDescription]:
     return [ResourceDescription(resourceId=ResourceId(1), name="res0")]
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _make_state(tmp_path: Path, pipe: MockPipeState) -> DaemonState:
@@ -155,13 +147,17 @@ class TestPipelineExtendedRoutes:
 class TestPipePushConstants:
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_empty_when_no_shaders(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert resp["result"]["push_constants"] == []
         assert resp["result"]["raw_bytes"] == ""
@@ -175,7 +171,9 @@ class TestPipePushConstants:
         pipe._shaders[ShaderStage.Vertex] = ResourceId(5)
         pipe._reflections[ShaderStage.Vertex] = refl
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"]["push_constants"] == []
 
     def test_single_stage_push_constants(self, tmp_path: Path) -> None:
@@ -193,7 +191,9 @@ class TestPipePushConstants:
         var = ShaderVariable(name="color", type="vec4", rows=1, columns=4, value=val)
         s = _make_state(tmp_path, pipe)
         s.adapter.controller._cbuffer_variables[(ShaderStage.Vertex, 0)] = [var]
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         result = resp["result"]
         assert len(result["push_constants"]) == 1
         pc = result["push_constants"][0]
@@ -212,7 +212,9 @@ class TestPipePushConstants:
             pipe._shaders[stage] = ResourceId(sid)
             pipe._reflections[stage] = refl
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         stages = {pc["stage"] for pc in resp["result"]["push_constants"]}
         assert "vs" in stages
         assert "ps" in stages
@@ -221,14 +223,18 @@ class TestPipePushConstants:
         pipe = MockPipeState()
         pipe.pushconsts = b"\x01\x02\xab"
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"]["raw_bytes"] == "0102ab"
 
     def test_raw_bytes_empty_when_no_attr(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         delattr(pipe, "pushconsts")
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"]["raw_bytes"] == ""
 
     def test_mixed_buffer_backed_and_push(self, tmp_path: Path) -> None:
@@ -245,7 +251,9 @@ class TestPipePushConstants:
             byteSize=16,
         )
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_push_constants", {"eid": 10}, token="abcdef1234567890"), s
+        )
         pcs = resp["result"]["push_constants"]
         assert len(pcs) == 1
         assert pcs[0]["name"] == "pc"
@@ -257,14 +265,18 @@ class TestPipePushConstants:
 class TestPipeRasterizer:
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("pipe_rasterizer", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_rasterizer", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_happy_path(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         pipe.rasterizer = RasterizerState(frontCCW=True, lineWidth=1.5)
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_rasterizer", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_rasterizer", {"eid": 10}, token="abcdef1234567890"), s
+        )
         r = resp["result"]
         assert r["eid"] == 10
         assert r["frontCCW"] is True
@@ -279,7 +291,9 @@ class TestPipeRasterizer:
             cullMode=CullMode("None"),
         )
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_rasterizer", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_rasterizer", {"eid": 10}, token="abcdef1234567890"), s
+        )
         r = resp["result"]
         assert r["fillMode"] == "Wireframe"
         assert r["cullMode"] == "None"
@@ -288,7 +302,9 @@ class TestPipeRasterizer:
         pipe = MockPipeState()
         del pipe.rasterizer
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_rasterizer", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_rasterizer", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"] == {"eid": 10}
 
     def test_depth_bias_fields(self, tmp_path: Path) -> None:
@@ -300,7 +316,9 @@ class TestPipeRasterizer:
             depthBiasSlopeFactor=1.5,
         )
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_rasterizer", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_rasterizer", {"eid": 10}, token="abcdef1234567890"), s
+        )
         r = resp["result"]
         assert r["depthBiasEnable"] is True
         assert r["depthBiasConstantFactor"] == 2.0
@@ -314,7 +332,9 @@ class TestPipeRasterizer:
 class TestPipeDepthStencil:
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("pipe_depth_stencil", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_depth_stencil", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_happy_path(self, tmp_path: Path) -> None:
@@ -328,7 +348,9 @@ class TestPipeDepthStencil:
             stencilTestEnable=False,
         )
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_depth_stencil", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_depth_stencil", {"eid": 10}, token="abcdef1234567890"), s
+        )
         r = resp["result"]
         assert r["eid"] == 10
         assert r["depthTestEnable"] is True
@@ -343,14 +365,18 @@ class TestPipeDepthStencil:
         pipe = MockPipeState()
         pipe.depthStencil = DepthStencilState(depthFunction=CompFunc("LessEqual"))
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_depth_stencil", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_depth_stencil", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"]["depthFunction"] == "LessEqual"
 
     def test_no_depth_stencil_attribute(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         del pipe.depthStencil
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_depth_stencil", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_depth_stencil", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"] == {"eid": 10}
 
 
@@ -360,7 +386,9 @@ class TestPipeDepthStencil:
 class TestPipeMsaa:
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("pipe_msaa", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_msaa", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_happy_path(self, tmp_path: Path) -> None:
@@ -372,7 +400,9 @@ class TestPipeMsaa:
             sampleMask=0xFFFF,
         )
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_msaa", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_msaa", {"eid": 10}, token="abcdef1234567890"), s
+        )
         r = resp["result"]
         assert r["eid"] == 10
         assert r["rasterSamples"] == 4
@@ -383,7 +413,9 @@ class TestPipeMsaa:
     def test_default_single_sample(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_msaa", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_msaa", {"eid": 10}, token="abcdef1234567890"), s
+        )
         r = resp["result"]
         assert r["rasterSamples"] == 1
 
@@ -391,5 +423,7 @@ class TestPipeMsaa:
         pipe = MockPipeState()
         del pipe.multisample
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipe_msaa", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_msaa", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["result"] == {"eid": 10}

@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import struct
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as mock_rd
+import pytest
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -48,12 +45,6 @@ def _build_actions() -> list[ActionDescription]:
 
 def _build_resources() -> list[ResourceDescription]:
     return [ResourceDescription(resourceId=ResourceId(1), name="res0")]
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _make_vbuffer_data() -> bytes:
@@ -202,7 +193,9 @@ def state(tmp_path: Path) -> DaemonState:
 class TestCbufferDecode:
     def test_happy_path(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("cbuffer_decode", eid=10, set=0, binding=0),
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
             state,
         )
         r = resp["result"]
@@ -222,21 +215,29 @@ class TestCbufferDecode:
             token="abcdef1234567890",
         )
         resp, _ = _handle_request(
-            _req("cbuffer_decode", eid=10, set=0, binding=0),
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
             s,
         )
         assert resp["error"]["code"] == -32002
 
     def test_no_reflection(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("cbuffer_decode", eid=10, set=0, binding=0, stage="vs"),
+            rpc_request(
+                "cbuffer_decode",
+                {"eid": 10, "set": 0, "binding": 0, "stage": "vs"},
+                token="abcdef1234567890",
+            ),
             state,
         )
         assert resp["error"]["code"] == -32001
 
     def test_invalid_binding(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("cbuffer_decode", eid=10, set=0, binding=99),
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 99}, token="abcdef1234567890"
+            ),
             state,
         )
         assert resp["error"]["code"] == -32001
@@ -270,7 +271,9 @@ class TestCbufferDecode:
         # Override cbuffer return
         state.adapter.controller.GetCBufferVariableContents = lambda *args: nested
         resp, _ = _handle_request(
-            _req("cbuffer_decode", eid=10, set=0, binding=0),
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
             state,
         )
         r = resp["result"]
@@ -280,7 +283,9 @@ class TestCbufferDecode:
 
 class TestVbufferDecode:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("vbuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("vbuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["eid"] == 10
         assert len(r["columns"]) == 5  # 3 (POSITION) + 2 (TEXCOORD)
@@ -301,12 +306,16 @@ class TestVbufferDecode:
             current_eid=0,
             token="abcdef1234567890",
         )
-        resp, _ = _handle_request(_req("vbuffer_decode", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("vbuffer_decode", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_no_vertex_inputs(self, state: DaemonState) -> None:
         state.adapter.controller.GetPipelineState()._vertex_inputs = []
-        resp, _ = _handle_request(_req("vbuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("vbuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["columns"] == []
         assert r["vertices"] == []
@@ -314,7 +323,9 @@ class TestVbufferDecode:
 
 class TestIbufferDecode:
     def test_happy_path_u16(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("ibuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("ibuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["eid"] == 10
         assert r["format"] == "uint16"
@@ -337,7 +348,9 @@ class TestIbufferDecode:
             return orig_get(rid, offset, length)
 
         state.adapter.controller.GetBufferData = _get
-        resp, _ = _handle_request(_req("ibuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("ibuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["format"] == "uint32"
         assert r["indices"] == [0, 1, 2]
@@ -348,7 +361,9 @@ class TestIbufferDecode:
             current_eid=0,
             token="abcdef1234567890",
         )
-        resp, _ = _handle_request(_req("ibuffer_decode", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("ibuffer_decode", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_no_index_buffer(self, state: DaemonState) -> None:
@@ -359,7 +374,9 @@ class TestIbufferDecode:
             byteSize=0,
             byteStride=0,
         )
-        resp, _ = _handle_request(_req("ibuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("ibuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["format"] == "none"
         assert r["indices"] == []
@@ -450,7 +467,9 @@ class TestVbufferDecodeGolden:
     """Golden-value comparison: refactored vbuffer_decode matches original output."""
 
     def test_vbuffer_golden(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("vbuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("vbuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         # 3 vertices, 5 components each (POSITION.xyz + TEXCOORD.xy)
         expected_v0 = [-1.0, -1.0, 0.0, 0.0, 0.0]
@@ -465,7 +484,9 @@ class TestIbufferDecodeGolden:
     """Golden-value comparison: refactored ibuffer_decode matches original output."""
 
     def test_ibuffer_golden(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("ibuffer_decode", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("ibuffer_decode", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["indices"] == [0, 1, 2]
         assert r["format"] == "uint16"
@@ -503,7 +524,10 @@ class TestMeshDataGolden:
 
         state.adapter.controller.GetBufferData = _get
         state.adapter.controller.GetPostVSData = lambda inst, view, stage: mesh
-        resp, _ = _handle_request(_req("mesh_data", eid=10, stage="vs-out"), state)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-out"}, token="abcdef1234567890"),
+            state,
+        )
         r = resp["result"]
         assert r["vertex_count"] == 3
         assert r["vertices"][0] == pytest.approx([1.0, 2.0, 3.0, 4.0])

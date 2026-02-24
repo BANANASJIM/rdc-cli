@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
-from mock_renderdoc import (  # noqa: E402
+import mock_renderdoc as rd
+from mock_renderdoc import (
     AddressMode,
     Descriptor,
     DescriptorAccess,

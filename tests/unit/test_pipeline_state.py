@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
-
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 
 import mock_renderdoc as mock_rd
+import pytest
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -49,12 +45,6 @@ def _build_actions():
 
 def _build_resources():
     return [ResourceDescription(resourceId=ResourceId(1), name="res0")]
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 @pytest.fixture()
@@ -133,20 +123,26 @@ def state(tmp_path: Path) -> DaemonState:
 
 class TestPipeTopology:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_topology", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_topology", {"eid": 10}, token="abcdef1234567890"), state
+        )
         result = resp["result"]
         assert result["topology"] == "TriangleList"
         assert result["eid"] == 10
 
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("pipe_topology", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("pipe_topology", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
 
 class TestPipeViewport:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_viewport", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_viewport", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["width"] == 1920.0
         assert r["height"] == 1080.0
@@ -156,7 +152,9 @@ class TestPipeViewport:
 
 class TestPipeScissor:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_scissor", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_scissor", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["width"] == 1920
         assert r["height"] == 1080
@@ -165,7 +163,9 @@ class TestPipeScissor:
 
 class TestPipeBlend:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_blend", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_blend", {"eid": 10}, token="abcdef1234567890"), state
+        )
         blends = resp["result"]["blends"]
         assert len(blends) == 1
         assert blends[0]["enabled"] is True
@@ -176,7 +176,9 @@ class TestPipeBlend:
 
 class TestPipeStencil:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_stencil", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_stencil", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["front"]["function"] == "LessEqual"
         assert r["front"]["passOperation"] == "Replace"
@@ -185,7 +187,9 @@ class TestPipeStencil:
 
 class TestPipeVinputs:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_vinputs", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_vinputs", {"eid": 10}, token="abcdef1234567890"), state
+        )
         inputs = resp["result"]["inputs"]
         assert len(inputs) == 2
         assert inputs[0]["name"] == "POSITION"
@@ -194,13 +198,17 @@ class TestPipeVinputs:
 
     def test_empty(self, state: DaemonState) -> None:
         state.adapter.controller.GetPipelineState()._vertex_inputs = []
-        resp, _ = _handle_request(_req("pipe_vinputs", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_vinputs", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["result"]["inputs"] == []
 
 
 class TestPipeSamplers:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_samplers", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_samplers", {"eid": 10}, token="abcdef1234567890"), state
+        )
         samplers = resp["result"]["samplers"]
         assert len(samplers) == 1
         assert samplers[0]["stage"] == "ps"
@@ -210,7 +218,9 @@ class TestPipeSamplers:
 
 class TestPipeVbuffers:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_vbuffers", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_vbuffers", {"eid": 10}, token="abcdef1234567890"), state
+        )
         vbs = resp["result"]["vbuffers"]
         assert len(vbs) == 1
         assert vbs[0]["resourceId"] == 42
@@ -219,7 +229,9 @@ class TestPipeVbuffers:
 
 class TestPipeIbuffer:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("pipe_ibuffer", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_ibuffer", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["resourceId"] == 43
         assert r["byteStride"] == 2
@@ -227,7 +239,9 @@ class TestPipeIbuffer:
 
 class TestPostvs:
     def test_happy_path(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("postvs", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("postvs", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["numIndices"] == 3
         assert r["topology"] == "TriangleList"

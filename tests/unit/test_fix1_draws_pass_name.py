@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
+import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
@@ -55,12 +51,6 @@ def _make_state(actions: list | None = None) -> DaemonState:
     return state
 
 
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "tok"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
-
-
 class TestPassNameForEid:
     def test_eid_within_pass(self) -> None:
         actions = _build_actions()
@@ -82,7 +72,7 @@ class TestPassNameForEid:
 class TestDrawsHandlerFriendlyName:
     def test_pass_column_is_friendly_name(self) -> None:
         state = _make_state()
-        resp, _ = _handle_request(_req("draws"), state)
+        resp, _ = _handle_request(rpc_request("draws"), state)
         result = resp["result"]
         for d in result["draws"]:
             assert not d["pass"].startswith("vkCmd"), f"raw API name leaked: {d['pass']}"
@@ -90,8 +80,8 @@ class TestDrawsHandlerFriendlyName:
 
     def test_pass_column_matches_passes_output(self) -> None:
         state = _make_state()
-        draws_resp, _ = _handle_request(_req("draws"), state)
-        passes_resp, _ = _handle_request(_req("passes"), state)
+        draws_resp, _ = _handle_request(rpc_request("draws"), state)
+        passes_resp, _ = _handle_request(rpc_request("passes"), state)
         pass_names = {p["name"] for p in passes_resp["result"]["tree"]["passes"]}
         for d in draws_resp["result"]["draws"]:
             if d["pass"] != "-":
@@ -100,7 +90,7 @@ class TestDrawsHandlerFriendlyName:
     def test_pass_filter_still_works(self) -> None:
         """Filtering by friendly pass name still returns results."""
         state = _make_state()
-        passes_resp, _ = _handle_request(_req("passes"), state)
+        passes_resp, _ = _handle_request(rpc_request("passes"), state)
         pass_name = passes_resp["result"]["tree"]["passes"][0]["name"]
-        draws_resp, _ = _handle_request(_req("draws", **{"pass": pass_name}), state)
+        draws_resp, _ = _handle_request(rpc_request("draws", {"pass": pass_name}), state)
         assert len(draws_resp["result"]["draws"]) > 0

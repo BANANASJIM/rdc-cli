@@ -6,16 +6,12 @@ Runs only when real renderdoc is available (GPU marker).
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
+import mock_renderdoc as mock
 import pytest
 
 pytestmark = pytest.mark.gpu
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-import mock_renderdoc as mock  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import mock_renderdoc as mrd
 import pytest
 from click.testing import CliRunner
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as mrd  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers: build mock action trees

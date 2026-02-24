@@ -74,7 +74,7 @@ def _save_state(ident: int = 12345) -> None:
 def test_attach_success(monkeypatch: pytest.MonkeyPatch) -> None:
     tc = _make_mock_tc()
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(attach_cmd, ["12345"])
     assert result.exit_code == 0
@@ -88,7 +88,7 @@ def test_attach_success(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_attach_connection_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     tc = _make_mock_tc(connected=False)
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(attach_cmd, ["12345"])
     assert result.exit_code != 0
@@ -102,7 +102,7 @@ def test_capture_trigger_success(monkeypatch: pytest.MonkeyPatch) -> None:
     _save_state()
     tc = _make_mock_tc()
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_trigger_cmd, [])
     assert result.exit_code == 0
@@ -113,7 +113,7 @@ def test_capture_trigger_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_capture_trigger_no_state(monkeypatch: pytest.MonkeyPatch) -> None:
     rd = MagicMock()
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_trigger_cmd, [])
     assert result.exit_code != 0
@@ -147,7 +147,7 @@ def test_capture_list_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     tc = _make_mock_tc(messages=[new_cap_msg, noop_msg, disconnect_msg])
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_list_cmd, ["--timeout", "0.1"])
     assert result.exit_code == 0
@@ -167,7 +167,7 @@ def test_capture_copy_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     tc = _make_mock_tc(messages=[copied_msg])
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc", "--timeout", "1"])
     assert result.exit_code == 0
@@ -180,7 +180,7 @@ def test_capture_copy_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     _save_state()
     tc = _make_mock_tc()  # default Noop messages -> will timeout
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc", "--timeout", "0.05"])
     assert result.exit_code != 0
@@ -194,7 +194,7 @@ def test_capture_copy_disconnected(monkeypatch: pytest.MonkeyPatch) -> None:
 
     tc = _make_mock_tc(messages=[disconnect_msg])
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc", "--timeout", "1"])
     assert result.exit_code != 0
@@ -202,7 +202,7 @@ def test_capture_copy_disconnected(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_capture_copy_no_state(monkeypatch: pytest.MonkeyPatch) -> None:
     rd = MagicMock()
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_copy_cmd, ["0", "/tmp/out.rdc"])
     assert result.exit_code != 0
@@ -216,7 +216,7 @@ def test_capture_copy_no_state(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_connect_not_connected_calls_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
     tc = _make_mock_tc(connected=False)
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(attach_cmd, ["12345"])
     assert result.exit_code != 0
@@ -226,7 +226,7 @@ def test_connect_not_connected_calls_shutdown(monkeypatch: pytest.MonkeyPatch) -
 def test_connect_none_tc_does_not_call_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
     rd = MagicMock()
     rd.CreateTargetControl.return_value = None
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(attach_cmd, ["12345"])
     assert result.exit_code != 0
@@ -235,7 +235,7 @@ def test_connect_none_tc_does_not_call_shutdown(monkeypatch: pytest.MonkeyPatch)
 def test_capture_trigger_not_connected_calls_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
     tc = _make_mock_tc(connected=False)
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_trigger_cmd, ["--ident", "12345"])
     assert result.exit_code != 0
@@ -245,7 +245,7 @@ def test_capture_trigger_not_connected_calls_shutdown(monkeypatch: pytest.Monkey
 def test_capture_list_not_connected_calls_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
     tc = _make_mock_tc(connected=False)
     rd = _make_mock_rd(tc)
-    monkeypatch.setattr("rdc.commands.capture_control.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
 
     result = CliRunner().invoke(capture_list_cmd, ["--ident", "12345", "--timeout", "0.1"])
     assert result.exit_code != 0

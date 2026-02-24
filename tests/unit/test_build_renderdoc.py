@@ -12,13 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add scripts/ to sys.path so build_renderdoc can be imported as a module
-_scripts = str(Path(__file__).parents[2] / "scripts")
-if _scripts not in sys.path:
-    sys.path.insert(0, _scripts)
-
 br = importlib.import_module("build_renderdoc")
-
 
 # ---------------------------------------------------------------------------
 # Platform detection

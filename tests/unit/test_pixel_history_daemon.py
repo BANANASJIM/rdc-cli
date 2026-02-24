@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import math
-import sys
-from pathlib import Path
+
+import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
 
 
 def _make_pixel_value(r: float, g: float, b: float, a: float) -> rd.PixelValue:
@@ -51,13 +48,6 @@ def _make_state(
     return state
 
 
-def _req(method: str, params: dict | None = None) -> dict:
-    p = {"_token": "tok"}
-    if params:
-        p.update(params)
-    return {"jsonrpc": "2.0", "id": 1, "method": method, "params": p}
-
-
 # ---------------------------------------------------------------------------
 # Happy path
 # ---------------------------------------------------------------------------
@@ -82,7 +72,7 @@ def test_happy_path_mixed_pass_fail() -> None:
         ),
     ]
     state = _make_state(pixel_history={(512, 384): mods})
-    resp, running = _handle_request(_req("pixel_history", {"x": 512, "y": 384}), state)
+    resp, running = _handle_request(rpc_request("pixel_history", {"x": 512, "y": 384}), state)
     assert running
     r = resp["result"]
     assert r["x"] == 512
@@ -104,7 +94,7 @@ def test_happy_path_mixed_pass_fail() -> None:
 
 def test_no_modifications() -> None:
     state = _make_state(pixel_history={(512, 384): []})
-    resp, running = _handle_request(_req("pixel_history", {"x": 512, "y": 384}), state)
+    resp, running = _handle_request(rpc_request("pixel_history", {"x": 512, "y": 384}), state)
     assert running
     assert resp["result"]["modifications"] == []
 
@@ -117,7 +107,9 @@ def test_target_index_1() -> None:
         pixel_history={(100, 200): mods},
         output_targets=[rt0, rt1],
     )
-    resp, running = _handle_request(_req("pixel_history", {"x": 100, "y": 200, "target": 1}), state)
+    resp, running = _handle_request(
+        rpc_request("pixel_history", {"x": 100, "y": 200, "target": 1}), state
+    )
     assert running
     r = resp["result"]
     assert r["target"]["index"] == 1
@@ -127,7 +119,7 @@ def test_target_index_1() -> None:
 def test_eid_defaults_to_current() -> None:
     state = _make_state(pixel_history={(10, 20): []})
     state.current_eid = 120
-    resp, running = _handle_request(_req("pixel_history", {"x": 10, "y": 20}), state)
+    resp, running = _handle_request(rpc_request("pixel_history", {"x": 10, "y": 20}), state)
     assert running
     assert resp["result"]["eid"] == 120
 
@@ -139,47 +131,47 @@ def test_eid_defaults_to_current() -> None:
 
 def test_pixel_history_missing_x() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("pixel_history", {"y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"y": 0}), state)
     assert resp["error"]["code"] == -32602
     assert "x" in resp["error"]["message"]
 
 
 def test_pixel_history_missing_y() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0}), state)
     assert resp["error"]["code"] == -32602
     assert "y" in resp["error"]["message"]
 
 
 def test_eid_out_of_range() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0, "eid": 9999}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0, "eid": 9999}), state)
     assert resp["error"]["code"] == -32002
 
 
 def test_no_color_targets() -> None:
     state = _make_state(output_targets=[rd.Descriptor(resource=rd.ResourceId(0))])
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32001
     assert "no color targets" in resp["error"]["message"]
 
 
 def test_target_index_out_of_range() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0, "target": 5}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0, "target": 5}), state)
     assert resp["error"]["code"] == -32001
 
 
 def test_msaa_texture() -> None:
     state = _make_state(ms_samp=4)
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32001
     assert "MSAA" in resp["error"]["message"]
 
 
 def test_no_adapter() -> None:
     state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32002
 
 
@@ -191,14 +183,14 @@ def test_no_adapter() -> None:
 def test_depth_negative_one_is_null() -> None:
     mods = [rd.PixelModification(eventId=88, postMod=_make_mod_val(depth=-1.0))]
     state = _make_state(pixel_history={(0, 0): mods})
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     assert resp["result"]["modifications"][0]["depth"] is None
 
 
 def test_depth_inf_is_null() -> None:
     mods = [rd.PixelModification(eventId=88, postMod=_make_mod_val(depth=math.inf))]
     state = _make_state(pixel_history={(0, 0): mods})
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     assert resp["result"]["modifications"][0]["depth"] is None
 
 
@@ -212,7 +204,7 @@ def test_single_flag() -> None:
         rd.PixelModification(eventId=88, depthTestFailed=True, postMod=_make_mod_val(depth=0.5)),
     ]
     state = _make_state(pixel_history={(0, 0): mods})
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     m = resp["result"]["modifications"][0]
     assert m["flags"] == ["depthTestFailed"]
     assert m["passed"] is False
@@ -228,7 +220,7 @@ def test_multiple_flags() -> None:
         ),
     ]
     state = _make_state(pixel_history={(0, 0): mods})
-    resp, _ = _handle_request(_req("pixel_history", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0}), state)
     flags = resp["result"]["modifications"][0]["flags"]
     assert "scissorClipped" in flags
     assert "stencilTestFailed" in flags
@@ -242,6 +234,6 @@ def test_multiple_flags() -> None:
 def test_set_frame_event_called_with_force() -> None:
     state = _make_state(pixel_history={(0, 0): []})
     state._eid_cache = -1
-    _handle_request(_req("pixel_history", {"x": 0, "y": 0, "eid": 120}), state)
+    _handle_request(rpc_request("pixel_history", {"x": 0, "y": 0, "eid": 120}), state)
     ctrl = state.adapter.controller  # type: ignore[union-attr]
     assert (120, True) in ctrl._set_frame_event_calls

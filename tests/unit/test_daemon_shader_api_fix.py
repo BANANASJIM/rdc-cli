@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 from rdc.vfs.tree_cache import build_vfs_skeleton
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -38,13 +34,6 @@ def _make_state_with_ps() -> DaemonState:
     return state
 
 
-def _req(method: str, params: dict | None = None) -> dict:
-    p: dict = {"_token": "tok"}
-    if params:
-        p.update(params)
-    return {"jsonrpc": "2.0", "id": 1, "method": method, "params": p}
-
-
 # ---------------------------------------------------------------------------
 # Issue 4: shader_source
 # ---------------------------------------------------------------------------
@@ -52,7 +41,7 @@ def _req(method: str, params: dict | None = None) -> dict:
 
 def test_shader_source_uses_disassemble_shader() -> None:
     state = _make_state_with_ps()
-    resp, running = _handle_request(_req("shader_source", {"eid": 10, "stage": "ps"}), state)
+    resp, running = _handle_request(rpc_request("shader_source", {"eid": 10, "stage": "ps"}), state)
     assert running
     r = resp["result"]
     assert r["source"] == "SPIR-V code here"
@@ -63,7 +52,7 @@ def test_shader_source_uses_disassemble_shader() -> None:
 def test_shader_source_no_reflection_returns_empty() -> None:
     state = _make_state_with_ps()
     # VS has no reflection bound
-    resp, running = _handle_request(_req("shader_source", {"eid": 10, "stage": "vs"}), state)
+    resp, running = _handle_request(rpc_request("shader_source", {"eid": 10, "stage": "vs"}), state)
     assert running
     r = resp["result"]
     assert r["source"] == ""
@@ -90,7 +79,7 @@ def test_shader_source_with_debug_info_returns_files() -> None:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
     state.max_eid = 100
 
-    resp, running = _handle_request(_req("shader_source", {"eid": 10, "stage": "ps"}), state)
+    resp, running = _handle_request(rpc_request("shader_source", {"eid": 10, "stage": "ps"}), state)
     assert running
     r = resp["result"]
     assert r["has_debug_info"] is True
@@ -121,7 +110,7 @@ def test_shader_source_with_multiple_debug_files() -> None:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
     state.max_eid = 100
 
-    resp, _ = _handle_request(_req("shader_source", {"eid": 10, "stage": "ps"}), state)
+    resp, _ = _handle_request(rpc_request("shader_source", {"eid": 10, "stage": "ps"}), state)
     r = resp["result"]
     assert r["has_debug_info"] is True
     assert len(r["files"]) == 2
@@ -153,7 +142,7 @@ def test_shader_source_compute_uses_compute_pipeline() -> None:
 
     ctrl.DisassembleShader = _spy  # type: ignore[method-assign]
 
-    resp, _ = _handle_request(_req("shader_source", {"eid": 10, "stage": "cs"}), state)
+    resp, _ = _handle_request(rpc_request("shader_source", {"eid": 10, "stage": "cs"}), state)
     assert resp["result"]["source"] == "CS SPIR-V"
     assert calls, "DisassembleShader not called"
     pipeline_used = calls[0][0]
@@ -168,7 +157,7 @@ def test_shader_source_compute_uses_compute_pipeline() -> None:
 
 def test_shader_disasm_uses_disassemble_shader() -> None:
     state = _make_state_with_ps()
-    resp, running = _handle_request(_req("shader_disasm", {"eid": 10, "stage": "ps"}), state)
+    resp, running = _handle_request(rpc_request("shader_disasm", {"eid": 10, "stage": "ps"}), state)
     assert running
     r = resp["result"]
     assert r["disasm"] == "SPIR-V code here"
@@ -188,7 +177,7 @@ def test_shader_disasm_with_explicit_target() -> None:
     ctrl.DisassembleShader = _spy  # type: ignore[method-assign]
 
     resp, running = _handle_request(
-        _req("shader_disasm", {"eid": 10, "stage": "ps", "target": "GLSL"}), state
+        rpc_request("shader_disasm", {"eid": 10, "stage": "ps", "target": "GLSL"}), state
     )
     assert running
     assert resp["result"]["target"] == "GLSL"
@@ -197,7 +186,7 @@ def test_shader_disasm_with_explicit_target() -> None:
 
 def test_shader_disasm_no_reflection_returns_empty() -> None:
     state = _make_state_with_ps()
-    resp, running = _handle_request(_req("shader_disasm", {"eid": 10, "stage": "vs"}), state)
+    resp, running = _handle_request(rpc_request("shader_disasm", {"eid": 10, "stage": "vs"}), state)
     assert running
     r = resp["result"]
     assert r["disasm"] == ""
@@ -244,7 +233,9 @@ def _make_state_with_cbuffer() -> DaemonState:
 
 def test_shader_constants_returns_structured_variables() -> None:
     state = _make_state_with_cbuffer()
-    resp, running = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    resp, running = _handle_request(
+        rpc_request("shader_constants", {"eid": 10, "stage": "ps"}), state
+    )
     assert running
     r = resp["result"]
     assert r["constants"][0]["name"] == "Globals"
@@ -292,7 +283,7 @@ def test_shader_constants_struct_variable_recurses() -> None:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
     state.max_eid = 100
 
-    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    resp, _ = _handle_request(rpc_request("shader_constants", {"eid": 10, "stage": "ps"}), state)
     r = resp["result"]
     v = r["constants"][0]["variables"][0]
     assert v["name"] == "s"
@@ -325,7 +316,7 @@ def test_shader_constants_empty_cbuffer() -> None:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
     state.max_eid = 100
 
-    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    resp, _ = _handle_request(rpc_request("shader_constants", {"eid": 10, "stage": "ps"}), state)
     r = resp["result"]
     assert r["constants"][0]["variables"] == []
 
@@ -364,7 +355,7 @@ def test_shader_constants_multiple_cbuffers() -> None:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
     state.max_eid = 100
 
-    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    resp, _ = _handle_request(rpc_request("shader_constants", {"eid": 10, "stage": "ps"}), state)
     r = resp["result"]
     assert len(r["constants"]) == 2
     assert r["constants"][0]["name"] == "CB0"
@@ -386,7 +377,7 @@ def test_shader_constants_calls_get_cbuffer_variable_contents() -> None:
 
     ctrl.GetCBufferVariableContents = _spy  # type: ignore[method-assign]
 
-    resp, _ = _handle_request(_req("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    resp, _ = _handle_request(rpc_request("shader_constants", {"eid": 10, "stage": "ps"}), state)
     assert "result" in resp
     assert len(calls) == 1
     assert not hasattr(ctrl, "GetConstantBuffer")
@@ -422,7 +413,7 @@ def test_vfs_ls_shaders_triggers_cache_build() -> None:
     state = _make_state_with_vfs()
     assert not state._shader_cache_built
 
-    resp, running = _handle_request(_req("vfs_ls", {"path": "/shaders"}), state)
+    resp, running = _handle_request(rpc_request("vfs_ls", {"path": "/shaders"}), state)
     assert running
     assert "result" in resp
     assert state._shader_cache_built
@@ -432,7 +423,7 @@ def test_vfs_ls_shaders_triggers_cache_build() -> None:
 
 def test_vfs_ls_shaders_no_double_build() -> None:
     state = _make_state_with_vfs()
-    _handle_request(_req("vfs_ls", {"path": "/shaders"}), state)
+    _handle_request(rpc_request("vfs_ls", {"path": "/shaders"}), state)
     assert state._shader_cache_built
 
     build_count = [0]
@@ -443,7 +434,7 @@ def test_vfs_ls_shaders_no_double_build() -> None:
         return orig(*args)  # type: ignore[arg-type]
 
     state.adapter.controller.DisassembleShader = _counted  # type: ignore[method-assign]
-    _handle_request(_req("vfs_ls", {"path": "/shaders"}), state)
+    _handle_request(rpc_request("vfs_ls", {"path": "/shaders"}), state)
     assert build_count[0] == 0, "Cache rebuilt on second call"
 
 
@@ -451,7 +442,9 @@ def test_vfs_tree_shaders_triggers_cache_build() -> None:
     state = _make_state_with_vfs()
     assert not state._shader_cache_built
 
-    resp, running = _handle_request(_req("vfs_tree", {"path": "/shaders", "depth": 1}), state)
+    resp, running = _handle_request(
+        rpc_request("vfs_tree", {"path": "/shaders", "depth": 1}), state
+    )
     assert running
     assert "result" in resp
     assert state._shader_cache_built
@@ -564,7 +557,9 @@ def test_vfs_ls_passes_draws_via_daemon() -> None:
     state.vfs_tree = build_vfs_skeleton(actions, [])
 
     pass_name = state.vfs_tree.static["/passes"].children[0]
-    resp, running = _handle_request(_req("vfs_ls", {"path": f"/passes/{pass_name}/draws"}), state)
+    resp, running = _handle_request(
+        rpc_request("vfs_ls", {"path": f"/passes/{pass_name}/draws"}), state
+    )
     assert running
     assert "result" in resp
     child_names = {c["name"] for c in resp["result"]["children"]}

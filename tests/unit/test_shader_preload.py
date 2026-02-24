@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import mock_renderdoc as mock_rd
 import pytest
 from click.testing import CliRunner
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as mock_rd
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -34,12 +31,6 @@ from rdc.vfs.tree_cache import build_vfs_skeleton
 
 _VS_DISASM = "; Vertex Shader\nOpCapability Shader\n"
 _PS_DISASM = "; Pixel Shader\nOpCapability Shader\n"
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _build_pipe(vs_id: int, ps_id: int) -> MockPipeState:
@@ -228,7 +219,9 @@ class TestBuildShaderCachePopulatesCaches:
 
 class TestHandlePreload:
     def test_builds_cache_and_returns_count(self, state: DaemonState) -> None:
-        resp, running = _handle_request(_req("shaders_preload"), state)
+        resp, running = _handle_request(
+            rpc_request("shaders_preload", token="abcdef1234567890"), state
+        )
         assert "error" not in resp
         assert resp["result"]["done"] is True
         assert resp["result"]["shaders"] > 0
@@ -236,11 +229,11 @@ class TestHandlePreload:
         assert running is True
 
     def test_idempotent(self, state: DaemonState) -> None:
-        resp1, _ = _handle_request(_req("shaders_preload"), state)
+        resp1, _ = _handle_request(rpc_request("shaders_preload", token="abcdef1234567890"), state)
         n1 = resp1["result"]["shaders"]
         # mutate to verify no rebuild
         state.disasm_cache[100] = "sentinel"
-        resp2, _ = _handle_request(_req("shaders_preload"), state)
+        resp2, _ = _handle_request(rpc_request("shaders_preload", token="abcdef1234567890"), state)
         n2 = resp2["result"]["shaders"]
         assert n1 == n2
         assert state.disasm_cache[100] == "sentinel"
@@ -320,14 +313,16 @@ class TestHandleShadersUsesCache:
 
         monkeypatch.setattr("rdc.handlers.query._build_shader_cache", _tracking_build)
 
-        resp, _ = _handle_request(_req("shaders"), state)
+        resp, _ = _handle_request(rpc_request("shaders", token="abcdef1234567890"), state)
         assert "error" not in resp
         assert len(build_calls) == 1
 
 
 class TestCountShadersUsesCache:
     def test_count_via_shader_meta(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("count", what="shaders"), state)
+        resp, _ = _handle_request(
+            rpc_request("count", {"what": "shaders"}, token="abcdef1234567890"), state
+        )
         assert "error" not in resp
         count_val = resp["result"]["value"]
         assert count_val == len(state.shader_meta)
@@ -357,7 +352,7 @@ class TestEidPreservation:
         s, _ = tracked_state
         s.current_eid = 50
         s.structured_file = SimpleNamespace(chunks=[])
-        resp, _ = _handle_request(_req("stats"), s)
+        resp, _ = _handle_request(rpc_request("stats", token="abcdef1234567890"), s)
         assert "error" not in resp
         assert s.current_eid == 50
 
@@ -366,6 +361,6 @@ class TestEidPreservation:
         s, _ = tracked_state
         s.current_eid = 50
         s.structured_file = SimpleNamespace(chunks=[])
-        resp, _ = _handle_request(_req("pass", index=0), s)
+        resp, _ = _handle_request(rpc_request("pass", {"index": 0}, token="abcdef1234567890"), s)
         # Even if pass lookup fails, current_eid must be preserved
         assert s.current_eid == 50

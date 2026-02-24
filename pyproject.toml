@@ -50,6 +50,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+pythonpath = ["src", "tests/mocks", "scripts"]
 markers = ["gpu: requires real renderdoc module and GPU"]
 
 [tool.setuptools_scm]

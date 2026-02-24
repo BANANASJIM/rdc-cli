@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
-
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 
 import mock_renderdoc as mock_rd
+import pytest
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -34,12 +30,6 @@ def _build_actions() -> list[ActionDescription]:
 
 def _build_resources() -> list[ResourceDescription]:
     return [ResourceDescription(resourceId=ResourceId(1), name="res0")]
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _make_state(tmp_path: Path, pipe: MockPipeState) -> DaemonState:
@@ -73,14 +63,18 @@ class TestPipelineSectionRouting:
     def test_topology_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="topology"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "topology"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "topology" in resp["result"]
 
     def test_viewport_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="viewport"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "viewport"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         r = resp["result"]
         assert "x" in r and "y" in r and "width" in r and "height" in r
@@ -88,84 +82,115 @@ class TestPipelineSectionRouting:
     def test_blend_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="blend"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "blend"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "blends" in resp["result"]
 
     def test_vinputs_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="vinputs"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "vinputs"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "inputs" in resp["result"]
 
     def test_rasterizer_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="rasterizer"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "rasterizer"}, token="abcdef1234567890"),
+            s,
+        )
         assert "error" not in resp
         assert "eid" in resp["result"]
 
     def test_depth_stencil_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="depth-stencil"), s)
+        resp, _ = _handle_request(
+            rpc_request(
+                "pipeline", {"eid": 10, "section": "depth-stencil"}, token="abcdef1234567890"
+            ),
+            s,
+        )
         assert "error" not in resp
         assert "eid" in resp["result"]
 
     def test_msaa_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="msaa"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "msaa"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "eid" in resp["result"]
 
     def test_scissor_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="scissor"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "scissor"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "eid" in resp["result"]
 
     def test_stencil_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="stencil"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "stencil"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "eid" in resp["result"]
 
     def test_vbuffers_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="vbuffers"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "vbuffers"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "vbuffers" in resp["result"]
 
     def test_ibuffer_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="ibuffer"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "ibuffer"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "eid" in resp["result"]
 
     def test_samplers_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="samplers"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "samplers"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "samplers" in resp["result"]
 
     def test_push_constants_section_delegates(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="push-constants"), s)
+        resp, _ = _handle_request(
+            rpc_request(
+                "pipeline", {"eid": 10, "section": "push-constants"}, token="abcdef1234567890"
+            ),
+            s,
+        )
         assert "error" not in resp
         assert "push_constants" in resp["result"]
 
     def test_invalid_section_returns_error(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="xyz"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "xyz"}, token="abcdef1234567890"), s
+        )
         assert "error" in resp
         assert resp["error"]["code"] == -32602
 
@@ -175,7 +200,9 @@ class TestPipelineSectionRouting:
         pipe._shaders[ShaderStage.Pixel] = ResourceId(5)
         pipe._reflections[ShaderStage.Pixel] = refl
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="ps"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "ps"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         row = resp["result"]["row"]
         assert row.get("section") == "ps"
@@ -184,7 +211,9 @@ class TestPipelineSectionRouting:
         """Section name is lowercased before routing."""
         pipe = MockPipeState()
         s = _make_state(tmp_path, pipe)
-        resp, _ = _handle_request(_req("pipeline", eid=10, section="TOPOLOGY"), s)
+        resp, _ = _handle_request(
+            rpc_request("pipeline", {"eid": 10, "section": "TOPOLOGY"}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         assert "topology" in resp["result"]
 
@@ -209,7 +238,9 @@ class TestBindingsSetFiltering:
         import rdc.services.query_service as qs
 
         monkeypatch.setattr(qs, "bindings_rows", lambda eid, pipe_state: rows)
-        resp, _ = _handle_request(_req("bindings", eid=1, set=1), s)
+        resp, _ = _handle_request(
+            rpc_request("bindings", {"eid": 1, "set": 1}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         result_rows = resp["result"]["rows"]
         assert len(result_rows) == 1
@@ -223,7 +254,9 @@ class TestBindingsSetFiltering:
         import rdc.services.query_service as qs
 
         monkeypatch.setattr(qs, "bindings_rows", lambda eid, pipe_state: rows)
-        resp, _ = _handle_request(_req("bindings", eid=1, set=0), s)
+        resp, _ = _handle_request(
+            rpc_request("bindings", {"eid": 1, "set": 0}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         result_rows = resp["result"]["rows"]
         assert len(result_rows) == 2
@@ -238,7 +271,9 @@ class TestBindingsSetFiltering:
         import rdc.services.query_service as qs
 
         monkeypatch.setattr(qs, "bindings_rows", lambda eid, pipe_state: rows)
-        resp, _ = _handle_request(_req("bindings", eid=1, set=0, binding=3), s)
+        resp, _ = _handle_request(
+            rpc_request("bindings", {"eid": 1, "set": 0, "binding": 3}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         result_rows = resp["result"]["rows"]
         assert len(result_rows) == 1
@@ -253,7 +288,9 @@ class TestBindingsSetFiltering:
         import rdc.services.query_service as qs
 
         monkeypatch.setattr(qs, "bindings_rows", lambda eid, pipe_state: rows)
-        resp, _ = _handle_request(_req("bindings", eid=1, binding=0), s)
+        resp, _ = _handle_request(
+            rpc_request("bindings", {"eid": 1, "binding": 0}, token="abcdef1234567890"), s
+        )
         assert "error" not in resp
         result_rows = resp["result"]["rows"]
         assert len(result_rows) == 1

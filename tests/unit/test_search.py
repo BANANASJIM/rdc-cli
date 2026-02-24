@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import mock_renderdoc as mock_rd
 import pytest
 from click.testing import CliRunner
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as mock_rd
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -42,12 +39,6 @@ _PS_DISASM = (
     "%result = OpFMul %float %a %b\n"
     "OpStore %out_color %result\n"
 )
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _build_pipe(vs_id: int, ps_id: int) -> MockPipeState:
@@ -155,60 +146,94 @@ class TestBuildShaderCache:
 
 class TestSearchHandler:
     def test_basic_match(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="OpCapability"), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "OpCapability"}, token="abcdef1234567890"), state
+        )
         matches = resp["result"]["matches"]
         assert len(matches) >= 2
 
     def test_case_insensitive_default(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="opcapability"), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "opcapability"}, token="abcdef1234567890"), state
+        )
         matches = resp["result"]["matches"]
         assert len(matches) >= 2
 
     def test_case_sensitive(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("search", pattern="opcapability", case_sensitive=True), state
+            rpc_request(
+                "search",
+                {"pattern": "opcapability", "case_sensitive": True},
+                token="abcdef1234567890",
+            ),
+            state,
         )
         matches = resp["result"]["matches"]
         assert matches == []
 
     def test_case_sensitive_hits(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("search", pattern="OpCapability", case_sensitive=True), state
+            rpc_request(
+                "search",
+                {"pattern": "OpCapability", "case_sensitive": True},
+                token="abcdef1234567890",
+            ),
+            state,
         )
         matches = resp["result"]["matches"]
         assert len(matches) >= 2
 
     def test_stage_filter_vs(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="Shader", stage="vs"), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "Shader", "stage": "vs"}, token="abcdef1234567890"),
+            state,
+        )
         matches = resp["result"]["matches"]
         assert all("vs" in m["stages"] for m in matches)
         assert any("Vertex" in m["text"] for m in matches)
 
     def test_stage_filter_ps(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="Shader", stage="ps"), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "Shader", "stage": "ps"}, token="abcdef1234567890"),
+            state,
+        )
         matches = resp["result"]["matches"]
         assert all("ps" in m["stages"] for m in matches)
         assert any("Pixel" in m["text"] for m in matches)
 
     def test_stage_filter_no_match(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="OpCapability", stage="cs"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "search", {"pattern": "OpCapability", "stage": "cs"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         matches = resp["result"]["matches"]
         assert matches == []
 
     def test_limit_and_truncated(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="Op", limit=1), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "Op", "limit": 1}, token="abcdef1234567890"), state
+        )
         result = resp["result"]
         assert len(result["matches"]) == 1
         assert result["truncated"] is True
 
     def test_no_truncation_when_under_limit(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="Vertex Shader"), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "Vertex Shader"}, token="abcdef1234567890"), state
+        )
         result = resp["result"]
         assert result["truncated"] is False
 
     def test_context_lines(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("search", pattern="OpCapability", stage="vs", context=1), state
+            rpc_request(
+                "search",
+                {"pattern": "OpCapability", "stage": "vs", "context": 1},
+                token="abcdef1234567890",
+            ),
+            state,
         )
         matches = resp["result"]["matches"]
         assert len(matches) >= 1
@@ -218,28 +243,42 @@ class TestSearchHandler:
         assert "context_after" in hit
 
     def test_invalid_regex(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="[invalid("), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "[invalid("}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32602
         assert "invalid regex" in resp["error"]["message"]
 
     def test_pattern_too_long(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="a" * 501), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "a" * 501}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32602
         assert "too long" in resp["error"]["message"]
 
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("search", pattern="foo"), s)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "foo"}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_no_matches_returns_empty(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="XYZZY_NEVER_MATCHES_42"), state)
+        resp, _ = _handle_request(
+            rpc_request("search", {"pattern": "XYZZY_NEVER_MATCHES_42"}, token="abcdef1234567890"),
+            state,
+        )
         result = resp["result"]
         assert result["matches"] == []
         assert result["truncated"] is False
 
     def test_match_has_expected_fields(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search", pattern="OpCapability", stage="vs"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "search", {"pattern": "OpCapability", "stage": "vs"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         m = resp["result"]["matches"][0]
         assert "shader" in m
         assert "stages" in m
@@ -250,16 +289,20 @@ class TestSearchHandler:
         assert "context_after" in m
 
     def test_missing_pattern(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("search"), state)
+        resp, _ = _handle_request(rpc_request("search", token="abcdef1234567890"), state)
         assert resp["error"]["code"] == -32602
 
     def test_cache_reuse(self, state: DaemonState) -> None:
-        _handle_request(_req("search", pattern="OpCapability"), state)
+        _handle_request(
+            rpc_request("search", {"pattern": "OpCapability"}, token="abcdef1234567890"), state
+        )
         assert state.disasm_cache  # cache built
         call_count_before = len(state.disasm_cache)
         # Mutate cache — second call must not rebuild
         state.disasm_cache[100] = "sentinel"
-        _handle_request(_req("search", pattern="sentinel"), state)
+        _handle_request(
+            rpc_request("search", {"pattern": "sentinel"}, token="abcdef1234567890"), state
+        )
         assert state.disasm_cache[100] == "sentinel"
         assert len(state.disasm_cache) == call_count_before
 
@@ -272,7 +315,9 @@ class TestSearchHandler:
 class TestShaderListInfo:
     def test_happy_path(self, state: DaemonState) -> None:
         _build_shader_cache(state)
-        resp, _ = _handle_request(_req("shader_list_info", id=100), state)
+        resp, _ = _handle_request(
+            rpc_request("shader_list_info", {"id": 100}, token="abcdef1234567890"), state
+        )
         result = resp["result"]
         assert result["id"] == 100
         assert "vs" in result["stages"]
@@ -280,12 +325,16 @@ class TestShaderListInfo:
 
     def test_not_found(self, state: DaemonState) -> None:
         _build_shader_cache(state)
-        resp, _ = _handle_request(_req("shader_list_info", id=9999), state)
+        resp, _ = _handle_request(
+            rpc_request("shader_list_info", {"id": 9999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("shader_list_info", id=100), s)
+        resp, _ = _handle_request(
+            rpc_request("shader_list_info", {"id": 100}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
 
@@ -297,19 +346,25 @@ class TestShaderListInfo:
 class TestShaderListDisasm:
     def test_happy_path(self, state: DaemonState) -> None:
         _build_shader_cache(state)
-        resp, _ = _handle_request(_req("shader_list_disasm", id=200), state)
+        resp, _ = _handle_request(
+            rpc_request("shader_list_disasm", {"id": 200}, token="abcdef1234567890"), state
+        )
         result = resp["result"]
         assert result["id"] == 200
         assert "Pixel Shader" in result["disasm"]
 
     def test_not_found(self, state: DaemonState) -> None:
         _build_shader_cache(state)
-        resp, _ = _handle_request(_req("shader_list_disasm", id=9999), state)
+        resp, _ = _handle_request(
+            rpc_request("shader_list_disasm", {"id": 9999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("shader_list_disasm", id=100), s)
+        resp, _ = _handle_request(
+            rpc_request("shader_list_disasm", {"id": 100}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
 
@@ -346,7 +401,9 @@ class TestVfsShaders:
 
     def test_vfs_ls_shaders(self, state: DaemonState) -> None:
         _build_shader_cache(state)
-        resp, _ = _handle_request(_req("vfs_ls", path="/shaders"), state)
+        resp, _ = _handle_request(
+            rpc_request("vfs_ls", {"path": "/shaders"}, token="abcdef1234567890"), state
+        )
         assert "result" in resp
         children = resp["result"]["children"]
         names = [c["name"] for c in children]

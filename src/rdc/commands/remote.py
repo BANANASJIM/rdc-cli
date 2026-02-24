@@ -10,7 +10,7 @@ from typing import Any
 
 import click
 
-from rdc.discover import find_renderdoc
+from rdc.commands._helpers import require_renderdoc
 from rdc.remote_core import (
     build_conn_url,
     connect_remote_server,
@@ -24,15 +24,6 @@ from rdc.remote_state import (
     load_latest_remote_state,
     save_remote_state,
 )
-
-
-def _require_renderdoc() -> Any:
-    """Find and return the renderdoc module, or exit with error."""
-    rd = find_renderdoc()
-    if rd is None:
-        click.echo("error: renderdoc module not found", err=True)
-        raise SystemExit(1)
-    return rd
 
 
 def _resolve_url(url: str | None) -> tuple[str, int]:
@@ -73,7 +64,7 @@ def remote_connect_cmd(url: str, as_json: bool) -> None:
         click.echo(f"error: {exc}", err=True)
         raise SystemExit(1) from None
     _check_public_ip(host)
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
 
     conn_url = build_conn_url(host, port)
     try:
@@ -101,7 +92,7 @@ def remote_list_cmd(url: str | None, as_json: bool) -> None:
     """List capturable applications on a remote host."""
     host, port = _resolve_url(url)
     _check_public_ip(host)
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
 
     conn_url = build_conn_url(host, port)
     idents = enumerate_remote_targets(rd, conn_url)
@@ -173,7 +164,7 @@ def remote_capture_cmd(
     """Capture on a remote host and transfer to local."""
     host, port = _resolve_url(url)
     _check_public_ip(host)
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
 
     opts: dict[str, Any] = {}
     if api_validation:
