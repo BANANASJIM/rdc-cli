@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -474,12 +475,51 @@ class TestMacHomebrew:
         assert "Homebrew 4.2.0" in r.detail
 
     def test_fail_when_brew_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """M2-04: shutil.which("brew") returns None."""
+        """M2-04: shutil.which and all fallback paths return nothing."""
         monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
         monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda name: None)
+        monkeypatch.setattr("rdc.commands.doctor.Path.is_file", lambda _self: False)
         r = _check_mac_homebrew()
         assert r.ok is False
         assert "brew.sh" in r.detail
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX paths only")
+    def test_fallback_opt_homebrew(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B40: brew found via /opt/homebrew/bin/brew when shutil.which fails."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda name: None)
+        monkeypatch.setattr(
+            "rdc.commands.doctor.Path.is_file",
+            lambda self: str(self) == "/opt/homebrew/bin/brew",
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="Homebrew 4.3.0\n"
+            ),
+        )
+        r = _check_mac_homebrew()
+        assert r.ok is True
+        assert "Homebrew 4.3.0" in r.detail
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="POSIX paths only")
+    def test_fallback_usr_local(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B40: brew found via /usr/local/bin/brew when shutil.which and opt/homebrew fail."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda name: None)
+        monkeypatch.setattr(
+            "rdc.commands.doctor.Path.is_file",
+            lambda self: str(self) == "/usr/local/bin/brew",
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="Homebrew 4.1.0\n"
+            ),
+        )
+        r = _check_mac_homebrew()
+        assert r.ok is True
+        assert "Homebrew 4.1.0" in r.detail
 
 
 class TestMacRenderdocDylib:

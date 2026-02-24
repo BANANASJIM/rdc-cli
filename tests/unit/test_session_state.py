@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,11 +25,9 @@ def test_is_pid_alive_for_invalid_pid() -> None:
     assert is_pid_alive(-1) is False
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="PID tag check uses /proc, unavailable on Windows"
-)
-def test_is_pid_alive_wrong_process(monkeypatch: pytest.MonkeyPatch) -> None:
-    """PID alive but cmdline doesn't contain 'rdc' -> False."""
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux /proc variant")
+def test_is_pid_alive_wrong_process_linux(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PID alive but cmdline doesn't contain 'rdc' -> False (Linux)."""
     pid = os.getpid()
     monkeypatch.setattr(
         "rdc._platform.Path.read_bytes",
@@ -37,8 +36,22 @@ def test_is_pid_alive_wrong_process(monkeypatch: pytest.MonkeyPatch) -> None:
     assert is_pid_alive(pid) is False
 
 
-def test_is_pid_alive_correct_process(monkeypatch: pytest.MonkeyPatch) -> None:
-    """PID alive and cmdline contains 'rdc' -> True."""
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS ps variant")
+def test_is_pid_alive_wrong_process_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PID alive but ps output doesn't contain 'rdc' -> False (macOS)."""
+    pid = os.getpid()
+    monkeypatch.setattr(
+        "rdc._platform.subprocess.run",
+        lambda *_a, **_kw: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="nginx --daemon\n"
+        ),
+    )
+    assert is_pid_alive(pid) is False
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux /proc variant")
+def test_is_pid_alive_correct_process_linux(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PID alive and cmdline contains 'rdc' -> True (Linux)."""
     pid = os.getpid()
     monkeypatch.setattr(
         "rdc._platform.Path.read_bytes",
@@ -47,13 +60,39 @@ def test_is_pid_alive_correct_process(monkeypatch: pytest.MonkeyPatch) -> None:
     assert is_pid_alive(pid) is True
 
 
-def test_is_pid_alive_no_proc(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When /proc doesn't exist, falls back to kill-only check."""
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS ps variant")
+def test_is_pid_alive_correct_process_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PID alive and ps output contains 'rdc' -> True (macOS)."""
+    pid = os.getpid()
+    monkeypatch.setattr(
+        "rdc._platform.subprocess.run",
+        lambda *_a, **_kw: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="python -m rdc daemon\n"
+        ),
+    )
+    assert is_pid_alive(pid) is True
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux /proc variant")
+def test_is_pid_alive_no_proc_linux(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When /proc doesn't exist, falls back to kill-only check (Linux)."""
     pid = os.getpid()
     monkeypatch.setattr(
         "rdc._platform.Path.read_bytes",
         lambda _self: (_ for _ in ()).throw(OSError("no /proc")),
     )
+    assert is_pid_alive(pid) is True
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS ps variant")
+def test_is_pid_alive_no_proc_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When ps raises SubprocessError, falls back to kill-only check (macOS)."""
+    pid = os.getpid()
+
+    def _raise(*_a: object, **_kw: object) -> None:
+        raise subprocess.SubprocessError("ps failed")
+
+    monkeypatch.setattr("rdc._platform.subprocess.run", _raise)
     assert is_pid_alive(pid) is True
 
 
