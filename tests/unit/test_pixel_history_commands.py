@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from click.testing import CliRunner
+from conftest import assert_json_output, assert_jsonl_output
 
 from rdc.cli import main
 from rdc.commands import pixel as pixel_mod
@@ -142,8 +142,7 @@ def test_sample_forwarded(monkeypatch: Any) -> None:
 def test_json_output(monkeypatch: Any) -> None:
     _patch(monkeypatch, _HAPPY_RESPONSE)
     result = CliRunner().invoke(main, ["pixel", "512", "384", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["x"] == 512
     assert "modifications" in data
 
@@ -226,9 +225,7 @@ def test_pixel_no_header_regression(monkeypatch: Any) -> None:
 def test_pixel_jsonl(monkeypatch: Any) -> None:
     _patch(monkeypatch, _HAPPY_RESPONSE)
     result = CliRunner().invoke(main, ["pixel", "512", "384", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["eid"] == 88
 
 

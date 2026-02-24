@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from click.testing import CliRunner
+from conftest import assert_json_output, assert_jsonl_output
 
 from rdc.cli import main
 from rdc.commands import counters as counters_mod
@@ -60,8 +60,7 @@ def test_counters_list_tsv(monkeypatch: Any) -> None:
 def test_counters_list_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _LIST_RESPONSE)
     result = CliRunner().invoke(main, ["counters", "--list", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["total"] == 2
     assert len(data["counters"]) == 2
 
@@ -113,8 +112,7 @@ def test_counters_name_filter_tsv(monkeypatch: Any) -> None:
 def test_counters_fetch_json(monkeypatch: Any) -> None:
     _patch(monkeypatch, _FETCH_RESPONSE)
     result = CliRunner().invoke(main, ["counters", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["total"] == 3
     assert len(data["rows"]) == 3
 
@@ -140,9 +138,7 @@ def test_counters_list_no_header(monkeypatch: Any) -> None:
 def test_counters_list_jsonl(monkeypatch: Any) -> None:
     _patch(monkeypatch, _LIST_RESPONSE)
     result = CliRunner().invoke(main, ["counters", "--list", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["id"] == 1
     assert lines[0]["name"] == "EventGPUDuration"
 
@@ -176,9 +172,7 @@ def test_counters_fetch_no_header(monkeypatch: Any) -> None:
 def test_counters_fetch_jsonl(monkeypatch: Any) -> None:
     _patch(monkeypatch, _FETCH_RESPONSE)
     result = CliRunner().invoke(main, ["counters", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 3
+    lines = assert_jsonl_output(result, 3)
     assert lines[0]["eid"] == 10
     assert lines[0]["counter"] == "EventGPUDuration"
 

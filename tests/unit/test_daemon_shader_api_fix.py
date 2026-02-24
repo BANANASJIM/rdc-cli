@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
@@ -24,14 +24,8 @@ def _make_state_with_ps() -> DaemonState:
         entryPoint="main_ps",
     )
     ctrl._disasm_text[101] = "SPIR-V code here"
-    a = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)
-    ctrl._actions = [a]
-
-    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 100
-    return state
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+    return make_daemon_state(ctrl=ctrl, capture="x.rdc")
 
 
 # ---------------------------------------------------------------------------
@@ -223,12 +217,7 @@ def _make_state_with_cbuffer() -> DaemonState:
         ),
     ]
     ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
-
-    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 100
-    return state
+    return make_daemon_state(ctrl=ctrl, capture="x.rdc")
 
 
 def test_shader_constants_returns_structured_variables() -> None:
@@ -400,13 +389,7 @@ def _make_state_with_vfs() -> DaemonState:
     ctrl._disasm_text[101] = "SPIR-V shader"
     draw = rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)
     ctrl._actions = [draw]
-
-    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.api_name = "Vulkan"
-    state.max_eid = 100
-    state.vfs_tree = build_vfs_skeleton([draw], [])
-    return state
+    return make_daemon_state(ctrl=ctrl, capture="x.rdc", vfs_tree=build_vfs_skeleton([draw], []))
 
 
 def test_vfs_ls_shaders_triggers_cache_build() -> None:

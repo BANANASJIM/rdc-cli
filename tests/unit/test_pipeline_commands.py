@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-import json
-
 from click.testing import CliRunner
+from conftest import assert_jsonl_output, patch_cli_session
 
 from rdc.cli import main
 
 
-def _patch_pipeline(monkeypatch, response):
-    import rdc.commands._helpers as mod
-
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
-
-
 def test_pipeline_tsv(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -37,7 +28,7 @@ def test_pipeline_tsv(monkeypatch) -> None:
 
 
 def test_pipeline_with_section(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -64,7 +55,7 @@ def test_pipeline_with_section(monkeypatch) -> None:
 
 
 def test_bindings_tsv(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "rows": [
@@ -79,7 +70,7 @@ def test_bindings_tsv(monkeypatch) -> None:
 
 
 def test_bindings_json(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {"rows": [{"eid": 10, "stage": "ps", "kind": "RO", "slot": 0, "name": "albedo"}]},
     )
@@ -105,21 +96,21 @@ def test_bindings_with_filters(monkeypatch) -> None:
 
 
 def test_shader_targets(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, {"targets": ["SPIR-V", "GLSL"]})
+    patch_cli_session(monkeypatch, {"targets": ["SPIR-V", "GLSL"]})
     result = CliRunner().invoke(main, ["shader", "--targets"])
     assert result.exit_code == 0
     assert "SPIR-V" in result.output
 
 
 def test_shader_targets_json(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, {"targets": ["SPIR-V", "GLSL"]})
+    patch_cli_session(monkeypatch, {"targets": ["SPIR-V", "GLSL"]})
     result = CliRunner().invoke(main, ["shader", "--targets", "--json"])
     assert result.exit_code == 0
     assert "SPIR-V" in result.output
 
 
 def test_shader_all(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "eid": 10,
@@ -142,7 +133,7 @@ def test_shader_all(monkeypatch) -> None:
 
 
 def test_shader_all_json(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "eid": 10,
@@ -165,7 +156,7 @@ def test_shader_all_json(monkeypatch) -> None:
 
 
 def test_shader_single_tsv(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -185,7 +176,7 @@ def test_shader_single_tsv(monkeypatch) -> None:
 
 
 def test_shader_single_json(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -205,7 +196,7 @@ def test_shader_single_json(monkeypatch) -> None:
 
 
 def test_shader_with_source_output(monkeypatch, tmp_path) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -227,7 +218,7 @@ def test_shader_with_source_output(monkeypatch, tmp_path) -> None:
 
 
 def test_shader_with_reflect(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -255,7 +246,7 @@ def test_shader_with_reflect(monkeypatch) -> None:
 
 
 def test_shader_with_constants(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "row": {
@@ -287,7 +278,7 @@ def test_shader_with_constants(monkeypatch) -> None:
 
 
 def test_shaders_list(monkeypatch) -> None:
-    _patch_pipeline(
+    patch_cli_session(
         monkeypatch,
         {
             "rows": [
@@ -303,7 +294,7 @@ def test_shaders_list(monkeypatch) -> None:
 
 
 def test_shaders_json(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, {"rows": [{"shader": 101, "stages": "ps", "uses": 5}]})
+    patch_cli_session(monkeypatch, {"rows": [{"shader": 101, "stages": "ps", "uses": 5}]})
     result = CliRunner().invoke(main, ["shaders", "--json"])
     assert result.exit_code == 0
     assert '"shader": 101' in result.output
@@ -337,14 +328,14 @@ _BINDINGS_ROWS = {
 
 
 def test_bindings_default_has_header(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    patch_cli_session(monkeypatch, _BINDINGS_ROWS)
     result = CliRunner().invoke(main, ["bindings"])
     assert result.exit_code == 0
     assert "EID\tSTAGE\tKIND" in result.output
 
 
 def test_bindings_no_header(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    patch_cli_session(monkeypatch, _BINDINGS_ROWS)
     result = CliRunner().invoke(main, ["bindings", "--no-header"])
     assert result.exit_code == 0
     assert "EID\tSTAGE\tKIND" not in result.output
@@ -352,16 +343,14 @@ def test_bindings_no_header(monkeypatch) -> None:
 
 
 def test_bindings_jsonl(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    patch_cli_session(monkeypatch, _BINDINGS_ROWS)
     result = CliRunner().invoke(main, ["bindings", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["eid"] == 10
 
 
 def test_bindings_quiet(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _BINDINGS_ROWS)
+    patch_cli_session(monkeypatch, _BINDINGS_ROWS)
     result = CliRunner().invoke(main, ["bindings", "-q"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -379,14 +368,14 @@ _SHADERS_ROWS = {
 
 
 def test_shaders_default_has_header(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    patch_cli_session(monkeypatch, _SHADERS_ROWS)
     result = CliRunner().invoke(main, ["shaders"])
     assert result.exit_code == 0
     assert "SHADER\tSTAGES\tUSES" in result.output
 
 
 def test_shaders_no_header(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    patch_cli_session(monkeypatch, _SHADERS_ROWS)
     result = CliRunner().invoke(main, ["shaders", "--no-header"])
     assert result.exit_code == 0
     assert "SHADER\tSTAGES\tUSES" not in result.output
@@ -394,16 +383,14 @@ def test_shaders_no_header(monkeypatch) -> None:
 
 
 def test_shaders_jsonl(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    patch_cli_session(monkeypatch, _SHADERS_ROWS)
     result = CliRunner().invoke(main, ["shaders", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["shader"] == "abc123"
 
 
 def test_shaders_quiet(monkeypatch) -> None:
-    _patch_pipeline(monkeypatch, _SHADERS_ROWS)
+    patch_cli_session(monkeypatch, _SHADERS_ROWS)
     result = CliRunner().invoke(main, ["shaders", "-q"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()

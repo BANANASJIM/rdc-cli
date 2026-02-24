@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-import json
-
 from click.testing import CliRunner
+from conftest import assert_json_output, assert_jsonl_output, patch_cli_session
 
 from rdc.cli import main
 
 
-def _patch_info(monkeypatch, response):
-    import rdc.commands._helpers as mod
-
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
-
-
 def test_info_tsv(monkeypatch) -> None:
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "capture": "test.rdc",
@@ -34,21 +25,21 @@ def test_info_tsv(monkeypatch) -> None:
 
 
 def test_info_json(monkeypatch) -> None:
-    _patch_info(monkeypatch, {"capture": "test.rdc", "api": "Vulkan", "event_count": 1000})
+    patch_cli_session(monkeypatch, {"capture": "test.rdc", "api": "Vulkan", "event_count": 1000})
     result = CliRunner().invoke(main, ["info", "--json"])
     assert result.exit_code == 0
     assert '"capture": "test.rdc"' in result.output
 
 
 def test_info_empty_values(monkeypatch) -> None:
-    _patch_info(monkeypatch, {"capture": "test.rdc", "api": "", "driver": None})
+    patch_cli_session(monkeypatch, {"capture": "test.rdc", "api": "", "driver": None})
     result = CliRunner().invoke(main, ["info"])
     assert result.exit_code == 0
     assert "-" in result.output
 
 
 def test_stats_json(monkeypatch) -> None:
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [{"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000}],
@@ -61,7 +52,7 @@ def test_stats_json(monkeypatch) -> None:
 
 
 def test_stats_tsv(monkeypatch) -> None:
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [
@@ -85,7 +76,7 @@ def test_stats_tsv(monkeypatch) -> None:
 
 
 def test_stats_no_header(monkeypatch) -> None:
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [
@@ -100,15 +91,13 @@ def test_stats_no_header(monkeypatch) -> None:
 
 
 def test_stats_empty(monkeypatch) -> None:
-    _patch_info(monkeypatch, {"per_pass": [], "top_draws": []})
+    patch_cli_session(monkeypatch, {"per_pass": [], "top_draws": []})
     result = CliRunner().invoke(main, ["stats"])
     assert result.exit_code == 0
 
 
 def test_daemon_call_no_session(monkeypatch) -> None:
-    import rdc.commands._helpers as mod
-
-    monkeypatch.setattr(mod, "load_session", lambda: None)
+    patch_cli_session(monkeypatch, None)
     result = CliRunner().invoke(main, ["info"])
     assert result.exit_code == 1
     assert "no active session" in result.output
@@ -143,7 +132,7 @@ def test_daemon_call_connection_error(monkeypatch) -> None:
 
 
 def test_log_tsv(monkeypatch) -> None:
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "messages": [
@@ -160,7 +149,7 @@ def test_log_tsv(monkeypatch) -> None:
 
 
 def test_log_json(monkeypatch) -> None:
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {"messages": [{"level": "HIGH", "eid": 0, "message": "error"}]},
     )
@@ -170,28 +159,26 @@ def test_log_json(monkeypatch) -> None:
 
 
 def test_log_with_level_filter(monkeypatch) -> None:
-    _patch_info(monkeypatch, {"messages": []})
+    patch_cli_session(monkeypatch, {"messages": []})
     result = CliRunner().invoke(main, ["log", "--level", "HIGH"])
     assert result.exit_code == 0
 
 
 def test_log_with_eid_filter(monkeypatch) -> None:
-    _patch_info(monkeypatch, {"messages": []})
+    patch_cli_session(monkeypatch, {"messages": []})
     result = CliRunner().invoke(main, ["log", "--eid", "42"])
     assert result.exit_code == 0
 
 
 def test_log_empty(monkeypatch) -> None:
-    _patch_info(monkeypatch, {"messages": []})
+    patch_cli_session(monkeypatch, {"messages": []})
     result = CliRunner().invoke(main, ["log"])
     assert result.exit_code == 0
     assert "LEVEL" in result.output
 
 
 def test_log_no_session(monkeypatch) -> None:
-    import rdc.commands._helpers as mod
-
-    monkeypatch.setattr(mod, "load_session", lambda: None)
+    patch_cli_session(monkeypatch, None)
     result = CliRunner().invoke(main, ["log"])
     assert result.exit_code == 1
     assert "no active session" in result.output
@@ -208,14 +195,14 @@ _LOG_MESSAGES = {
 
 
 def test_log_default_has_header(monkeypatch) -> None:
-    _patch_info(monkeypatch, _LOG_MESSAGES)
+    patch_cli_session(monkeypatch, _LOG_MESSAGES)
     result = CliRunner().invoke(main, ["log"])
     assert result.exit_code == 0
     assert "LEVEL\tEID\tMESSAGE" in result.output
 
 
 def test_log_no_header_regression(monkeypatch) -> None:
-    _patch_info(monkeypatch, _LOG_MESSAGES)
+    patch_cli_session(monkeypatch, _LOG_MESSAGES)
     result = CliRunner().invoke(main, ["log", "--no-header"])
     assert result.exit_code == 0
     assert "LEVEL\tEID\tMESSAGE" not in result.output
@@ -223,18 +210,16 @@ def test_log_no_header_regression(monkeypatch) -> None:
 
 
 def test_log_jsonl(monkeypatch) -> None:
-    _patch_info(monkeypatch, _LOG_MESSAGES)
+    patch_cli_session(monkeypatch, _LOG_MESSAGES)
     result = CliRunner().invoke(main, ["log", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["level"] == "HIGH"
     assert lines[0]["eid"] == 0
     assert lines[0]["message"] == "validation error"
 
 
 def test_log_quiet(monkeypatch) -> None:
-    _patch_info(monkeypatch, _LOG_MESSAGES)
+    patch_cli_session(monkeypatch, _LOG_MESSAGES)
     result = CliRunner().invoke(main, ["log", "-q"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -282,7 +267,7 @@ def test_log_handler_caches_messages(monkeypatch) -> None:
 
 def test_stats_no_header_hides_section_titles(monkeypatch) -> None:
     """--no-header suppresses section title lines from stderr."""
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [{"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000}],
@@ -297,7 +282,7 @@ def test_stats_no_header_hides_section_titles(monkeypatch) -> None:
 
 def test_stats_default_shows_section_titles(monkeypatch) -> None:
     """Default mode shows section title lines in stderr."""
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [{"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000}],
@@ -314,7 +299,7 @@ def test_stats_default_shows_section_titles(monkeypatch) -> None:
 
 def test_stats_jsonl(monkeypatch) -> None:
     """--jsonl outputs each per-pass item as separate JSON line."""
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [
@@ -332,15 +317,14 @@ def test_stats_jsonl(monkeypatch) -> None:
         },
     )
     result = CliRunner().invoke(main, ["stats", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
+    lines = assert_jsonl_output(result)
     assert len(lines) >= 1
     assert lines[0]["name"] == "Main"
 
 
 def test_stats_quiet(monkeypatch) -> None:
     """-q outputs pass names only."""
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [
@@ -361,7 +345,7 @@ def test_stats_quiet(monkeypatch) -> None:
 
 def test_stats_tsv_shows_rt_dimensions(monkeypatch) -> None:
     """Stats TSV output includes RT_W and RT_H columns with actual values."""
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [
@@ -386,7 +370,7 @@ def test_stats_tsv_shows_rt_dimensions(monkeypatch) -> None:
 
 def test_stats_json_includes_rt_dimensions(monkeypatch) -> None:
     """Stats JSON output includes rt_w and rt_h fields."""
-    _patch_info(
+    patch_cli_session(
         monkeypatch,
         {
             "per_pass": [
@@ -404,8 +388,7 @@ def test_stats_json_includes_rt_dimensions(monkeypatch) -> None:
         },
     )
     result = CliRunner().invoke(main, ["stats", "--json"])
-    assert result.exit_code == 0
-    data = json.loads(result.output)
+    data = assert_json_output(result)
     assert data["per_pass"][0]["rt_w"] == 1920
     assert data["per_pass"][0]["rt_h"] == 1080
     assert data["per_pass"][0]["attachments"] == 3

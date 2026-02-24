@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import mock_renderdoc as mock_rd
 import pytest
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -19,7 +19,6 @@ from mock_renderdoc import (
     ShaderStage,
 )
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 from rdc.vfs.tree_cache import build_vfs_skeleton
 
@@ -35,7 +34,7 @@ def _build_resources() -> list[ResourceDescription]:
 def _make_state(tmp_path: Path, pipe: MockPipeState) -> DaemonState:
     actions = _build_actions()
     resources = _build_resources()
-    controller = SimpleNamespace(
+    ctrl = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: resources,
         GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
@@ -47,11 +46,13 @@ def _make_state(tmp_path: Path, pipe: MockPipeState) -> DaemonState:
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    s = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
-    s.adapter = RenderDocAdapter(controller=controller, version=(1, 41))
-    s.max_eid = 10
-    s.rd = mock_rd
-    s.temp_dir = tmp_path
+    s = make_daemon_state(
+        ctrl=ctrl,
+        token="abcdef1234567890",
+        max_eid=10,
+        rd=mock_rd,
+        tmp_path=tmp_path,
+    )
     s.vfs_tree = build_vfs_skeleton(actions, resources)
     return s
 

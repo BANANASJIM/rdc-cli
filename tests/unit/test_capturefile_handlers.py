@@ -8,15 +8,13 @@ from typing import Any
 
 import mock_renderdoc as mock_rd
 import pytest
+from conftest import make_daemon_state
 
 
 def _make_state(tmp_path: Path) -> Any:
-    """Build a minimal DaemonState with MockCaptureFile."""
-    from types import SimpleNamespace
-
     cap = mock_rd.MockCaptureFile()
     cap.OpenFile(str(tmp_path / "test.rdc"), "", None)
-    return SimpleNamespace(cap=cap, rd=mock_rd, temp_dir=tmp_path)
+    return make_daemon_state(tmp_path=tmp_path, rd=mock_rd, cap=cap)
 
 
 def _handle(method: str, params: dict[str, Any], state: Any) -> dict[str, Any]:
@@ -72,9 +70,7 @@ def test_thumbnail_maxsize(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_thumbnail_no_cap(tmp_path: Path) -> None:
-    from types import SimpleNamespace
-
-    state = SimpleNamespace(cap=None, rd=mock_rd, temp_dir=tmp_path)
+    state = make_daemon_state(tmp_path=tmp_path, rd=mock_rd)
     resp = _handle("capture_thumbnail", {}, state)
     assert resp["error"]["code"] == -32002
 

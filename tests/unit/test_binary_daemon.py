@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import mock_renderdoc as mock_rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -54,13 +54,14 @@ def _make_state_with_temp(tmp_path: Path):
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.api_name = "Vulkan"
-    state.max_eid = 10
-    state.vfs_tree = build_vfs_skeleton(actions, resources)
-    state.temp_dir = tmp_path
-    return state
+    return make_daemon_state(
+        ctrl=controller,
+        version=(1, 33),
+        max_eid=10,
+        token="abcdef1234567890",
+        tmp_path=tmp_path,
+        vfs_tree=build_vfs_skeleton(actions, resources),
+    )
 
 
 class TestTempDirLifecycle:
@@ -159,17 +160,18 @@ def _make_handler_state(tmp_path: Path):
         GetTextureData=lambda rid, sub: b"\x00\xff" * 512,
         GetBufferData=lambda rid, offset, length: b"\xab\xcd" * 256,
     )
-    state = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 33))
-    state.api_name = "Vulkan"
-    state.max_eid = 10
-    state.tex_map = {int(t.resourceId): t for t in textures}
-    state.buf_map = {int(b.resourceId): b for b in buffers}
-    state.res_names = {int(r.resourceId): r.name for r in resources}
-    state.rd = mock_rd
-    state.vfs_tree = build_vfs_skeleton(actions, resources, textures, buffers)
-    state.temp_dir = tmp_path
-    return state
+    return make_daemon_state(
+        ctrl=controller,
+        version=(1, 33),
+        max_eid=10,
+        token="abcdef1234567890",
+        rd=mock_rd,
+        tmp_path=tmp_path,
+        tex_map={int(t.resourceId): t for t in textures},
+        buf_map={int(b.resourceId): b for b in buffers},
+        res_names={int(r.resourceId): r.name for r in resources},
+        vfs_tree=build_vfs_skeleton(actions, resources, textures, buffers),
+    )
 
 
 class TestTexInfo:

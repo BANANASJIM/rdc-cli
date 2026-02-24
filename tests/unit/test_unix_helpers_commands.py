@@ -5,50 +5,41 @@ from __future__ import annotations
 import json
 
 from click.testing import CliRunner
+from conftest import assert_jsonl_output, patch_cli_session
 
 from rdc.cli import main
 
 
-def _patch_helpers(monkeypatch, response):
-    import rdc.commands._helpers as mod
-
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
-
-
 def test_count_draws(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, {"value": 42})
+    patch_cli_session(monkeypatch, {"value": 42})
     result = CliRunner().invoke(main, ["count", "draws"])
     assert result.exit_code == 0
     assert "42" in result.output
 
 
 def test_count_events(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, {"value": 1000})
+    patch_cli_session(monkeypatch, {"value": 1000})
     result = CliRunner().invoke(main, ["count", "events"])
     assert result.exit_code == 0
     assert "1000" in result.output
 
 
 def test_count_triangles(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, {"value": 50000})
+    patch_cli_session(monkeypatch, {"value": 50000})
     result = CliRunner().invoke(main, ["count", "triangles"])
     assert result.exit_code == 0
     assert "50000" in result.output
 
 
 def test_count_with_pass(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, {"value": 10})
+    patch_cli_session(monkeypatch, {"value": 10})
     result = CliRunner().invoke(main, ["count", "draws", "--pass", "GBuffer"])
     assert result.exit_code == 0
     assert "10" in result.output
 
 
 def test_count_no_session(monkeypatch) -> None:
-    import rdc.commands._helpers as mod
-
-    monkeypatch.setattr(mod, "load_session", lambda: None)
+    patch_cli_session(monkeypatch, None)
     result = CliRunner().invoke(main, ["count", "draws"])
     assert result.exit_code == 1
 
@@ -66,7 +57,7 @@ def test_count_error_response(monkeypatch) -> None:
 
 
 def test_shader_map_tsv(monkeypatch) -> None:
-    _patch_helpers(
+    patch_cli_session(
         monkeypatch,
         {
             "rows": [
@@ -81,7 +72,7 @@ def test_shader_map_tsv(monkeypatch) -> None:
 
 
 def test_shader_map_no_header(monkeypatch) -> None:
-    _patch_helpers(
+    patch_cli_session(
         monkeypatch,
         {"rows": [{"eid": 10, "vs": 101, "hs": 0, "ds": 0, "gs": 0, "ps": 201, "cs": 0}]},
     )
@@ -101,7 +92,7 @@ _SHADER_MAP_ROWS = {
 
 
 def test_shader_map_no_header_regression(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    patch_cli_session(monkeypatch, _SHADER_MAP_ROWS)
     result = CliRunner().invoke(main, ["shader-map", "--no-header"])
     assert result.exit_code == 0
     assert "EID\tVS" not in result.output
@@ -109,7 +100,7 @@ def test_shader_map_no_header_regression(monkeypatch) -> None:
 
 
 def test_shader_map_json(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    patch_cli_session(monkeypatch, _SHADER_MAP_ROWS)
     result = CliRunner().invoke(main, ["shader-map", "--json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -119,18 +110,16 @@ def test_shader_map_json(monkeypatch) -> None:
 
 
 def test_shader_map_jsonl(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    patch_cli_session(monkeypatch, _SHADER_MAP_ROWS)
     result = CliRunner().invoke(main, ["shader-map", "--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["eid"] == 10
     assert lines[0]["vs"] == 101
     assert lines[0]["ps"] == 201
 
 
 def test_shader_map_quiet(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, _SHADER_MAP_ROWS)
+    patch_cli_session(monkeypatch, _SHADER_MAP_ROWS)
     result = CliRunner().invoke(main, ["shader-map", "-q"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -141,7 +130,7 @@ def test_shader_map_quiet(monkeypatch) -> None:
 
 
 def test_count_shaders(monkeypatch) -> None:
-    _patch_helpers(monkeypatch, {"value": 5})
+    patch_cli_session(monkeypatch, {"value": 5})
     result = CliRunner().invoke(main, ["count", "shaders"])
     assert result.exit_code == 0
     assert "5" in result.output

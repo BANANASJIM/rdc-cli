@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-import json
-
 from click.testing import CliRunner
+from conftest import assert_jsonl_output, patch_cli_session
 
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 
 
-def _patch_resources(monkeypatch, response):
-    import rdc.commands._helpers as mod
-
-    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
-    monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
-
-
 def test_resources_tsv(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {
             "rows": [
@@ -34,7 +25,7 @@ def test_resources_tsv(monkeypatch) -> None:
 
 
 def test_resources_json(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {"rows": [{"id": 1, "type": "Texture", "name": "Albedo"}]},
     )
@@ -44,15 +35,13 @@ def test_resources_json(monkeypatch) -> None:
 
 
 def test_resources_no_session(monkeypatch) -> None:
-    import rdc.commands._helpers as mod
-
-    monkeypatch.setattr(mod, "load_session", lambda: None)
+    patch_cli_session(monkeypatch, None)
     result = CliRunner().invoke(resources_cmd, [])
     assert result.exit_code == 1
 
 
 def test_resource_detail_tsv(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {"resource": {"id": 1, "type": "Texture", "name": "Albedo"}},
     )
@@ -62,7 +51,7 @@ def test_resource_detail_tsv(monkeypatch) -> None:
 
 
 def test_resource_detail_json(monkeypatch) -> None:
-    _patch_resources(monkeypatch, {"resource": {"id": 1, "type": "Texture2D", "name": "Albedo"}})
+    patch_cli_session(monkeypatch, {"resource": {"id": 1, "type": "Texture2D", "name": "Albedo"}})
     result = CliRunner().invoke(resource_cmd, ["1", "--json"])
     assert result.exit_code == 0
     assert '"id": 1' in result.output
@@ -74,14 +63,16 @@ def test_resource_error(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
     monkeypatch.setattr(
-        mod, "send_request", lambda _h, _p, _payload: {"error": {"message": "resource not found"}}
+        mod,
+        "send_request",
+        lambda _h, _p, _payload: {"error": {"message": "resource not found"}},
     )
     result = CliRunner().invoke(resource_cmd, ["999"])
     assert result.exit_code == 1
 
 
 def test_passes_tsv(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {"tree": {"passes": [{"name": "Shadow", "draws": 3}, {"name": "Main", "draws": 12}]}},
     )
@@ -92,7 +83,7 @@ def test_passes_tsv(monkeypatch) -> None:
 
 
 def test_passes_json(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {"tree": {"passes": [{"name": "Shadow", "draws": 3}]}},
     )
@@ -102,15 +93,13 @@ def test_passes_json(monkeypatch) -> None:
 
 
 def test_passes_no_session(monkeypatch) -> None:
-    import rdc.commands._helpers as mod
-
-    monkeypatch.setattr(mod, "load_session", lambda: None)
+    patch_cli_session(monkeypatch, None)
     result = CliRunner().invoke(passes_cmd, [])
     assert result.exit_code == 1
 
 
 def test_pass_detail_tsv(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {
             "name": "Shadow",
@@ -133,7 +122,7 @@ def test_pass_detail_tsv(monkeypatch) -> None:
 
 
 def test_pass_detail_by_name(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {
             "name": "GBuffer",
@@ -150,7 +139,7 @@ def test_pass_detail_by_name(monkeypatch) -> None:
 
 
 def test_pass_detail_json(monkeypatch) -> None:
-    _patch_resources(
+    patch_cli_session(
         monkeypatch,
         {
             "name": "Shadow",
@@ -167,9 +156,7 @@ def test_pass_detail_json(monkeypatch) -> None:
 
 
 def test_pass_no_session(monkeypatch) -> None:
-    import rdc.commands._helpers as mod
-
-    monkeypatch.setattr(mod, "load_session", lambda: None)
+    patch_cli_session(monkeypatch, None)
     result = CliRunner().invoke(pass_cmd, ["0"])
     assert result.exit_code == 1
 
@@ -185,14 +172,14 @@ _RESOURCES_ROWS = {
 
 
 def test_resources_default_has_header(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    patch_cli_session(monkeypatch, _RESOURCES_ROWS)
     result = CliRunner().invoke(resources_cmd, [])
     assert result.exit_code == 0
     assert "ID\tTYPE\tNAME" in result.output
 
 
 def test_resources_no_header(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    patch_cli_session(monkeypatch, _RESOURCES_ROWS)
     result = CliRunner().invoke(resources_cmd, ["--no-header"])
     assert result.exit_code == 0
     assert "ID\tTYPE\tNAME" not in result.output
@@ -200,16 +187,14 @@ def test_resources_no_header(monkeypatch) -> None:
 
 
 def test_resources_jsonl(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    patch_cli_session(monkeypatch, _RESOURCES_ROWS)
     result = CliRunner().invoke(resources_cmd, ["--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["id"] == 1
 
 
 def test_resources_quiet(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _RESOURCES_ROWS)
+    patch_cli_session(monkeypatch, _RESOURCES_ROWS)
     result = CliRunner().invoke(resources_cmd, ["-q"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()
@@ -222,14 +207,14 @@ _PASSES_TREE = {"tree": {"passes": [{"name": "Shadow", "draws": 3}, {"name": "Ma
 
 
 def test_passes_default_has_header(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _PASSES_TREE)
+    patch_cli_session(monkeypatch, _PASSES_TREE)
     result = CliRunner().invoke(passes_cmd, [])
     assert result.exit_code == 0
     assert "NAME\tDRAWS" in result.output
 
 
 def test_passes_no_header(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _PASSES_TREE)
+    patch_cli_session(monkeypatch, _PASSES_TREE)
     result = CliRunner().invoke(passes_cmd, ["--no-header"])
     assert result.exit_code == 0
     assert "NAME\tDRAWS" not in result.output
@@ -237,16 +222,14 @@ def test_passes_no_header(monkeypatch) -> None:
 
 
 def test_passes_jsonl(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _PASSES_TREE)
+    patch_cli_session(monkeypatch, _PASSES_TREE)
     result = CliRunner().invoke(passes_cmd, ["--jsonl"])
-    assert result.exit_code == 0
-    lines = [json.loads(ln) for ln in result.output.strip().splitlines()]
-    assert len(lines) == 2
+    lines = assert_jsonl_output(result, 2)
     assert lines[0]["name"] == "Shadow"
 
 
 def test_passes_quiet(monkeypatch) -> None:
-    _patch_resources(monkeypatch, _PASSES_TREE)
+    patch_cli_session(monkeypatch, _PASSES_TREE)
     result = CliRunner().invoke(passes_cmd, ["-q"])
     assert result.exit_code == 0
     lines = result.output.strip().splitlines()

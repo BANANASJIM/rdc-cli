@@ -5,20 +5,20 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock
 
-from rdc.daemon_server import DaemonState
+from conftest import make_daemon_state
+
 from rdc.handlers.core import _handle_shutdown, _handle_status
 from rdc.handlers.texture import _handle_rt_overlay
 
 
-def _make_state(*, is_remote: bool = False) -> DaemonState:
-    """Build a DaemonState with mock adapter for handler tests."""
+def _make_state(*, is_remote: bool = False):
     controller = MagicMock()
-    state = DaemonState(capture="frame.rdc", current_eid=0, token="tok")
-    from rdc.adapter import RenderDocAdapter
-
-    state.adapter = RenderDocAdapter(controller=controller, version=(1, 41))
-    state.rd = MagicMock()
-    state.is_remote = is_remote
+    state = make_daemon_state(
+        capture="frame.rdc",
+        ctrl=controller,
+        rd=MagicMock(),
+        is_remote=is_remote,
+    )
     if is_remote:
         state.remote = MagicMock()
         state.remote_url = "host:39920"

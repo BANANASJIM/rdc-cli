@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import mock_renderdoc as rd
-from conftest import rpc_request
+from conftest import make_daemon_state, rpc_request
 
-from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
 
 
@@ -72,11 +71,7 @@ def _make_state(
     ctrl._actions = [
         rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
     ]
-    state = DaemonState(capture="test.rdc", current_eid=100, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.max_eid = 100
-    state.rd = rd
-    return state
+    return make_daemon_state(ctrl=ctrl, current_eid=100, rd=rd)
 
 
 # ---------------------------------------------------------------------------
@@ -407,11 +402,7 @@ def _make_dispatch_state(
     ctrl._actions = [
         rd.ActionDescription(eventId=150, flags=rd.ActionFlags.Dispatch, _name="vkCmdDispatch"),
     ]
-    state = DaemonState(capture="test.rdc", current_eid=150, token="tok")
-    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
-    state.max_eid = 150
-    state.rd = rd
-    return state
+    return make_daemon_state(ctrl=ctrl, current_eid=150, max_eid=150, rd=rd)
 
 
 # ---------------------------------------------------------------------------
