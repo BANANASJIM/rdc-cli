@@ -29,13 +29,21 @@ rdc close
 
 ## Install
 
-**PyPI** (recommended — any Linux distro)
+**PyPI — Linux** (recommended)
 
 ```bash
 pipx install rdc-cli                  # install the CLI
 # Build the renderdoc Python module (one-time, ~3 min, needs cmake + ninja)
 curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash
 rdc doctor                            # verify everything works
+```
+
+**PyPI — Windows** (experimental)
+
+```bash
+pipx install rdc-cli
+python scripts/build_renderdoc.py     # needs cmake + Visual Studio Build Tools
+rdc doctor
 ```
 
 **AUR** (Arch Linux — builds renderdoc automatically, no extra setup)
@@ -132,6 +140,7 @@ Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See 
 | Assertions | `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` |
 | Diff | `diff` (with `--draws`, `--stats`, `--framebuffer`, `--pipeline`, etc.) |
 | VFS | `ls`, `cat`, `tree` |
+| Remote | `remote connect`, `remote list`, `remote capture` |
 | Utility | `doctor`, `completion`, `capture`, `count`, `script`, `install-skill` |
 
 All list commands output TSV. All commands support `--json`. Footer/summary goes to stderr — stdout is always clean data.

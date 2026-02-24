@@ -645,6 +645,60 @@ Query pixel history at (X, Y) for the current or specified event.
 | `--jsonl` | JSONL output | flag |  |
 | `-q, --quiet` | Print primary key column only | flag |  |
 
+## `rdc remote capture`
+
+Capture on a remote host and transfer to local.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `app` | text | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `-o, --output` | Local output path. | path |  |
+| `--url` | Override saved remote (host:port). | text |  |
+| `--args` | Arguments for remote app. | text |  |
+| `--workdir` | Remote working directory. | text |  |
+| `--frame` | Queue capture at frame N. | integer |  |
+| `--timeout` | Capture timeout in seconds. | float | 60.0 |
+| `--api-validation` | Enable API validation. | flag |  |
+| `--callstacks` | Capture callstacks. | flag |  |
+| `--hook-children` | Hook child processes. | flag |  |
+| `--ref-all-resources` | Reference all resources. | flag |  |
+| `--soft-memory-limit` | Soft memory limit (MB). | integer |  |
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc remote connect`
+
+Connect to a remote RenderDoc server.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `url` | text | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc remote list`
+
+List capturable applications on a remote host.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--url` | Override saved remote (host:port). | text |  |
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc resource`
 
 Show details of a specific resource.

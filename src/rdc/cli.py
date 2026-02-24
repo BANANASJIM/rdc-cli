@@ -38,6 +38,7 @@ from rdc.commands.mesh import mesh_cmd
 from rdc.commands.pick_pixel import pick_pixel_cmd
 from rdc.commands.pipeline import bindings_cmd, pipeline_cmd, shader_cmd, shaders_cmd
 from rdc.commands.pixel import pixel_cmd
+from rdc.commands.remote import remote_group
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 from rdc.commands.script import script_cmd
 from rdc.commands.search import search_cmd
@@ -146,6 +147,7 @@ main.add_command(attach_cmd, name="attach")
 main.add_command(capture_trigger_cmd, name="capture-trigger")
 main.add_command(capture_list_cmd, name="capture-list")
 main.add_command(capture_copy_cmd, name="capture-copy")
+main.add_command(remote_group, name="remote")
 
 
 if __name__ == "__main__":
