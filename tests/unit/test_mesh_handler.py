@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import struct
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as mock_rd
+import pytest
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -49,12 +45,6 @@ def _build_actions() -> list[ActionDescription]:
 
 def _build_resources() -> list[ResourceDescription]:
     return [ResourceDescription(resourceId=ResourceId(1), name="res0")]
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _triangle_mesh(
@@ -130,7 +120,9 @@ def state() -> DaemonState:
 class TestMeshData:
     def test_mesh_data_triangle_list(self, state: DaemonState) -> None:
         """Non-indexed triangle returns 3 vertices with correct values."""
-        resp, _ = _handle_request(_req("mesh_data", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["vertex_count"] == 3
         assert r["topology"] == "TriangleList"
@@ -147,7 +139,9 @@ class TestMeshData:
     def test_mesh_data_indexed(self, state: DaemonState) -> None:
         """Indexed triangle returns indices [0, 2, 1]."""
         state.adapter.controller._postvs[1] = _triangle_mesh(indexed=True)
-        resp, _ = _handle_request(_req("mesh_data", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["index_count"] == 3
         assert r["indices"] == [0, 2, 1]
@@ -156,32 +150,41 @@ class TestMeshData:
     def test_mesh_data_gs_out(self, state: DaemonState) -> None:
         """stage=gs-out passes stage_val=2 to GetPostVSData."""
         state.adapter.controller._postvs[2] = _triangle_mesh()
-        resp, _ = _handle_request(_req("mesh_data", eid=10, stage="gs-out"), state)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "gs-out"}, token="abcdef1234567890"),
+            state,
+        )
         r = resp["result"]
         assert r["stage"] == "gs-out"
         assert r["vertex_count"] == 3
 
     def test_mesh_data_default_stage(self, state: DaemonState) -> None:
         """Omitting stage defaults to vs-out."""
-        resp, _ = _handle_request(_req("mesh_data", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["stage"] == "vs-out"
 
     def test_mesh_data_no_postvs(self, state: DaemonState) -> None:
         """Empty MeshFormat (vertexResourceId=0) returns error -32001."""
         state.adapter.controller._postvs.clear()
-        resp, _ = _handle_request(_req("mesh_data", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_mesh_data_no_adapter(self) -> None:
         """No adapter loaded returns error -32002."""
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("mesh_data", eid=10), s)
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10}, token="abcdef1234567890"), s
+        )
         assert resp["error"]["code"] == -32002
 
     def test_mesh_data_uses_current_eid(self, state: DaemonState) -> None:
         """Omitting eid uses state.current_eid."""
         state.current_eid = 10
-        resp, _ = _handle_request(_req("mesh_data"), state)
+        resp, _ = _handle_request(rpc_request("mesh_data", token="abcdef1234567890"), state)
         r = resp["result"]
         assert r["eid"] == 10

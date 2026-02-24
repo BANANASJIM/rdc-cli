@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from typing import Any
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
@@ -42,16 +37,10 @@ def _make_state_with_shader_meta() -> DaemonState:
     return state
 
 
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "tok"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
-
-
 class TestShadersStageFilter:
     def test_stage_filter_applied(self) -> None:
         state = _make_state_with_shader_meta()
-        resp, _ = _handle_request(_req("shaders", stage="vs"), state)
+        resp, _ = _handle_request(rpc_request("shaders", {"stage": "vs"}), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 2
         for r in rows:
@@ -59,7 +48,7 @@ class TestShadersStageFilter:
 
     def test_stage_filter_case_insensitive(self) -> None:
         state = _make_state_with_shader_meta()
-        resp, _ = _handle_request(_req("shaders", stage="VS"), state)
+        resp, _ = _handle_request(rpc_request("shaders", {"stage": "VS"}), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 2
         for r in rows:
@@ -67,21 +56,21 @@ class TestShadersStageFilter:
 
     def test_stage_filter_no_match(self) -> None:
         state = _make_state_with_shader_meta()
-        resp, _ = _handle_request(_req("shaders", stage="cs"), state)
+        resp, _ = _handle_request(rpc_request("shaders", {"stage": "cs"}), state)
         assert resp["result"]["rows"] == []
 
     def test_no_stage_filter_returns_all(self) -> None:
         state = _make_state_with_shader_meta()
-        resp, _ = _handle_request(_req("shaders"), state)
+        resp, _ = _handle_request(rpc_request("shaders"), state)
         assert len(resp["result"]["rows"]) == 3
 
     def test_invalid_stage_returns_empty_not_error(self) -> None:
         state = _make_state_with_shader_meta()
-        resp, _ = _handle_request(_req("shaders", stage="zz"), state)
+        resp, _ = _handle_request(rpc_request("shaders", {"stage": "zz"}), state)
         assert "error" not in resp
         assert resp["result"]["rows"] == []
 
     def test_no_adapter_returns_error(self) -> None:
         state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
-        resp, _ = _handle_request(_req("shaders", stage="vs"), state)
+        resp, _ = _handle_request(rpc_request("shaders", {"stage": "vs"}), state)
         assert resp["error"]["code"] == -32002

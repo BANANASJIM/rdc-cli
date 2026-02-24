@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import inspect
-import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as mock_rd  # noqa: E402
-from mock_renderdoc import (  # noqa: E402
+import mock_renderdoc as mock_rd
+from conftest import rpc_request
+from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
     BlendEquation,
@@ -30,12 +27,6 @@ from rdc.adapter import RenderDocAdapter
 from rdc.daemon_client import send_request
 from rdc.daemon_server import DaemonState, _enum_name, _handle_request, _sanitize_size
 from rdc.vfs.tree_cache import build_vfs_skeleton
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 def _make_state(pipe: MockPipeState, tmp_path: Path) -> DaemonState:
@@ -112,7 +103,9 @@ class TestPipeTopologyEnumName:
         pipe = MockPipeState()
         pipe.GetPrimitiveTopology = lambda: SimpleNamespace(name="TriangleList")  # type: ignore[method-assign]
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_topology", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_topology", {"eid": 10}, token="abcdef1234567890"), state
+        )
         topo = resp["result"]["topology"]
         assert topo == "TriangleList"
         assert "." not in topo
@@ -138,7 +131,9 @@ class TestPipeBlendEnumNames:
             )
         ]
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_blend", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_blend", {"eid": 10}, token="abcdef1234567890"), state
+        )
         b = resp["result"]["blends"][0]
         assert b["srcColor"] == "SrcAlpha"
         assert b["dstColor"] == "InvSrcAlpha"
@@ -168,7 +163,9 @@ class TestPipeStencilEnumNames:
             ),
         )
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_stencil", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_stencil", {"eid": 10}, token="abcdef1234567890"), state
+        )
         front = resp["result"]["front"]
         assert front["passOperation"] == "Replace"
         assert front["function"] == "LessEqual"
@@ -189,7 +186,9 @@ class TestPipeSamplersEnumNames:
         )
         pipe._samplers = {ShaderStage.Pixel: [sd]}
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_samplers", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_samplers", {"eid": 10}, token="abcdef1234567890"), state
+        )
         s = resp["result"]["samplers"][0]
         assert s["addressU"] == "Wrap"
         assert s["addressV"] == "Clamp"
@@ -211,7 +210,9 @@ class TestPipeVbuffersUintMax:
             )
         ]
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_vbuffers", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_vbuffers", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["result"]["vbuffers"][0]["byteSize"] == "-"
 
     def test_normal_bytesize_shown_as_int(self, tmp_path: Path) -> None:
@@ -220,7 +221,9 @@ class TestPipeVbuffersUintMax:
             BoundVBuffer(resourceId=ResourceId(42), byteOffset=0, byteSize=4096, byteStride=20)
         ]
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_vbuffers", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_vbuffers", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["result"]["vbuffers"][0]["byteSize"] == 4096
 
 
@@ -231,7 +234,9 @@ class TestPipeIbufferUintMax:
             resourceId=ResourceId(43), byteOffset=0, byteSize=(1 << 64) - 1, byteStride=4
         )
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_ibuffer", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_ibuffer", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["result"]["byteSize"] == "-"
 
     def test_normal_bytesize_shown_as_int(self, tmp_path: Path) -> None:
@@ -240,5 +245,7 @@ class TestPipeIbufferUintMax:
             resourceId=ResourceId(43), byteOffset=0, byteSize=1024, byteStride=4
         )
         state = _make_state(pipe, tmp_path)
-        resp, _ = _handle_request(_req("pipe_ibuffer", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("pipe_ibuffer", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["result"]["byteSize"] == 1024

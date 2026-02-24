@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import mock_renderdoc as rd
+from conftest import rpc_request
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
 
 
 def _make_var(
@@ -83,13 +79,6 @@ def _make_state(
     return state
 
 
-def _req(method: str, params: dict | None = None) -> dict:
-    p = {"_token": "tok"}
-    if params:
-        p.update(params)
-    return {"jsonrpc": "2.0", "id": 1, "method": method, "params": p}
-
-
 # ---------------------------------------------------------------------------
 # debug_pixel happy path
 # ---------------------------------------------------------------------------
@@ -113,7 +102,9 @@ def test_debug_pixel_happy_path() -> None:
     ctrl._debug_states[id(debugger)] = [states]
 
     state = _make_state(ctrl)
-    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 320, "y": 240}), state)
+    resp, running = _handle_request(
+        rpc_request("debug_pixel", {"eid": 100, "x": 320, "y": 240}), state
+    )
 
     assert running
     r = resp["result"]
@@ -133,21 +124,21 @@ def test_debug_pixel_happy_path() -> None:
 
 def test_debug_pixel_missing_eid() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_pixel", {"x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32602
     assert "eid" in resp["error"]["message"]
 
 
 def test_debug_pixel_missing_x() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "y": 0}), state)
     assert resp["error"]["code"] == -32602
     assert "x" in resp["error"]["message"]
 
 
 def test_debug_pixel_missing_y() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0}), state)
     assert resp["error"]["code"] == -32602
     assert "y" in resp["error"]["message"]
 
@@ -155,7 +146,7 @@ def test_debug_pixel_missing_y() -> None:
 def test_debug_pixel_no_fragment() -> None:
     """Empty trace (no debugger) returns -32007."""
     state = _make_state()
-    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    resp, running = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     assert running
     assert resp["error"]["code"] == -32007
     assert "no fragment" in resp["error"]["message"]
@@ -163,13 +154,13 @@ def test_debug_pixel_no_fragment() -> None:
 
 def test_debug_pixel_no_adapter() -> None:
     state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32002
 
 
 def test_debug_pixel_eid_out_of_range() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 9999, "x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 9999, "x": 0, "y": 0}), state)
     assert resp["error"]["code"] == -32002
 
 
@@ -185,7 +176,7 @@ def test_debug_pixel_multiple_batches() -> None:
     ctrl._debug_states[id(debugger)] = [batch1, batch2]
 
     state = _make_state(ctrl)
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 10, "y": 20}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 10, "y": 20}), state)
     r = resp["result"]
     assert r["total_steps"] == 3
 
@@ -212,7 +203,7 @@ def test_debug_pixel_source_mapping() -> None:
     ctrl._debug_states[id(debugger)] = [[_make_debug_state(step=0, inst=0)]]
 
     state = _make_state(ctrl)
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 5, "y": 5}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 5, "y": 5}), state)
     step = resp["result"]["trace"][0]
     assert step["file"] == "shader.frag"
     assert step["line"] == 42
@@ -227,7 +218,9 @@ def test_debug_pixel_sample_param() -> None:
     ctrl._debug_states[id(debugger)] = [[_make_debug_state()]]
 
     state = _make_state(ctrl)
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0, "sample": 2}), state)
+    resp, _ = _handle_request(
+        rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0, "sample": 2}), state
+    )
     assert "result" in resp
 
 
@@ -251,7 +244,7 @@ def test_debug_vertex_happy_path() -> None:
     ]
 
     state = _make_state(ctrl)
-    resp, running = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
+    resp, running = _handle_request(rpc_request("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
     assert running
     r = resp["result"]
     assert r["stage"] == "vs"
@@ -261,28 +254,28 @@ def test_debug_vertex_happy_path() -> None:
 
 def test_debug_vertex_missing_eid() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_vertex", {"vtx_id": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_vertex", {"vtx_id": 0}), state)
     assert resp["error"]["code"] == -32602
     assert "eid" in resp["error"]["message"]
 
 
 def test_debug_vertex_missing_vtx_id() -> None:
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_vertex", {"eid": 100}), state)
+    resp, _ = _handle_request(rpc_request("debug_vertex", {"eid": 100}), state)
     assert resp["error"]["code"] == -32602
     assert "vtx_id" in resp["error"]["message"]
 
 
 def test_debug_vertex_no_adapter() -> None:
     state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
-    resp, _ = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
     assert resp["error"]["code"] == -32002
 
 
 def test_debug_vertex_no_trace() -> None:
     """Vertex not available returns -32007."""
     state = _make_state()
-    resp, _ = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 99}), state)
+    resp, _ = _handle_request(rpc_request("debug_vertex", {"eid": 100, "vtx_id": 99}), state)
     assert resp["error"]["code"] == -32007
 
 
@@ -296,7 +289,7 @@ def test_debug_vertex_instance_forwarded() -> None:
 
     state = _make_state(ctrl)
     resp, _ = _handle_request(
-        _req("debug_vertex", {"eid": 100, "vtx_id": 0, "instance": 1, "idx": 2, "view": 3}),
+        rpc_request("debug_vertex", {"eid": 100, "vtx_id": 0, "instance": 1, "idx": 2, "view": 3}),
         state,
     )
     assert "result" in resp
@@ -374,7 +367,7 @@ def test_free_trace_called_on_exception() -> None:
     # The handler will catch the exception in _run_debug_loop's finally block
     # but the outer handler may propagate it; either way FreeTrace must be called
     try:
-        _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+        _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     except RuntimeError:
         pass
     assert len(free_calls) == 1
@@ -396,7 +389,7 @@ def test_free_trace_called_on_success() -> None:
     ctrl.FreeTrace = tracking_free  # type: ignore[assignment]
 
     state = _make_state(ctrl)
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 1, "y": 1}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 1, "y": 1}), state)
     assert "result" in resp
     assert len(free_calls) == 1
 
@@ -444,7 +437,9 @@ def test_debug_thread_happy_path() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, running = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
 
@@ -468,7 +463,7 @@ def test_debug_thread_happy_path() -> None:
 def test_debug_thread_missing_eid() -> None:
     state = _make_dispatch_state()
     resp, _ = _handle_request(
-        _req("debug_thread", {"gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}), state
+        rpc_request("debug_thread", {"gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}), state
     )
     assert resp["error"]["code"] == -32602
     assert "eid" in resp["error"]["message"]
@@ -477,7 +472,8 @@ def test_debug_thread_missing_eid() -> None:
 def test_debug_thread_missing_gx() -> None:
     state = _make_dispatch_state()
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}), state
+        rpc_request("debug_thread", {"eid": 150, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        state,
     )
     assert resp["error"]["code"] == -32602
     assert "gx" in resp["error"]["message"]
@@ -486,7 +482,8 @@ def test_debug_thread_missing_gx() -> None:
 def test_debug_thread_missing_tx() -> None:
     state = _make_dispatch_state()
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "ty": 0, "tz": 0}), state
+        rpc_request("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "ty": 0, "tz": 0}),
+        state,
     )
     assert resp["error"]["code"] == -32602
     assert "tx" in resp["error"]["message"]
@@ -500,7 +497,9 @@ def test_debug_thread_missing_tx() -> None:
 def test_debug_thread_no_adapter() -> None:
     state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert resp["error"]["code"] == -32002
@@ -514,7 +513,9 @@ def test_debug_thread_no_adapter() -> None:
 def test_debug_thread_eid_out_of_range() -> None:
     state = _make_dispatch_state()
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 9999, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 9999, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert resp["error"]["code"] == -32002
@@ -529,7 +530,9 @@ def test_debug_thread_not_a_dispatch() -> None:
     """Action at EID has Drawcall flag instead of Dispatch."""
     state = _make_state()  # Drawcall-flagged action at eid=100
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 100, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 100, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert resp["error"]["code"] == -32602
@@ -545,7 +548,9 @@ def test_debug_thread_no_trace() -> None:
     """DebugThread returns empty trace (no debugger)."""
     state = _make_dispatch_state()
     resp, running = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert running
@@ -570,7 +575,9 @@ def test_debug_thread_multiple_batches() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert resp["result"]["total_steps"] == 3
@@ -604,7 +611,9 @@ def test_debug_thread_source_mapping() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     step = resp["result"]["trace"][0]
@@ -633,7 +642,9 @@ def test_debug_thread_free_trace_called_on_success() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert "result" in resp
@@ -666,7 +677,7 @@ def test_debug_thread_free_trace_called_on_exception() -> None:
     state = _make_dispatch_state(ctrl)
     params = {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
     try:
-        _handle_request(_req("debug_thread", params), state)
+        _handle_request(rpc_request("debug_thread", params), state)
     except RuntimeError:
         pass
     assert len(free_calls) == 1
@@ -686,7 +697,9 @@ def test_debug_thread_cs_stage_name() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert resp["result"]["stage"] == "cs"
@@ -718,7 +731,9 @@ def test_debug_thread_group_and_thread_assembled() -> None:
 
     state = _make_dispatch_state(ctrl)
     _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 1, "gy": 2, "gz": 3, "tx": 4, "ty": 5, "tz": 6}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 1, "gy": 2, "gz": 3, "tx": 4, "ty": 5, "tz": 6}
+        ),
         state,
     )
     assert len(recorded_calls) == 1
@@ -737,7 +752,7 @@ def test_debug_thread_all_required_params() -> None:
     state = _make_dispatch_state()
     for key in required:
         partial = {k: v for k, v in full.items() if k != key}
-        resp, _ = _handle_request(_req("debug_thread", partial), state)
+        resp, _ = _handle_request(rpc_request("debug_thread", partial), state)
         assert resp["error"]["code"] == -32602, f"Expected -32602 when missing {key}"
         assert key in resp["error"]["message"]
 
@@ -760,7 +775,7 @@ def test_continue_debug_exception_returns_error() -> None:
     ctrl.ContinueDebug = exploding_continue  # type: ignore[assignment]
 
     state = _make_state(ctrl)
-    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    resp, running = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     assert running
     assert "error" in resp
     assert resp["error"]["code"] == -32603
@@ -778,7 +793,7 @@ def test_valid_trace_returns_result_with_fields() -> None:
     ctrl._debug_states[id(debugger)] = [[_make_debug_state(step=0, inst=0, changes=[change])]]
 
     state = _make_state(ctrl)
-    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    resp, running = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     assert running
     assert "result" in resp
     r = resp["result"]
@@ -810,7 +825,7 @@ def test_debug_vertex_stage_before_free() -> None:
     ctrl.FreeTrace = invalidating_free  # type: ignore[assignment]
 
     state = _make_state(ctrl)
-    resp, _ = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
     assert "result" in resp
     assert resp["result"]["stage"] == "vs"
 
@@ -832,7 +847,7 @@ def test_debug_pixel_stage_before_free() -> None:
     ctrl.FreeTrace = invalidating_free  # type: ignore[assignment]
 
     state = _make_state(ctrl)
-    resp, _ = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    resp, _ = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     assert "result" in resp
     assert resp["result"]["stage"] == "ps"
 
@@ -855,7 +870,9 @@ def test_debug_thread_stage_before_free() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, _ = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert "result" in resp
@@ -877,7 +894,7 @@ def test_debug_vertex_api_exception() -> None:
     ctrl.DebugVertex = failing_debug  # type: ignore[assignment]
 
     state = _make_state(ctrl)
-    resp, running = _handle_request(_req("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
+    resp, running = _handle_request(rpc_request("debug_vertex", {"eid": 100, "vtx_id": 0}), state)
     assert running
     assert "error" in resp
     assert resp["error"]["code"] == -32603
@@ -899,7 +916,9 @@ def test_debug_thread_missing_trace_attrs() -> None:
 
     state = _make_dispatch_state(ctrl)
     resp, running = _handle_request(
-        _req("debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}),
+        rpc_request(
+            "debug_thread", {"eid": 150, "gx": 0, "gy": 0, "gz": 0, "tx": 0, "ty": 0, "tz": 0}
+        ),
         state,
     )
     assert running
@@ -921,7 +940,7 @@ def test_debug_pixel_api_exception() -> None:
     ctrl.DebugPixel = failing_debug  # type: ignore[assignment]
 
     state = _make_state(ctrl)
-    resp, running = _handle_request(_req("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
+    resp, running = _handle_request(rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": 0}), state)
     assert running
     assert "error" in resp
     assert resp["error"]["code"] == -32603

@@ -148,10 +148,6 @@ def test_count_shaders(monkeypatch) -> None:
 
 
 def test_count_shaders_handler(monkeypatch) -> None:
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
     import mock_renderdoc as rd
 
     from rdc.adapter import RenderDocAdapter

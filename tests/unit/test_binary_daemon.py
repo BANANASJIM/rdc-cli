@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as mock_rd
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -65,12 +63,6 @@ def _make_state_with_temp(tmp_path: Path):
     return state
 
 
-def _req(method, **params):
-    p = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
-
-
 class TestTempDirLifecycle:
     def test_temp_dir_field_default_none(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
@@ -86,7 +78,7 @@ class TestTempDirLifecycle:
         (tmp_path / "test.png").write_bytes(b"fake")
         assert (tmp_path / "test.png").exists()
 
-        resp, running = _handle_request(_req("shutdown"), state)
+        resp, running = _handle_request(rpc_request("shutdown", token="abcdef1234567890"), state)
         assert resp["result"]["ok"] is True
         assert running is False
         assert not tmp_path.exists()
@@ -94,7 +86,7 @@ class TestTempDirLifecycle:
     def test_shutdown_with_no_temp_dir(self):
         """Shutdown with temp_dir=None should not crash."""
         state = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
-        resp, running = _handle_request(_req("shutdown"), state)
+        resp, running = _handle_request(rpc_request("shutdown", token="abcdef1234567890"), state)
         assert resp["result"]["ok"] is True
         assert running is False
 
@@ -183,7 +175,9 @@ def _make_handler_state(tmp_path: Path):
 class TestTexInfo:
     def test_happy_path(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_info", id=42), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_info", {"id": 42}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["id"] == 42
         assert r["name"] == "Albedo"
@@ -199,20 +193,26 @@ class TestTexInfo:
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_info", id=999), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_info", {"id": 999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
         assert "999" in resp["error"]["message"]
 
     def test_no_adapter(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("tex_info", id=42), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_info", {"id": 42}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32002
 
 
 class TestTexExport:
     def test_happy_path_mip0(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_export", id=42, mip=0), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_export", {"id": 42, "mip": 0}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert "path" in r
         assert r["size"] > 0
@@ -220,19 +220,25 @@ class TestTexExport:
 
     def test_happy_path_mip2(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_export", id=42, mip=2), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_export", {"id": 42, "mip": 2}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert "path" in r
         assert "mip2" in r["path"]
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_export", id=999), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_export", {"id": 999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_mip_out_of_range(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_export", id=42, mip=10), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_export", {"id": 42, "mip": 10}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
         assert "mip" in resp["error"]["message"]
 
@@ -242,7 +248,9 @@ class TestTexExport:
             controller=SimpleNamespace(GetResources=lambda: []), version=(1, 33)
         )
         state.rd = mock_rd
-        resp, _ = _handle_request(_req("tex_export", id=42), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_export", {"id": 42}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32002
         assert "temp" in resp["error"]["message"]
 
@@ -250,7 +258,9 @@ class TestTexExport:
 class TestTexRaw:
     def test_happy_path(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_raw", id=42), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_raw", {"id": 42}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert "path" in r
         assert r["size"] > 0
@@ -258,7 +268,9 @@ class TestTexRaw:
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("tex_raw", id=999), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_raw", {"id": 999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_no_temp_dir(self):
@@ -267,7 +279,9 @@ class TestTexRaw:
             controller=SimpleNamespace(GetResources=lambda: []), version=(1, 33)
         )
         state.rd = mock_rd
-        resp, _ = _handle_request(_req("tex_raw", id=42), state)
+        resp, _ = _handle_request(
+            rpc_request("tex_raw", {"id": 42}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32002
         assert "temp" in resp["error"]["message"]
 
@@ -275,7 +289,9 @@ class TestTexRaw:
 class TestBufInfo:
     def test_happy_path(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("buf_info", id=7), state)
+        resp, _ = _handle_request(
+            rpc_request("buf_info", {"id": 7}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["id"] == 7
         assert r["name"] == "VtxBuf"
@@ -285,14 +301,18 @@ class TestBufInfo:
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("buf_info", id=999), state)
+        resp, _ = _handle_request(
+            rpc_request("buf_info", {"id": 999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
 
 class TestBufRaw:
     def test_happy_path(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("buf_raw", id=7), state)
+        resp, _ = _handle_request(
+            rpc_request("buf_raw", {"id": 7}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert "path" in r
         assert r["size"] > 0
@@ -300,7 +320,9 @@ class TestBufRaw:
 
     def test_not_found(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("buf_raw", id=999), state)
+        resp, _ = _handle_request(
+            rpc_request("buf_raw", {"id": 999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
 
     def test_no_temp_dir(self):
@@ -308,14 +330,18 @@ class TestBufRaw:
         state.adapter = RenderDocAdapter(
             controller=SimpleNamespace(GetResources=lambda: []), version=(1, 33)
         )
-        resp, _ = _handle_request(_req("buf_raw", id=7), state)
+        resp, _ = _handle_request(
+            rpc_request("buf_raw", {"id": 7}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32002
 
 
 class TestRtExport:
     def test_happy_path(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("rt_export", eid=10, target=0), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_export", {"eid": 10, "target": 0}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert "path" in r
         assert r["size"] > 0
@@ -335,26 +361,34 @@ class TestRtExport:
             ),
             version=(1, 33),
         )
-        resp, _ = _handle_request(_req("rt_export", eid=10, target=0), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_export", {"eid": 10, "target": 0}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
         assert "no color targets" in resp["error"]["message"]
 
     def test_target_out_of_range(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("rt_export", eid=10, target=5), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_export", {"eid": 10, "target": 5}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
         assert "out of range" in resp["error"]["message"]
 
     def test_eid_out_of_range(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("rt_export", eid=99999, target=0), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_export", {"eid": 99999, "target": 0}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32002
 
 
 class TestRtDepth:
     def test_happy_path(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("rt_depth", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_depth", {"eid": 10}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert "path" in r
         assert r["size"] > 0
@@ -379,11 +413,15 @@ class TestRtDepth:
             ),
             version=(1, 33),
         )
-        resp, _ = _handle_request(_req("rt_depth", eid=10), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_depth", {"eid": 10}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32001
         assert "no depth target" in resp["error"]["message"]
 
     def test_eid_out_of_range(self, tmp_path):
         state = _make_handler_state(tmp_path)
-        resp, _ = _handle_request(_req("rt_depth", eid=99999), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_depth", {"eid": 99999}, token="abcdef1234567890"), state
+        )
         assert resp["error"]["code"] == -32002

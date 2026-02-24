@@ -8,10 +8,11 @@ from typing import Any, cast
 import click
 
 from rdc.daemon_client import send_request
+from rdc.discover import find_renderdoc
 from rdc.protocol import _request
 from rdc.session_state import load_session
 
-__all__ = ["require_session", "call", "_json_mode"]
+__all__ = ["require_session", "require_renderdoc", "call", "_json_mode"]
 
 
 def _json_mode() -> bool:
@@ -21,6 +22,15 @@ def _json_mode() -> bool:
         return False
     params = ctx.params
     return bool(params.get("use_json") or params.get("output_json") or params.get("as_json"))
+
+
+def require_renderdoc() -> Any:
+    """Find and return the renderdoc module, or exit with error."""
+    rd = find_renderdoc()
+    if rd is None:
+        click.echo("error: renderdoc module not found", err=True)
+        raise SystemExit(1)
+    return rd
 
 
 def require_session() -> tuple[str, int, str]:

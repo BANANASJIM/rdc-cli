@@ -8,14 +8,10 @@ Tests that the daemon survives previously-crashing scenarios:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
 
 
 def _state_with_mock() -> DaemonState:

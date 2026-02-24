@@ -10,21 +10,12 @@ from typing import Any
 
 import click
 
-from rdc.discover import find_renderdoc
+from rdc.commands._helpers import require_renderdoc
 from rdc.target_state import (
     TargetControlState,
     load_latest_target_state,
     save_target_state,
 )
-
-
-def _require_renderdoc() -> Any:
-    """Find and return the renderdoc module, or exit with error."""
-    rd = find_renderdoc()
-    if rd is None:
-        click.echo("error: renderdoc module not found", err=True)
-        raise SystemExit(1)
-    return rd
 
 
 def _resolve_ident(ident: int | None) -> int:
@@ -56,7 +47,7 @@ def _connect(rd: Any, host: str, ident: int) -> Any:
 @click.option("--host", default="localhost", help="Target host.")
 def attach_cmd(ident: int, host: str) -> None:
     """Attach to a running RenderDoc target by ident."""
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
     tc = _connect(rd, host, ident)
     try:
         target = tc.GetTarget()
@@ -83,7 +74,7 @@ def attach_cmd(ident: int, host: str) -> None:
 def capture_trigger_cmd(ident: int | None, host: str, num_frames: int) -> None:
     """Trigger a capture on the attached target."""
     resolved = _resolve_ident(ident)
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
     tc = _connect(rd, host, resolved)
     try:
         tc.TriggerCapture(num_frames)
@@ -102,7 +93,7 @@ def capture_list_cmd(ident: int | None, host: str, timeout: float, use_json: boo
     import json as json_mod
 
     resolved = _resolve_ident(ident)
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
     tc = _connect(rd, host, resolved)
     captures: list[dict[str, Any]] = []
     try:
@@ -152,7 +143,7 @@ def capture_copy_cmd(
 ) -> None:
     """Copy a capture from the target to a local path."""
     resolved = _resolve_ident(ident)
-    rd = _require_renderdoc()
+    rd = require_renderdoc()
     tc = _connect(rd, host, resolved)
     try:
         tc.CopyCapture(capture_id, dest)

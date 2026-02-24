@@ -1,18 +1,12 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
+# Make mock module importable
+import mock_renderdoc as rd
 from click.testing import CliRunner
 
 from rdc.cli import main
 from rdc.daemon_server import DaemonState, _handle_request
 from rdc.services.query_service import bindings_rows, pipeline_row, shader_row
-
-# Make mock module importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
 
 
 def _state_with_adapter() -> DaemonState:

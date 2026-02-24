@@ -13,10 +13,8 @@ import pytest
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState, _handle_request, _load_replay, _set_frame_event
 
+
 # Make mock module importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-
 class TestHandleRequest:
     def _state(self) -> DaemonState:
         return DaemonState(capture="capture.rdc", current_eid=0, token="tok")

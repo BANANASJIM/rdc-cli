@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 # Make mock module importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
+import mock_renderdoc as rd
+import pytest
 
 
 @pytest.fixture

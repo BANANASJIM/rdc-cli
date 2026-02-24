@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import signal
 import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as mock_rd
+import pytest
 
 
 def _make_mock_rd(

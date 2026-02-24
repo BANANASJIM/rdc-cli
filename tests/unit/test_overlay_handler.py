@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
 import mock_renderdoc as mock_rd
+import pytest
+from conftest import rpc_request
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
@@ -39,12 +36,6 @@ def _build_actions() -> list[ActionDescription]:
 
 def _build_resources() -> list[ResourceDescription]:
     return [ResourceDescription(resourceId=ResourceId(1), name="res0")]
-
-
-def _req(method: str, **params: Any) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "abcdef1234567890"}
-    p.update(params)
-    return {"id": 1, "method": method, "params": p}
 
 
 @pytest.fixture()
@@ -92,7 +83,12 @@ def state(tmp_path: Path) -> DaemonState:
 
 class TestOverlayHandler:
     def test_wireframe_overlay(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "rt_overlay", {"eid": 10, "overlay": "wireframe"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         r = resp["result"]
         assert Path(r["path"]).exists()
         assert r["size"] > 0
@@ -100,20 +96,31 @@ class TestOverlayHandler:
         assert r["eid"] == 10
 
     def test_depth_overlay(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="depth"), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_overlay", {"eid": 10, "overlay": "depth"}, token="abcdef1234567890"),
+            state,
+        )
         r = resp["result"]
         assert r["size"] > 0
         assert r["overlay"] == "depth"
 
     def test_overdraw_overlay(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="overdraw"), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_overlay", {"eid": 10, "overlay": "overdraw"}, token="abcdef1234567890"),
+            state,
+        )
         r = resp["result"]
         assert r["size"] > 0
         assert r["overlay"] == "overdraw"
 
     def test_custom_dimensions(self, state: DaemonState) -> None:
         resp, _ = _handle_request(
-            _req("rt_overlay", eid=10, overlay="wireframe", width=512, height=512), state
+            rpc_request(
+                "rt_overlay",
+                {"eid": 10, "overlay": "wireframe", "width": 512, "height": 512},
+                token="abcdef1234567890",
+            ),
+            state,
         )
         assert "result" in resp
         calls = state.adapter.controller._create_output_calls
@@ -124,7 +131,9 @@ class TestOverlayHandler:
 
     def test_default_eid_uses_current(self, state: DaemonState) -> None:
         state.current_eid = 10
-        resp, _ = _handle_request(_req("rt_overlay", overlay="wireframe"), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_overlay", {"overlay": "wireframe"}, token="abcdef1234567890"), state
+        )
         r = resp["result"]
         assert r["eid"] == 10
 
@@ -132,7 +141,12 @@ class TestOverlayHandler:
         existing = MockReplayOutput()
         state.replay_output = existing
         state.replay_output_dims = (256, 256)
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "rt_overlay", {"eid": 10, "overlay": "wireframe"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         assert "result" in resp
         assert len(state.adapter.controller._create_output_calls) == 0
         assert state.replay_output is existing
@@ -142,7 +156,12 @@ class TestOverlayHandler:
         state.replay_output = old_output
         state.replay_output_dims = (256, 256)
         resp, _ = _handle_request(
-            _req("rt_overlay", eid=10, overlay="wireframe", width=512, height=512), state
+            rpc_request(
+                "rt_overlay",
+                {"eid": 10, "overlay": "wireframe", "width": 512, "height": 512},
+                token="abcdef1234567890",
+            ),
+            state,
         )
         assert "result" in resp
         calls = state.adapter.controller._create_output_calls
@@ -154,25 +173,48 @@ class TestOverlayHandler:
         assert state.replay_output_dims == (512, 512)
 
     def test_invalid_overlay_name(self, state: DaemonState) -> None:
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="invalid"), state)
+        resp, _ = _handle_request(
+            rpc_request("rt_overlay", {"eid": 10, "overlay": "invalid"}, token="abcdef1234567890"),
+            state,
+        )
         assert resp["error"]["code"] == -32602
 
     def test_no_adapter(self) -> None:
         s = DaemonState(capture="t.rdc", current_eid=0, token="abcdef1234567890")
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), s)
+        resp, _ = _handle_request(
+            rpc_request(
+                "rt_overlay", {"eid": 10, "overlay": "wireframe"}, token="abcdef1234567890"
+            ),
+            s,
+        )
         assert resp["error"]["code"] == -32002
 
     def test_no_output_targets(self, state: DaemonState) -> None:
         state.adapter.controller._output_targets.clear()
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "rt_overlay", {"eid": 10, "overlay": "wireframe"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         assert resp["error"]["code"] == -32001
 
     def test_rd_none(self, state: DaemonState) -> None:
         state.rd = None
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "rt_overlay", {"eid": 10, "overlay": "wireframe"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         assert resp["error"]["code"] == -32002
 
     def test_temp_dir_none(self, state: DaemonState) -> None:
         state.temp_dir = None
-        resp, _ = _handle_request(_req("rt_overlay", eid=10, overlay="wireframe"), state)
+        resp, _ = _handle_request(
+            rpc_request(
+                "rt_overlay", {"eid": 10, "overlay": "wireframe"}, token="abcdef1234567890"
+            ),
+            state,
+        )
         assert resp["error"]["code"] == -32002

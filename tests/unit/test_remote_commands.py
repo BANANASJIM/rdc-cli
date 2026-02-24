@@ -29,7 +29,7 @@ def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 def _mock_rd(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Provide a mock renderdoc module and patch find_renderdoc."""
     rd = MagicMock()
-    monkeypatch.setattr("rdc.commands.remote.find_renderdoc", lambda: rd)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
     return rd
 
 
@@ -79,7 +79,7 @@ class TestRemoteConnect:
         assert result.exit_code == 1
 
     def test_no_renderdoc_exits_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("rdc.commands.remote.find_renderdoc", lambda: None)
+        monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: None)
         result = CliRunner().invoke(remote_connect_cmd, ["192.168.1.10"])
         assert result.exit_code == 1
 
@@ -220,7 +220,7 @@ class TestRemoteList:
 
     def test_no_renderdoc_exits_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
-        monkeypatch.setattr("rdc.commands.remote.find_renderdoc", lambda: None)
+        monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: None)
         result = CliRunner().invoke(remote_list_cmd, [])
         assert result.exit_code == 1
 
@@ -373,7 +373,7 @@ class TestRemoteCapture:
 
     def test_no_renderdoc_exits_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
-        monkeypatch.setattr("rdc.commands.remote.find_renderdoc", lambda: None)
+        monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: None)
         result = CliRunner().invoke(remote_capture_cmd, ["myapp", "-o", "/tmp/out.rdc"])
         assert result.exit_code == 1
 

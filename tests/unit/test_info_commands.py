@@ -246,11 +246,7 @@ def test_log_quiet(monkeypatch) -> None:
 
 def test_log_handler_caches_messages(monkeypatch) -> None:
     """Second _handle_log call returns same data without re-calling GetDebugMessages."""
-    import sys
-    from pathlib import Path
-
-    sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-    import mock_renderdoc as rd  # noqa: E402
+    import mock_renderdoc as rd
 
     from rdc.adapter import RenderDocAdapter
     from rdc.daemon_server import DaemonState, _handle_request

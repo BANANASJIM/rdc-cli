@@ -2,33 +2,22 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import mock_renderdoc as rd
 import pytest
 from click.testing import CliRunner
+from conftest import rpc_request
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "mocks"))
-
-import mock_renderdoc as rd  # noqa: E402
-
-from rdc.adapter import RenderDocAdapter  # noqa: E402
-from rdc.commands.resources import resources_cmd  # noqa: E402
-from rdc.daemon_server import DaemonState, _handle_request  # noqa: E402
-from rdc.services.query_service import _resource_row  # type: ignore[attr-defined]  # noqa: E402
+from rdc.adapter import RenderDocAdapter
+from rdc.commands.resources import resources_cmd
+from rdc.daemon_server import DaemonState, _handle_request
+from rdc.services.query_service import _resource_row  # type: ignore[attr-defined]
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _req(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    p: dict[str, Any] = {"_token": "tok"}
-    if params:
-        p.update(params)
-    return {"jsonrpc": "2.0", "id": 1, "method": method, "params": p}
 
 
 def _make_res(rid: int, name: str, type_name: str) -> Any:
@@ -114,24 +103,24 @@ class TestDaemonTypeFilter:
 
     def test_exact_match_case_insensitive(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"type": "texture"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"type": "texture"}), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 2
         assert all(r["type"] == "Texture" for r in rows)
 
     def test_no_match(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"type": "Sampler"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"type": "Sampler"}), state)
         assert resp["result"]["rows"] == []
 
     def test_not_supplied_returns_all(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources"), state)
+        resp, _ = _handle_request(rpc_request("resources"), state)
         assert len(resp["result"]["rows"]) == 3
 
     def test_upper_case_match(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"type": "TEXTURE"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"type": "TEXTURE"}), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 2
 
@@ -151,24 +140,24 @@ class TestDaemonNameFilter:
 
     def test_substring_match(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"name": "tri"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"name": "tri"}), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 1
         assert rows[0]["name"] == "hello_triangle"
 
     def test_no_match(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"name": "zzz"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"name": "zzz"}), state)
         assert resp["result"]["rows"] == []
 
     def test_not_supplied_returns_all(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources"), state)
+        resp, _ = _handle_request(rpc_request("resources"), state)
         assert len(resp["result"]["rows"]) == 3
 
     def test_case_insensitive(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"name": "TRI"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"name": "TRI"}), state)
         rows = resp["result"]["rows"]
         assert len(rows) == 1
         assert "tri" in rows[0]["name"].lower()
@@ -189,14 +178,18 @@ class TestDaemonCombinedFilter:
 
     def test_both_filters(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"type": "Texture", "name": "tri"}), state)
+        resp, _ = _handle_request(
+            rpc_request("resources", {"type": "Texture", "name": "tri"}), state
+        )
         rows = resp["result"]["rows"]
         assert len(rows) == 1
         assert rows[0]["name"] == "hello_triangle"
 
     def test_type_matches_name_does_not(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"type": "Buffer", "name": "zzz"}), state)
+        resp, _ = _handle_request(
+            rpc_request("resources", {"type": "Buffer", "name": "zzz"}), state
+        )
         assert resp["result"]["rows"] == []
 
 
@@ -215,26 +208,26 @@ class TestDaemonSort:
 
     def test_sort_by_name(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"sort": "name"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"sort": "name"}), state)
         names = [r["name"] for r in resp["result"]["rows"]]
         assert names == sorted(names, key=str.lower)
 
     def test_sort_by_type(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"sort": "type"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"sort": "type"}), state)
         types = [r["type"] for r in resp["result"]["rows"]]
         assert types == sorted(types, key=str.lower)
 
     def test_sort_by_id_default(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources"), state)
+        resp, _ = _handle_request(rpc_request("resources"), state)
         ids = [r["id"] for r in resp["result"]["rows"]]
         # id sort is enumeration order (3, 1, 2 as added to ctrl._resources)
         assert ids == [3, 1, 2]
 
     def test_unknown_sort_no_crash(self) -> None:
         state = _state_with_resources(self._resources())
-        resp, _ = _handle_request(_req("resources", {"sort": "foobar"}), state)
+        resp, _ = _handle_request(rpc_request("resources", {"sort": "foobar"}), state)
         assert "rows" in resp["result"]
         assert len(resp["result"]["rows"]) == 3
 
