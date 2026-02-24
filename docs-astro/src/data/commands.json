@@ -9,7 +9,7 @@
           "name": "open",
           "id": "open",
           "help": "Create local default session and start daemon skeleton.",
-          "usage": "rdc open <CAPTURE> [--preload]"
+          "usage": "rdc open <CAPTURE> [--preload] [--remote HOST[:PORT]]"
         },
         {
           "name": "close",
@@ -435,8 +435,14 @@
     {
       "name": "Remote",
       "id": "remote",
-      "description": "Connect to a remote RenderDoc server for remote capture.",
+      "description": "Connect to a remote RenderDoc server for remote capture and replay.",
       "commands": [
+        {
+          "name": "serve",
+          "id": "serve",
+          "help": "Launch renderdoccmd remoteserver for remote replay.",
+          "usage": "rdc serve [--port INTEGER] [--host TEXT] [--allow-ips CIDR[,CIDR...]] [--no-exec] [--daemon]"
+        },
         {
           "name": "remote connect",
           "id": "remote-connect",
@@ -453,7 +459,7 @@
           "name": "remote capture",
           "id": "remote-capture",
           "help": "Capture on a remote host and transfer to local.",
-          "usage": "rdc remote capture <APP> -o <PATH> [--url TEXT] [--args TEXT] [--workdir TEXT] [--frame INTEGER] [--timeout FLOAT] [--api-validation] [--callstacks] [--hook-children] [--ref-all-resources] [--soft-memory-limit INTEGER] [--json]"
+          "usage": "rdc remote capture <APP> -o <PATH> [--url TEXT] [--args TEXT] [--workdir TEXT] [--frame INTEGER] [--timeout FLOAT] [--api-validation] [--callstacks] [--hook-children] [--ref-all-resources] [--soft-memory-limit INTEGER] [--keep-remote] [--json]"
         }
       ]
     },

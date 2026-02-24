@@ -148,6 +148,11 @@ def remote_list_cmd(url: str | None, as_json: bool) -> None:
 @click.option("--hook-children", is_flag=True, help="Hook child processes.")
 @click.option("--ref-all-resources", is_flag=True, help="Reference all resources.")
 @click.option("--soft-memory-limit", type=int, default=None, help="Soft memory limit (MB).")
+@click.option(
+    "--keep-remote",
+    is_flag=True,
+    help="Skip transfer; print remote path for use with 'rdc open --remote'.",
+)
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 def remote_capture_cmd(
     app: str,
@@ -162,6 +167,7 @@ def remote_capture_cmd(
     hook_children: bool,
     ref_all_resources: bool,
     soft_memory_limit: int | None,
+    keep_remote: bool,
     as_json: bool,
 ) -> None:
     """Capture on a remote host and transfer to local."""
@@ -200,6 +206,7 @@ def remote_capture_cmd(
             opts=opts,
             frame=frame,
             timeout=timeout,
+            keep_remote=keep_remote,
         )
     finally:
         remote.ShutdownConnection()
@@ -214,5 +221,10 @@ def remote_capture_cmd(
         click.echo(f"error: {result.error}", err=True)
         raise SystemExit(1)
 
-    click.echo(result.path)
-    click.echo(f"next: rdc open {result.path}", err=True)
+    if result.remote_path:
+        click.echo(result.remote_path)
+        url = build_conn_url(host, port)
+        click.echo(f"next: rdc open --remote {url} {result.remote_path}", err=True)
+    else:
+        click.echo(result.path)
+        click.echo(f"next: rdc open {result.path}", err=True)

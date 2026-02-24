@@ -9,6 +9,7 @@ from click.testing import CliRunner
 
 from rdc.commands.doctor import (
     CheckResult,
+    _check_renderdoccmd,
     _check_win_python_version,
     _check_win_renderdoc_install,
     _check_win_vs_build_tools,
@@ -36,7 +37,13 @@ def _fake_renderdoc(*, with_replay: bool = True) -> SimpleNamespace:
 def test_doctor_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: _fake_renderdoc())
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr(
+        "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+    )
+    monkeypatch.setattr(
+        "rdc.commands.doctor.subprocess.run",
+        lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=0, stdout="v1.33"),
+    )
 
     result = CliRunner().invoke(doctor_cmd, [])
     assert result.exit_code == 0
@@ -50,7 +57,7 @@ def test_doctor_failure_when_missing_renderdoccmd(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(
         "rdc.commands.doctor.find_renderdoc", lambda: _fake_renderdoc(with_replay=False)
     )
-    monkeypatch.setattr("shutil.which", lambda _: None)
+    monkeypatch.setattr("rdc.commands.doctor.find_renderdoccmd", lambda: None)
 
     result = CliRunner().invoke(doctor_cmd, [])
     assert result.exit_code == 1
@@ -69,7 +76,7 @@ def test_doctor_shows_build_hint_when_renderdoc_missing(monkeypatch: pytest.Monk
         "  Then re-run: rdc doctor",
     )
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: None)
-    monkeypatch.setattr("shutil.which", lambda _: None)
+    monkeypatch.setattr("rdc.commands.doctor.find_renderdoccmd", lambda: None)
 
     result = CliRunner().invoke(doctor_cmd, [])
     assert result.exit_code == 1
@@ -291,7 +298,13 @@ def test_run_doctor_linux_returns_5_results(monkeypatch: pytest.MonkeyPatch) -> 
     """TP-W3-017a: Linux run_doctor returns 5 results."""
     monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: _fake_renderdoc())
-    monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda _: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr(
+        "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+    )
+    monkeypatch.setattr(
+        "rdc.commands.doctor.subprocess.run",
+        lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=0, stdout="v1.33"),
+    )
     results = run_doctor()
     assert len(results) == 5
     win_names = {"win-python-version", "win-vs-build-tools", "win-renderdoc-install"}
@@ -301,7 +314,13 @@ def test_run_doctor_linux_returns_5_results(monkeypatch: pytest.MonkeyPatch) -> 
 def test_run_doctor_windows_has_3_more_checks(monkeypatch: pytest.MonkeyPatch) -> None:
     """TP-W3-017b: Windows has exactly 3 more checks than Linux."""
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: _fake_renderdoc())
-    monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda _: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr(
+        "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+    )
+    monkeypatch.setattr(
+        "rdc.commands.doctor.subprocess.run",
+        lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=0, stdout="v1.33"),
+    )
 
     monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
     linux_count = len(run_doctor())
@@ -323,3 +342,54 @@ def test_run_doctor_windows_has_3_more_checks(monkeypatch: pytest.MonkeyPatch) -
     win_count = len(run_doctor())
 
     assert win_count - linux_count == 3
+
+
+# ── _check_renderdoccmd() version probing ─────────────────────────────
+
+
+class TestCheckRenderdoccmd:
+    def test_found_with_version(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=0, stdout="v1.33\n"),
+        )
+        r = _check_renderdoccmd()
+        assert r.ok is True
+        assert "v1.33" in r.detail
+        assert str(Path("/usr/bin/renderdoccmd")) in r.detail
+
+    def test_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.find_renderdoccmd", lambda: None)
+        r = _check_renderdoccmd()
+        assert r.ok is False
+        assert "not found" in r.detail
+
+    def test_version_timeout_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+        )
+
+        def _timeout(*_a: object, **_kw: object) -> None:
+            raise subprocess.TimeoutExpired(cmd="renderdoccmd", timeout=3)
+
+        monkeypatch.setattr("rdc.commands.doctor.subprocess.run", _timeout)
+        r = _check_renderdoccmd()
+        assert r.ok is True
+        assert str(Path("/usr/bin/renderdoccmd")) in r.detail
+
+    def test_version_in_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr="v1.33\n"
+            ),
+        )
+        r = _check_renderdoccmd()
+        assert r.ok is True
+        assert "v1.33" in r.detail

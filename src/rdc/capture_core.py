@@ -26,6 +26,7 @@ class CaptureResult:
     ident: int = 0
     pid: int = 0
     error: str = ""
+    remote_path: str = ""
 
 
 def build_capture_options(opts: dict[str, Any]) -> Any:

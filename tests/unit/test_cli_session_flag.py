@@ -82,14 +82,18 @@ def test_two_sessions_isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     runner = CliRunner()
 
     # Open session "a"
+    alpha_file = tmp_path / "alpha.rdc"
+    alpha_file.touch()
     monkeypatch.setenv("RDC_SESSION", "a")
-    result = runner.invoke(main, ["open", "alpha.rdc"])
+    result = runner.invoke(main, ["open", str(alpha_file)])
     assert result.exit_code == 0
     assert (tmp_path / ".rdc" / "sessions" / "a.json").exists()
 
     # Open session "b"
+    beta_file = tmp_path / "beta.rdc"
+    beta_file.touch()
     monkeypatch.setenv("RDC_SESSION", "b")
-    result = runner.invoke(main, ["open", "beta.rdc"])
+    result = runner.invoke(main, ["open", str(beta_file)])
     assert result.exit_code == 0
     assert (tmp_path / ".rdc" / "sessions" / "b.json").exists()
 

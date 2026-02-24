@@ -42,6 +42,7 @@ from rdc.commands.remote import remote_group
 from rdc.commands.resources import pass_cmd, passes_cmd, resource_cmd, resources_cmd
 from rdc.commands.script import script_cmd
 from rdc.commands.search import search_cmd
+from rdc.commands.serve import serve_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
 from rdc.commands.shader_edit import (
     shader_build_cmd,
@@ -148,6 +149,7 @@ main.add_command(capture_trigger_cmd, name="capture-trigger")
 main.add_command(capture_list_cmd, name="capture-list")
 main.add_command(capture_copy_cmd, name="capture-copy")
 main.add_command(remote_group, name="remote")
+main.add_command(serve_cmd, name="serve")
 
 
 if __name__ == "__main__":
