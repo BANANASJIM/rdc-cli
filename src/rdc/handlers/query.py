@@ -17,6 +17,7 @@ from rdc.handlers._helpers import (
     _build_shader_cache,
     _error_response,
     _result_response,
+    _seek_replay,
     _set_frame_event,
 )
 from rdc.handlers._types import Handler
@@ -198,7 +199,7 @@ def _handle_pass(
     detail = get_pass_detail(actions, state.structured_file, identifier)
     if detail is None:
         return _error_response(request_id, -32001, "pass not found"), True
-    err = _set_frame_event(state, detail["begin_eid"])
+    err = _seek_replay(state, detail["begin_eid"])
     if err is None:
         pipe = state.adapter.get_pipeline_state()
         detail["color_targets"] = [
@@ -293,7 +294,7 @@ def _handle_stats(
         draw_eid = pass_first_draw.get(ps.name)
         if draw_eid is None:
             continue
-        err = _set_frame_event(state, draw_eid)
+        err = _seek_replay(state, draw_eid)
         if err:
             continue
         try:
@@ -312,6 +313,10 @@ def _handle_stats(
                     ps.rt_h = tex.height
         except Exception:
             pass  # fallback to defaults (0)
+
+    # Restore replay head to user's position
+    if state.current_eid != 0:
+        _seek_replay(state, state.current_eid)
 
     per_pass = [
         {
