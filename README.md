@@ -18,14 +18,9 @@
 
 **[Full documentation →](https://bananasjim.github.io/rdc-cli/)**
 
-```bash
-rdc open scene.rdc
-rdc draws | grep Shadow | sort -t$'\t' -k3 -rn | head -5   # top 5 shadow draws by tri count
-rdc shader 142 ps | grep shadowMap                           # find shadow sampling in PS
-rdc cat /draws/142/shader/ps/constants                       # inspect bound constants
-rdc diff before.rdc after.rdc --draws | grep '~'             # what changed between two frames?
-rdc close
-```
+<p align="center">
+  <img src="docs-astro/public/demos/pipeline.gif" alt="pipeline inspection demo" width="700">
+</p>
 
 ## Install
 
