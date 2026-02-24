@@ -328,3 +328,40 @@ class TestCountShadersUsesCache:
         count_val = resp["result"]["value"]
         assert count_val == len(state.shader_meta)
         assert count_val > 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: B17 — read-only queries must not mutate current_eid
+# ---------------------------------------------------------------------------
+
+
+class TestEidPreservation:
+    """B17: read-only queries must not mutate current_eid."""
+
+    def test_build_shader_cache_preserves_current_eid(
+        self, tracked_state: tuple[DaemonState, list[int]]
+    ) -> None:
+        s, _ = tracked_state
+        s.current_eid = 50
+        _build_shader_cache(s)
+        assert s.current_eid == 50
+
+    def test_stats_preserves_current_eid(
+        self, tracked_state: tuple[DaemonState, list[int]]
+    ) -> None:
+        """_handle_stats RT enrichment must not change current_eid."""
+        s, _ = tracked_state
+        s.current_eid = 50
+        s.structured_file = SimpleNamespace(chunks=[])
+        resp, _ = _handle_request(_req("stats"), s)
+        assert "error" not in resp
+        assert s.current_eid == 50
+
+    def test_pass_preserves_current_eid(self, tracked_state: tuple[DaemonState, list[int]]) -> None:
+        """_handle_pass target lookup must not change current_eid."""
+        s, _ = tracked_state
+        s.current_eid = 50
+        s.structured_file = SimpleNamespace(chunks=[])
+        resp, _ = _handle_request(_req("pass", index=0), s)
+        # Even if pass lookup fails, current_eid must be preserved
+        assert s.current_eid == 50

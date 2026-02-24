@@ -23,6 +23,7 @@ from rdc.handlers._helpers import (
     _max_eid,
     _result_response,
     _sanitize_size,
+    _seek_replay,
     _set_frame_event,
 )
 from rdc.handlers._helpers import (
@@ -61,6 +62,7 @@ __all__ = [
     "_process_request",
     "_result_response",
     "_sanitize_size",
+    "_seek_replay",
     "_set_frame_event",
     "main",
     "run_server",

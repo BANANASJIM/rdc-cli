@@ -82,6 +82,18 @@ def _set_frame_event(state: DaemonState, eid: int) -> str | None:
     return None
 
 
+def _seek_replay(state: DaemonState, eid: int) -> str | None:
+    """Move replay head without changing user's current_eid."""
+    if eid < 0:
+        return "eid must be >= 0"
+    if state.max_eid > 0 and eid > state.max_eid:
+        return f"eid {eid} out of range (max: {state.max_eid})"
+    if state.adapter is not None and state._eid_cache != eid:
+        state.adapter.set_frame_event(eid)
+        state._eid_cache = eid
+    return None
+
+
 def _get_flat_actions(state: DaemonState) -> list[Any]:
     if state.adapter is None:
         return []
@@ -143,7 +155,7 @@ def _build_shader_cache(state: DaemonState) -> None:
         for a in actions:
             flags = int(a.flags)
             if (flags & (_DRAWCALL | _MESHDRAW)) or (flags & _QS_DISPATCH):
-                _set_frame_event(state, a.eventId)
+                _seek_replay(state, a.eventId)
                 pipe = state.adapter.get_pipeline_state()
                 # Snapshot shader IDs (pipe is a mutable reference)
                 stage_snap: dict[int, int] = {}
@@ -180,6 +192,10 @@ def _build_shader_cache(state: DaemonState) -> None:
                 _walk(a.children)
 
     _walk(state.adapter.get_root_actions())
+
+    # Restore replay head to user's position
+    if state.current_eid != 0:
+        _seek_replay(state, state.current_eid)
 
     for sid in seen:
         refl = shader_reflections.get(sid)
@@ -279,7 +295,7 @@ def _ensure_shader_populated(
         from rdc.vfs.tree_cache import populate_draw_subtree
 
         eid = int(m.group(1))
-        err = _set_frame_event(state, eid)
+        err = _seek_replay(state, eid)
         if err:
             return _error_response(request_id, -32002, err)
         pipe = state.adapter.get_pipeline_state()  # type: ignore[union-attr]
