@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from typing import Any
 
 import click
@@ -91,13 +92,9 @@ def connect_remote_server(rd: Any, url: str) -> Any:
         RuntimeError: On connection failure.
     """
     result, remote = rd.CreateRemoteServerConnection(url)
-    if hasattr(result, "result"):
-        code = result.result
-    else:
-        code = int(result)
-    if code != 0:
-        msg = f"connection failed (code {code})"
-        raise RuntimeError(msg)
+    if result != 0:
+        msg = getattr(result, "Message", lambda: f"code {result}")()
+        raise RuntimeError(f"connection failed: {msg}")
     return remote
 
 
@@ -148,7 +145,8 @@ def remote_capture(
     exec_result = remote.ExecuteAndInject(app, workdir, args, env_mods, capture_opts)
 
     if exec_result.result != 0:
-        return CaptureResult(error=f"remote inject failed (code {exec_result.result})")
+        msg = getattr(exec_result.result, "Message", lambda: f"code {exec_result.result}")()
+        return CaptureResult(error=f"remote inject failed: {msg}")
     if exec_result.ident == 0:
         return CaptureResult(error="remote inject returned zero ident")
 
@@ -179,5 +177,12 @@ def remote_capture(
             result.error = f"capture succeeded but transfer failed: {exc}"
             click.echo(f"warning: {result.error}", err=True)
             click.echo(f"  remote path: {result.path}", err=True)
+    elif result.path != output:
+        try:
+            shutil.copy2(result.path, output)
+            result.path = output
+        except OSError as exc:
+            result.success = False
+            result.error = f"capture succeeded but local copy failed: {exc}"
     result.ident = exec_result.ident
     return result

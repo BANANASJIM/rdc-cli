@@ -109,20 +109,14 @@ class TestConnectRemoteServer:
     def test_success(self) -> None:
         rd = MagicMock()
         mock_remote = MagicMock()
-        rd.CreateRemoteServerConnection.return_value = (
-            SimpleNamespace(result=0),
-            mock_remote,
-        )
+        rd.CreateRemoteServerConnection.return_value = (0, mock_remote)
         result = connect_remote_server(rd, "192.168.1.10:39920")
         assert result is mock_remote
         rd.CreateRemoteServerConnection.assert_called_once_with("192.168.1.10:39920")
 
     def test_failure_code(self) -> None:
         rd = MagicMock()
-        rd.CreateRemoteServerConnection.return_value = (
-            SimpleNamespace(result=1),
-            None,
-        )
+        rd.CreateRemoteServerConnection.return_value = (1, None)
         with pytest.raises(RuntimeError, match="connection failed"):
             connect_remote_server(rd, "192.168.1.10:39920")
 
@@ -131,6 +125,37 @@ class TestConnectRemoteServer:
         rd.CreateRemoteServerConnection.return_value = (0, MagicMock())
         result = connect_remote_server(rd, "host")
         assert result is not None
+
+    def test_result_details_success(self) -> None:
+        """B32: ResultDetails where __ne__(0) returns False => success."""
+        rd = MagicMock()
+        mock_remote = MagicMock()
+        result_obj = MagicMock()
+        result_obj.__ne__ = lambda self, other: False
+        rd.CreateRemoteServerConnection.return_value = (result_obj, mock_remote)
+        assert connect_remote_server(rd, "host") is mock_remote
+
+    def test_result_details_failure_with_message(self) -> None:
+        """B32: ResultDetails with Message() => error includes message text."""
+        rd = MagicMock()
+        result_obj = MagicMock()
+        result_obj.__ne__ = lambda self, other: True
+        result_obj.Message.return_value = "Timeout"
+        rd.CreateRemoteServerConnection.return_value = (result_obj, None)
+        with pytest.raises(RuntimeError, match="Timeout"):
+            connect_remote_server(rd, "host")
+
+    def test_result_details_failure_no_message(self) -> None:
+        """B32: ResultDetails without Message attr => graceful fallback."""
+
+        class BareResult:
+            def __ne__(self, other: object) -> bool:
+                return True
+
+        rd = MagicMock()
+        rd.CreateRemoteServerConnection.return_value = (BareResult(), None)
+        with pytest.raises(RuntimeError, match="connection failed"):
+            connect_remote_server(rd, "host")
 
 
 class TestEnumerateRemoteTargets:
@@ -184,6 +209,7 @@ class TestRemoteCapture:
         tc.Shutdown.assert_called_once()
 
     def test_success_local_file(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B33: local file is copied to output path when paths differ."""
         from rdc.capture_core import CaptureResult
 
         rd = MagicMock()
@@ -193,19 +219,23 @@ class TestRemoteCapture:
         cap_result = CaptureResult(success=True, path="/local/cap.rdc", local=True)
         monkeypatch.setattr("rdc.remote_core.run_target_control_loop", lambda tc, **kw: cap_result)
         monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+        monkeypatch.setattr("rdc.remote_core.shutil.copy2", lambda src, dst: None)
 
         tc = MagicMock()
         rd.CreateTargetControl.return_value = tc
 
         result = remote_capture(rd, remote, "host:39920", "/app", output="/tmp/out.rdc")
         assert result.success is True
-        assert result.path == "/local/cap.rdc"
+        assert result.path == "/tmp/out.rdc"
         remote.CopyCaptureFromRemote.assert_not_called()
 
     def test_inject_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rd = MagicMock()
         remote = MagicMock()
-        remote.ExecuteAndInject.return_value = SimpleNamespace(result=1, ident=0)
+        result_obj = MagicMock()
+        result_obj.__ne__ = lambda self, other: True
+        result_obj.Message.return_value = "Access denied"
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=result_obj, ident=0)
         monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
 
         result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
@@ -289,3 +319,98 @@ class TestRemoteCapture:
         result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
         assert not result.success
         tc.Shutdown.assert_called_once()
+
+    # --- B33 tests: local file copy to output ---
+
+    def test_local_file_copied_to_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B33: local=True with different path triggers shutil.copy2."""
+        from rdc.capture_core import CaptureResult
+
+        rd = MagicMock()
+        remote = MagicMock()
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=0, ident=42)
+
+        cap_result = CaptureResult(success=True, path="/tmp/src.rdc", local=True)
+        monkeypatch.setattr("rdc.remote_core.run_target_control_loop", lambda tc, **kw: cap_result)
+        monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+
+        copy_calls: list[tuple[str, str]] = []
+        monkeypatch.setattr("rdc.remote_core.shutil.copy2", lambda s, d: copy_calls.append((s, d)))
+        rd.CreateTargetControl.return_value = MagicMock()
+
+        result = remote_capture(rd, remote, "host", "/app", output="/tmp/dst.rdc")
+        assert result.success is True
+        assert result.path == "/tmp/dst.rdc"
+        assert copy_calls == [("/tmp/src.rdc", "/tmp/dst.rdc")]
+
+    def test_local_file_same_path_no_copy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B33: local=True with same path skips copy."""
+        from rdc.capture_core import CaptureResult
+
+        rd = MagicMock()
+        remote = MagicMock()
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=0, ident=42)
+
+        cap_result = CaptureResult(success=True, path="/tmp/out.rdc", local=True)
+        monkeypatch.setattr("rdc.remote_core.run_target_control_loop", lambda tc, **kw: cap_result)
+        monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+
+        copy_calls: list[tuple[str, str]] = []
+        monkeypatch.setattr("rdc.remote_core.shutil.copy2", lambda s, d: copy_calls.append((s, d)))
+        rd.CreateTargetControl.return_value = MagicMock()
+
+        result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
+        assert result.success is True
+        assert result.path == "/tmp/out.rdc"
+        assert copy_calls == []
+
+    def test_local_copy_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B33: shutil.copy2 raises OSError => success=False with error message."""
+        from rdc.capture_core import CaptureResult
+
+        rd = MagicMock()
+        remote = MagicMock()
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=0, ident=42)
+
+        cap_result = CaptureResult(success=True, path="/tmp/src.rdc", local=True)
+        monkeypatch.setattr("rdc.remote_core.run_target_control_loop", lambda tc, **kw: cap_result)
+        monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+
+        def fail_copy(src: str, dst: str) -> None:
+            raise OSError("disk full")
+
+        monkeypatch.setattr("rdc.remote_core.shutil.copy2", fail_copy)
+        rd.CreateTargetControl.return_value = MagicMock()
+
+        result = remote_capture(rd, remote, "host", "/app", output="/tmp/dst.rdc")
+        assert result.success is False
+        assert "local copy failed" in result.error
+        assert "disk full" in result.error
+
+    # --- B35 tests: inject failure error message ---
+
+    def test_inject_failure_result_details_message(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B35: exec_result.result with Message() => human-readable error."""
+        rd = MagicMock()
+        remote = MagicMock()
+        result_obj = MagicMock()
+        result_obj.__ne__ = lambda self, other: True
+        result_obj.Message.return_value = "Permission denied"
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=result_obj, ident=0)
+        monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+
+        result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
+        assert not result.success
+        assert "Permission denied" in result.error
+        assert "repr" not in result.error.lower()
+
+    def test_inject_failure_int_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B35: exec_result.result is plain int => fallback 'code N' message."""
+        rd = MagicMock()
+        remote = MagicMock()
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=2, ident=0)
+        monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+
+        result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
+        assert not result.success
+        assert "code 2" in result.error
