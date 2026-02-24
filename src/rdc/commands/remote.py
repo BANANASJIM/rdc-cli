@@ -38,7 +38,11 @@ def _require_renderdoc() -> Any:
 def _resolve_url(url: str | None) -> tuple[str, int]:
     """Resolve host/port from --url flag or saved state."""
     if url:
-        return parse_url(url)
+        try:
+            return parse_url(url)
+        except ValueError as exc:
+            click.echo(f"error: {exc}", err=True)
+            raise SystemExit(1) from None
     state = load_latest_remote_state()
     if state is None:
         click.echo("error: no remote connection (run 'rdc remote connect' first)", err=True)
@@ -63,7 +67,11 @@ def remote_group() -> None:
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
 def remote_connect_cmd(url: str, as_json: bool) -> None:
     """Connect to a remote RenderDoc server."""
-    host, port = parse_url(url)
+    try:
+        host, port = parse_url(url)
+    except ValueError as exc:
+        click.echo(f"error: {exc}", err=True)
+        raise SystemExit(1) from None
     _check_public_ip(host)
     rd = _require_renderdoc()
 
