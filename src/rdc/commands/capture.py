@@ -12,6 +12,7 @@ from typing import Any
 
 import click
 
+from rdc import _platform
 from rdc.capture_core import build_capture_options, execute_and_capture, terminate_process
 from rdc.discover import find_renderdoc
 
@@ -21,10 +22,7 @@ def _find_renderdoccmd() -> str | None:
     in_path = shutil.which("renderdoccmd")
     if in_path:
         return in_path
-    common_paths = [
-        Path("/opt/renderdoc/bin/renderdoccmd"),
-        Path("/usr/local/bin/renderdoccmd"),
-    ]
+    common_paths = _platform.renderdoccmd_search_paths()
     for path in common_paths:
         if path.exists() and path.is_file():
             return str(path)

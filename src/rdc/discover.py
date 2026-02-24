@@ -14,12 +14,9 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-log = logging.getLogger(__name__)
+from rdc import _platform
 
-_SYSTEM_PATHS = [
-    "/usr/lib/renderdoc",
-    "/usr/local/lib/renderdoc",
-]
+log = logging.getLogger(__name__)
 
 
 def find_renderdoc() -> ModuleType | None:
@@ -36,7 +33,7 @@ def find_renderdoc() -> ModuleType | None:
     if env_path:
         candidates.append(env_path)
 
-    candidates.extend(_SYSTEM_PATHS)
+    candidates.extend(_platform.renderdoc_search_paths())
 
     cmd = shutil.which("renderdoccmd")
     if cmd:

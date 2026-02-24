@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import signal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -241,7 +239,10 @@ def test_stop_diff_session_clean_shutdown(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(diff_service, "send_request", lambda *a, **kw: {"result": {"ok": True}})
     monkeypatch.setattr(diff_service, "is_pid_alive", lambda pid: False)
     kill_calls: list[int] = []
-    monkeypatch.setattr(os, "kill", lambda pid, sig: kill_calls.append(pid))
+    monkeypatch.setattr(
+        "rdc.services.diff_service._platform.terminate_process",
+        lambda pid: (kill_calls.append(pid), True)[1],
+    )
 
     stop_diff_session(_make_ctx())
     assert kill_calls == []
@@ -250,12 +251,15 @@ def test_stop_diff_session_clean_shutdown(monkeypatch: pytest.MonkeyPatch) -> No
 def test_stop_diff_session_rpc_fails_sigterm(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(diff_service, "send_request", MagicMock(side_effect=ConnectionRefusedError))
     monkeypatch.setattr(diff_service, "is_pid_alive", lambda pid: True)
-    kill_calls: list[tuple[int, int]] = []
-    monkeypatch.setattr(os, "kill", lambda pid, sig: kill_calls.append((pid, sig)))
+    kill_calls: list[int] = []
+    monkeypatch.setattr(
+        "rdc.services.diff_service._platform.terminate_process",
+        lambda pid: (kill_calls.append(pid), True)[1],
+    )
 
     stop_diff_session(_make_ctx())
-    assert (100, signal.SIGTERM) in kill_calls
-    assert (200, signal.SIGTERM) in kill_calls
+    assert 100 in kill_calls
+    assert 200 in kill_calls
 
 
 def test_stop_diff_session_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -270,11 +274,10 @@ def test_stop_diff_session_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_stop_diff_session_process_lookup_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(diff_service, "send_request", MagicMock(side_effect=ConnectionRefusedError))
     monkeypatch.setattr(diff_service, "is_pid_alive", lambda pid: True)
-
-    def raise_lookup(pid: int, sig: int) -> None:
-        raise ProcessLookupError
-
-    monkeypatch.setattr(os, "kill", raise_lookup)
+    monkeypatch.setattr(
+        "rdc.services.diff_service._platform.terminate_process",
+        lambda pid: False,
+    )
     stop_diff_session(_make_ctx())  # must not raise
 
 

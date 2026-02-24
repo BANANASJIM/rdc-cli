@@ -6,7 +6,6 @@ import json
 import logging
 import secrets
 import shutil
-import signal
 import socket
 import sys
 import time
@@ -14,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from rdc import _platform
 from rdc._transport import recv_line as _recv_line
 from rdc.adapter import RenderDocAdapter
 from rdc.handlers._helpers import (
@@ -291,7 +291,7 @@ def run_server(  # pragma: no cover
 
 
 def main() -> None:  # pragma: no cover
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    _platform.install_shutdown_signal()
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")

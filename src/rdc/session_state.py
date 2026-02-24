@@ -7,6 +7,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from rdc import _platform
+from rdc._platform import is_pid_alive as is_pid_alive
+
 SESSION_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
@@ -22,7 +25,7 @@ class SessionState:
 
 
 def _session_dir() -> Path:
-    return Path.home() / ".rdc" / "sessions"
+    return _platform.data_dir() / "sessions"
 
 
 def session_path() -> Path:
@@ -59,12 +62,8 @@ def load_session() -> SessionState | None:
 def save_session(state: SessionState) -> None:
     """Write session state to disk with restricted permissions."""
     path = session_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    os.chmod(path.parent, 0o700)
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(json.dumps(asdict(state), indent=2))
-    os.chmod(path, 0o600)
+    _platform.secure_dir_permissions(path.parent)
+    _platform.secure_write_text(path, json.dumps(asdict(state), indent=2))
 
 
 def create_session(
@@ -92,21 +91,4 @@ def delete_session() -> bool:
     if not path.exists():
         return False
     path.unlink()
-    return True
-
-
-def is_pid_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    # Heuristic: verify cmdline contains daemon signature (Linux only)
-    try:
-        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
-        if b"rdc" not in cmdline:
-            return False
-    except OSError:
-        pass  # non-Linux or permission denied — accept kill-only result
     return True

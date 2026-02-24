@@ -256,7 +256,7 @@ class TestSigtermHandler:
         with (
             patch("rdc.daemon_server.argparse.ArgumentParser") as mock_parser_cls,
             patch("rdc.daemon_server.run_server"),
-            patch("signal.signal") as mock_signal,
+            patch("rdc._platform.signal.signal") as mock_signal,
         ):
             mock_args = SimpleNamespace(
                 host="127.0.0.1",

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import secrets
-import signal
 import socket
 import subprocess
 import sys
@@ -10,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from rdc import _platform
 from rdc.daemon_client import send_request
 from rdc.protocol import goto_request, ping_request, shutdown_request, status_request
 from rdc.session_state import (
@@ -64,6 +63,7 @@ def start_daemon(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True,
+        **_platform.popen_flags(),
     )
 
 
@@ -196,10 +196,7 @@ def close_session() -> tuple[bool, str]:
     try:
         send_request(state.host, state.port, shutdown_request(state.token, request_id=4))
     except Exception:
-        try:
-            os.kill(state.pid, signal.SIGTERM)
-        except OSError:
-            pass
+        _platform.terminate_process(state.pid)
 
     removed = delete_session()
     if not removed:
