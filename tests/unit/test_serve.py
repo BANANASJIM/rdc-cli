@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -72,10 +73,11 @@ class TestFindRenderdoccmd:
     def test_via_env_sibling(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.setattr("rdc.discover.shutil.which", lambda name: None)
         monkeypatch.setattr("rdc.discover._platform.renderdoccmd_search_paths", lambda: [])
-        (tmp_path / "renderdoccmd").touch()
+        name = "renderdoccmd.exe" if sys.platform == "win32" else "renderdoccmd"
+        (tmp_path / name).touch()
         monkeypatch.setenv("RENDERDOC_PYTHON_PATH", str(tmp_path))
         result = find_renderdoccmd()
-        assert result == tmp_path / "renderdoccmd"
+        assert result == tmp_path / name
 
     def test_prefers_which_over_platform(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

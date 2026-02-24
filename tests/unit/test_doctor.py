@@ -359,7 +359,7 @@ class TestCheckRenderdoccmd:
         r = _check_renderdoccmd()
         assert r.ok is True
         assert "v1.33" in r.detail
-        assert "/usr/bin/renderdoccmd" in r.detail
+        assert str(Path("/usr/bin/renderdoccmd")) in r.detail
 
     def test_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("rdc.commands.doctor.find_renderdoccmd", lambda: None)
@@ -378,7 +378,7 @@ class TestCheckRenderdoccmd:
         monkeypatch.setattr("rdc.commands.doctor.subprocess.run", _timeout)
         r = _check_renderdoccmd()
         assert r.ok is True
-        assert "/usr/bin/renderdoccmd" in r.detail
+        assert str(Path("/usr/bin/renderdoccmd")) in r.detail
 
     def test_version_in_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(

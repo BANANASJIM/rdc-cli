@@ -116,11 +116,12 @@ class TestKeepRemoteFlag:
 
 
 class TestRemoteCoreKeepRemote:
-    def test_keep_remote_skips_copy(self) -> None:
+    def test_keep_remote_skips_copy(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """remote_capture with keep_remote=True skips CopyCaptureFromRemote."""
         from rdc.remote_core import remote_capture
 
         rd = MagicMock()
+        monkeypatch.setattr("rdc.capture_core.find_renderdoc", lambda: rd)
         remote = MagicMock()
 
         exec_result = MagicMock()
@@ -157,11 +158,12 @@ class TestRemoteCoreKeepRemote:
         assert result.remote_path == "/remote/tmp/frame.rdc"
         remote.CopyCaptureFromRemote.assert_not_called()
 
-    def test_no_keep_remote_copies(self) -> None:
+    def test_no_keep_remote_copies(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """remote_capture without keep_remote calls CopyCaptureFromRemote."""
         from rdc.remote_core import remote_capture
 
         rd = MagicMock()
+        monkeypatch.setattr("rdc.capture_core.find_renderdoc", lambda: rd)
         remote = MagicMock()
 
         exec_result = MagicMock()
