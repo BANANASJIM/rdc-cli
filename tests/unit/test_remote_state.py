@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -78,6 +79,7 @@ def test_ipv6_host_sanitized_in_filename(tmp_path: Path) -> None:
     assert loaded.host == "::1"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not enforced on NTFS")
 def test_save_creates_restricted_permissions(tmp_path: Path) -> None:
     save_remote_state(_SAMPLE)
     state_dir = tmp_path / ".rdc" / "remote"
