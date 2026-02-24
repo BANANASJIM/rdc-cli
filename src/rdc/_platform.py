@@ -177,5 +177,10 @@ def renderdoccmd_search_paths() -> list[Path]:
             Path("/opt/homebrew/bin/renderdoccmd"),
             Path("/opt/renderdoc/bin/renderdoccmd"),
             Path("/usr/local/bin/renderdoccmd"),
+            Path.home() / ".local" / "renderdoc" / "renderdoccmd",
         ]
-    return [Path("/opt/renderdoc/bin/renderdoccmd"), Path("/usr/local/bin/renderdoccmd")]
+    return [
+        Path("/opt/renderdoc/bin/renderdoccmd"),
+        Path("/usr/local/bin/renderdoccmd"),
+        Path.home() / ".local" / "renderdoc" / "renderdoccmd",
+    ]

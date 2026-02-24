@@ -336,6 +336,38 @@ class TestRenderdoccmdSearchPathsDarwin:
         result = renderdoccmd_search_paths()
         assert Path("/usr/local/bin/renderdoccmd") in result
 
+    def test_includes_local_renderdoc_darwin(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """B42: darwin includes ~/.local/renderdoc/renderdoccmd."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
+        result = renderdoccmd_search_paths()
+        assert tmp_path / ".local" / "renderdoc" / "renderdoccmd" in result
+
+
+class TestRenderdoccmdSearchPathsLinuxB42:
+    """B42: Linux renderdoccmd search paths include ~/.local/renderdoc/renderdoccmd."""
+
+    def test_includes_local_renderdoc_linux(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """B42: linux includes ~/.local/renderdoc/renderdoccmd."""
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
+        result = renderdoccmd_search_paths()
+        assert tmp_path / ".local" / "renderdoc" / "renderdoccmd" in result
+
+    def test_existing_linux_paths_still_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B42: existing linux paths not removed."""
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = renderdoccmd_search_paths()
+        assert Path("/opt/renderdoc/bin/renderdoccmd") in result
+        assert Path("/usr/local/bin/renderdoccmd") in result
+
 
 # ── Group C-mac: is_pid_alive() on darwin ─────────────────────────────
 

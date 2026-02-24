@@ -238,14 +238,20 @@ def _check_mac_homebrew() -> CheckResult:
     """Check if Homebrew is available."""
     if sys.platform != "darwin":
         return CheckResult("mac-homebrew", True, "n/a")
-    if not shutil.which("brew"):
+    brew_path = shutil.which("brew")
+    if not brew_path:
+        for candidate in ("/opt/homebrew/bin/brew", "/usr/local/bin/brew"):
+            if Path(candidate).is_file():
+                brew_path = candidate
+                break
+    if not brew_path:
         return CheckResult(
             "mac-homebrew",
             False,
             "brew not found — install from https://brew.sh",
         )
     try:
-        proc = subprocess.run(["brew", "--version"], capture_output=True, text=True, timeout=5)
+        proc = subprocess.run([brew_path, "--version"], capture_output=True, text=True, timeout=5)
         if proc.returncode != 0:
             detail = proc.stderr.strip() or "brew --version failed"
             return CheckResult("mac-homebrew", False, detail)

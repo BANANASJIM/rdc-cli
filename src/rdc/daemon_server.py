@@ -267,8 +267,8 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
 
     try:
         rd.InitialiseReplay(rd.GlobalEnvironment(), [])
-    except Exception as exc:  # noqa: BLE001
-        return f"InitialiseReplay failed: {exc}"
+    except Exception:  # noqa: BLE001
+        _log.warning("InitialiseReplay skipped for remote replay (no local GPU)")
 
     result, remote = rd.CreateRemoteServerConnection(remote_url)
     if result != rd.ResultCode.Succeeded:

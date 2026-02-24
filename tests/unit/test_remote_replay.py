@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,6 +12,7 @@ import pytest
 from rdc.daemon_server import (
     DaemonState,
     _load_remote_replay,
+    _load_replay,
     _start_ping_thread,
     _stop_ping_thread,
 )
@@ -56,14 +58,40 @@ class TestLoadRemoteReplay:
         assert err is not None
         assert "failed to import renderdoc module" in err
 
-    def test_init_replay_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        rd = MagicMock()
-        rd.InitialiseReplay.side_effect = RuntimeError("init boom")
+    def test_init_replay_fails_continues(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """B39: InitialiseReplay failure does not abort remote replay."""
+        rd, _remote = _make_mock_rd()
+        rd.InitialiseReplay.side_effect = RuntimeError("no local GPU")
         monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
-        state = DaemonState(capture="/tmp/frame.rdc", current_eid=0, token="tok")
-        err = _load_remote_replay(state, "host:39920")
-        assert err is not None
-        assert "InitialiseReplay failed" in err
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        with patch("rdc.daemon_server._init_adapter_state"):
+            err = _load_remote_replay(state, "host:39920")
+
+        assert err is None
+
+    def test_init_replay_failure_logs_warning(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """B39: InitialiseReplay failure emits a warning log."""
+        rd, _remote = _make_mock_rd()
+        rd.InitialiseReplay.side_effect = RuntimeError("no local GPU")
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        with caplog.at_level(logging.WARNING, logger="rdc.daemon"):
+            with patch("rdc.daemon_server._init_adapter_state"):
+                _load_remote_replay(state, "host:39920")
+
+        assert any("InitialiseReplay" in r.message for r in caplog.records)
 
     def test_connection_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rd, _remote = _make_mock_rd(connect_result=1)
@@ -157,6 +185,19 @@ class TestLoadRemoteReplay:
         assert state.adapter is not None
         assert state.cap is not None
         assert state._ping_thread is not None
+
+
+class TestLoadReplayRegressionB39:
+    """B39 regression: _load_replay must still fail on InitialiseReplay error."""
+
+    def test_load_replay_still_fails_on_init_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rd = MagicMock()
+        rd.InitialiseReplay.side_effect = RuntimeError("init boom")
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+        state = DaemonState(capture="/tmp/frame.rdc", current_eid=0, token="tok")
+        err = _load_replay(state)
+        assert err is not None
+        assert "InitialiseReplay failed" in err
 
 
 class TestPingThread:
