@@ -40,6 +40,7 @@ def start_daemon(
     token: str,
     *,
     idle_timeout: int = 1800,
+    remote_url: str | None = None,
 ) -> subprocess.Popen[str]:
     cmd = [
         sys.executable,
@@ -56,7 +57,9 @@ def start_daemon(
         "--idle-timeout",
         str(idle_timeout),
     ]
-    if not _renderdoc_available():
+    if remote_url:
+        cmd += ["--remote-url", remote_url]
+    elif not _renderdoc_available():
         cmd.append("--no-replay")
     return subprocess.Popen(
         cmd,
@@ -87,7 +90,11 @@ def wait_for_ping(
     return False, f"timeout ({timeout_s}s)"
 
 
-def open_session(capture: Path) -> tuple[bool, str]:
+def open_session(
+    capture: str | Path,
+    *,
+    remote_url: str | None = None,
+) -> tuple[bool, str]:
     existing = load_session()
     if existing is not None:
         if is_pid_alive(existing.pid):
@@ -99,7 +106,7 @@ def open_session(capture: Path) -> tuple[bool, str]:
     for _attempt in range(3):
         port = pick_port()
         token = secrets.token_hex(16)
-        proc = start_daemon(str(capture), port, token)
+        proc = start_daemon(str(capture), port, token, remote_url=remote_url)
 
         ok, detail = wait_for_ping(host, port, token, proc=proc)
         if ok:
@@ -122,7 +129,9 @@ def open_session(capture: Path) -> tuple[bool, str]:
         pid=proc.pid,
     )
     msg = f"opened: {capture}"
-    if not _renderdoc_available():
+    if remote_url:
+        msg += f" (remote: {remote_url})"
+    elif not _renderdoc_available():
         msg += " (no-replay mode: renderdoc unavailable)"
     return True, msg
 
@@ -154,12 +163,16 @@ def status_session() -> tuple[bool, dict[str, Any] | str]:
     state.current_eid = int(resp["result"]["current_eid"])
     save_session(state)
 
-    return True, {
+    result: dict[str, Any] = {
         "capture": state.capture,
         "current_eid": state.current_eid,
         "opened_at": state.opened_at,
         "daemon": f"{state.host}:{state.port} pid={state.pid}",
     }
+    daemon_result = resp.get("result", {})
+    if "remote" in daemon_result:
+        result["remote"] = daemon_result["remote"]
+    return True, result
 
 
 def goto_session(eid: int) -> tuple[bool, str]:

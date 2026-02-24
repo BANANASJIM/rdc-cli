@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 
 import click
 
@@ -10,11 +9,18 @@ from rdc.session_state import session_path
 
 
 @click.command("open")
-@click.argument("capture", type=click.Path(path_type=Path))
+@click.argument("capture", type=str)
 @click.option("--preload", is_flag=True, default=False, help="Preload shader cache after open.")
-def open_cmd(capture: Path, preload: bool) -> None:
+@click.option(
+    "--remote",
+    "remote_url",
+    default=None,
+    metavar="HOST[:PORT]",
+    help="Remote host[:port] for remote replay.",
+)
+def open_cmd(capture: str, preload: bool, remote_url: str | None) -> None:
     """Create local default session and start daemon skeleton."""
-    ok, message = open_session(capture)
+    ok, message = open_session(capture, remote_url=remote_url)
     if not ok:
         click.echo(message, err=True)
         raise SystemExit(1)
@@ -44,6 +50,8 @@ def status_cmd() -> None:
     click.echo(f"current_eid: {payload['current_eid']}")
     click.echo(f"opened_at: {payload['opened_at']}")
     click.echo(f"daemon: {payload['daemon']}")
+    if "remote" in payload:
+        click.echo(f"remote: {payload['remote']}")
 
 
 @click.command("goto")

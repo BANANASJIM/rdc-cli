@@ -176,6 +176,10 @@ def _handle_rt_overlay(
 ) -> tuple[dict[str, Any], bool]:
     """Render a debug overlay on the color target and save as PNG."""
     assert state.adapter is not None
+    if state.is_remote:
+        return _error_response(
+            request_id, -32002, "overlay not supported in remote mode (MVP)"
+        ), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
