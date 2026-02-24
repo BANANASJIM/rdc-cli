@@ -35,13 +35,13 @@ def _json_output(result: CompareResult, threshold: float) -> str:
     type=click.Path(dir_okay=False, path_type=Path),
     help="Write diff visualization PNG.",
 )
-@click.option("--json", "output_json", is_flag=True, help="JSON output.")
+@click.option("--json", "use_json", is_flag=True, help="JSON output.")
 def assert_image_cmd(
     expected: Path,
     actual: Path,
     threshold: float,
     diff_output: Path | None,
-    output_json: bool,
+    use_json: bool,
 ) -> None:
     """Compare two images pixel-by-pixel.
 
@@ -54,7 +54,7 @@ def assert_image_cmd(
         click.echo(f"error: {exc}", err=True)
         sys.exit(2)
 
-    if output_json:
+    if use_json:
         click.echo(_json_output(result, threshold))
     elif result.identical:
         click.echo("match")

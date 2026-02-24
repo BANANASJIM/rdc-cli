@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 
 
@@ -14,7 +14,7 @@ from rdc.formatters.json_fmt import write_json
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def shader_encodings_cmd(use_json: bool) -> None:
     """List available shader encodings for this capture."""
-    result = _daemon_call("shader_encodings")
+    result = call("shader_encodings", {})
     if use_json:
         write_json(result)
         return
@@ -39,7 +39,7 @@ def shader_build_cmd(
 ) -> None:
     """Build a shader from source file."""
     source = source_file.read_text("utf-8")
-    result = _daemon_call(
+    result = call(
         "shader_build", {"stage": stage, "entry": entry, "encoding": encoding, "source": source}
     )
     if use_json:
@@ -62,7 +62,7 @@ def shader_build_cmd(
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def shader_replace_cmd(eid: int, stage: str, shader_id: int, use_json: bool) -> None:
     """Replace shader at EID/STAGE with a built shader."""
-    result = _daemon_call("shader_replace", {"eid": eid, "stage": stage, "shader_id": shader_id})
+    result = call("shader_replace", {"eid": eid, "stage": stage, "shader_id": shader_id})
     if use_json:
         write_json(result)
         return
@@ -76,7 +76,7 @@ def shader_replace_cmd(eid: int, stage: str, shader_id: int, use_json: bool) -> 
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def shader_restore_cmd(eid: int, stage: str, use_json: bool) -> None:
     """Restore original shader at EID/STAGE."""
-    result = _daemon_call("shader_restore", {"eid": eid, "stage": stage})
+    result = call("shader_restore", {"eid": eid, "stage": stage})
     if use_json:
         write_json(result)
         return
@@ -87,7 +87,7 @@ def shader_restore_cmd(eid: int, stage: str, use_json: bool) -> None:
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def shader_restore_all_cmd(use_json: bool) -> None:
     """Restore all replaced shaders and free built resources."""
-    result = _daemon_call("shader_restore_all")
+    result = call("shader_restore_all", {})
     if use_json:
         write_json(result)
         return

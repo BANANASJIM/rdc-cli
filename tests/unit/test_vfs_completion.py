@@ -29,7 +29,7 @@ _DRAW_142_CHILDREN = [
 
 
 def _patch(monkeypatch, children: list[dict]) -> None:
-    monkeypatch.setattr(vfs_mod, "_daemon_call", lambda method, params=None: {"children": children})
+    monkeypatch.setattr(vfs_mod, "call", lambda method, params=None: {"children": children})
 
 
 def _values(items: list[CompletionItem]) -> list[str]:
@@ -65,7 +65,7 @@ def test_complete_nested_dir(monkeypatch) -> None:
             called_with.append(params)
         return {"children": _DRAWS_CHILDREN}
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/draws/")
     assert called_with[0]["path"] == "/draws"
     values = _values(result)
@@ -109,7 +109,7 @@ def test_complete_no_session(monkeypatch) -> None:
     def fake_call(method: str, params: dict | None = None) -> dict:
         raise SystemExit(1)
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/d")
     assert result == []
 

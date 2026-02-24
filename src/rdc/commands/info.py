@@ -9,23 +9,9 @@ import click
 
 from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.kv import write_kv
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
-
-
-def _daemon_call(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Backward-compatible wrapper around call() for other command modules."""
-    return call(method, params or {})
-
-
-def _format_kv(data: dict[str, Any], out: Any = None) -> None:
-    dest = out or sys.stdout
-    max_key = max((len(str(k)) for k in data), default=0)
-    for key, value in data.items():
-        if value is None or value == "":
-            value = "-"
-        label = str(key) + ":"
-        dest.write(f"{label:<{max_key + 2}}{value}" + chr(10))
 
 
 @click.command("info")
@@ -36,7 +22,7 @@ def info_cmd(use_json: bool) -> None:
     if use_json:
         write_json(result)
         return
-    _format_kv(result)
+    write_kv(result)
 
 
 @click.command("stats")

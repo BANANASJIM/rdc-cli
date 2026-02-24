@@ -6,7 +6,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 
 
@@ -21,7 +21,7 @@ def pick_pixel_cmd(x: int, y: int, eid: int | None, target: int, use_json: bool)
     params: dict[str, Any] = {"x": x, "y": y, "target": target}
     if eid is not None:
         params["eid"] = eid
-    result = _daemon_call("pick_pixel", params)
+    result = call("pick_pixel", params)
     if use_json:
         write_json(result)
         return

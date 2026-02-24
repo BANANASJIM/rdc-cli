@@ -39,6 +39,19 @@ def test_assert_call_rpc_error(monkeypatch: Any) -> None:
         mod._assert_call("count")
 
 
+def test_assert_call_unexpected_exception_propagates(monkeypatch: Any) -> None:
+    """Unexpected exceptions (e.g. AttributeError) must not be caught by _assert_call."""
+    session = MagicMock(host="localhost", port=9876, token="tok")
+    monkeypatch.setattr(mod, "load_session", lambda: session)
+    monkeypatch.setattr(
+        mod,
+        "send_request",
+        MagicMock(side_effect=AttributeError("unexpected")),
+    )
+    with pytest.raises(AttributeError, match="unexpected"):
+        mod._assert_call("count")
+
+
 def test_assert_call_success(monkeypatch: Any) -> None:
     session = MagicMock(host="localhost", port=9876, token="tok")
     monkeypatch.setattr(mod, "load_session", lambda: session)

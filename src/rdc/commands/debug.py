@@ -6,7 +6,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 
 
@@ -97,7 +97,7 @@ def pixel_cmd(
     if primitive is not None:
         params["primitive"] = primitive
 
-    result = _daemon_call("debug_pixel", params)
+    result = call("debug_pixel", params)
     _check_debug_result(result)
 
     if use_json:
@@ -150,7 +150,7 @@ def thread_cmd(
         "ty": ty,
         "tz": tz,
     }
-    result = _daemon_call("debug_thread", params)
+    result = call("debug_thread", params)
     _check_debug_result(result)
 
     if use_json:
@@ -188,7 +188,7 @@ def vertex_cmd(
     """Debug vertex shader for vertex VTX_ID at event EID."""
     params: dict[str, Any] = {"eid": eid, "vtx_id": vtx_id, "instance": instance}
 
-    result = _daemon_call("debug_vertex", params)
+    result = call("debug_vertex", params)
     _check_debug_result(result)
 
     if use_json:

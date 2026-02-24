@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.commands.vfs import _fmt_pixel_mod
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
@@ -37,7 +37,7 @@ def pixel_cmd(
     if eid is not None:
         params["eid"] = eid
 
-    result = _daemon_call("pixel_history", params)
+    result = call("pixel_history", params)
 
     if use_json:
         write_json(result)

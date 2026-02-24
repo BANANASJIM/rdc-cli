@@ -25,7 +25,7 @@ _MESH_RESPONSE: dict[str, Any] = {
 
 class TestMeshCmd:
     def test_mesh_default_obj(self, monkeypatch: Any) -> None:
-        monkeypatch.setattr("rdc.commands.mesh._daemon_call", lambda m, p: _MESH_RESPONSE)
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: _MESH_RESPONSE)
         runner = CliRunner()
         result = runner.invoke(mesh_cmd, [])
         assert result.exit_code == 0
@@ -38,7 +38,7 @@ class TestMeshCmd:
         assert "f 1 2 3" in result.output
 
     def test_mesh_json_output(self, monkeypatch: Any) -> None:
-        monkeypatch.setattr("rdc.commands.mesh._daemon_call", lambda m, p: dict(_MESH_RESPONSE))
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: dict(_MESH_RESPONSE))
         runner = CliRunner()
         result = runner.invoke(mesh_cmd, ["--json"])
         assert result.exit_code == 0
@@ -48,7 +48,7 @@ class TestMeshCmd:
         assert data["face_count"] == 1
 
     def test_mesh_file_output(self, monkeypatch: Any, tmp_path: Any) -> None:
-        monkeypatch.setattr("rdc.commands.mesh._daemon_call", lambda m, p: _MESH_RESPONSE)
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: _MESH_RESPONSE)
         out = tmp_path / "mesh.obj"
         runner = CliRunner()
         result = runner.invoke(mesh_cmd, ["-o", str(out)])
@@ -60,7 +60,7 @@ class TestMeshCmd:
         assert "3 vertices" in result.output  # stderr summary
 
     def test_mesh_no_header(self, monkeypatch: Any) -> None:
-        monkeypatch.setattr("rdc.commands.mesh._daemon_call", lambda m, p: _MESH_RESPONSE)
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: _MESH_RESPONSE)
         runner = CliRunner()
         result = runner.invoke(mesh_cmd, ["--no-header"])
         assert result.exit_code == 0
@@ -75,7 +75,7 @@ class TestMeshCmd:
             calls.append((method, params))
             return _MESH_RESPONSE
 
-        monkeypatch.setattr("rdc.commands.mesh._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.mesh.call", mock_call)
         runner = CliRunner()
         result = runner.invoke(mesh_cmd, ["--stage", "gs-out"])
         assert result.exit_code == 0

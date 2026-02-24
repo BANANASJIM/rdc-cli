@@ -53,8 +53,8 @@ def test_require_session_json_error(monkeypatch: Any) -> None:
     monkeypatch.setattr(helpers_mod, "load_session", lambda: None)
 
     @click.command("dummy")
-    @click.option("--json", "output_json", is_flag=True)
-    def cmd(output_json: bool) -> None:
+    @click.option("--json", "use_json", is_flag=True)
+    def cmd(use_json: bool) -> None:
         require_session()
 
     runner = CliRunner()
@@ -102,8 +102,8 @@ def test_call_oserror_json_error(monkeypatch: Any) -> None:
     monkeypatch.setattr(helpers_mod, "send_request", _raise_oserror)
 
     @click.command("dummy")
-    @click.option("--json", "output_json", is_flag=True)
-    def cmd(output_json: bool) -> None:
+    @click.option("--json", "use_json", is_flag=True)
+    def cmd(use_json: bool) -> None:
         call("ping", {})
 
     runner = CliRunner()
@@ -154,8 +154,8 @@ def test_call_daemon_error_json(monkeypatch: Any) -> None:
     )
 
     @click.command("dummy")
-    @click.option("--json", "output_json", is_flag=True)
-    def cmd(output_json: bool) -> None:
+    @click.option("--json", "use_json", is_flag=True)
+    def cmd(use_json: bool) -> None:
         call("ping", {})
 
     runner = CliRunner()

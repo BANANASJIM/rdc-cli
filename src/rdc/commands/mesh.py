@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 
 
@@ -34,7 +34,7 @@ def mesh_cmd(
     if eid is not None:
         params["eid"] = eid
 
-    result = _daemon_call("mesh_data", params)
+    result = call("mesh_data", params)
 
     if use_json:
         faces = _generate_faces(result["vertex_count"], result["indices"], result["topology"])

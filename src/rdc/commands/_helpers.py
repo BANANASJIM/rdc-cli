@@ -12,7 +12,7 @@ from rdc.discover import find_renderdoc
 from rdc.protocol import _request
 from rdc.session_state import load_session
 
-__all__ = ["require_session", "require_renderdoc", "call", "_json_mode"]
+__all__ = ["require_session", "require_renderdoc", "call", "try_call", "_json_mode"]
 
 
 def _json_mode() -> bool:
@@ -21,7 +21,7 @@ def _json_mode() -> bool:
     if ctx is None:
         return False
     params = ctx.params
-    return bool(params.get("use_json") or params.get("output_json") or params.get("as_json"))
+    return bool(params.get("use_json"))
 
 
 def require_renderdoc() -> Any:
@@ -93,3 +93,23 @@ def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
             click.echo(f"error: {msg}", err=True)
         raise SystemExit(1)
     return cast(dict[str, Any], response["result"])
+
+
+def try_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
+    """Send a JSON-RPC request, returning None on failure.
+
+    Unlike call(), this never exits -- failures are silent.
+    Use for optional features where partial success is acceptable.
+    """
+    try:
+        host, port, token = require_session()
+    except SystemExit:
+        return None
+    payload = _request(method, 1, {"_token": token, **params}).to_dict()
+    try:
+        response = send_request(host, port, payload)
+    except (OSError, ValueError):
+        return None
+    if "error" in response:
+        return None
+    return cast(dict[str, Any], response.get("result", {}))

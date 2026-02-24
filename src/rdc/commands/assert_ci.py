@@ -75,7 +75,7 @@ def _assert_call(method: str, params: dict[str, Any] | None = None) -> dict[str,
     payload = _request(method, 1, {"_token": session.token, **(params or {})}).to_dict()
     try:
         resp = send_request(session.host, session.port, payload)
-    except Exception as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         msg = f"daemon unreachable: {exc}"
         if _json_mode():
             click.echo(json.dumps({"error": {"message": msg}}), err=True)
@@ -138,9 +138,9 @@ def _normalize_value(v: Any) -> str:
 @click.option("--expect", required=True, help="Expected RGBA as 4 space-separated floats.")
 @click.option("--tolerance", default=0.01, type=float, help="Per-channel tolerance.")
 @click.option("--target", default=0, type=int, help="Render target index.")
-@click.option("--json", "output_json", is_flag=True, help="JSON output.")
+@click.option("--json", "use_json", is_flag=True, help="JSON output.")
 def assert_pixel_cmd(
-    eid: int, x: int, y: int, expect: str, tolerance: float, target: int, output_json: bool
+    eid: int, x: int, y: int, expect: str, tolerance: float, target: int, use_json: bool
 ) -> None:
     """Assert pixel RGBA at (x, y) matches expected value within tolerance."""
     parts = expect.split()
@@ -163,7 +163,7 @@ def assert_pixel_cmd(
 
     passed = all(round(abs(a - e), 10) <= tolerance for a, e in zip(actual, expected, strict=True))
 
-    if output_json:
+    if use_json:
         click.echo(
             json.dumps(
                 {
@@ -200,8 +200,8 @@ def assert_pixel_cmd(
     type=click.Choice(["HIGH", "MEDIUM", "LOW", "INFO"], case_sensitive=False),
     help="Minimum severity threshold.",
 )
-@click.option("--json", "output_json", is_flag=True, help="JSON output.")
-def assert_clean_cmd(min_severity: str, output_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, help="JSON output.")
+def assert_clean_cmd(min_severity: str, use_json: bool) -> None:
     """Assert capture log has no messages at or above given severity."""
     min_severity = min_severity.upper()
     result = _assert_call("log")
@@ -213,7 +213,7 @@ def assert_clean_cmd(min_severity: str, output_json: bool) -> None:
 
     passed = len(violations) == 0
 
-    if output_json:
+    if use_json:
         click.echo(
             json.dumps(
                 {
@@ -249,13 +249,13 @@ def assert_clean_cmd(min_severity: str, output_json: bool) -> None:
     help="Comparison operator.",
 )
 @click.option("--pass", "pass_name", default=None, help="Filter by render pass name.")
-@click.option("--json", "output_json", is_flag=True, help="JSON output.")
+@click.option("--json", "use_json", is_flag=True, help="JSON output.")
 def assert_count_cmd(
     what: str,
     expect: int,
     op: str,
     pass_name: str | None,
-    output_json: bool,
+    use_json: bool,
 ) -> None:
     """Assert a capture metric satisfies a numeric comparison."""
     params: dict[str, Any] = {"what": what}
@@ -266,7 +266,7 @@ def assert_count_cmd(
     actual: int = result["value"]
     passed = _OPS[op](actual, expect)
 
-    if output_json:
+    if use_json:
         click.echo(
             json.dumps(
                 {
@@ -295,8 +295,8 @@ def assert_count_cmd(
 @click.argument("eid", type=int)
 @click.argument("key_path", metavar="KEY_PATH")
 @click.option("--expect", required=True, help="Expected value.")
-@click.option("--json", "output_json", is_flag=True, help="JSON output.")
-def assert_state_cmd(eid: int, key_path: str, expect: str, output_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, help="JSON output.")
+def assert_state_cmd(eid: int, key_path: str, expect: str, use_json: bool) -> None:
     """Assert pipeline state value at EID matches expected."""
     section, field_path = _parse_key_path(key_path)
     if section not in _VALID_SECTIONS:
@@ -318,7 +318,7 @@ def assert_state_cmd(eid: int, key_path: str, expect: str, output_json: bool) ->
 
     passed = actual_str == expect_str
 
-    if output_json:
+    if use_json:
         click.echo(
             json.dumps(
                 {

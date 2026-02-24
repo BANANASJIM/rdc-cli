@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
@@ -34,7 +34,7 @@ def counters_cmd(
     to fetch counter values for all draw events.
     """
     if show_list:
-        result = _daemon_call("counter_list")
+        result = call("counter_list", {})
         if use_json:
             write_json(result)
             return
@@ -55,7 +55,7 @@ def counters_cmd(
         params["eid"] = eid
     if name_filter is not None:
         params["name"] = name_filter
-    result = _daemon_call("counter_fetch", params)
+    result = call("counter_fetch", params)
     if use_json:
         write_json(result)
         return

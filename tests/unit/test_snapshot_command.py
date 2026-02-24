@@ -11,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 
 from rdc.cli import main
+from rdc.commands import _helpers as helpers_mod
 from rdc.commands import snapshot as snap_mod
 
 _PIPELINE_RESPONSE = {"eid": 142, "row": {"stages": []}}
@@ -92,8 +93,8 @@ class TestSnapshotHappyPath:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 
@@ -120,8 +121,8 @@ class TestSnapshotHappyPath:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 
@@ -135,8 +136,8 @@ class TestSnapshotHappyPath:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir), "--json"])
 
@@ -156,8 +157,8 @@ class TestSnapshotPartialFailures:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 
@@ -172,8 +173,8 @@ class TestSnapshotPartialFailures:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 
@@ -188,8 +189,8 @@ class TestSnapshotPartialFailures:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 
@@ -204,8 +205,8 @@ class TestSnapshotPartialFailures:
 
         with (
             patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=mock_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
         ):
             result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
 
@@ -238,39 +239,69 @@ class TestSnapshotFatalFailures:
         assert "no active session" in result.output
 
 
-class TestTryCallSilent:
-    """Verify _try_call returns None without stderr noise on daemon errors."""
+class TestTryCall:
+    """Verify try_call() returns result on success and None on failure."""
 
-    def test_error_response_no_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Daemon error response returns None with no stderr output."""
-
-        def fake_sr(host: str, port: int, payload: dict[str, Any], **_kw: Any) -> dict[str, Any]:
-            return {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "error": {"code": -1, "message": "target index 2 out of range"},
-            }
-
+    def test_success_returns_result(self) -> None:
         with (
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=fake_sr),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(
+                helpers_mod,
+                "send_request",
+                return_value={"result": {"key": "val"}},
+            ),
         ):
-            result = snap_mod._try_call("rt_export", {"eid": 1, "target": 2})
+            result = helpers_mod.try_call("method", {"a": 1})
+
+        assert result == {"key": "val"}
+
+    def test_session_missing_returns_none(self) -> None:
+        with patch.object(helpers_mod, "require_session", side_effect=SystemExit(1)):
+            result = helpers_mod.try_call("method", {})
+
+        assert result is None
+
+    def test_oserror_returns_none(self) -> None:
+        with (
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=OSError("refused")),
+        ):
+            result = helpers_mod.try_call("method", {})
+
+        assert result is None
+
+    def test_valueerror_returns_none(self) -> None:
+        with (
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=ValueError("bad")),
+        ):
+            result = helpers_mod.try_call("method", {})
+
+        assert result is None
+
+    def test_error_response_returns_none(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with (
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(
+                helpers_mod,
+                "send_request",
+                return_value={"error": {"code": -1, "message": "fail"}},
+            ),
+        ):
+            result = helpers_mod.try_call("rt_export", {"eid": 1, "target": 2})
 
         assert result is None
         captured = capsys.readouterr()
         assert "error" not in captured.err
-        assert "out of range" not in captured.err
 
-    def test_oserror_returns_none_silently(self) -> None:
-        """OSError in send_request is swallowed silently."""
+    def test_empty_result_returns_empty_dict(self) -> None:
         with (
-            patch.object(snap_mod, "require_session", return_value=_SESSION),
-            patch.object(snap_mod, "send_request", side_effect=OSError("conn refused")),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", return_value={}),
         ):
-            result = snap_mod._try_call("rt_export", {"eid": 1, "target": 5})
+            result = helpers_mod.try_call("method", {})
 
-        assert result is None
+        assert result == {}
 
 
 class TestSnapshotCLI:

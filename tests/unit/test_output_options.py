@@ -54,10 +54,10 @@ def test_decorator_defaults_false() -> None:
 
 def test_decorator_preserves_other_options() -> None:
     @click.command("test-cmd")
-    @click.option("--json", "as_json", is_flag=True)
+    @click.option("--json", "use_json", is_flag=True)
     @list_output_options
-    def cmd(as_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
-        click.echo(f"json={as_json},quiet={quiet}")
+    def cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
+        click.echo(f"json={use_json},quiet={quiet}")
 
     result = CliRunner().invoke(cmd, ["--json", "-q"])
     assert result.exit_code == 0

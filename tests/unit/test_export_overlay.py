@@ -25,7 +25,7 @@ class TestRtOverlay:
             calls.append((method, dict(params) if params else {}))
             return dict(_OVERLAY_RESPONSE)
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
         runner = click.testing.CliRunner()
         result = runner.invoke(rt_cmd, ["10", "--overlay", "wireframe"])
         assert result.exit_code == 0
@@ -44,7 +44,7 @@ class TestRtOverlay:
         def mock_copy2(src: str, dst: str) -> None:
             copy_calls.append((src, dst))
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
         monkeypatch.setattr("rdc.commands.export.shutil.copy2", mock_copy2)
         runner = click.testing.CliRunner()
         result = runner.invoke(rt_cmd, ["10", "--overlay", "wireframe", "-o", "out.png"])
@@ -63,7 +63,7 @@ class TestRtOverlay:
             calls.append((method, dict(params) if params else {}))
             return dict(_OVERLAY_RESPONSE)
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
         runner = click.testing.CliRunner()
         result = runner.invoke(
             rt_cmd, ["--overlay", "wireframe", "--width", "512", "--height", "512"]
@@ -84,8 +84,8 @@ class TestRtOverlay:
             temp.write_bytes(b"\x89PNG" + b"\x00" * 50)
             return {"path": str(temp), "size": 54}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock_call)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         out_file = tmp_path / "rt.png"
         runner = click.testing.CliRunner()

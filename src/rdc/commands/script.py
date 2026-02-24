@@ -34,8 +34,8 @@ def _parse_args(raw: tuple[str, ...]) -> dict[str, str]:
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
 @click.option("--arg", "args", multiple=True, metavar="KEY=VALUE", help="Script argument.")
-@click.option("--json", "output_json", is_flag=True, help="Raw JSON output.")
-def script_cmd(script_file: Path, args: tuple[str, ...], output_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, help="Raw JSON output.")
+def script_cmd(script_file: Path, args: tuple[str, ...], use_json: bool) -> None:
     """Execute a Python script inside the daemon process.
 
     The script runs with these variables pre-injected:
@@ -57,7 +57,7 @@ def script_cmd(script_file: Path, args: tuple[str, ...], output_json: bool) -> N
 
     result = call("script", params)
 
-    if output_json:
+    if use_json:
         click.echo(json.dumps(result))
         return
 

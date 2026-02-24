@@ -199,7 +199,7 @@ def _patch(monkeypatch: Any, response: dict[str, Any]) -> None:
         _captured_params["params"] = params
         return response
 
-    monkeypatch.setattr(debug_mod, "_daemon_call", fake_daemon_call)
+    monkeypatch.setattr(debug_mod, "call", fake_daemon_call)
 
 
 # ---------------------------------------------------------------------------

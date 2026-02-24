@@ -6,14 +6,14 @@ import shutil
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.commands.vfs import _deliver_binary
 from rdc.vfs.router import resolve_path
 
 
 def _export_vfs_path(vfs_path: str, output: str | None, raw: bool) -> None:
     """Resolve a VFS path and deliver binary content."""
-    result = _daemon_call("vfs_ls", {"path": vfs_path})
+    result = call("vfs_ls", {"path": vfs_path})
     kind = result.get("kind")
 
     if kind != "leaf_bin":
@@ -79,7 +79,7 @@ def rt_cmd(
         params: dict[str, object] = {"overlay": overlay, "width": width, "height": height}
         if eid is not None:
             params["eid"] = eid
-        result = _daemon_call("rt_overlay", params)
+        result = call("rt_overlay", params)
         src_path = result["path"]
         if output:
             shutil.copy2(src_path, output)

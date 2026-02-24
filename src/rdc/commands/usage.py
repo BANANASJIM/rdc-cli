@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
@@ -41,7 +41,7 @@ def usage_cmd(
             params["type"] = res_type
         if usage_filter is not None:
             params["usage"] = usage_filter
-        result = _daemon_call("usage_all", params)
+        result = call("usage_all", params)
         if use_json:
             write_json(result)
             return
@@ -60,7 +60,7 @@ def usage_cmd(
         click.echo("error: provide RESOURCE_ID or use --all", err=True)
         raise SystemExit(1)
 
-    result = _daemon_call("usage", {"id": resource_id})
+    result = call("usage", {"id": resource_id})
     if use_json:
         write_json(result)
         return

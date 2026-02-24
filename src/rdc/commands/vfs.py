@@ -11,23 +11,11 @@ from typing import Any
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.kv import format_kv
 from rdc.vfs.formatter import render_ls, render_ls_long, render_tree_root
 from rdc.vfs.router import resolve_path
-
-
-def _kv_text(data: dict[str, Any]) -> str:
-    if not isinstance(data, dict) or not data:
-        return str(data)
-    max_key = max(len(str(k)) for k in data)
-    lines: list[str] = []
-    for k, v in data.items():
-        if v is None or v == "":
-            v = "-"
-        label = str(k) + ":"
-        lines.append(f"{label:<{max_key + 2}}{v}")
-    return "\n".join(lines)
 
 
 def _fmt_log(data: dict[str, Any]) -> str:
@@ -48,20 +36,20 @@ def _fmt_pixel_mod(m: dict[str, Any]) -> str:
 
 
 _EXTRACTORS: dict[str, Callable[..., str]] = {
-    "info": lambda r: _kv_text(r),
-    "stats": lambda r: _kv_text(r),
-    "event": lambda r: _kv_text(r),
-    "pass": lambda r: _kv_text(r),
-    "resource": lambda r: _kv_text(r.get("resource", r)),
-    "pipeline": lambda r: _kv_text(r.get("row", r)),
+    "info": lambda r: format_kv(r),
+    "stats": lambda r: format_kv(r),
+    "event": lambda r: format_kv(r),
+    "pass": lambda r: format_kv(r),
+    "resource": lambda r: format_kv(r.get("resource", r)),
+    "pipeline": lambda r: format_kv(r.get("row", r)),
     "shader_disasm": lambda r: r.get("disasm", ""),
     "shader_source": lambda r: r.get("source", r.get("disasm", "")),
-    "shader_reflect": lambda r: _kv_text(r),
-    "shader_constants": lambda r: _kv_text(r),
+    "shader_reflect": lambda r: format_kv(r),
+    "shader_constants": lambda r: format_kv(r),
     "log": lambda r: _fmt_log(r),
-    "tex_info": lambda r: _kv_text(r),
-    "buf_info": lambda r: _kv_text(r),
-    "shader_list_info": lambda r: _kv_text(r),
+    "tex_info": lambda r: format_kv(r),
+    "buf_info": lambda r: format_kv(r),
+    "shader_list_info": lambda r: format_kv(r),
     "shader_list_disasm": lambda r: r.get("disasm", ""),
     "usage": lambda r: (
         "EID\tUSAGE\n" + "\n".join(f"{e['eid']}\t{e['usage']}" for e in r.get("entries", []))
@@ -100,7 +88,7 @@ def _complete_vfs_path(
         prefix = incomplete
 
     try:
-        result = _daemon_call("vfs_ls", {"path": dir_path})
+        result = call("vfs_ls", {"path": dir_path})
     except SystemExit:
         return []
 
@@ -140,7 +128,7 @@ def ls_cmd(
     if use_long:
         params["long"] = True
 
-    result = _daemon_call("vfs_ls", params)
+    result = call("vfs_ls", params)
     if result.get("kind") != "dir":
         click.echo(f"error: {path}: Not a directory", err=True)
         raise SystemExit(1)
@@ -180,7 +168,7 @@ def _deliver_binary(path: str, match: Any, raw: bool, output: str | None) -> Non
         )
         raise SystemExit(1)
 
-    content_result = _daemon_call(match.handler, match.args)
+    content_result = call(match.handler, match.args)
     temp_path = content_result.get("path")
     if temp_path is None:
         click.echo(f"error: {path}: handler did not return file path", err=True)
@@ -209,7 +197,7 @@ def _deliver_binary(path: str, match: Any, raw: bool, output: str | None) -> Non
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write binary output to file")
 def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
     """Output VFS leaf node content."""
-    result = _daemon_call("vfs_ls", {"path": path})
+    result = call("vfs_ls", {"path": path})
     kind = result.get("kind")
     resolved_path = result.get("path", path)
 
@@ -229,7 +217,7 @@ def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
         _deliver_binary(path, match, raw, output)
         return
 
-    content_result = _daemon_call(match.handler, match.args)
+    content_result = call(match.handler, match.args)
 
     if use_json:
         write_json(content_result)
@@ -239,7 +227,7 @@ def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
     if extractor:
         click.echo(extractor(content_result))
     else:
-        click.echo(_kv_text(content_result))
+        click.echo(format_kv(content_result))
 
 
 @click.command("tree")
@@ -248,7 +236,7 @@ def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def tree_cmd(path: str, depth: int, use_json: bool) -> None:
     """Display VFS subtree structure."""
-    result = _daemon_call("vfs_tree", {"path": path, "depth": depth})
+    result = call("vfs_tree", {"path": path, "depth": depth})
     if use_json:
         write_json(result)
         return
@@ -268,7 +256,7 @@ def complete_cmd(partial: str) -> None:
         prefix = partial
 
     try:
-        result = _daemon_call("vfs_ls", {"path": dir_path})
+        result = call("vfs_ls", {"path": dir_path})
     except SystemExit:
         return
 
