@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import secrets
+import signal
 import socket
 import subprocess
 import sys
@@ -93,12 +95,15 @@ def open_session(capture: Path) -> tuple[bool, str]:
         delete_session()
 
     host = "127.0.0.1"
-    port = pick_port()
-    token = secrets.token_hex(16)
-    proc = start_daemon(str(capture), port, token)
+    detail = "unknown error"
+    for _attempt in range(3):
+        port = pick_port()
+        token = secrets.token_hex(16)
+        proc = start_daemon(str(capture), port, token)
 
-    ok, detail = wait_for_ping(host, port, token, proc=proc)
-    if not ok:
+        ok, detail = wait_for_ping(host, port, token, proc=proc)
+        if ok:
+            break
         proc.kill()
         try:
             _, stderr = proc.communicate(timeout=5)
@@ -106,6 +111,7 @@ def open_session(capture: Path) -> tuple[bool, str]:
             stderr = ""
         if stderr and stderr.strip():
             detail = stderr.strip()
+    else:
         return False, f"error: daemon failed to start ({detail})"
 
     create_session(
@@ -115,7 +121,10 @@ def open_session(capture: Path) -> tuple[bool, str]:
         token=token,
         pid=proc.pid,
     )
-    return True, f"opened: {capture}"
+    msg = f"opened: {capture}"
+    if not _renderdoc_available():
+        msg += " (no-replay mode: renderdoc unavailable)"
+    return True, msg
 
 
 def _load_live_session() -> tuple[SessionState | None, str | None]:
@@ -187,7 +196,10 @@ def close_session() -> tuple[bool, str]:
     try:
         send_request(state.host, state.port, shutdown_request(state.token, request_id=4))
     except Exception:
-        pass
+        try:
+            os.kill(state.pid, signal.SIGTERM)
+        except OSError:
+            pass
 
     removed = delete_session()
     if not removed:

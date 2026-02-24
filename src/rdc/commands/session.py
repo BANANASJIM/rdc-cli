@@ -19,6 +19,8 @@ def open_cmd(capture: Path, preload: bool) -> None:
         click.echo(message, err=True)
         raise SystemExit(1)
     click.echo(message)
+    if "no-replay mode" in message:
+        click.echo("warning: queries requiring replay will fail", err=True)
     click.echo(f"session: {session_path()}")
     if preload:
         from rdc.commands._helpers import call

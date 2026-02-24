@@ -183,3 +183,91 @@ def test_start_daemon_idle_timeout_default(monkeypatch: pytest.MonkeyPatch) -> N
     session_service.start_daemon("test.rdc", 9999, "tok")
     idx = captured_cmd.index("--idle-timeout")
     assert captured_cmd[idx + 1] == "1800"
+
+
+def test_open_session_retries_on_port_conflict(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """B22: open_session retries up to 3 times on daemon start failure."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr(session_service, "load_session", lambda: None)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    attempt_count = [0]
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    mock_proc.kill.return_value = None
+    mock_proc.communicate.return_value = ("", "")
+
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+
+    def fake_ping(*a: object, **kw: object) -> tuple[bool, str]:
+        attempt_count[0] += 1
+        if attempt_count[0] < 3:
+            return False, "port in use"
+        return True, ""
+
+    monkeypatch.setattr(session_service, "wait_for_ping", fake_ping)
+
+    ok, msg = session_service.open_session(Path("test.rdc"))
+    assert ok is True
+    assert attempt_count[0] == 3
+
+
+def test_open_session_all_retries_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """B22: open_session returns error after 3 failed attempts."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr(session_service, "load_session", lambda: None)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    mock_proc.kill.return_value = None
+    mock_proc.communicate.return_value = ("", "")
+
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (False, "port in use"))
+
+    ok, msg = session_service.open_session(Path("test.rdc"))
+    assert ok is False
+    assert "daemon failed to start" in msg
+
+
+def test_close_session_fallback_kill_on_shutdown_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """B25: close_session sends SIGTERM as fallback when shutdown RPC fails."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    # Open a session first
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (True, ""))
+
+    ok, _ = session_service.open_session(Path("test.rdc"))
+    assert ok is True
+
+    # Now make send_request raise
+    def raise_oserror(*a: object, **kw: object) -> None:
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(session_service, "send_request", raise_oserror)
+
+    killed_pids: list[int] = []
+
+    def fake_kill(pid: int, sig: int) -> None:
+        killed_pids.append(pid)
+
+    import os as _os
+
+    monkeypatch.setattr(_os, "kill", fake_kill)
+    monkeypatch.setattr(session_service, "is_pid_alive", lambda pid: True)
+
+    ok, msg = session_service.close_session()
+    assert ok is True
+    assert killed_pids
