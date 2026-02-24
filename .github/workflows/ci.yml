@@ -6,6 +6,7 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [master, main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -120,6 +121,29 @@ jobs:
       - name: Pytest + coverage
         run: uv run --python ${{ matrix.python-version }} pytest tests/unit -v --cov=rdc --cov-report=term-missing --cov-fail-under=80
 
+  # macOS runners cost ~10x vs Linux — only run on manual dispatch or tag releases
+  test-macos:
+    name: Test (py3.12, macos-latest)
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        run: uv python install 3.12
+
+      - name: Sync deps
+        run: uv sync --extra dev --python 3.12
+
+      - name: Pytest + coverage
+        run: uv run --python 3.12 pytest tests/unit -v --cov=rdc --cov-report=term-missing --cov-fail-under=80
+
   build-and-verify:
     name: Build & verify (py${{ matrix.python-version }})
     needs: [lint, typecheck, test]
@@ -174,7 +198,7 @@ jobs:
   release:
     name: Publish to PyPI + GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-and-verify]
+    needs: [build-and-verify, test-macos]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

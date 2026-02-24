@@ -46,6 +46,14 @@ def _make_build_hint(platform: str) -> str:
             "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
             "  Then re-run: rdc doctor"
         )
+    if platform == "darwin":
+        return (
+            "  renderdoc is not available on PyPI and must be built from source.\n"
+            "  Build prerequisites: brew install cmake ninja\n"
+            "  Build script: python scripts/build_renderdoc.py\n"
+            "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+            "  Then re-run: rdc doctor"
+        )
     return (
         "  renderdoc is not available on PyPI and must be built from source.\n"
         "  Quick build script (no pixi required):\n"
@@ -210,6 +218,58 @@ def _check_win_renderdoc_install() -> CheckResult:
     )
 
 
+# ── macOS-specific checks ─────────────────────────────────────────────
+
+
+def _check_mac_xcode_cli() -> CheckResult:
+    """Verify Xcode Command Line Tools are installed."""
+    if sys.platform != "darwin":
+        return CheckResult("mac-xcode-cli", True, "n/a")
+    try:
+        proc = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, timeout=3)
+        if proc.returncode == 0:
+            return CheckResult("mac-xcode-cli", True, proc.stdout.strip())
+        return CheckResult("mac-xcode-cli", False, "not installed — run: xcode-select --install")
+    except Exception:  # noqa: BLE001
+        return CheckResult("mac-xcode-cli", False, "not installed — run: xcode-select --install")
+
+
+def _check_mac_homebrew() -> CheckResult:
+    """Check if Homebrew is available."""
+    if sys.platform != "darwin":
+        return CheckResult("mac-homebrew", True, "n/a")
+    if not shutil.which("brew"):
+        return CheckResult(
+            "mac-homebrew",
+            False,
+            "brew not found — install from https://brew.sh",
+        )
+    try:
+        proc = subprocess.run(["brew", "--version"], capture_output=True, text=True, timeout=5)
+        if proc.returncode != 0:
+            detail = proc.stderr.strip() or "brew --version failed"
+            return CheckResult("mac-homebrew", False, detail)
+        version = proc.stdout.strip().split("\n")[0] if proc.stdout else "unknown"
+        return CheckResult("mac-homebrew", True, version)
+    except Exception:  # noqa: BLE001
+        return CheckResult("mac-homebrew", False, "brew found but version check failed")
+
+
+def _check_mac_renderdoc_dylib() -> CheckResult:
+    """Look for renderdoc shared library in platform search paths."""
+    if sys.platform != "darwin":
+        return CheckResult("mac-renderdoc-dylib", True, "n/a")
+
+    from rdc import _platform
+
+    for search_dir in _platform.renderdoc_search_paths():
+        for name in ("renderdoc.so", "librenderdoc.dylib"):
+            p = Path(search_dir) / name
+            if p.exists():
+                return CheckResult("mac-renderdoc-dylib", True, str(p))
+    return CheckResult("mac-renderdoc-dylib", False, "renderdoc library not found in search paths")
+
+
 def run_doctor() -> list[CheckResult]:
     """Run all environment checks and return results."""
     module, renderdoc_check = _import_renderdoc()
@@ -225,6 +285,12 @@ def run_doctor() -> list[CheckResult]:
             _check_win_python_version(),
             _check_win_vs_build_tools(),
             _check_win_renderdoc_install(),
+        ]
+    if sys.platform == "darwin":
+        results += [
+            _check_mac_xcode_cli(),
+            _check_mac_homebrew(),
+            _check_mac_renderdoc_dylib(),
         ]
     return results
 

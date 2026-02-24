@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 _WIN: bool = sys.platform == "win32"
+_MAC: bool = sys.platform == "darwin"
 
 
 def data_dir() -> Path:
@@ -68,12 +70,25 @@ def is_pid_alive(pid: int, *, tag: str = "rdc") -> bool:
         return False
     except PermissionError:
         return True
-    try:
-        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
-        if tag.encode() not in cmdline:
-            return False
-    except OSError:
-        pass  # non-Linux or permission denied -- accept kill-only result
+    if _MAC:
+        try:
+            result = subprocess.run(
+                ["ps", "-p", str(pid), "-o", "command="],
+                capture_output=True,
+                text=True,
+                timeout=1,
+            )
+            if result.returncode == 0 and tag not in result.stdout:
+                return False
+        except subprocess.SubprocessError:
+            pass
+    else:
+        try:
+            cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+            if tag.encode() not in cmdline:
+                return False
+        except OSError:
+            pass
     return True
 
 
@@ -136,6 +151,14 @@ def renderdoc_search_paths() -> list[str]:
         if localappdata:
             paths.append(str(Path(localappdata) / "renderdoc"))
         return paths
+    if _MAC:
+        return [
+            "/opt/homebrew/opt/renderdoc/lib",
+            "/usr/local/opt/renderdoc/lib",
+            str(Path.home() / ".local" / "renderdoc"),
+            "/usr/lib/renderdoc",
+            "/usr/local/lib/renderdoc",
+        ]
     return ["/usr/lib/renderdoc", "/usr/local/lib/renderdoc"]
 
 
@@ -149,4 +172,10 @@ def renderdoccmd_search_paths() -> list[Path]:
                 Path(userprofile) / "scoop" / "apps" / "renderdoc" / "current" / "renderdoccmd.exe"
             )
         return paths
+    if _MAC:
+        return [
+            Path("/opt/homebrew/bin/renderdoccmd"),
+            Path("/opt/renderdoc/bin/renderdoccmd"),
+            Path("/usr/local/bin/renderdoccmd"),
+        ]
     return [Path("/opt/renderdoc/bin/renderdoccmd"), Path("/usr/local/bin/renderdoccmd")]

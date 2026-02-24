@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -77,6 +79,11 @@ class TestTerminateProcess:
 
 
 class TestIsPidAlive:
+    @pytest.fixture(autouse=True)
+    def _force_linux(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+
     def test_alive_cmdline_matches(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """TP-W1-007: alive + cmdline contains 'rdc' -> True."""
         pid = os.getpid()
@@ -270,6 +277,112 @@ class TestRenderdoccmdSearchPaths:
         result = renderdoccmd_search_paths()
         assert Path("/opt/renderdoc/bin/renderdoccmd") in result
         assert Path("/usr/local/bin/renderdoccmd") in result
+
+
+# ── Group H-mac: renderdoc_search_paths() on darwin ───────────────────
+
+
+class TestRenderdocSearchPathsDarwin:
+    """M1: Homebrew search paths on macOS."""
+
+    def test_includes_homebrew_arm(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M1-01: darwin includes /opt/homebrew/opt/renderdoc/lib."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = renderdoc_search_paths()
+        assert "/opt/homebrew/opt/renderdoc/lib" in result
+
+    def test_includes_homebrew_intel(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M1-02: darwin includes /usr/local/opt/renderdoc/lib."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = renderdoc_search_paths()
+        assert "/usr/local/opt/renderdoc/lib" in result
+
+    def test_includes_user_build(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """M1-03: darwin includes ~/.local/renderdoc."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
+        result = renderdoc_search_paths()
+        assert str(tmp_path / ".local" / "renderdoc") in result
+
+    def test_linux_excludes_homebrew(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M1-06: linux paths exclude Homebrew paths."""
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = renderdoc_search_paths()
+        assert "/opt/homebrew/opt/renderdoc/lib" not in result
+        assert "/usr/local/opt/renderdoc/lib" not in result
+
+
+# ── Group I-mac: renderdoccmd_search_paths() on darwin ────────────────
+
+
+class TestRenderdoccmdSearchPathsDarwin:
+    """M1: renderdoccmd Homebrew paths on macOS."""
+
+    def test_includes_homebrew_bin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M1-04: darwin includes /opt/homebrew/bin/renderdoccmd."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = renderdoccmd_search_paths()
+        assert Path("/opt/homebrew/bin/renderdoccmd") in result
+
+    def test_includes_usr_local_bin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M1-05: darwin includes /usr/local/bin/renderdoccmd."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = renderdoccmd_search_paths()
+        assert Path("/usr/local/bin/renderdoccmd") in result
+
+
+# ── Group C-mac: is_pid_alive() on darwin ─────────────────────────────
+
+
+class TestIsPidAliveDarwin:
+    """M5: is_pid_alive uses ps on macOS."""
+
+    def test_ps_tag_match_returns_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M5-01: ps output contains tag -> True."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        pid = os.getpid()
+        mock_result = MagicMock(returncode=0, stdout="/usr/bin/python -m rdc daemon\n")
+        monkeypatch.setattr("rdc._platform.subprocess.run", lambda *a, **kw: mock_result)
+        assert is_pid_alive(pid) is True
+
+    def test_ps_tag_no_match_returns_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M5-02: ps output missing tag -> False."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        pid = os.getpid()
+        mock_result = MagicMock(returncode=0, stdout="/usr/sbin/nginx --daemon\n")
+        monkeypatch.setattr("rdc._platform.subprocess.run", lambda *a, **kw: mock_result)
+        assert is_pid_alive(pid) is False
+
+    def test_ps_failure_falls_back_to_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M5-03: SubprocessError -> fallback True (kill-only check passed)."""
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        pid = os.getpid()
+
+        def _raise(*_a: object, **_kw: object) -> None:
+            raise subprocess.SubprocessError("ps failed")
+
+        monkeypatch.setattr("rdc._platform.subprocess.run", _raise)
+        assert is_pid_alive(pid) is True
+
+    def test_linux_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M5-04: on linux, /proc path is used (no regression)."""
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        pid = os.getpid()
+        monkeypatch.setattr(
+            "rdc._platform.Path.read_bytes",
+            lambda _self: b"python\x00-m\x00rdc\x00daemon\x00",
+        )
+        assert is_pid_alive(pid) is True
 
 
 # ── Group J: backward compat ─────────────────────────────────────────

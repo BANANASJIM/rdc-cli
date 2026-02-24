@@ -9,6 +9,9 @@ from click.testing import CliRunner
 
 from rdc.commands.doctor import (
     CheckResult,
+    _check_mac_homebrew,
+    _check_mac_renderdoc_dylib,
+    _check_mac_xcode_cli,
     _check_renderdoccmd,
     _check_win_python_version,
     _check_win_renderdoc_install,
@@ -393,3 +396,134 @@ class TestCheckRenderdoccmd:
         r = _check_renderdoccmd()
         assert r.ok is True
         assert "v1.33" in r.detail
+
+
+# ── Group M2: macOS doctor checks ─────────────────────────────────────
+
+
+class TestMacXcodeCli:
+    """M2-01, M2-02: _check_mac_xcode_cli()."""
+
+    def test_non_darwin_returns_na(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
+        r = _check_mac_xcode_cli()
+        assert r.ok is True
+        assert r.name == "mac-xcode-cli"
+        assert "n/a" in r.detail
+
+    def test_ok_when_xcode_select_exits_0(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M2-01: xcode-select exits 0."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="/Library/Developer/CommandLineTools\n"
+            ),
+        )
+        r = _check_mac_xcode_cli()
+        assert r.ok is True
+        assert "CommandLineTools" in r.detail
+
+    def test_fail_when_xcode_select_nonzero(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M2-02: xcode-select exits non-zero."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=2, stdout=""),
+        )
+        r = _check_mac_xcode_cli()
+        assert r.ok is False
+        assert "xcode-select --install" in r.detail
+
+    def test_fail_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+
+        def _raise(*_a: object, **_kw: object) -> None:
+            raise FileNotFoundError("xcode-select not found")
+
+        monkeypatch.setattr("rdc.commands.doctor.subprocess.run", _raise)
+        r = _check_mac_xcode_cli()
+        assert r.ok is False
+        assert "xcode-select --install" in r.detail
+
+
+class TestMacHomebrew:
+    """M2-03, M2-04: _check_mac_homebrew()."""
+
+    def test_non_darwin_returns_na(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
+        r = _check_mac_homebrew()
+        assert r.ok is True
+        assert r.name == "mac-homebrew"
+        assert "n/a" in r.detail
+
+    def test_ok_when_brew_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M2-03: brew found, version succeeds."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr(
+            "rdc.commands.doctor.shutil.which", lambda name: "/opt/homebrew/bin/brew"
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor.subprocess.run",
+            lambda *a, **kw: subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="Homebrew 4.2.0\n"
+            ),
+        )
+        r = _check_mac_homebrew()
+        assert r.ok is True
+        assert "Homebrew 4.2.0" in r.detail
+
+    def test_fail_when_brew_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """M2-04: shutil.which("brew") returns None."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda name: None)
+        r = _check_mac_homebrew()
+        assert r.ok is False
+        assert "brew.sh" in r.detail
+
+
+class TestMacRenderdocDylib:
+    """M2-05, M2-06: _check_mac_renderdoc_dylib()."""
+
+    def test_non_darwin_returns_na(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
+        r = _check_mac_renderdoc_dylib()
+        assert r.ok is True
+        assert r.name == "mac-renderdoc-dylib"
+        assert "n/a" in r.detail
+
+    def test_ok_when_so_exists(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """M2-05: renderdoc.so exists at search path."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        (tmp_path / "renderdoc.so").write_text("fake")
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [str(tmp_path)])
+        r = _check_mac_renderdoc_dylib()
+        assert r.ok is True
+        assert "renderdoc.so" in r.detail
+
+    def test_ok_when_dylib_exists(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """M2-05b: librenderdoc.dylib exists at search path."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        (tmp_path / "librenderdoc.dylib").write_text("fake")
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [str(tmp_path)])
+        r = _check_mac_renderdoc_dylib()
+        assert r.ok is True
+        assert "librenderdoc.dylib" in r.detail
+
+    def test_fail_when_not_found(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """M2-06: no library found."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "darwin")
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [str(tmp_path)])
+        r = _check_mac_renderdoc_dylib()
+        assert r.ok is False
+        assert "not found" in r.detail
+
+
+class TestMakeBuildHintDarwin:
+    """M2-07: _make_build_hint("darwin") contains Homebrew instructions."""
+
+    def test_darwin_hint_contains_homebrew(self) -> None:
+        hint = _make_build_hint("darwin")
+        assert "brew install cmake ninja" in hint
+        assert "build_renderdoc.py" in hint
+        assert "https://bananasjim.github.io/rdc-cli/" in hint
