@@ -23,7 +23,7 @@ from rdc.remote_state import RemoteServerState, save_remote_state
 
 @pytest.fixture(autouse=True)
 def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def _mock_rd(monkeypatch: pytest.MonkeyPatch) -> MagicMock:

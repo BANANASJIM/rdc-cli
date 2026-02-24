@@ -66,7 +66,7 @@ def remote_connect_cmd(url: str, as_json: bool) -> None:
     _check_public_ip(host)
     rd = _require_renderdoc()
 
-    conn_url = f"{host}:{port}" if port != 0 else host
+    conn_url = f"{host}:{port}"
     try:
         remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:

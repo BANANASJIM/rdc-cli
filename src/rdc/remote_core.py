@@ -39,6 +39,8 @@ def parse_url(url: str) -> tuple[str, int]:
         if bracket_end == -1:
             raise ValueError(f"malformed IPv6 address: {url!r}")
         host = url[1:bracket_end]
+        if not host:
+            raise ValueError(f"empty IPv6 address: {url!r}")
         rest = url[bracket_end + 1 :]
         if rest.startswith(":"):
             port_str = rest[1:]
@@ -49,9 +51,13 @@ def parse_url(url: str) -> tuple[str, int]:
             if not (1 <= port <= 65535):
                 raise ValueError(f"invalid port: {port_str!r}")
             return host, port
+        if rest:
+            raise ValueError(f"unexpected content after IPv6 address: {url!r}")
         return host, DEFAULT_PORT
     if ":" in url:
         host, _, port_str = url.rpartition(":")
+        if ":" in host:
+            raise ValueError(f"IPv6 address must use brackets: [{url}]")
         try:
             port = int(port_str)
         except ValueError:
@@ -160,7 +166,9 @@ def remote_capture(
             result.path = output
             result.local = True
         except Exception as exc:
-            click.echo(f"warning: failed to copy capture locally: {exc}", err=True)
+            result.success = False
+            result.error = f"capture succeeded but transfer failed: {exc}"
+            click.echo(f"warning: {result.error}", err=True)
             click.echo(f"  remote path: {result.path}", err=True)
     result.ident = exec_result.ident
     return result

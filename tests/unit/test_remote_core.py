@@ -49,6 +49,22 @@ class TestParseUrl:
         with pytest.raises(ValueError, match="malformed IPv6"):
             parse_url("[::1")
 
+    def test_ipv6_empty_brackets_raises(self) -> None:
+        with pytest.raises(ValueError, match="empty IPv6"):
+            parse_url("[]")
+
+    def test_ipv6_trailing_garbage_raises(self) -> None:
+        with pytest.raises(ValueError, match="unexpected content"):
+            parse_url("[::1]abc")
+
+    def test_bare_ipv6_raises(self) -> None:
+        with pytest.raises(ValueError, match="must use brackets"):
+            parse_url("::1")
+
+    def test_bare_ipv6_long_raises(self) -> None:
+        with pytest.raises(ValueError, match="must use brackets"):
+            parse_url("fe80::1")
+
 
 class TestWarnIfPublic:
     @pytest.mark.parametrize(
@@ -213,7 +229,7 @@ class TestRemoteCapture:
         )
         assert captured_opts[0] == {"api_validation": True}
 
-    def test_copy_failure_keeps_remote_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_copy_failure_sets_success_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from rdc.capture_core import CaptureResult
 
         rd = MagicMock()
@@ -227,7 +243,8 @@ class TestRemoteCapture:
         rd.CreateTargetControl.return_value = MagicMock()
 
         result = remote_capture(rd, remote, "host:39920", "/app", output="/tmp/out.rdc")
-        assert result.success is True
+        assert result.success is False
+        assert "transfer failed" in result.error
         assert result.path == "/remote/cap.rdc"
         assert result.local is False
 

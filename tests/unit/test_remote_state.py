@@ -19,7 +19,7 @@ _SAMPLE = RemoteServerState(host="192.168.1.10", port=39920, connected_at=170000
 
 @pytest.fixture(autouse=True)
 def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def test_save_and_load_round_trip() -> None:
