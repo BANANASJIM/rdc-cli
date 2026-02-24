@@ -46,6 +46,18 @@ python scripts/build_renderdoc.py     # needs cmake + Visual Studio Build Tools
 rdc doctor
 ```
 
+**PyPI — macOS** (remote replay recommended)
+
+```bash
+pipx install rdc-cli
+# Remote replay (no local renderdoc needed):
+rdc remote connect linux-host:39920    # connect to a Linux/Windows target
+rdc remote trigger && rdc remote copy  # capture + pull .rdc file
+# Optional: local replay (needs cmake + ninja + Xcode CLI tools)
+python scripts/build_renderdoc.py
+rdc doctor
+```
+
 **AUR** (Arch Linux — builds renderdoc automatically, no extra setup)
 
 ```bash
