@@ -240,12 +240,42 @@ def test_trigger_skips_termination(monkeypatch: Any) -> None:
     assert terminated == []
 
 
-def test_failed_capture_skips_termination(monkeypatch: Any) -> None:
-    """Failed capture does not attempt termination even with valid pid."""
+def test_failed_capture_timeout_terminates_process(monkeypatch: Any) -> None:
+    """B26: failed capture with timeout still terminates the target process."""
     terminated = _setup_capture_with_terminate(
-        monkeypatch, success=False, error="inject failed", pid=1234
+        monkeypatch, success=False, error="timeout waiting for capture", pid=5678
     )
     result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
+    assert result.exit_code != 0
+    assert terminated == [5678]
+
+
+def test_failed_capture_disconnect_terminates_process(monkeypatch: Any) -> None:
+    """B26: failed capture with disconnect still terminates the target process."""
+    terminated = _setup_capture_with_terminate(
+        monkeypatch, success=False, error="target disconnected", pid=9101
+    )
+    result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
+    assert result.exit_code != 0
+    assert terminated == [9101]
+
+
+def test_failed_capture_zero_pid_no_termination(monkeypatch: Any) -> None:
+    """B26: failed capture with pid=0 (no process launched) skips termination."""
+    terminated = _setup_capture_with_terminate(
+        monkeypatch, success=False, error="inject failed", pid=0
+    )
+    result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
+    assert result.exit_code != 0
+    assert terminated == []
+
+
+def test_failed_capture_keep_alive_skips_termination(monkeypatch: Any) -> None:
+    """B26: --keep-alive prevents termination even on failure."""
+    terminated = _setup_capture_with_terminate(
+        monkeypatch, success=False, error="timeout", pid=7777
+    )
+    result = CliRunner().invoke(capture_cmd, ["--keep-alive", "--", "/usr/bin/app"])
     assert result.exit_code != 0
     assert terminated == []
 

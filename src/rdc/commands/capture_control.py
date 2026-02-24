@@ -41,7 +41,11 @@ def _resolve_ident(ident: int | None) -> int:
 def _connect(rd: Any, host: str, ident: int) -> Any:
     """Create a TargetControl connection, exit on failure."""
     tc = rd.CreateTargetControl(host, ident, "rdc-cli", True)
-    if tc is None or not tc.Connected():
+    if tc is None:
+        click.echo(f"error: failed to connect to target ident={ident}", err=True)
+        raise SystemExit(1)
+    if not tc.Connected():
+        tc.Shutdown()
         click.echo(f"error: failed to connect to target ident={ident}", err=True)
         raise SystemExit(1)
     return tc
