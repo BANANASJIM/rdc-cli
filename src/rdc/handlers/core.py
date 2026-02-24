@@ -24,15 +24,16 @@ def _handle_ping(
 def _handle_status(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    return _result_response(
-        request_id,
-        {
-            "capture": state.capture,
-            "current_eid": state.current_eid,
-            "api": state.api_name,
-            "event_count": state.max_eid,
-        },
-    ), True
+    result: dict[str, Any] = {
+        "capture": state.capture,
+        "current_eid": state.current_eid,
+        "api": state.api_name,
+        "event_count": state.max_eid,
+    }
+    if state.is_remote:
+        result["remote"] = state.remote_url
+        result["remote_connected"] = state.remote is not None
+    return _result_response(request_id, result), True
 
 
 def _handle_goto(
@@ -98,8 +99,23 @@ def _handle_shutdown(
         import shutil
 
         shutil.rmtree(state.temp_dir, ignore_errors=True)
-    if state.adapter is not None:
-        state.adapter.shutdown()
+    if state.is_remote:
+        if state._ping_stop is not None:
+            state._ping_stop.set()
+        if state._ping_thread is not None:
+            state._ping_thread.join(timeout=5.0)
+        if state.remote is not None and state.adapter is not None:
+            try:
+                state.remote.CloseCapture(state.adapter.controller)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                state.remote.ShutdownConnection()
+            except Exception:  # noqa: BLE001
+                pass
+    else:
+        if state.adapter is not None:
+            state.adapter.shutdown()
     if state.cap is not None:
         state.cap.Shutdown()
     return _result_response(request_id, {"ok": True}), False

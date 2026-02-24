@@ -549,13 +549,14 @@ Create local default session and start daemon skeleton.
 
 | Name | Type | Required |
 |------|------|----------|
-| `capture` | path | yes |
+| `capture` | text | yes |
 
 **Options:**
 
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--preload` | Preload shader cache after open. | flag |  |
+| `--remote` | Remote host[:port] for remote replay. | text |  |
 
 ## `rdc pass`
 

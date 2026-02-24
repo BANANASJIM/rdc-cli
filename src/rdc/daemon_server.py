@@ -8,6 +8,7 @@ import secrets
 import shutil
 import socket
 import sys
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -57,6 +58,8 @@ __all__ = [
     "_enum_name",
     "_error_response",
     "_handle_request",
+    "_init_adapter_state",
+    "_load_remote_replay",
     "_load_replay",
     "_max_eid",
     "_process_request",
@@ -64,6 +67,8 @@ __all__ = [
     "_sanitize_size",
     "_seek_replay",
     "_set_frame_event",
+    "_start_ping_thread",
+    "_stop_ping_thread",
     "main",
     "run_server",
 ]
@@ -113,6 +118,12 @@ class DaemonState:
     replay_output_dims: tuple[int, int] | None = None
     _shader_cache_built: bool = field(default=False, repr=False)
     _debug_messages_cache: list[Any] | None = None
+    remote: Any = None
+    remote_url: str = ""
+    is_remote: bool = False
+    local_capture_path: str = ""
+    _ping_stop: Any = None
+    _ping_thread: Any = None
 
 
 def _detect_version(rd: Any) -> tuple[int, int]:
@@ -129,6 +140,9 @@ def _cleanup_temp(state: DaemonState) -> None:
     """Remove the daemon's temp directory if it exists."""
     if state.temp_dir is not None:
         shutil.rmtree(state.temp_dir, ignore_errors=True)
+
+
+_log = logging.getLogger("rdc.daemon")
 
 
 def _load_replay(state: DaemonState) -> str | None:
@@ -165,6 +179,14 @@ def _load_replay(state: DaemonState) -> str | None:
     state.adapter = RenderDocAdapter(controller=controller, version=version)
     state.structured_file = cap.GetStructuredData()
 
+    _init_adapter_state(state)
+    return None
+
+
+def _init_adapter_state(state: DaemonState) -> None:
+    """Populate derived adapter state (shared by local and remote replay)."""
+    assert state.adapter is not None
+
     api_props = state.adapter.get_api_properties()
     pt = getattr(api_props, "pipelineType", "Unknown")
     state.api_name = _enum_name(pt)
@@ -196,6 +218,96 @@ def _load_replay(state: DaemonState) -> str | None:
     state.temp_dir = Path(tempfile.mkdtemp(prefix=f"rdc-{state.token[:8]}-"))
     atexit.register(_cleanup_temp, state)
 
+
+def _start_ping_thread(state: DaemonState) -> None:
+    """Start background ping keepalive for remote connections."""
+    stop_event = threading.Event()
+    state._ping_stop = stop_event
+
+    def _ping_loop() -> None:
+        while not stop_event.wait(timeout=3.0):
+            try:
+                if state.remote is not None:
+                    state.remote.Ping()
+            except Exception:  # noqa: BLE001
+                _log.warning("remote ping failed — connection may be lost")
+                break
+
+    t = threading.Thread(target=_ping_loop, daemon=True, name="rdc-remote-ping")
+    t.start()
+    state._ping_thread = t
+
+
+def _stop_ping_thread(state: DaemonState) -> None:
+    """Stop and join the ping thread. Safe to call if never started."""
+    if state._ping_stop is not None:
+        state._ping_stop.set()
+    if state._ping_thread is not None:
+        state._ping_thread.join(timeout=5.0)
+
+
+def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
+    """Connect to remote RenderDoc server and open capture for replay.
+
+    Returns error string on failure, None on success.
+    """
+    from rdc.discover import find_renderdoc
+
+    rd = find_renderdoc()
+    if rd is None:
+        return "failed to import renderdoc module"
+
+    try:
+        rd.InitialiseReplay(rd.GlobalEnvironment(), [])
+    except Exception as exc:  # noqa: BLE001
+        return f"InitialiseReplay failed: {exc}"
+
+    result, remote = rd.CreateRemoteServerConnection(remote_url)
+    if result != rd.ResultCode.Succeeded:
+        return f"remote connection failed: {result}"
+
+    state.remote = remote
+    state.is_remote = True
+    state.remote_url = remote_url
+
+    local_capture = Path(state.capture)
+    if local_capture.exists():
+        remote_path = remote.CopyCaptureToRemote(str(local_capture), None)
+        state.local_capture_path = str(local_capture)
+    else:
+        remote_path = state.capture
+        import tempfile
+
+        local_tmp = Path(tempfile.mkdtemp(prefix="rdc-remote-")) / "capture.rdc"
+        try:
+            remote.CopyCaptureFromRemote(remote_path, str(local_tmp), None)
+        except Exception as exc:  # noqa: BLE001
+            remote.ShutdownConnection()
+            return f"CopyCaptureFromRemote failed: {exc}"
+        state.local_capture_path = str(local_tmp)
+
+    result, controller = remote.OpenCapture(
+        rd.RemoteServer.NoPreference, remote_path, rd.ReplayOptions(), None
+    )
+    if result != rd.ResultCode.Succeeded:
+        remote.ShutdownConnection()
+        return f"remote OpenCapture failed: {result}"
+
+    cap = rd.OpenCaptureFile()
+    open_result = cap.OpenFile(state.local_capture_path, "", None)
+    if open_result != rd.ResultCode.Succeeded:
+        remote.CloseCapture(controller)
+        remote.ShutdownConnection()
+        return f"local OpenFile (metadata) failed: {open_result}"
+
+    state.cap = cap
+    state.rd = rd
+    state.structured_file = cap.GetStructuredData()
+    version = _detect_version(rd)
+    state.adapter = RenderDocAdapter(controller=controller, version=version)
+
+    _init_adapter_state(state)
+    _start_ping_thread(state)
     return None
 
 
@@ -218,9 +330,6 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
         return _error_response(request_id, -32002, "no replay loaded"), True
     result: tuple[dict[str, Any], bool] = handler(request_id, params, state)
     return result
-
-
-_log = logging.getLogger("rdc.daemon")
 
 
 def _process_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[str, Any], bool]:
@@ -300,12 +409,16 @@ def main() -> None:  # pragma: no cover
     parser.add_argument("--token", required=True)
     parser.add_argument("--idle-timeout", type=int, default=1800)
     parser.add_argument("--no-replay", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--remote-url", default=None)
     args = parser.parse_args()
 
     state = DaemonState(capture=args.capture, current_eid=0, token=args.token)
 
     if not args.no_replay:
-        err = _load_replay(state)
+        if args.remote_url:
+            err = _load_remote_replay(state, args.remote_url)
+        else:
+            err = _load_replay(state)
         if err:
             sys.stderr.write(f"error: {err}\n")
             sys.exit(1)
