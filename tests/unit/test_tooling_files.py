@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
+import pytest
 
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash not available on Windows CI")
 def test_build_renderdoc_script_syntax() -> None:
     subprocess.run(["bash", "-n", "scripts/build-renderdoc.sh"], check=True)
 

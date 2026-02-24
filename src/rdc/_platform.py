@@ -25,11 +25,22 @@ def data_dir() -> Path:
 
 
 def terminate_process(pid: int) -> bool:
-    """Send SIGTERM (Unix) to *pid*. Returns True if the signal was sent."""
-    if _WIN:  # pragma: no cover
-        raise NotImplementedError("Windows support — Phase W2")
+    """Send SIGTERM (Unix) or TerminateProcess (Windows) to *pid*."""
     if pid <= 0:
         return False
+    if _WIN:  # pragma: no cover
+        # Windows: TerminateProcess is a hard kill (no graceful shutdown).
+        # GenerateConsoleCtrlEvent requires same console group. Acceptable for now.
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
+        if not handle:
+            return False
+        try:
+            return bool(kernel32.TerminateProcess(handle, 1))
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, signal.SIGTERM)
         return True
@@ -39,10 +50,18 @@ def terminate_process(pid: int) -> bool:
 
 def is_pid_alive(pid: int, *, tag: str = "rdc") -> bool:
     """Check whether *pid* is alive and its cmdline contains *tag*."""
-    if _WIN:  # pragma: no cover
-        raise NotImplementedError("Windows support — Phase W2")
     if pid <= 0:
         return False
+    if _WIN:  # pragma: no cover
+        # TODO(W-next): check process name against tag on Windows
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
+        if not handle:
+            return False
+        kernel32.CloseHandle(handle)
+        return True
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -54,14 +73,12 @@ def is_pid_alive(pid: int, *, tag: str = "rdc") -> bool:
         if tag.encode() not in cmdline:
             return False
     except OSError:
-        pass  # non-Linux or permission denied — accept kill-only result
+        pass  # non-Linux or permission denied -- accept kill-only result
     return True
 
 
 def install_shutdown_signal(handler: Callable[[], None] | None = None) -> None:
-    """Register a SIGTERM handler for graceful daemon shutdown."""
-    if _WIN:  # pragma: no cover
-        raise NotImplementedError("Windows support — Phase W2")
+    """Register a signal handler for graceful daemon shutdown."""
 
     def _handler(*_: object) -> None:
         if handler is not None:
@@ -69,7 +86,10 @@ def install_shutdown_signal(handler: Callable[[], None] | None = None) -> None:
         else:
             sys.exit(0)
 
-    signal.signal(signal.SIGTERM, _handler)
+    if _WIN:  # pragma: no cover
+        signal.signal(signal.SIGBREAK, _handler)  # type: ignore[attr-defined]
+    else:
+        signal.signal(signal.SIGTERM, _handler)
 
 
 def secure_write_text(path: Path, content: str) -> None:
@@ -104,19 +124,29 @@ def secure_dir_permissions(path: Path) -> None:
 def popen_flags() -> dict[str, Any]:
     """Return extra kwargs for subprocess.Popen on this platform."""
     if _WIN:  # pragma: no cover
-        raise NotImplementedError("Windows support — Phase W2")
+        return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
     return {}
 
 
 def renderdoc_search_paths() -> list[str]:
     """Return system directories to search for the renderdoc Python module."""
     if _WIN:  # pragma: no cover
-        raise NotImplementedError("Windows support — Phase W2")
+        paths = [r"C:\Program Files\RenderDoc"]
+        localappdata = os.environ.get("LOCALAPPDATA", "")
+        if localappdata:
+            paths.append(str(Path(localappdata) / "renderdoc"))
+        return paths
     return ["/usr/lib/renderdoc", "/usr/local/lib/renderdoc"]
 
 
 def renderdoccmd_search_paths() -> list[Path]:
     """Return candidate paths for the renderdoccmd binary."""
     if _WIN:  # pragma: no cover
-        raise NotImplementedError("Windows support — Phase W2")
+        paths = [Path(r"C:\Program Files\RenderDoc\renderdoccmd.exe")]
+        userprofile = os.environ.get("USERPROFILE", "")
+        if userprofile:
+            paths.append(
+                Path(userprofile) / "scoop" / "apps" / "renderdoc" / "current" / "renderdoccmd.exe"
+            )
+        return paths
     return [Path("/opt/renderdoc/bin/renderdoccmd"), Path("/usr/local/bin/renderdoccmd")]

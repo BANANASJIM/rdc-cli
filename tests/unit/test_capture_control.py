@@ -21,7 +21,7 @@ from rdc.target_state import TargetControlState, save_target_state
 
 @pytest.fixture(autouse=True)
 def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def _make_mock_tc(

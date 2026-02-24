@@ -76,6 +76,7 @@ def test_session_flag_valid_chars(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 def test_two_sessions_isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Two named sessions return independent data from their respective files."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()

@@ -253,7 +253,7 @@ class TestHandlePreload:
 
 class TestOpenPreloadFlag:
     def test_preload_calls_rpc(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
         monkeypatch.delenv("RDC_SESSION", raising=False)
         monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
 
@@ -279,7 +279,7 @@ class TestOpenPreloadFlag:
     def test_no_preload_does_not_call_rpc(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
         monkeypatch.delenv("RDC_SESSION", raising=False)
         monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
 

@@ -38,7 +38,7 @@ def test_open_session_cross_name_no_conflict(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Opening session 'b' while 'a' is alive succeeds (conflict is per-name)."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
     # Open session "a"
@@ -56,7 +56,7 @@ def test_open_session_same_name_alive_fails(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Opening the same session name twice (alive pid) returns error."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "alpha")
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
@@ -114,7 +114,7 @@ def test_wait_for_ping_works_without_proc(monkeypatch: pytest.MonkeyPatch) -> No
 def test_open_session_reports_stderr_on_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setattr(session_service, "load_session", lambda: None)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
@@ -137,7 +137,7 @@ def test_open_session_reports_stderr_on_failure(
 def test_open_session_failure_with_empty_stderr(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setattr(session_service, "load_session", lambda: None)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
@@ -189,7 +189,7 @@ def test_open_session_retries_on_port_conflict(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """B22: open_session retries up to 3 times on daemon start failure."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr(session_service, "load_session", lambda: None)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
@@ -217,7 +217,7 @@ def test_open_session_retries_on_port_conflict(
 
 def test_open_session_all_retries_fail(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """B22: open_session returns error after 3 failed attempts."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr(session_service, "load_session", lambda: None)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
@@ -239,7 +239,7 @@ def test_close_session_fallback_kill_on_shutdown_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """B25: close_session sends SIGTERM as fallback when shutdown RPC fails."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 

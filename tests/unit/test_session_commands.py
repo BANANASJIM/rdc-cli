@@ -13,7 +13,7 @@ def _session_file(home: Path) -> Path:
 
 
 def test_open_status_goto_close_flow(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()
@@ -40,7 +40,7 @@ def test_open_status_goto_close_flow(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 
 def test_goto_without_session_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     runner = CliRunner()
 
@@ -49,7 +49,7 @@ def test_goto_without_session_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: P
 
 
 def test_close_without_session_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     runner = CliRunner()
 
@@ -58,7 +58,7 @@ def test_close_without_session_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 
 def test_goto_rejects_negative_eid(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()
@@ -70,7 +70,7 @@ def test_goto_rejects_negative_eid(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
 
 def test_status_shows_session_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """rdc status first line is 'session: <name>' matching active RDC_SESSION."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "mytest")
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()
@@ -84,7 +84,7 @@ def test_status_shows_session_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
 
 def test_status_shows_default_session_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Without --session, status first line is 'session: default'."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()
@@ -122,7 +122,7 @@ def test_require_session_cleans_stale_pid(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_open_no_replay_mode_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """B23: open command warns when renderdoc is unavailable."""
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
     runner = CliRunner()

@@ -251,6 +251,7 @@ class TestTempDirCleanup:
 class TestSigtermHandler:
     """SIGTERM handler installation in main()."""
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Unix signals: SIGTERM not used on Windows")
     def test_main_installs_sigterm_handler(self) -> None:
         """main() installs a SIGTERM handler that calls sys.exit(0)."""
         with (
