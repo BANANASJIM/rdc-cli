@@ -64,11 +64,13 @@ def test_default_install_dir_windows() -> None:
 
 
 def test_default_install_dir_windows_no_localappdata() -> None:
+    fake_home = Path("/fake/home")
     with (
         patch("build_renderdoc._platform", return_value="windows"),
         patch.dict("os.environ", {}, clear=True),
+        patch("build_renderdoc.Path.home", return_value=fake_home),
     ):
-        assert br.default_install_dir() == Path.home() / "rdc" / "renderdoc"
+        assert br.default_install_dir() == fake_home / "rdc" / "renderdoc"
 
 
 # ---------------------------------------------------------------------------

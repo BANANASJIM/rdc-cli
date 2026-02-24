@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import glob
+import json
+import os
+import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import click
@@ -31,12 +37,26 @@ def _check_platform() -> CheckResult:
     return CheckResult("platform", False, f"unsupported platform: {sys.platform}")
 
 
-_RENDERDOC_BUILD_HINT = """\
-  renderdoc is not available on PyPI and must be built from source.
-  Quick build script (no pixi required):
-    bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
-  Full instructions: https://bananasjim.github.io/rdc-cli/
-  Then re-run: rdc doctor"""
+def _make_build_hint(platform: str) -> str:
+    """Return platform-specific build instructions for renderdoc."""
+    if platform == "win32":
+        return (
+            "  renderdoc is not available on PyPI and must be built from source.\n"
+            "  Build script: python scripts/build_renderdoc.py\n"
+            "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+            "  Then re-run: rdc doctor"
+        )
+    return (
+        "  renderdoc is not available on PyPI and must be built from source.\n"
+        "  Quick build script (no pixi required):\n"
+        "    bash <(curl -fsSL"
+        " https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)\n"
+        "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+        "  Then re-run: rdc doctor"
+    )
+
+
+_RENDERDOC_BUILD_HINT = _make_build_hint(sys.platform)
 
 
 def _import_renderdoc() -> tuple[Any | None, CheckResult]:
@@ -68,15 +88,138 @@ def _check_renderdoccmd() -> CheckResult:
     return CheckResult("renderdoccmd", False, "not found in PATH")
 
 
+# ── Windows-specific checks ──────────────────────────────────────────
+
+
+def _check_win_python_version() -> CheckResult:
+    """Verify the running Python matches the renderdoc .pyd build."""
+    if sys.platform != "win32":
+        return CheckResult("win-python-version", True, "n/a")
+
+    from rdc import _platform
+
+    search_paths = _platform.renderdoc_search_paths()
+
+    pyds = [f for p in search_paths for f in glob.glob(str(Path(p) / "renderdoc.cpython-3*.pyd"))]
+    if not pyds:
+        return CheckResult(
+            "win-python-version",
+            False,
+            "renderdoc.pyd not found \u2014 cannot verify Python version match",
+        )
+
+    name = Path(pyds[0]).stem
+    m = re.search(r"cpython-(\d)(\d+)", name)
+    if not m:
+        return CheckResult("win-python-version", False, f"cannot parse version from {name}")
+
+    pyd_ver = (int(m.group(1)), int(m.group(2)))
+    running = sys.version_info[:2]
+    if running == pyd_ver:
+        return CheckResult(
+            "win-python-version", True, f"Python {running[0]}.{running[1]} matches renderdoc.pyd"
+        )
+    return CheckResult(
+        "win-python-version",
+        False,
+        f"Python {running[0]}.{running[1]} running but pyd built for {pyd_ver[0]}.{pyd_ver[1]}",
+    )
+
+
+def _check_win_vs_build_tools() -> CheckResult:
+    """Detect Visual Studio Build Tools via vswhere.exe."""
+    if sys.platform != "win32":
+        return CheckResult("win-vs-build-tools", True, "n/a")
+
+    vswhere = Path(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe")
+    if not vswhere.exists():
+        found = shutil.which("vswhere")
+        if not found:
+            return CheckResult(
+                "win-vs-build-tools",
+                False,
+                "vswhere.exe not found \u2014 install Visual Studio 2022 Build Tools",
+            )
+        vswhere = Path(found)
+
+    try:
+        proc = subprocess.run(
+            [
+                str(vswhere),
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-format",
+                "json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        installs: list[dict[str, Any]] = json.loads(proc.stdout or "[]")
+    except subprocess.TimeoutExpired:
+        return CheckResult("win-vs-build-tools", False, "vswhere.exe probe timed out")
+    except Exception as exc:
+        return CheckResult("win-vs-build-tools", False, f"vswhere.exe probe failed: {exc}")
+
+    if not installs:
+        return CheckResult(
+            "win-vs-build-tools",
+            False,
+            "VC++ build tools not found \u2014 required to build renderdoc Python bindings",
+        )
+    version = installs[0].get("installationVersion", "unknown")
+    return CheckResult(
+        "win-vs-build-tools", True, f"Visual Studio Build Tools found (version {version})"
+    )
+
+
+def _check_win_renderdoc_install() -> CheckResult:
+    """Check for renderdoc.dll at known Windows install paths."""
+    if sys.platform != "win32":
+        return CheckResult("win-renderdoc-install", True, "n/a")
+
+    candidates: list[Path] = [
+        Path(r"C:\Program Files\RenderDoc\renderdoc.dll"),
+    ]
+    localappdata = os.environ.get("LOCALAPPDATA", "")
+    if localappdata:
+        candidates.append(Path(localappdata) / "renderdoc" / "renderdoc.dll")
+        candidates.append(Path(localappdata) / "RenderDoc" / "renderdoc.dll")
+
+    env_path = os.environ.get("RENDERDOC_PYTHON_PATH")
+    if env_path:
+        candidates.insert(0, Path(env_path) / "renderdoc.dll")
+
+    for p in candidates:
+        if p.exists():
+            return CheckResult("win-renderdoc-install", True, f"RenderDoc found at {p}")
+    return CheckResult(
+        "win-renderdoc-install",
+        False,
+        "RenderDoc not found \u2014 install RenderDoc or set RENDERDOC_PYTHON_PATH",
+    )
+
+
 def run_doctor() -> list[CheckResult]:
+    """Run all environment checks and return results."""
     module, renderdoc_check = _import_renderdoc()
-    return [
+    results = [
         _check_python(),
         _check_platform(),
         renderdoc_check,
         _check_replay_support(module),
         _check_renderdoccmd(),
     ]
+    if sys.platform == "win32":
+        results += [
+            _check_win_python_version(),
+            _check_win_vs_build_tools(),
+            _check_win_renderdoc_install(),
+        ]
+    return results
 
 
 @click.command("doctor")
@@ -86,7 +229,7 @@ def doctor_cmd() -> None:
     has_error = False
 
     for result in results:
-        icon = "✅" if result.ok else "❌"
+        icon = "\u2705" if result.ok else "\u274c"
         click.echo(f"{icon} {result.name}: {result.detail}")
         if not result.ok:
             has_error = True

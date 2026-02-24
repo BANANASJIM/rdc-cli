@@ -492,7 +492,7 @@ class TestCliFramebufferOutput:
         )
         a, b = _setup_cli(monkeypatch, tmp_path, fb_result=fb)
         result = CliRunner().invoke(diff_cmd, [str(a), str(b), "--framebuffer"])
-        assert "diff image: /tmp/d.png" in result.output
+        assert f"diff image: {Path('/tmp/d.png')}" in result.output
 
     def test_no_diff_output_line(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         fb = FramebufferDiffResult(

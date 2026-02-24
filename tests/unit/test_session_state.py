@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,9 @@ def test_is_pid_alive_for_invalid_pid() -> None:
     assert is_pid_alive(-1) is False
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="PID tag check uses /proc, unavailable on Windows"
+)
 def test_is_pid_alive_wrong_process(monkeypatch: pytest.MonkeyPatch) -> None:
     """PID alive but cmdline doesn't contain 'rdc' -> False."""
     pid = os.getpid()
@@ -54,25 +58,25 @@ def test_is_pid_alive_no_proc(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_session_path_reads_env_var(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "foo")
     assert session_path() == tmp_path / ".rdc" / "sessions" / "foo.json"
 
 
 def test_session_path_default_no_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     assert session_path() == tmp_path / ".rdc" / "sessions" / "default.json"
 
 
 def test_session_path_default_empty_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "")
     assert session_path() == tmp_path / ".rdc" / "sessions" / "default.json"
 
 
 def test_session_path_rejects_traversal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "../../etc/evil")
     assert session_path() == tmp_path / ".rdc" / "sessions" / "default.json"
 
@@ -148,6 +152,7 @@ _SAMPLE_STATE = SessionState(
 )
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not enforced on NTFS")
 def test_save_session_file_mode_0600(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Session file must be created with mode 0o600 (owner read/write only)."""
     monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
@@ -157,6 +162,7 @@ def test_save_session_file_mode_0600(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert session_file.stat().st_mode & 0o777 == 0o600
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not enforced on NTFS")
 def test_save_session_dir_mode_0700(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Session directory must be set to mode 0o700 (owner only)."""
     monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
@@ -166,6 +172,7 @@ def test_save_session_dir_mode_0700(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert session_dir.stat().st_mode & 0o777 == 0o700
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not enforced on NTFS")
 def test_save_session_umask_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Permissions hold even under a permissive umask (0o022)."""
     monkeypatch.setattr("rdc.session_state._session_dir", lambda: tmp_path / "sessions")
@@ -181,6 +188,7 @@ def test_save_session_umask_override(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert session_dir.stat().st_mode & 0o777 == 0o700
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not enforced on NTFS")
 def test_save_session_corrects_existing_file_perms(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

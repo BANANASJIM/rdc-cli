@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -327,7 +328,8 @@ def test_fallback_capture_path_on_stdout(monkeypatch: Any) -> None:
 
     result = CliRunner().invoke(capture_cmd, ["-o", "/tmp/out.rdc", "--", "/usr/bin/app"])
     assert result.exit_code == 0
-    assert any("/tmp/out.rdc" in s for s in stdout_lines)
+    expected_path = str(Path("/tmp/out.rdc"))
+    assert any(expected_path in s for s in stdout_lines)
     assert all("next:" not in s for s in stdout_lines)
 
 

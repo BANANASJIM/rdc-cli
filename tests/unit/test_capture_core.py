@@ -250,6 +250,9 @@ class TestExecuteAndCapture:
 
 
 class TestTerminateProcess:
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Unix signals: Windows uses TerminateProcess"
+    )
     def test_sends_sigterm(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from rdc.capture_core import terminate_process
 
