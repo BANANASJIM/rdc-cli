@@ -8,6 +8,7 @@ from rdc.handlers._helpers import (
     STAGE_MAP,
     _build_shader_cache,
     _error_response,
+    _flatten_shader_var,
     _result_response,
     _set_frame_event,
     get_default_disasm_target,
@@ -99,44 +100,6 @@ def _handle_shader_reflect(
     ), True
 
 
-def _flatten_shader_var(var: Any) -> dict[str, Any]:
-    """Recursively convert a ShaderVariable to a dict."""
-    members = getattr(var, "members", [])
-    if members:
-        return {
-            "name": var.name,
-            "type": str(getattr(var, "type", "")),
-            "rows": getattr(var, "rows", 0),
-            "columns": getattr(var, "columns", 0),
-            "value": None,
-            "members": [_flatten_shader_var(m) for m in members],
-        }
-
-    rows = getattr(var, "rows", 0)
-    columns = getattr(var, "columns", 0)
-    count = max(rows * columns, 1)
-
-    val = getattr(var, "value", None)
-    if val is None:
-        values: list[Any] = []
-    else:
-        type_str = str(getattr(var, "type", "")).lower()
-        if "uint" in type_str:
-            values = list(getattr(val, "u32v", [0.0] * 16)[:count])
-        elif "int" in type_str or "sint" in type_str:
-            values = list(getattr(val, "s32v", [0] * 16)[:count])
-        else:
-            values = list(getattr(val, "f32v", [0.0] * 16)[:count])
-
-    return {
-        "name": var.name,
-        "type": str(getattr(var, "type", "")),
-        "rows": rows,
-        "columns": columns,
-        "value": values,
-    }
-
-
 def _handle_shader_constants(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -165,15 +128,16 @@ def _handle_shader_constants(
     for idx, cb_def in enumerate(getattr(refl, "constantBlocks", [])):
         bind_point = getattr(cb_def, "fixedBindNumber", getattr(cb_def, "bindPoint", 0))
         bound = pipe_state.GetConstantBlock(stage_val, idx, 0)
+        desc = bound.descriptor
         cbuffer_vars = controller.GetCBufferVariableContents(
             pipe,
             shader_id,
             stage_val,
             entry,
             idx,
-            bound.resource,
-            bound.byteOffset,
-            bound.byteSize,
+            desc.resource,
+            desc.byteOffset,
+            desc.byteSize,
         )
         variables = [_flatten_shader_var(v) for v in cbuffer_vars]
         constants.append(

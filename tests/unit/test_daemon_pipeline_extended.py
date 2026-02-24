@@ -13,7 +13,9 @@ import mock_renderdoc as mock_rd
 from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
+    ConstantBlock,
     DepthStencilState,
+    Descriptor,
     MockPipeState,
     MultisampleState,
     RasterizerState,
@@ -21,6 +23,8 @@ from mock_renderdoc import (
     ResourceId,
     ShaderReflection,
     ShaderStage,
+    ShaderValue,
+    ShaderVariable,
 )
 
 from rdc.adapter import RenderDocAdapter
@@ -46,6 +50,20 @@ def _req(method: str, **params: Any) -> dict[str, Any]:
 def _make_state(tmp_path: Path, pipe: MockPipeState) -> DaemonState:
     actions = _build_actions()
     resources = _build_resources()
+    cbvars: dict[tuple[int, int], list[Any]] = {}
+
+    def _get_cbuf(
+        _pipe: Any,
+        _sh: Any,
+        stage: Any,
+        _e: str,
+        idx: int,
+        _r: Any,
+        _o: int,
+        _s: int,
+    ) -> list[Any]:
+        return cbvars.get((int(stage), idx), [])
+
     controller = SimpleNamespace(
         GetRootActions=lambda: actions,
         GetResources=lambda: resources,
@@ -57,6 +75,8 @@ def _make_state(tmp_path: Path, pipe: MockPipeState) -> DaemonState:
         GetBuffers=lambda: [],
         GetDebugMessages=lambda: [],
         Shutdown=lambda: None,
+        _cbuffer_variables=cbvars,
+        GetCBufferVariableContents=_get_cbuf,
     )
     s = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
     s.adapter = RenderDocAdapter(controller=controller, version=(1, 41))
@@ -144,14 +164,13 @@ class TestPipePushConstants:
         resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
         assert "error" not in resp
         assert resp["result"]["push_constants"] == []
-        assert resp["result"]["eid"] == 10
+        assert resp["result"]["raw_bytes"] == ""
 
-    def test_empty_when_size_is_zero(self, tmp_path: Path) -> None:
+    def test_empty_when_all_buffer_backed(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
         refl = ShaderReflection(
             resourceId=ResourceId(5),
-            pushConstantRangeByteOffset=0,
-            pushConstantRangeByteSize=0,
+            constantBlocks=[ConstantBlock(name="ubo", bufferBacked=True, byteSize=64)],
         )
         pipe._shaders[ShaderStage.Vertex] = ResourceId(5)
         pipe._reflections[ShaderStage.Vertex] = refl
@@ -159,42 +178,77 @@ class TestPipePushConstants:
         resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
         assert resp["result"]["push_constants"] == []
 
-    def test_returns_range_when_size_nonzero(self, tmp_path: Path) -> None:
+    def test_single_stage_push_constants(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
-        refl = ShaderReflection(
-            resourceId=ResourceId(5),
-            pushConstantRangeByteOffset=16,
-            pushConstantRangeByteSize=64,
-        )
+        cb = ConstantBlock(name="push_block", bufferBacked=False, byteSize=16)
+        refl = ShaderReflection(resourceId=ResourceId(5), constantBlocks=[cb])
         pipe._shaders[ShaderStage.Vertex] = ResourceId(5)
         pipe._reflections[ShaderStage.Vertex] = refl
+        pipe._cbuffer_descriptors[(ShaderStage.Vertex, 0)] = Descriptor(
+            resource=ResourceId(100),
+            byteSize=16,
+        )
+        val = ShaderValue()
+        val.f32v = [1.0, 2.0, 3.0, 4.0] + [0.0] * 12
+        var = ShaderVariable(name="color", type="vec4", rows=1, columns=4, value=val)
         s = _make_state(tmp_path, pipe)
+        s.adapter.controller._cbuffer_variables[(ShaderStage.Vertex, 0)] = [var]
         resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
-        ranges = resp["result"]["push_constants"]
-        assert len(ranges) == 1
-        assert ranges[0]["stage"] == "vs"
-        assert ranges[0]["offset"] == 16
-        assert ranges[0]["size"] == 64
+        result = resp["result"]
+        assert len(result["push_constants"]) == 1
+        pc = result["push_constants"][0]
+        assert pc["stage"] == "vs"
+        assert pc["name"] == "push_block"
+        assert pc["size"] == 16
+        assert len(pc["variables"]) == 1
+        assert pc["variables"][0]["name"] == "color"
+        assert pc["variables"][0]["value"] == [1.0, 2.0, 3.0, 4.0]
 
     def test_multiple_stages(self, tmp_path: Path) -> None:
         pipe = MockPipeState()
-        for stage, stage_id in (
-            (ShaderStage.Vertex, 5),
-            (ShaderStage.Pixel, 6),
-        ):
-            refl = ShaderReflection(
-                resourceId=ResourceId(stage_id),
-                pushConstantRangeByteOffset=0,
-                pushConstantRangeByteSize=128,
-            )
-            pipe._shaders[stage] = ResourceId(stage_id)
+        for stage, sid in ((ShaderStage.Vertex, 5), (ShaderStage.Pixel, 6)):
+            cb = ConstantBlock(name="pc", bufferBacked=False, byteSize=8)
+            refl = ShaderReflection(resourceId=ResourceId(sid), constantBlocks=[cb])
+            pipe._shaders[stage] = ResourceId(sid)
             pipe._reflections[stage] = refl
         s = _make_state(tmp_path, pipe)
         resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
-        ranges = resp["result"]["push_constants"]
-        stage_names = {r["stage"] for r in ranges}
-        assert "vs" in stage_names
-        assert "ps" in stage_names
+        stages = {pc["stage"] for pc in resp["result"]["push_constants"]}
+        assert "vs" in stages
+        assert "ps" in stages
+
+    def test_raw_bytes_present(self, tmp_path: Path) -> None:
+        pipe = MockPipeState()
+        pipe.pushconsts = b"\x01\x02\xab"
+        s = _make_state(tmp_path, pipe)
+        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        assert resp["result"]["raw_bytes"] == "0102ab"
+
+    def test_raw_bytes_empty_when_no_attr(self, tmp_path: Path) -> None:
+        pipe = MockPipeState()
+        delattr(pipe, "pushconsts")
+        s = _make_state(tmp_path, pipe)
+        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        assert resp["result"]["raw_bytes"] == ""
+
+    def test_mixed_buffer_backed_and_push(self, tmp_path: Path) -> None:
+        pipe = MockPipeState()
+        blocks = [
+            ConstantBlock(name="ubo", bufferBacked=True, byteSize=64),
+            ConstantBlock(name="pc", bufferBacked=False, byteSize=16),
+        ]
+        refl = ShaderReflection(resourceId=ResourceId(5), constantBlocks=blocks)
+        pipe._shaders[ShaderStage.Vertex] = ResourceId(5)
+        pipe._reflections[ShaderStage.Vertex] = refl
+        pipe._cbuffer_descriptors[(ShaderStage.Vertex, 1)] = Descriptor(
+            resource=ResourceId(200),
+            byteSize=16,
+        )
+        s = _make_state(tmp_path, pipe)
+        resp, _ = _handle_request(_req("pipe_push_constants", eid=10), s)
+        pcs = resp["result"]["push_constants"]
+        assert len(pcs) == 1
+        assert pcs[0]["name"] == "pc"
 
 
 # ── pipe_rasterizer ───────────────────────────────────────────────────────────

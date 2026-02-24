@@ -1286,6 +1286,7 @@ class MockPipeState:
         self.rasterizer: RasterizerState | None = None
         self.depthStencil: DepthStencilState | None = None
         self.multisample: MultisampleState = MultisampleState()
+        self.pushconsts: bytes = b""
 
     def GetShader(self, stage: ShaderStage) -> ResourceId:
         return self._shaders.get(stage, ResourceId.Null())
@@ -1340,9 +1341,10 @@ class MockPipeState:
         stage: int,
         slot: int,
         array_idx: int,
-    ) -> Descriptor:
-        """Mock GetConstantBlock — returns descriptor with cbuffer resource."""
-        return self._cbuffer_descriptors.get((stage, slot), Descriptor())
+    ) -> UsedDescriptor:
+        """Mock GetConstantBlock — returns UsedDescriptor with cbuffer resource."""
+        desc = self._cbuffer_descriptors.get((stage, slot), Descriptor())
+        return UsedDescriptor(descriptor=desc)
 
     def GetAllUsedDescriptors(self, only_used: bool = True) -> list[UsedDescriptor]:
         """Mock GetAllUsedDescriptors — returns configured used descriptors."""

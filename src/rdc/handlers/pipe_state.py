@@ -9,9 +9,11 @@ from rdc.handlers._helpers import (
     STAGE_MAP,
     _enum_name,
     _error_response,
+    _flatten_shader_var,
     _result_response,
     _sanitize_size,
     _set_frame_event,
+    get_pipeline_for_stage,
 )
 from rdc.handlers._types import Handler
 
@@ -252,18 +254,46 @@ def _handle_pipe_push_constants(
     if err:
         return _error_response(request_id, -32002, err), True
     pipe_state = state.adapter.get_pipeline_state()
-    ranges: list[dict[str, Any]] = []
+    controller = state.adapter.controller
+    push_constants: list[dict[str, Any]] = []
     for stage_val, stage_name in _STAGE_NAMES.items():
-        if int(pipe_state.GetShader(stage_val)) == 0:
+        shader_id = pipe_state.GetShader(stage_val)
+        if int(shader_id) == 0:
             continue
         refl = pipe_state.GetShaderReflection(stage_val)
         if refl is None:
             continue
-        offset = getattr(refl, "pushConstantRangeByteOffset", 0)
-        size = getattr(refl, "pushConstantRangeByteSize", 0)
-        if size > 0:
-            ranges.append({"stage": stage_name, "offset": offset, "size": size})
-    return _result_response(request_id, {"eid": eid, "push_constants": ranges}), True
+        pipe = get_pipeline_for_stage(pipe_state, stage_val)
+        entry = pipe_state.GetShaderEntryPoint(stage_val)
+        for idx, cb in enumerate(getattr(refl, "constantBlocks", [])):
+            if getattr(cb, "bufferBacked", True):
+                continue
+            bound = pipe_state.GetConstantBlock(stage_val, idx, 0)
+            desc = bound.descriptor
+            cbuffer_vars = controller.GetCBufferVariableContents(
+                pipe,
+                shader_id,
+                stage_val,
+                entry,
+                idx,
+                desc.resource,
+                desc.byteOffset,
+                desc.byteSize,
+            )
+            variables = [_flatten_shader_var(v) for v in cbuffer_vars]
+            push_constants.append(
+                {
+                    "stage": stage_name,
+                    "name": cb.name,
+                    "size": getattr(cb, "byteSize", 0),
+                    "variables": variables,
+                }
+            )
+    raw = getattr(pipe_state, "pushconsts", b"")
+    return _result_response(
+        request_id,
+        {"eid": eid, "push_constants": push_constants, "raw_bytes": raw.hex()},
+    ), True
 
 
 def _handle_pipe_rasterizer(

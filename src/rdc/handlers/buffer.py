@@ -140,7 +140,8 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
     shader = pipe_state.GetShader(stage_val)
     entry = pipe_state.GetShaderEntryPoint(stage_val)
     if hasattr(pipe_state, "GetConstantBlock"):
-        cb_desc = pipe_state.GetConstantBlock(stage_val, target_idx, 0)
+        cb_used = pipe_state.GetConstantBlock(stage_val, target_idx, 0)
+        cb_desc = cb_used.descriptor
         cb_resource = cb_desc.resource
         cb_offset = getattr(cb_desc, "byteOffset", 0)
         cb_size = getattr(cb_desc, "byteSize", 0)

@@ -272,6 +272,44 @@ def get_default_disasm_target(controller: Any) -> str:
     return str(targets[0]) if targets else "SPIR-V"
 
 
+def _flatten_shader_var(var: Any) -> dict[str, Any]:
+    """Recursively convert a ShaderVariable to a dict."""
+    members = getattr(var, "members", [])
+    if members:
+        return {
+            "name": var.name,
+            "type": str(getattr(var, "type", "")),
+            "rows": getattr(var, "rows", 0),
+            "columns": getattr(var, "columns", 0),
+            "value": None,
+            "members": [_flatten_shader_var(m) for m in members],
+        }
+
+    rows = getattr(var, "rows", 0)
+    columns = getattr(var, "columns", 0)
+    count = max(rows * columns, 1)
+
+    val = getattr(var, "value", None)
+    if val is None:
+        values: list[Any] = []
+    else:
+        type_str = str(getattr(var, "type", "")).lower()
+        if "uint" in type_str:
+            values = list(getattr(val, "u32v", [0.0] * 16)[:count])
+        elif "int" in type_str or "sint" in type_str:
+            values = list(getattr(val, "s32v", [0] * 16)[:count])
+        else:
+            values = list(getattr(val, "f32v", [0.0] * 16)[:count])
+
+    return {
+        "name": var.name,
+        "type": str(getattr(var, "type", "")),
+        "rows": rows,
+        "columns": columns,
+        "value": values,
+    }
+
+
 def _resolve_vfs_path(path: str, state: DaemonState) -> tuple[str, str | None]:
     """Normalize VFS path: strip trailing slash, resolve /current alias."""
     path = path.rstrip("/") or "/"
