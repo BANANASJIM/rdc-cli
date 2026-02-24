@@ -191,8 +191,8 @@ class TestExecuteAndCapture:
         result = execute_and_capture(rd, "/usr/bin/app", trigger=True)
         assert result.success is True
         assert result.ident == 12345
-        # Should NOT enter the message loop — no tc_create calls
-        assert rd._calls["tc_create"] == []
+        # Trigger path connects briefly to get PID, then shuts down
+        assert len(rd._calls["tc_create"]) == 1
 
     def test_capture_timeout_has_ident(self) -> None:
         from rdc.capture_core import execute_and_capture
@@ -222,6 +222,31 @@ class TestExecuteAndCapture:
         assert result.success is False
         assert result.ident == 12345
         assert "failed to connect" in result.error
+
+    def test_capture_trigger_returns_nonzero_pid(self) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd()
+        result = execute_and_capture(rd, "/usr/bin/app", trigger=True)
+        assert result.success is True
+        assert result.pid != 0
+
+    def test_capture_trigger_connects_briefly_then_shuts_down(self) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd()
+        execute_and_capture(rd, "/usr/bin/app", trigger=True)
+        assert len(rd._calls["tc_create"]) == 1
+        assert rd._tc.shutdown_count >= 1
+
+    def test_capture_trigger_connect_failure_still_succeeds(self) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd()
+        rd.CreateTargetControl = lambda *_a, **_kw: None
+        result = execute_and_capture(rd, "/usr/bin/app", trigger=True)
+        assert result.success is True
+        assert result.pid == 0
 
 
 class TestTerminateProcess:

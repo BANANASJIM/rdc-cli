@@ -118,7 +118,7 @@ def capture_cmd(
             timeout=timeout,
             wait_for_exit=wait_for_exit,
         )
-        if not trigger and not keep_alive and result.success and result.pid:
+        if not trigger and not keep_alive and result.pid:
             terminate_process(result.pid)
         _emit_result(result, use_json, auto_open)
         return

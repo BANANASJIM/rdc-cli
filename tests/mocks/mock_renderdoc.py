@@ -1639,6 +1639,7 @@ class MockTargetControl:
         self._target = target
         self._pid = pid
         self._api = api
+        self.shutdown_count: int = 0
 
     def Connected(self) -> bool:
         return self._connected
@@ -1675,6 +1676,7 @@ class MockTargetControl:
         pass
 
     def Shutdown(self) -> None:
+        self.shutdown_count += 1
         self._connected = False
 
 

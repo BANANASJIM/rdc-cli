@@ -71,6 +71,17 @@ def terminate_process(pid: int) -> bool:
     return result
 
 
+def _get_pid_for_ident(rd: Any, ident: int) -> int:
+    """Connect briefly to retrieve the OS PID for an injected ident."""
+    tc = rd.CreateTargetControl("", ident, "rdc-cli", True)
+    if tc is None:
+        return 0
+    try:
+        return tc.GetPID() if tc.Connected() else 0
+    finally:
+        tc.Shutdown()
+
+
 def execute_and_capture(
     rd: Any,
     app: str,
@@ -111,7 +122,8 @@ def execute_and_capture(
         return CaptureResult(error="inject returned zero ident")
 
     if trigger:
-        return CaptureResult(success=True, ident=result.ident)
+        pid = _get_pid_for_ident(rd, result.ident)
+        return CaptureResult(success=True, ident=result.ident, pid=pid)
 
     ident = result.ident
     tc = rd.CreateTargetControl("", ident, "rdc-cli", True)
