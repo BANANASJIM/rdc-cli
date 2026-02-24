@@ -6,6 +6,7 @@ import json
 from typing import Any
 from unittest.mock import MagicMock
 
+import click
 from click.testing import CliRunner
 
 from rdc.commands.capture import capture_cmd
@@ -247,6 +248,31 @@ def test_failed_capture_skips_termination(monkeypatch: Any) -> None:
     result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
     assert result.exit_code != 0
     assert terminated == []
+
+
+def test_capture_path_on_stdout(monkeypatch: Any) -> None:
+    """B24: capture path must appear on stdout for machine parsing."""
+    monkeypatch.setattr("rdc.commands.capture.find_renderdoc", lambda: MagicMock())
+    monkeypatch.setattr(
+        "rdc.commands.capture.execute_and_capture",
+        lambda *a, **kw: _make_capture_result(path="/tmp/captured.rdc"),
+    )
+    monkeypatch.setattr("rdc.commands.capture.build_capture_options", lambda opts: MagicMock())
+
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+    _orig_echo = click.echo
+
+    def _spy_echo(message: Any = None, err: bool = False, **kw: Any) -> Any:
+        (stderr_lines if err else stdout_lines).append(str(message))
+        return _orig_echo(message, err=err, **kw)
+
+    monkeypatch.setattr("rdc.commands.capture.click.echo", _spy_echo)
+
+    result = CliRunner().invoke(capture_cmd, ["--", "/usr/bin/app"])
+    assert result.exit_code == 0
+    assert any("/tmp/captured.rdc" in s for s in stdout_lines)
+    assert all("next:" not in s for s in stdout_lines)
 
 
 def test_missing_executable() -> None:
