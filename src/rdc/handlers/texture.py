@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     _error_response,
@@ -11,6 +11,7 @@ from rdc.handlers._helpers import (
     _make_texsave,
     _result_response,
     _set_frame_event,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -115,17 +116,15 @@ def _handle_tex_raw(
 def _handle_rt_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "temp directory not available"), True
-    eid = int(params.get("eid", state.current_eid))
     target_idx = int(params.get("target", 0))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe = cast(tuple[int, Any], result)
     targets = pipe.GetOutputTargets()
     non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
     if not non_null:
@@ -135,7 +134,7 @@ def _handle_rt_export(
         return _error_response(request_id, -32001, f"target index {target_idx} out of range"), True
     temp_path = state.temp_dir / f"rt_{eid}_color{target_idx}.png"
     texsave = _make_texsave(state.rd, match[0].resource)
-    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
     if not success or not temp_path.exists():
         return _error_response(request_id, -32002, "SaveTexture failed"), True
     return _result_response(
@@ -147,22 +146,20 @@ def _handle_rt_export(
 def _handle_rt_depth(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "temp directory not available"), True
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe = cast(tuple[int, Any], result)
     depth = pipe.GetDepthTarget()
     if int(depth.resource) == 0:
         return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
     temp_path = state.temp_dir / f"rt_{eid}_depth.png"
     texsave = _make_texsave(state.rd, depth.resource)
-    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
     if not success or not temp_path.exists():
         return _error_response(request_id, -32002, "SaveTexture failed"), True
     return _result_response(
@@ -175,7 +172,6 @@ def _handle_rt_overlay(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     """Render a debug overlay on the color target and save as PNG."""
-    assert state.adapter is not None
     if state.is_remote:
         return _error_response(
             request_id, -32002, "overlay not supported in remote mode (MVP)"
@@ -190,11 +186,10 @@ def _handle_rt_overlay(
         return _error_response(
             request_id, -32602, f"unknown overlay '{overlay_name}'; valid: {valid}"
         ), True
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe = cast(tuple[int, Any], result)
     targets = pipe.GetOutputTargets()
     non_null = [t for t in targets if int(t.resource) != 0]
     if not non_null:
@@ -208,7 +203,7 @@ def _handle_rt_overlay(
         state.replay_output_dims = None
     if state.replay_output is None:
         windowing = state.rd.CreateHeadlessWindowingData(width, height)
-        state.replay_output = state.adapter.controller.CreateOutput(
+        state.replay_output = state.adapter.controller.CreateOutput(  # type: ignore[union-attr]
             windowing, state.rd.ReplayOutputType.Texture
         )
         state.replay_output_dims = (width, height)
@@ -222,7 +217,7 @@ def _handle_rt_overlay(
         return _error_response(request_id, -32002, "overlay texture ID is zero"), True
     temp_path = Path(state.temp_dir) / f"overlay_{overlay_name}_{eid}.png"
     texsave = _make_texsave(state.rd, overlay_tex_id)
-    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))
+    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
     if not success or not temp_path.exists():
         return _error_response(request_id, -32002, "SaveTexture failed"), True
     return _result_response(

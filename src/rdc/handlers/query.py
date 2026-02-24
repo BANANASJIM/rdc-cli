@@ -5,7 +5,7 @@ resource, passes, pass, events, draws, event, draw, search, info, stats, log.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     _LOG_SEVERITY_MAP,
@@ -18,7 +18,7 @@ from rdc.handlers._helpers import (
     _error_response,
     _result_response,
     _seek_replay,
-    _set_frame_event,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -48,29 +48,27 @@ def _handle_shader_map(
 def _handle_pipeline(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     from rdc.services.query_service import pipeline_row
 
-    eid = int(params.get("eid", state.current_eid))
     section = params.get("section")
     if section is not None:
         section = str(section).lower()
         if section not in _SHADER_STAGES and section not in _SECTION_MAP:
             return _error_response(request_id, -32602, "invalid section"), True
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     if section is not None and section in _SECTION_MAP:
         from rdc.handlers.pipe_state import HANDLERS as PIPE_HANDLERS
 
         handler = PIPE_HANDLERS.get(_SECTION_MAP[section])
         if handler is not None:
-            result: tuple[dict[str, Any], bool] = handler(
+            pipe_result: tuple[dict[str, Any], bool] = handler(
                 request_id, {"_token": params.get("_token", ""), "eid": eid}, state
             )
-            return result
+            return pipe_result
         return _error_response(request_id, -32602, "invalid section"), True
-    pipe_state = state.adapter.get_pipeline_state()
     row = pipeline_row(state.current_eid, state.api_name, pipe_state, section=section)
     return _result_response(request_id, {"row": row}), True
 
@@ -78,14 +76,12 @@ def _handle_pipeline(
 def _handle_bindings(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     from rdc.services.query_service import bindings_rows
 
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    _eid, pipe_state = cast(tuple[int, Any], result)
     rows = bindings_rows(state.current_eid, pipe_state)
 
     set_filter = params.get("set")
@@ -101,17 +97,15 @@ def _handle_bindings(
 def _handle_shader(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     from rdc.services.query_service import shader_row
 
-    eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    _eid, pipe_state = cast(tuple[int, Any], result)
     row = shader_row(state.current_eid, pipe_state, stage)
     return _result_response(request_id, {"row": row}), True
 

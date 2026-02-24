@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     _enum_name,
     _error_response,
     _result_response,
-    _set_frame_event,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -19,12 +19,10 @@ if TYPE_CHECKING:
 def _handle_descriptors(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     if not hasattr(pipe_state, "GetAllUsedDescriptors"):
         return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
     used = pipe_state.GetAllUsedDescriptors(True)

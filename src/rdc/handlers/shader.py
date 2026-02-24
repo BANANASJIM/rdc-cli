@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     STAGE_MAP,
@@ -10,9 +10,9 @@ from rdc.handlers._helpers import (
     _error_response,
     _flatten_shader_var,
     _result_response,
-    _set_frame_event,
     get_default_disasm_target,
     get_pipeline_for_stage,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -36,16 +36,13 @@ def _handle_shader_targets(
 def _handle_shader_reflect(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     stage_val = STAGE_MAP[stage]
     refl = pipe_state.GetShaderReflection(stage_val)
 
@@ -103,23 +100,20 @@ def _handle_shader_reflect(
 def _handle_shader_constants(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     stage_val = STAGE_MAP[stage]
     refl = pipe_state.GetShaderReflection(stage_val)
 
     if refl is None:
         return _error_response(request_id, -32001, "no reflection available"), True
 
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     pipe = get_pipeline_for_stage(pipe_state, stage_val)
     shader_id = pipe_state.GetShader(stage_val)
     entry = pipe_state.GetShaderEntryPoint(stage_val)
@@ -157,18 +151,15 @@ def _handle_shader_constants(
 def _handle_shader_source(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     stage_val = STAGE_MAP[stage]
-    pipe_state = state.adapter.get_pipeline_state()
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     refl = pipe_state.GetShaderReflection(stage_val)
 
     source = ""
@@ -200,19 +191,16 @@ def _handle_shader_source(
 def _handle_shader_disasm(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
     stage = str(params.get("stage", "ps")).lower()
     target = str(params.get("target", ""))
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     stage_val = STAGE_MAP[stage]
-    pipe_state = state.adapter.get_pipeline_state()
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     refl = pipe_state.GetShaderReflection(stage_val)
 
     disasm = ""
@@ -232,13 +220,10 @@ def _handle_shader_disasm(
 def _handle_shader_all(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     result_stages = []
     for stage, stage_val in STAGE_MAP.items():
         sid = pipe_state.GetShader(stage_val)
