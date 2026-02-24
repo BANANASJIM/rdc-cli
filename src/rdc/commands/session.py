@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import click
 
@@ -20,6 +21,9 @@ from rdc.session_state import session_path
 )
 def open_cmd(capture: str, preload: bool, remote_url: str | None) -> None:
     """Create local default session and start daemon skeleton."""
+    if remote_url is None and not Path(capture).exists():
+        click.echo(f"error: file not found: {capture}", err=True)
+        raise SystemExit(1)
     ok, message = open_session(capture, remote_url=remote_url)
     if not ok:
         click.echo(message, err=True)

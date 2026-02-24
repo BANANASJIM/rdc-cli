@@ -269,8 +269,10 @@ class TestOpenPreloadFlag:
 
         monkeypatch.setattr(helpers_mod, "send_request", _capture_send)
 
+        capture_file = tmp_path / "test.rdc"
+        capture_file.touch()
         runner = CliRunner()
-        result = runner.invoke(main, ["open", "--preload", "test.rdc"])
+        result = runner.invoke(main, ["open", "--preload", str(capture_file)])
         assert result.exit_code == 0
         assert "preloaded 5 shader(s)" in result.output
         preload_calls = [c for c in captured if c.get("method") == "shaders_preload"]
@@ -288,8 +290,10 @@ class TestOpenPreloadFlag:
 
         monkeypatch.setattr(helpers_mod, "send_request", lambda *a: captured.append(a))
 
+        capture_file = tmp_path / "test.rdc"
+        capture_file.touch()
         runner = CliRunner()
-        result = runner.invoke(main, ["open", "test.rdc"])
+        result = runner.invoke(main, ["open", str(capture_file)])
         assert result.exit_code == 0
         assert "preloaded" not in result.output
         preload_calls = [

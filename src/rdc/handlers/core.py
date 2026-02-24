@@ -89,16 +89,26 @@ def _handle_shutdown(
         state.replay_output = None
     if state.adapter is not None:
         controller = state.adapter.controller
-        for rid_obj in state.shader_replacements.values():
-            controller.RemoveReplacement(rid_obj)
-        for rid_obj in state.built_shaders.values():
-            controller.FreeTargetResource(rid_obj)
+        try:
+            for rid_obj in state.shader_replacements.values():
+                controller.RemoveReplacement(rid_obj)
+            for rid_obj in state.built_shaders.values():
+                controller.FreeTargetResource(rid_obj)
+        except Exception:  # noqa: BLE001
+            pass
         state.shader_replacements.clear()
         state.built_shaders.clear()
     if state.temp_dir is not None:
         import shutil
 
         shutil.rmtree(state.temp_dir, ignore_errors=True)
+    if state.is_remote and state.local_capture_path:
+        import shutil
+        from pathlib import Path
+
+        local_meta_dir = Path(state.local_capture_path).parent
+        if "rdc-remote-" in local_meta_dir.name:
+            shutil.rmtree(str(local_meta_dir), ignore_errors=True)
     if state.is_remote:
         if state._ping_stop is not None:
             state._ping_stop.set()

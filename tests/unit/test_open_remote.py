@@ -32,8 +32,12 @@ class TestOpenCmdRemote:
         assert len(captured) == 1
         assert captured[0]["remote_url"] == "host:39920"
 
-    def test_no_remote_option_passes_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_remote_option_passes_none(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         captured: list[dict[str, Any]] = []
+        capture_file = tmp_path / "frame.rdc"
+        capture_file.touch()
 
         def fake_open_session(
             capture: str | Path, *, remote_url: str | None = None
@@ -45,7 +49,7 @@ class TestOpenCmdRemote:
         monkeypatch.setattr("rdc.commands.session.session_path", lambda: Path("/tmp/sess"))
 
         runner = CliRunner()
-        result = runner.invoke(open_cmd, ["/tmp/frame.rdc"])
+        result = runner.invoke(open_cmd, [str(capture_file)])
         assert result.exit_code == 0
         assert len(captured) == 1
         assert captured[0]["remote_url"] is None

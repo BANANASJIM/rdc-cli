@@ -16,9 +16,11 @@ def test_open_status_goto_close_flow(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
     runner = CliRunner()
 
-    result_open = runner.invoke(main, ["open", "capture.rdc"])
+    result_open = runner.invoke(main, ["open", str(capture_file)])
     assert result_open.exit_code == 0
     assert _session_file(tmp_path).exists()
 
@@ -73,9 +75,11 @@ def test_status_shows_session_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "mytest")
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
     runner = CliRunner()
 
-    runner.invoke(main, ["open", "capture.rdc"])
+    runner.invoke(main, ["open", str(capture_file)])
     result = runner.invoke(main, ["status"])
     assert result.exit_code == 0
     lines = result.output.splitlines()
@@ -87,9 +91,11 @@ def test_status_shows_default_session_name(monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
     runner = CliRunner()
 
-    runner.invoke(main, ["open", "capture.rdc"])
+    runner.invoke(main, ["open", str(capture_file)])
     result = runner.invoke(main, ["status"])
     assert result.exit_code == 0
     lines = result.output.splitlines()
@@ -125,9 +131,11 @@ def test_open_no_replay_mode_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
     runner = CliRunner()
 
-    result = runner.invoke(main, ["open", "capture.rdc"])
+    result = runner.invoke(main, ["open", str(capture_file)])
     assert result.exit_code == 0
     assert "no-replay mode" in result.output
     assert "warning" in result.stderr

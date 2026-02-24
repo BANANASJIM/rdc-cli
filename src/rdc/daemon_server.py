@@ -270,44 +270,48 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     state.is_remote = True
     state.remote_url = remote_url
 
-    local_capture = Path(state.capture)
-    if local_capture.exists():
-        remote_path = remote.CopyCaptureToRemote(str(local_capture), None)
-        state.local_capture_path = str(local_capture)
-    else:
-        remote_path = state.capture
-        import tempfile
+    try:
+        local_capture = Path(state.capture)
+        if local_capture.exists():
+            remote_path = remote.CopyCaptureToRemote(str(local_capture), None)
+            state.local_capture_path = str(local_capture)
+        else:
+            remote_path = state.capture
+            import tempfile
 
-        local_tmp = Path(tempfile.mkdtemp(prefix="rdc-remote-")) / "capture.rdc"
-        try:
-            remote.CopyCaptureFromRemote(remote_path, str(local_tmp), None)
-        except Exception as exc:  # noqa: BLE001
+            local_tmp = Path(tempfile.mkdtemp(prefix="rdc-remote-")) / "capture.rdc"
+            try:
+                remote.CopyCaptureFromRemote(remote_path, str(local_tmp), None)
+            except Exception as exc:  # noqa: BLE001
+                remote.ShutdownConnection()
+                return f"CopyCaptureFromRemote failed: {exc}"
+            state.local_capture_path = str(local_tmp)
+
+        result, controller = remote.OpenCapture(
+            rd.RemoteServer.NoPreference, remote_path, rd.ReplayOptions(), None
+        )
+        if result != rd.ResultCode.Succeeded:
             remote.ShutdownConnection()
-            return f"CopyCaptureFromRemote failed: {exc}"
-        state.local_capture_path = str(local_tmp)
+            return f"remote OpenCapture failed: {result}"
 
-    result, controller = remote.OpenCapture(
-        rd.RemoteServer.NoPreference, remote_path, rd.ReplayOptions(), None
-    )
-    if result != rd.ResultCode.Succeeded:
+        cap = rd.OpenCaptureFile()
+        open_result = cap.OpenFile(state.local_capture_path, "", None)
+        if open_result != rd.ResultCode.Succeeded:
+            remote.CloseCapture(controller)
+            remote.ShutdownConnection()
+            return f"local OpenFile (metadata) failed: {open_result}"
+
+        state.cap = cap
+        state.rd = rd
+        state.structured_file = cap.GetStructuredData()
+        version = _detect_version(rd)
+        state.adapter = RenderDocAdapter(controller=controller, version=version)
+
+        _init_adapter_state(state)
+        _start_ping_thread(state)
+    except Exception as exc:  # noqa: BLE001
         remote.ShutdownConnection()
-        return f"remote OpenCapture failed: {result}"
-
-    cap = rd.OpenCaptureFile()
-    open_result = cap.OpenFile(state.local_capture_path, "", None)
-    if open_result != rd.ResultCode.Succeeded:
-        remote.CloseCapture(controller)
-        remote.ShutdownConnection()
-        return f"local OpenFile (metadata) failed: {open_result}"
-
-    state.cap = cap
-    state.rd = rd
-    state.structured_file = cap.GetStructuredData()
-    version = _detect_version(rd)
-    state.adapter = RenderDocAdapter(controller=controller, version=version)
-
-    _init_adapter_state(state)
-    _start_ping_thread(state)
+        return f"remote replay setup failed: {exc}"
     return None
 
 
