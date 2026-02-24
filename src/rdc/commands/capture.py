@@ -184,4 +184,5 @@ def _fallback_renderdoccmd(
     if result.returncode != 0:
         raise SystemExit(result.returncode)
     if output:
-        click.echo(f"capture saved: {output}", err=True)
+        click.echo(output)  # stdout: machine-parseable
+        click.echo(f"next: rdc open {output}", err=True)

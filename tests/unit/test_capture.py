@@ -275,6 +275,32 @@ def test_capture_path_on_stdout(monkeypatch: Any) -> None:
     assert all("next:" not in s for s in stdout_lines)
 
 
+def test_fallback_capture_path_on_stdout(monkeypatch: Any) -> None:
+    """B24: fallback renderdoccmd path also emits capture path to stdout."""
+    monkeypatch.setattr("rdc.commands.capture.find_renderdoc", lambda: None)
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+
+    def fake_run(argv: list[str], check: bool = False) -> DummyResult:
+        return DummyResult(0)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+    _orig_echo = click.echo
+
+    def _spy_echo(message: Any = None, err: bool = False, **kw: Any) -> Any:
+        (stderr_lines if err else stdout_lines).append(str(message))
+        return _orig_echo(message, err=err, **kw)
+
+    monkeypatch.setattr("rdc.commands.capture.click.echo", _spy_echo)
+
+    result = CliRunner().invoke(capture_cmd, ["-o", "/tmp/out.rdc", "--", "/usr/bin/app"])
+    assert result.exit_code == 0
+    assert any("/tmp/out.rdc" in s for s in stdout_lines)
+    assert all("next:" not in s for s in stdout_lines)
+
+
 def test_missing_executable() -> None:
     """No arguments after -- raises usage error."""
     result = CliRunner().invoke(capture_cmd, [])
