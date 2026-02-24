@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from rdc.remote_core import (
+    build_conn_url,
     connect_remote_server,
     enumerate_remote_targets,
     parse_url,
@@ -66,10 +67,33 @@ class TestParseUrl:
             parse_url("fe80::1")
 
 
+class TestBuildConnUrl:
+    def test_ipv4(self) -> None:
+        assert build_conn_url("192.168.1.1", 39920) == "192.168.1.1:39920"
+
+    def test_hostname(self) -> None:
+        assert build_conn_url("localhost", 39920) == "localhost:39920"
+
+    def test_ipv6_re_brackets(self) -> None:
+        assert build_conn_url("::1", 39920) == "[::1]:39920"
+
+    def test_ipv6_long(self) -> None:
+        assert build_conn_url("2001:db8::1", 8080) == "[2001:db8::1]:8080"
+
+
 class TestWarnIfPublic:
     @pytest.mark.parametrize(
         "host",
-        ["192.168.1.10", "10.0.0.1", "172.16.5.3", "127.0.0.1", "localhost", "::1"],
+        [
+            "192.168.1.10",
+            "10.0.0.1",
+            "172.16.5.3",
+            "127.0.0.1",
+            "localhost",
+            "::1",
+            "fd12::1",
+            "fe80::1",
+        ],
     )
     def test_private_no_warning(self, host: str) -> None:
         assert warn_if_public(host) is None

@@ -12,6 +12,7 @@ import click
 
 from rdc.discover import find_renderdoc
 from rdc.remote_core import (
+    build_conn_url,
     connect_remote_server,
     enumerate_remote_targets,
     parse_url,
@@ -66,7 +67,7 @@ def remote_connect_cmd(url: str, as_json: bool) -> None:
     _check_public_ip(host)
     rd = _require_renderdoc()
 
-    conn_url = f"{host}:{port}"
+    conn_url = build_conn_url(host, port)
     try:
         remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:
@@ -94,7 +95,7 @@ def remote_list_cmd(url: str | None, as_json: bool) -> None:
     _check_public_ip(host)
     rd = _require_renderdoc()
 
-    conn_url = f"{host}:{port}"
+    conn_url = build_conn_url(host, port)
     idents = enumerate_remote_targets(rd, conn_url)
 
     targets: list[dict[str, Any]] = []
@@ -172,7 +173,7 @@ def remote_capture_cmd(
     if soft_memory_limit is not None:
         opts["soft_memory_limit"] = soft_memory_limit
 
-    conn_url = f"{host}:{port}"
+    conn_url = build_conn_url(host, port)
     try:
         remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:

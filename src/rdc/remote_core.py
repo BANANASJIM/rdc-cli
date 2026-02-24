@@ -16,9 +16,18 @@ _PRIVATE_NETS = (
     re.compile(r"^127\."),
     re.compile(r"^::1$"),
     re.compile(r"^localhost$", re.IGNORECASE),
+    re.compile(r"^[Ff][Dd]"),  # fd00::/8 ULA
+    re.compile(r"^[Ff][Ee][89AaBb]"),  # fe80::/10 link-local
 )
 
 DEFAULT_PORT = 39920
+
+
+def build_conn_url(host: str, port: int) -> str:
+    """Build connection URL, re-bracketing IPv6 addresses."""
+    if ":" in host:
+        return f"[{host}]:{port}"
+    return f"{host}:{port}"
 
 
 def warn_if_public(host: str) -> str | None:
