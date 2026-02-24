@@ -670,6 +670,7 @@ Capture on a remote host and transfer to local.
 | `--hook-children` | Hook child processes. | flag |  |
 | `--ref-all-resources` | Reference all resources. | flag |  |
 | `--soft-memory-limit` | Soft memory limit (MB). | integer |  |
+| `--keep-remote` | Skip transfer; print remote path for use with 'rdc open --remote'. | flag |  |
 | `--json` | Output as JSON. | flag |  |
 
 ## `rdc remote connect`
@@ -814,6 +815,20 @@ List all embedded sections.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--json` | Output as JSON. | flag |  |
+
+## `rdc serve`
+
+Launch renderdoccmd remoteserver for remote replay.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--port` | Listen port. | integer | 39920 |
+| `--host` | Bind address. | text | 0.0.0.0 |
+| `--allow-ips` | Comma-separated CIDR whitelist written to remoteserver.conf. | text |  |
+| `--no-exec` | Add 'noexec' to config (replay-only). | flag |  |
+| `--daemon` | Detach after printing PID. | flag |  |
 
 ## `rdc shader`
 

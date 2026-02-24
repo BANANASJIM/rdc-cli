@@ -57,6 +57,35 @@ def find_renderdoc() -> ModuleType | None:
     return None
 
 
+def find_renderdoccmd() -> Path | None:
+    """Discover the renderdoccmd binary.
+
+    Search order:
+        1. ``shutil.which("renderdoccmd")`` -- PATH
+        2. ``_platform.renderdoccmd_search_paths()`` -- platform candidates
+        3. Sibling of ``RENDERDOC_PYTHON_PATH`` (same dir, adjusted name)
+
+    Returns:
+        Absolute Path if found, else None.
+    """
+    which_result = shutil.which("renderdoccmd")
+    if which_result:
+        return Path(which_result)
+
+    for p in _platform.renderdoccmd_search_paths():
+        if p.exists():
+            return p
+
+    env_path = os.environ.get("RENDERDOC_PYTHON_PATH")
+    if env_path:
+        name = "renderdoccmd.exe" if sys.platform == "win32" else "renderdoccmd"
+        candidate = Path(env_path) / name
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
 def _try_import() -> ModuleType | None:
     """Try bare import without path manipulation."""
     try:

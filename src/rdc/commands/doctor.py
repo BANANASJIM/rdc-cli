@@ -13,7 +13,7 @@ from typing import Any
 
 import click
 
-from rdc.discover import find_renderdoc
+from rdc.discover import find_renderdoc, find_renderdoccmd
 
 
 @dataclass(frozen=True)
@@ -82,10 +82,17 @@ def _check_replay_support(module: Any | None) -> CheckResult:
 
 
 def _check_renderdoccmd() -> CheckResult:
-    path = shutil.which("renderdoccmd")
-    if path:
-        return CheckResult("renderdoccmd", True, path)
-    return CheckResult("renderdoccmd", False, "not found in PATH")
+    cmd_path = find_renderdoccmd()
+    if cmd_path is None:
+        return CheckResult("renderdoccmd", False, "not found in PATH or known paths")
+    try:
+        out = subprocess.run(
+            [str(cmd_path), "--version"], capture_output=True, text=True, timeout=3
+        )
+        version = out.stdout.strip() or out.stderr.strip() or "unknown"
+    except Exception:  # noqa: BLE001
+        version = str(cmd_path)
+    return CheckResult("renderdoccmd", True, f"{cmd_path} ({version})")
 
 
 # ── Windows-specific checks ──────────────────────────────────────────

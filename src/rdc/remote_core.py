@@ -122,6 +122,7 @@ def remote_capture(
     opts: dict[str, Any] | None = None,
     frame: int | None = None,
     timeout: float = 60.0,
+    keep_remote: bool = False,
 ) -> CaptureResult:
     """Execute app on remote, capture frame, transfer to local.
 
@@ -167,7 +168,9 @@ def remote_capture(
         return result
 
     # Transfer capture from remote to local
-    if not result.local:
+    if keep_remote and not result.local:
+        result.remote_path = result.path
+    elif not result.local:
         try:
             remote.CopyCaptureFromRemote(result.path, output, None)
             result.path = output
