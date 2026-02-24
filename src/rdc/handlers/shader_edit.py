@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     STAGE_MAP,
     _error_response,
     _result_response,
-    _set_frame_event,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -75,7 +75,6 @@ def _handle_shader_build(
 def _handle_shader_replace(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     for key in ("shader_id", "eid"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
@@ -88,17 +87,15 @@ def _handle_shader_replace(
         return _error_response(request_id, -32001, "unknown shader_id"), True
 
     replacement_rid = state.built_shaders[shader_id]
-    eid = int(params["eid"])
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe = cast(tuple[int, Any], result)
     original_rid = pipe.GetShader(STAGE_MAP[stage])
     if int(original_rid) == 0:
         return _error_response(request_id, -32001, "no shader bound at stage"), True
 
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     controller.ReplaceResource(original_rid, replacement_rid)
     state.shader_replacements[int(original_rid)] = original_rid
     state._eid_cache = -1
@@ -108,24 +105,21 @@ def _handle_shader_replace(
 def _handle_shader_restore(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
     if "eid" not in params:
         return _error_response(request_id, -32602, "missing required param: eid"), True
     stage = str(params.get("stage", "")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
 
-    eid = int(params["eid"])
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    _eid, pipe = cast(tuple[int, Any], result)
     original_rid = pipe.GetShader(STAGE_MAP[stage])
     if int(original_rid) not in state.shader_replacements:
         return _error_response(request_id, -32001, "no replacement active for stage"), True
 
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     controller.RemoveReplacement(original_rid)
     del state.shader_replacements[int(original_rid)]
     state._eid_cache = -1

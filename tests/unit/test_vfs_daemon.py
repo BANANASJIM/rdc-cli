@@ -26,7 +26,7 @@ from mock_renderdoc import (
 )
 
 from rdc.daemon_server import DaemonState, _handle_request
-from rdc.vfs.tree_cache import build_vfs_skeleton
+from rdc.vfs.tree_cache import VfsNode, build_vfs_skeleton
 
 
 def _build_actions():
@@ -236,6 +236,47 @@ class TestVfsTree:
         state.current_eid = 0
         resp, _ = _handle_request(rpc_request("vfs_tree", {"path": "/current", "depth": 1}), state)
         assert resp["error"]["code"] == -32002
+
+    def test_shader_subtree_invalid_eid_returns_error(self):
+        """vfs_tree on /draws/<out-of-range-eid>/shader must propagate seek error."""
+        actions = _build_actions()
+        sf = _build_sf()
+        resources = _build_resources()
+        ctrl = SimpleNamespace(
+            GetRootActions=lambda: actions,
+            GetResources=lambda: resources,
+            GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+            GetPipelineState=lambda: MockPipeState(),
+            SetFrameEvent=lambda eid, force: None,
+            GetStructuredFile=lambda: sf,
+            GetDebugMessages=lambda: [],
+            Shutdown=lambda: None,
+        )
+        state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=50, structured_file=sf)
+        # Manually add /draws/999/shader so the tree node exists but EID is invalid
+        state.vfs_tree = build_vfs_skeleton(actions, resources, sf=sf)
+        state.vfs_tree.static["/draws/999"] = VfsNode(name="999", kind="dir", children=["shader"])
+        state.vfs_tree.static["/draws/999/shader"] = VfsNode(name="shader", kind="dir", children=[])
+        resp, _ = _handle_request(
+            rpc_request("vfs_tree", {"path": "/draws/999/shader", "depth": 2}), state
+        )
+        assert "error" in resp
+        assert resp["error"]["code"] == -32002
+        # Must NOT silently return the empty-dir fallback
+        assert resp != {"name": "shader", "kind": "dir", "children": []}
+
+    def test_shader_subtree_valid_eid_returns_tree(self):
+        """vfs_tree on /draws/<valid-eid>/shader returns populated children."""
+        pipe = _make_pipe_with_shaders()
+        state = _make_state(pipe_state=pipe)
+        resp, _ = _handle_request(
+            rpc_request("vfs_tree", {"path": "/draws/42/shader", "depth": 2}), state
+        )
+        assert "result" in resp
+        tree = resp["result"]["tree"]
+        names = [c["name"] for c in tree["children"]]
+        assert "vs" in names
+        assert "ps" in names
 
 
 class TestVfsDynamicPopulateChildPath:

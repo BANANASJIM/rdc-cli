@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     _error_response,
     _result_response,
-    _set_frame_event,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -73,22 +73,19 @@ def _handle_pixel_history(
     Returns:
         Tuple of (response dict, keep_running bool).
     """
-    assert state.adapter is not None
     for key in ("x", "y"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
 
     x = int(params["x"])
     y = int(params["y"])
-    eid = int(params.get("eid", state.current_eid))
     target_idx = int(params.get("target", 0))
     sample = int(params.get("sample", 0))
 
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe = cast(tuple[int, Any], result)
     targets = pipe.GetOutputTargets()
     non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
 
@@ -115,7 +112,7 @@ def _handle_pixel_history(
     sub.sample = sample
     comp_type = rd.CompType.Typeless if rd else 0
 
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     mods = controller.PixelHistory(rt_rid, x, y, sub, comp_type)
 
     return _result_response(
@@ -143,21 +140,18 @@ def _handle_pick_pixel(
     Returns:
         Tuple of (response dict, keep_running bool).
     """
-    assert state.adapter is not None
     for key in ("x", "y"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True
 
     x = int(params["x"])
     y = int(params["y"])
-    eid = int(params.get("eid", state.current_eid))
     target_idx = int(params.get("target", 0))
 
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-
-    pipe = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe = cast(tuple[int, Any], result)
     targets = pipe.GetOutputTargets()
     non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
 
@@ -184,7 +178,7 @@ def _handle_pick_pixel(
     sub.sample = 0
     comp_type = rd.CompType.Typeless if rd else 0
 
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     pv = controller.PickPixel(rt_rid, x, y, sub, comp_type)
 
     fv = pv.floatValue

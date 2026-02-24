@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import struct
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from rdc.handlers._helpers import (
     STAGE_MAP,
@@ -12,6 +12,7 @@ from rdc.handlers._helpers import (
     _result_response,
     _set_frame_event,
     get_pipeline_for_stage,
+    require_pipe,
 )
 from rdc.handlers._types import Handler
 
@@ -106,16 +107,14 @@ def _handle_postvs(
 def _handle_cbuffer_decode(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
     cb_set = int(params.get("set", 0))
     cb_binding = int(params.get("binding", 0))
     stage_name = str(params.get("stage", "ps"))
     stage_val = STAGE_MAP.get(stage_name, 4)
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     refl = pipe_state.GetShaderReflection(stage_val)
     if refl is None:
         return _error_response(request_id, -32001, f"no reflection for stage {stage_name}"), True
@@ -135,7 +134,7 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
             -32001,
             f"no constant block at set={cb_set} binding={cb_binding}",
         ), True
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     pipeline = get_pipeline_for_stage(pipe_state, stage_val)
     shader = pipe_state.GetShader(stage_val)
     entry = pipe_state.GetShaderEntryPoint(stage_val)
@@ -199,17 +198,15 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
 def _handle_vbuffer_decode(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     inputs = pipe_state.GetVertexInputs()
     vbuffers = pipe_state.GetVBuffers()
     if not inputs:
         return _result_response(request_id, {"eid": eid, "columns": [], "vertices": []}), True
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     columns: list[str] = []
     col_defs: list[dict[str, Any]] = []
     for vi in inputs:
@@ -350,17 +347,15 @@ def _handle_mesh_data(
 def _handle_ibuffer_decode(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
-    eid = int(params.get("eid", state.current_eid))
-    err = _set_frame_event(state, eid)
-    if err:
-        return _error_response(request_id, -32002, err), True
-    pipe_state = state.adapter.get_pipeline_state()
+    result = require_pipe(params, state, request_id)
+    if isinstance(result[1], bool):
+        return result  # type: ignore[return-value]
+    eid, pipe_state = cast(tuple[int, Any], result)
     ib = pipe_state.GetIBuffer()
     rid = getattr(ib, "resourceId", None)
     if rid is None or int(rid) == 0:
         return _result_response(request_id, {"eid": eid, "format": "none", "indices": []}), True
-    controller = state.adapter.controller
+    controller = state.adapter.controller  # type: ignore[union-attr]
     raw_stride = getattr(ib, "byteStride", 0)
     stride = raw_stride if raw_stride in (2, 4) else 2
     offset = getattr(ib, "byteOffset", 0)

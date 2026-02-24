@@ -305,6 +305,13 @@ def _handle_vfs_ls(
     return _result_response(request_id, result), True
 
 
+class _VfsPopulateError(Exception):
+    """Raised when shader population fails inside recursive _subtree."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        self.response = response
+
+
 def _handle_vfs_tree(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -331,7 +338,9 @@ def _handle_vfs_tree(
     tree = state.vfs_tree
 
     def _subtree(p: str, d: int) -> dict[str, Any]:
-        _ensure_shader_populated(request_id, p, state)
+        err = _ensure_shader_populated(request_id, p, state)
+        if err is not None:
+            raise _VfsPopulateError(err)
         n = tree.static.get(p)
         if n is None:
             return {"name": p.rsplit("/", 1)[-1] or "/", "kind": "dir", "children": []}
@@ -343,7 +352,11 @@ def _handle_vfs_tree(
                 result["children"].append(_subtree(child_path, d - 1))
         return result
 
-    return _result_response(request_id, {"path": path, "tree": _subtree(path, depth)}), True
+    try:
+        tree_data = _subtree(path, depth)
+    except _VfsPopulateError as exc:
+        return exc.response, True
+    return _result_response(request_id, {"path": path, "tree": tree_data}), True
 
 
 HANDLERS: dict[str, Handler] = {
