@@ -33,7 +33,10 @@ def find_renderdoc() -> ModuleType | None:
     if env_path:
         candidates.append(env_path)
 
-    candidates.extend(_platform.renderdoc_search_paths())
+    try:
+        candidates.extend(_platform.renderdoc_search_paths())
+    except NotImplementedError:
+        pass
 
     cmd = shutil.which("renderdoccmd")
     if cmd:

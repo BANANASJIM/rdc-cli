@@ -21,6 +21,8 @@ from rdc._platform import (
     terminate_process,
 )
 
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="Unix-only _platform tests")
+
 # ── Group A: data_dir() ──────────────────────────────────────────────
 
 

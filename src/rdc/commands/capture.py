@@ -22,7 +22,10 @@ def _find_renderdoccmd() -> str | None:
     in_path = shutil.which("renderdoccmd")
     if in_path:
         return in_path
-    common_paths = _platform.renderdoccmd_search_paths()
+    try:
+        common_paths = _platform.renderdoccmd_search_paths()
+    except NotImplementedError:
+        common_paths = []
     for path in common_paths:
         if path.exists() and path.is_file():
             return str(path)
