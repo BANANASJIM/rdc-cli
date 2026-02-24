@@ -76,7 +76,7 @@ def _patch(monkeypatch: Any, response: dict) -> None:
         _captured_params["params"] = params
         return response
 
-    monkeypatch.setattr(pixel_mod, "_daemon_call", fake_daemon_call)
+    monkeypatch.setattr(pixel_mod, "call", fake_daemon_call)
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +185,7 @@ def test_daemon_error(monkeypatch: Any) -> None:
         click.echo("error: no color targets at eid 120", err=True)
         raise SystemExit(1)
 
-    monkeypatch.setattr(pixel_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(pixel_mod, "call", fake_call)
     result = CliRunner().invoke(main, ["pixel", "512", "384"])
     assert result.exit_code == 1
 

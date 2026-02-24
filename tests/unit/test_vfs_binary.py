@@ -29,7 +29,7 @@ class TestTTYProtection:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"path": "/tmp/fake.png", "size": 1024}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
         monkeypatch.setattr(vfs_mod, "_stdout_is_tty", lambda: True)
 
@@ -47,7 +47,7 @@ class TestTTYProtection:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"path": str(temp_file), "size": temp_file.stat().st_size}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
         monkeypatch.setattr(vfs_mod, "_stdout_is_tty", lambda: True)
 
@@ -67,7 +67,7 @@ class TestOutputDelivery:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"path": str(temp_file), "size": temp_file.stat().st_size}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
 
         runner = click.testing.CliRunner()
@@ -86,7 +86,7 @@ class TestOutputDelivery:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"path": str(temp_file), "size": temp_file.stat().st_size}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
 
         runner = click.testing.CliRunner()
@@ -103,7 +103,7 @@ class TestOutputDelivery:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"path": str(temp_file), "size": temp_file.stat().st_size}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
 
         runner = click.testing.CliRunner()
@@ -119,7 +119,7 @@ class TestBinaryErrors:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"size": 0}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
 
         runner = click.testing.CliRunner()
@@ -134,7 +134,7 @@ class TestBinaryErrors:
                 return {"kind": "leaf_bin", "path": "/textures/42/image.png"}
             return {"path": "/tmp/nonexistent_file_xyz.png", "size": 0}
 
-        monkeypatch.setattr(vfs_mod, "_daemon_call", mock_call)
+        monkeypatch.setattr(vfs_mod, "call", mock_call)
         monkeypatch.setattr(vfs_mod, "resolve_path", _mock_resolve())
 
         runner = click.testing.CliRunner()

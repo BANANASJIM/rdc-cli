@@ -42,13 +42,13 @@ def count_cmd(what: str, pass_name: str | None) -> None:
 
 @click.command("shader-map")
 @click.option("--no-header", is_flag=True, default=False, help="Omit TSV header row.")
-@click.option("--json", "as_json", is_flag=True, help="JSON output.")
+@click.option("--json", "use_json", is_flag=True, help="JSON output.")
 @click.option("--jsonl", "use_jsonl", is_flag=True, help="JSONL output.")
 @click.option("-q", "--quiet", is_flag=True, help="Print EID column only.")
-def shader_map_cmd(no_header: bool, as_json: bool, use_jsonl: bool, quiet: bool) -> None:
+def shader_map_cmd(no_header: bool, use_json: bool, use_jsonl: bool, quiet: bool) -> None:
     """Output EID-to-shader mapping as TSV."""
     rows: list[dict[str, Any]] = call("shader_map", {})["rows"]
-    if as_json:
+    if use_json:
         write_json(rows)
     elif use_jsonl:
         write_jsonl(rows)

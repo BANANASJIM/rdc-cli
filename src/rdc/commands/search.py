@@ -6,7 +6,7 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json
 
 
@@ -39,7 +39,7 @@ def search_cmd(
     if stage is not None:
         params["stage"] = stage
 
-    result = _daemon_call("search", params)
+    result = call("search", params)
     matches: list[dict[str, Any]] = result.get("matches", [])
     truncated: bool = result.get("truncated", False)
 

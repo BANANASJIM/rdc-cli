@@ -34,7 +34,7 @@ def _patch(monkeypatch: Any, response: dict[str, Any]) -> None:
         _captured_params["params"] = params
         return response
 
-    monkeypatch.setattr(tex_stats_mod, "_daemon_call", fake_daemon_call)
+    monkeypatch.setattr(tex_stats_mod, "call", fake_daemon_call)
 
 
 # ---------------------------------------------------------------------------

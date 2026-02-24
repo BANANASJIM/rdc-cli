@@ -22,8 +22,8 @@ _SHADER_STAGES_CLI: frozenset[str] = frozenset(STAGE_MAP)
 @click.command("pipeline")
 @click.argument("eid", required=False, type=int)
 @click.argument("section", required=False)
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
+def pipeline_cmd(eid: int | None, section: str | None, use_json: bool) -> None:
     """Show pipeline summary for current or specified EID.
 
     EID is the event ID. SECTION is optional (e.g., 'vs', 'ps', 'topology', 'blend').
@@ -41,7 +41,7 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
 
     if is_non_shader_section:
         # Non-shader sections return the pipe_* result directly (not wrapped in "row")
-        if as_json:
+        if use_json:
             write_json(result)
             return
         click.echo(format_row(["KEY", "VALUE"]))
@@ -51,7 +51,7 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
         return
 
     row = result.get("row", {})
-    if as_json:
+    if use_json:
         write_json(row)
         return
     click.echo(format_row(["EID", "API", "TOPOLOGY", "GFX_PIPE", "COMP_PIPE"]))
@@ -88,13 +88,13 @@ def pipeline_cmd(eid: int | None, section: str | None, as_json: bool) -> None:
 @click.argument("eid", required=False, type=int)
 @click.option("--binding", "binding_index", type=int, help="Filter by binding index.")
 @click.option("--set", "set_index", type=int, help="Filter by descriptor set index.")
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @list_output_options
 def bindings_cmd(
     eid: int | None,
     binding_index: int | None,
     set_index: int | None,
-    as_json: bool,
+    use_json: bool,
     no_header: bool,
     use_jsonl: bool,
     quiet: bool,
@@ -113,7 +113,7 @@ def bindings_cmd(
 
     result = call("bindings", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
-    if as_json:
+    if use_json:
         write_json(rows)
     elif use_jsonl:
         write_jsonl(rows)
@@ -158,7 +158,7 @@ def bindings_cmd(
     "-o", "--output", "output_path", type=click.Path(path_type=Path), help="Output file path."
 )
 @click.option("--all", "get_all", is_flag=True, help="Get all shader data for all stages.")
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def shader_cmd(
     eid: int | None,
     stage: str | None,
@@ -169,7 +169,7 @@ def shader_cmd(
     list_targets: bool,
     output_path: Path | None,
     get_all: bool,
-    as_json: bool,
+    use_json: bool,
 ) -> None:
     """Show shader metadata for a stage at EID.
 
@@ -200,7 +200,7 @@ def shader_cmd(
     if list_targets:
         result = call("shader_targets", {})
         targets_list: list[str] = result.get("targets", [])
-        if as_json:
+        if use_json:
             write_json(targets_list)
             return
         click.echo(format_row(["TARGET"]))
@@ -212,7 +212,7 @@ def shader_cmd(
     if get_all:
         result = call("shader_all", params)
         rows: list[dict[str, Any]] = result.get("stages", [])
-        if as_json:
+        if use_json:
             write_json(rows)
             return
         click.echo(format_row(["EID", "STAGE", "SHADER", "ENTRY", "RO", "RW", "CBUFFERS"]))
@@ -237,7 +237,7 @@ def shader_cmd(
         disasm_result = call(
             "shader_disasm", {"eid": eid or 0, "stage": stage or "ps", "target": target}
         )
-        if as_json:
+        if use_json:
             write_json(disasm_result)
             return
         content: str = disasm_result.get("disasm", "")
@@ -251,7 +251,7 @@ def shader_cmd(
     # Single shader query
     result = call("shader", params)
     row = result.get("row", {})
-    if as_json:
+    if use_json:
         write_json(row)
         return
 
@@ -339,12 +339,12 @@ def shader_cmd(
     default="name",
     help="Sort order.",
 )
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @list_output_options
 def shaders_cmd(
     stage_filter: str | None,
     sort_by: str,
-    as_json: bool,
+    use_json: bool,
     no_header: bool,
     use_jsonl: bool,
     quiet: bool,
@@ -361,7 +361,7 @@ def shaders_cmd(
 
     result = call("shaders", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
-    if as_json:
+    if use_json:
         write_json(rows)
     elif use_jsonl:
         write_jsonl(rows)

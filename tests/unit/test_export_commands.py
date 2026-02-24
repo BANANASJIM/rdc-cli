@@ -10,8 +10,8 @@ import click.testing
 from rdc.commands.export import buffer_cmd, rt_cmd, texture_cmd
 
 
-def _make_mock_daemon_call(tmp_path: Path):
-    """Create a mock _daemon_call that returns leaf_bin for VFS paths."""
+def _make_mockcall(tmp_path: Path):
+    """Create a mock call that returns leaf_bin for VFS paths."""
     temp_file = tmp_path / "export.bin"
     temp_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
 
@@ -25,9 +25,9 @@ def _make_mock_daemon_call(tmp_path: Path):
 
 class TestTextureCmd:
     def test_texture_mip0_output(self, monkeypatch: Any, tmp_path: Path) -> None:
-        mock = _make_mock_daemon_call(tmp_path)
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock)
+        mock = _make_mockcall(tmp_path)
+        monkeypatch.setattr("rdc.commands.export.call", mock)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         out_file = tmp_path / "out.png"
         runner = click.testing.CliRunner()
@@ -47,8 +47,8 @@ class TestTextureCmd:
             temp.write_bytes(b"\x89PNG" + b"\x00" * 50)
             return {"path": str(temp), "size": 54}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock_call)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         out_file = tmp_path / "out.png"
         runner = click.testing.CliRunner()
@@ -58,9 +58,9 @@ class TestTextureCmd:
         assert any("/textures/42/mips/2.png" in str(c) for c in vfs_calls)
 
     def test_texture_tty_protection(self, monkeypatch: Any, tmp_path: Path) -> None:
-        mock = _make_mock_daemon_call(tmp_path)
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock)
+        mock = _make_mockcall(tmp_path)
+        monkeypatch.setattr("rdc.commands.export.call", mock)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: True)
         runner = click.testing.CliRunner()
         result = runner.invoke(texture_cmd, ["42"])
@@ -80,8 +80,8 @@ class TestRtCmd:
             temp.write_bytes(b"\x89PNG" + b"\x00" * 50)
             return {"path": str(temp), "size": 54}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock_call)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         out_file = tmp_path / "rt.png"
         runner = click.testing.CliRunner()
@@ -101,8 +101,8 @@ class TestRtCmd:
             temp.write_bytes(b"\x89PNG" + b"\x00" * 50)
             return {"path": str(temp), "size": 54}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock_call)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         out_file = tmp_path / "rt.png"
         runner = click.testing.CliRunner()
@@ -124,8 +124,8 @@ class TestBufferCmd:
             temp.write_bytes(b"\xab\xcd" * 50)
             return {"path": str(temp), "size": 100}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock_call)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         out_file = tmp_path / "buf.bin"
         runner = click.testing.CliRunner()
@@ -135,9 +135,9 @@ class TestBufferCmd:
         assert any("/buffers/7/data" in str(c) for c in vfs_calls)
 
     def test_buffer_pipe_mode(self, monkeypatch: Any, tmp_path: Path) -> None:
-        mock = _make_mock_daemon_call(tmp_path)
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock)
-        monkeypatch.setattr("rdc.commands.vfs._daemon_call", mock)
+        mock = _make_mockcall(tmp_path)
+        monkeypatch.setattr("rdc.commands.export.call", mock)
+        monkeypatch.setattr("rdc.commands.vfs.call", mock)
         monkeypatch.setattr("rdc.commands.vfs._stdout_is_tty", lambda: False)
         runner = click.testing.CliRunner()
         result = runner.invoke(buffer_cmd, ["7", "--raw"])
@@ -151,7 +151,7 @@ class TestExportErrors:
                 raise SystemExit(1)
             return {}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
         runner = click.testing.CliRunner()
         result = runner.invoke(texture_cmd, ["42", "--raw"])
         assert result.exit_code == 1
@@ -162,7 +162,7 @@ class TestExportErrors:
                 return {"kind": "leaf", "path": "/textures/42/info"}
             return {}
 
-        monkeypatch.setattr("rdc.commands.export._daemon_call", mock_call)
+        monkeypatch.setattr("rdc.commands.export.call", mock_call)
         runner = click.testing.CliRunner()
         result = runner.invoke(texture_cmd, ["42", "--raw"])
         assert result.exit_code == 1

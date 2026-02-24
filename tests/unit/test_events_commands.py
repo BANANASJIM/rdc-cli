@@ -14,7 +14,7 @@ def _mock_session():
 def _patch_events(monkeypatch, response):
     import rdc.commands.events as mod
 
-    monkeypatch.setattr(mod, "_daemon_call", lambda m, p=None: response)
+    monkeypatch.setattr(mod, "call", lambda m, p=None: response)
 
 
 def test_events_tsv(monkeypatch) -> None:
@@ -61,7 +61,7 @@ def test_events_with_filters(monkeypatch) -> None:
         calls.append(p)
         return {"events": []}
 
-    monkeypatch.setattr(mod, "_daemon_call", capture_call)
+    monkeypatch.setattr(mod, "call", capture_call)
     CliRunner().invoke(
         main, ["events", "--type", "Draw", "--filter", "vk*", "--limit", "10", "--range", "0:100"]
     )
@@ -146,7 +146,7 @@ def test_draws_with_options(monkeypatch) -> None:
         calls.append(p)
         return {"draws": [], "summary": ""}
 
-    monkeypatch.setattr(mod, "_daemon_call", capture_call)
+    monkeypatch.setattr(mod, "call", capture_call)
     CliRunner().invoke(main, ["draws", "--pass", "GBuffer", "--sort", "triangles", "--limit", "5"])
     assert calls[0]["pass"] == "GBuffer"
     assert calls[0]["sort"] == "triangles"

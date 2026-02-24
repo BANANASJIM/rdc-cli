@@ -26,7 +26,7 @@ def _patch(monkeypatch, response=_HAPPY):
         captured["params"] = params
         return response
 
-    monkeypatch.setattr(mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(mod, "call", fake_call)
     return captured
 
 
@@ -115,6 +115,6 @@ def test_pick_pixel_float_formatting(monkeypatch):
 
 
 def test_pick_pixel_daemon_error(monkeypatch):
-    monkeypatch.setattr(mod, "_daemon_call", lambda m, p=None: (_ for _ in ()).throw(SystemExit(1)))
+    monkeypatch.setattr(mod, "call", lambda m, p=None: (_ for _ in ()).throw(SystemExit(1)))
     r = CliRunner().invoke(pick_pixel_cmd, ["512", "384"])
     assert r.exit_code == 1

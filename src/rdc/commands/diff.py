@@ -49,11 +49,11 @@ from rdc.services.diff_service import (
 def _render_framebuffer(
     result: FramebufferDiffResult,
     *,
-    output_json: bool,
+    use_json: bool,
     threshold: float,
 ) -> None:
     """Render framebuffer diff result to stdout."""
-    if output_json:
+    if use_json:
         data = asdict(result)
         data["diff_image"] = str(result.diff_image) if result.diff_image else None
         data["threshold"] = threshold
@@ -75,7 +75,7 @@ def _handle_pass_stats(
     ctx: DiffContext,
     *,
     label: str,
-    output_json: bool,
+    use_json: bool,
     fmt: str,
     shortstat: bool,
     no_header: bool,
@@ -96,7 +96,7 @@ def _handle_pass_stats(
 
     if shortstat:
         click.echo(diff_stats_mod.render_shortstat(rows))
-    elif output_json or fmt == "json":
+    elif use_json or fmt == "json":
         click.echo(diff_stats_mod.render_json(rows))
     elif fmt == "unified":
         click.echo(diff_stats_mod.render_unified(rows, ctx.capture_a, ctx.capture_b))
@@ -110,7 +110,7 @@ def _handle_pass_stats(
 def _handle_draws(
     ctx: DiffContext,
     *,
-    output_json: bool,
+    use_json: bool,
     fmt: str,
     shortstat: bool,
     no_header: bool,
@@ -133,7 +133,7 @@ def _handle_draws(
 
     if shortstat:
         click.echo(render_shortstat_draws(rows))
-    elif output_json or fmt == "json":
+    elif use_json or fmt == "json":
         click.echo(render_json_draws(rows))
     elif fmt == "unified":
         click.echo(render_unified_draws(rows, ctx.capture_a, ctx.capture_b))
@@ -144,7 +144,7 @@ def _handle_draws(
     sys.exit(1 if has_changes else 0)
 
 
-def _handle_summary(ctx: DiffContext, *, output_json: bool) -> None:
+def _handle_summary(ctx: DiffContext, *, use_json: bool) -> None:
     """Query both daemons for summary stats and render a compact delta view."""
     resp_stats_a, resp_stats_b, err_s = query_both(ctx, "stats", {})
     resp_res_a, resp_res_b, _err_r = query_both(ctx, "resources", {})
@@ -164,7 +164,7 @@ def _handle_summary(ctx: DiffContext, *, output_json: bool) -> None:
 
     rows = diff_summary(stats_a, stats_b, res_count_a, res_count_b)
 
-    if output_json:
+    if use_json:
         click.echo(render_json_summary(rows))
     else:
         click.echo(render_text(rows))
@@ -182,7 +182,7 @@ def _handle_summary(ctx: DiffContext, *, output_json: bool) -> None:
 @click.option("--stats", "mode", flag_value="stats")
 @click.option("--framebuffer", "mode", flag_value="framebuffer")
 @click.option("--pipeline", "pipeline_marker", default=None, metavar="MARKER")
-@click.option("--json", "output_json", is_flag=True)
+@click.option("--json", "use_json", is_flag=True)
 @click.option("--format", "fmt", type=click.Choice(["tsv", "unified", "json"]), default="tsv")
 @click.option("--shortstat", is_flag=True)
 @click.option("--no-header", is_flag=True)
@@ -207,7 +207,7 @@ def diff_cmd(
     capture_b: Path,
     mode: str | None,
     pipeline_marker: str | None,
-    output_json: bool,
+    use_json: bool,
     fmt: str,
     shortstat: bool,
     no_header: bool,
@@ -242,7 +242,7 @@ def diff_cmd(
             if result is None:
                 click.echo(f"error: {fb_err}", err=True)
                 sys.exit(2)
-            _render_framebuffer(result, output_json=output_json, threshold=threshold)
+            _render_framebuffer(result, use_json=use_json, threshold=threshold)
             sys.exit(0 if result.identical else 1)
 
         elif mode == "pipeline":
@@ -250,7 +250,7 @@ def diff_cmd(
             exit_code = _handle_pipeline(
                 ctx,
                 pipeline_marker,
-                output_json=output_json,
+                use_json=use_json,
                 verbose=verbose,
                 no_header=no_header,
             )
@@ -262,7 +262,7 @@ def diff_cmd(
                 capture_a,
                 capture_b,
                 fmt,
-                output_json,
+                use_json,
                 shortstat,
                 no_header,
                 timeout,
@@ -272,7 +272,7 @@ def diff_cmd(
             _handle_pass_stats(
                 ctx,
                 label="stats",
-                output_json=output_json,
+                use_json=use_json,
                 fmt=fmt,
                 shortstat=shortstat,
                 no_header=no_header,
@@ -281,7 +281,7 @@ def diff_cmd(
         elif mode == "draws":
             _handle_draws(
                 ctx,
-                output_json=output_json,
+                use_json=use_json,
                 fmt=fmt,
                 shortstat=shortstat,
                 no_header=no_header,
@@ -291,14 +291,14 @@ def diff_cmd(
             _handle_pass_stats(
                 ctx,
                 label="passes",
-                output_json=output_json,
+                use_json=use_json,
                 fmt=fmt,
                 shortstat=shortstat,
                 no_header=no_header,
             )
 
         elif mode == "summary":
-            _handle_summary(ctx, output_json=output_json)
+            _handle_summary(ctx, use_json=use_json)
     finally:
         stop_diff_session(ctx)
 
@@ -307,7 +307,7 @@ def _handle_pipeline(
     ctx: Any,
     marker: str,
     *,
-    output_json: bool,
+    use_json: bool,
     verbose: bool,
     no_header: bool,
 ) -> int:
@@ -355,7 +355,7 @@ def _handle_pipeline(
 
     diffs = diff_pipeline_sections(results_a, results_b)
 
-    if output_json:
+    if use_json:
         click.echo(render_pipeline_json(diffs))
     else:
         click.echo(render_pipeline_tsv(diffs, verbose=verbose, header=not no_header))
@@ -369,7 +369,7 @@ def _handle_resources(
     capture_a: Path,
     capture_b: Path,
     fmt: str,
-    output_json: bool,
+    use_json: bool,
     shortstat: bool,
     no_header: bool,
     timeout: float,
@@ -388,7 +388,7 @@ def _handle_resources(
 
     if shortstat:
         click.echo(render_shortstat_res(rows))
-    elif fmt == "json" or output_json:
+    elif fmt == "json" or use_json:
         click.echo(render_json_res(rows))
     elif fmt == "unified":
         click.echo(render_unified_res(rows, str(capture_a), str(capture_b)))

@@ -55,8 +55,8 @@ def remote_group() -> None:
 
 @remote_group.command("connect")
 @click.argument("url")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def remote_connect_cmd(url: str, as_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
+def remote_connect_cmd(url: str, use_json: bool) -> None:
     """Connect to a remote RenderDoc server."""
     try:
         host, port = parse_url(url)
@@ -79,7 +79,7 @@ def remote_connect_cmd(url: str, as_json: bool) -> None:
     finally:
         remote.ShutdownConnection()
 
-    if as_json:
+    if use_json:
         click.echo(json.dumps({"host": host, "port": port}))
     else:
         click.echo(f"connected: {host}:{port}")
@@ -87,8 +87,8 @@ def remote_connect_cmd(url: str, as_json: bool) -> None:
 
 @remote_group.command("list")
 @click.option("--url", default=None, help="Override saved remote (host:port).")
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
-def remote_list_cmd(url: str | None, as_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
+def remote_list_cmd(url: str | None, use_json: bool) -> None:
     """List capturable applications on a remote host."""
     host, port = _resolve_url(url)
     _check_public_ip(host)
@@ -115,7 +115,7 @@ def remote_list_cmd(url: str | None, as_json: bool) -> None:
         finally:
             tc.Shutdown()
 
-    if as_json:
+    if use_json:
         click.echo(json.dumps({"targets": targets}))
     else:
         if not targets:
@@ -144,7 +144,7 @@ def remote_list_cmd(url: str | None, as_json: bool) -> None:
     is_flag=True,
     help="Skip transfer; print remote path for use with 'rdc open --remote'.",
 )
-@click.option("--json", "as_json", is_flag=True, help="Output as JSON.")
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
 def remote_capture_cmd(
     app: str,
     output: Path,
@@ -159,7 +159,7 @@ def remote_capture_cmd(
     ref_all_resources: bool,
     soft_memory_limit: int | None,
     keep_remote: bool,
-    as_json: bool,
+    use_json: bool,
 ) -> None:
     """Capture on a remote host and transfer to local."""
     host, port = _resolve_url(url)
@@ -202,7 +202,7 @@ def remote_capture_cmd(
     finally:
         remote.ShutdownConnection()
 
-    if as_json:
+    if use_json:
         click.echo(json.dumps(dataclasses.asdict(result)))
         if not result.success:
             raise SystemExit(1)

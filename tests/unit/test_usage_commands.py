@@ -12,7 +12,7 @@ from rdc.commands import usage as usage_mod
 
 
 def _patch(monkeypatch: Any, response: dict) -> None:
-    monkeypatch.setattr(usage_mod, "_daemon_call", lambda method, params=None: response)
+    monkeypatch.setattr(usage_mod, "call", lambda method, params=None: response)
 
 
 _SINGLE_RESPONSE = {
@@ -71,7 +71,7 @@ def test_usage_all_type_filter(monkeypatch: Any) -> None:
         captured["params"] = params or {}
         return {"rows": [{"id": 97, "name": "2D Image 97", "eid": 6, "usage": "Clear"}], "total": 1}
 
-    monkeypatch.setattr(usage_mod, "_daemon_call", _capture)
+    monkeypatch.setattr(usage_mod, "call", _capture)
     result = CliRunner().invoke(main, ["usage", "--all", "--type", "Texture"])
     assert result.exit_code == 0
     assert captured["params"].get("type") == "Texture"
@@ -86,7 +86,7 @@ def test_usage_all_usage_filter(monkeypatch: Any) -> None:
         row = {"id": 97, "name": "2D Image 97", "eid": 11, "usage": "ColorTarget"}
         return {"rows": [row], "total": 1}
 
-    monkeypatch.setattr(usage_mod, "_daemon_call", _capture)
+    monkeypatch.setattr(usage_mod, "call", _capture)
     result = CliRunner().invoke(main, ["usage", "--all", "--usage", "ColorTarget"])
     assert result.exit_code == 0
     assert captured["params"].get("usage") == "ColorTarget"
@@ -100,7 +100,7 @@ def test_usage_no_args_exits_1(monkeypatch: Any) -> None:
 
 
 def test_usage_daemon_error_exits_1(monkeypatch: Any) -> None:
-    from rdc.commands.info import _daemon_call as _orig  # noqa: F401
+    from rdc.commands._helpers import call as _orig  # noqa: F401
 
     def _raise_error(method: str, params: dict | None = None) -> dict:
         import click
@@ -108,7 +108,7 @@ def test_usage_daemon_error_exits_1(monkeypatch: Any) -> None:
         click.echo("error: resource 999 not found", err=True)
         raise SystemExit(1)
 
-    monkeypatch.setattr(usage_mod, "_daemon_call", _raise_error)
+    monkeypatch.setattr(usage_mod, "call", _raise_error)
     result = CliRunner().invoke(main, ["usage", "999"])
     assert result.exit_code == 1
 

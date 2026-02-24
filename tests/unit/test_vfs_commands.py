@@ -12,16 +12,16 @@ from rdc.vfs.router import PathMatch
 
 
 def _patch(monkeypatch, responses: dict):
-    """Patch _daemon_call to return different responses based on method name."""
+    """Patch call to return different responses based on method name."""
 
     def fake_call(method, params=None):
         return responses.get(method, {})
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
 
 
 def _patch_no_session(monkeypatch):
-    """Patch _daemon_call to simulate no active session."""
+    """Patch call to simulate no active session."""
 
     def fake_call(method, params=None):
         from click import echo
@@ -29,7 +29,7 @@ def _patch_no_session(monkeypatch):
         echo("error: no active session", err=True)
         raise SystemExit(1)
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
 
 
 # ── ls ──────────────────────────────────────────────────────────────
@@ -455,7 +455,7 @@ def test_complete_daemon_unreachable(monkeypatch) -> None:
     def fake_call(method, params=None):
         raise SystemExit(1)
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
     result = CliRunner().invoke(complete_cmd, ["/draws/14"])
     assert result.exit_code == 0
     assert result.output == ""
@@ -465,14 +465,14 @@ def test_complete_daemon_unreachable(monkeypatch) -> None:
 
 
 def _patch_long(monkeypatch, response: dict):
-    """Patch _daemon_call; return response for vfs_ls regardless of params."""
+    """Patch call; return response for vfs_ls regardless of params."""
 
     def fake_call(method, params=None):
         if method == "vfs_ls":
             return response
         return {}
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
 
 
 _LONG_PASSES_RESPONSE = {
@@ -497,7 +497,7 @@ def test_ls_long_calls_rpc_with_long_true(monkeypatch) -> None:
             return _LONG_PASSES_RESPONSE
         return {}
 
-    monkeypatch.setattr(vfs_mod, "_daemon_call", fake_call)
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
     CliRunner().invoke(ls_cmd, ["-l", "/passes"])
     assert captured_params.get("long") is True
 

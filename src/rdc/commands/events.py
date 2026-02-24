@@ -7,8 +7,9 @@ from typing import Any
 
 import click
 
-from rdc.commands.info import _daemon_call, _format_kv
+from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.kv import write_kv
 from rdc.formatters.tsv import write_footer, write_tsv
 
 
@@ -41,7 +42,7 @@ def events_cmd(
         params["limit"] = limit
     if eid_range:
         params["range"] = eid_range
-    result = _daemon_call("events", params)
+    result = call("events", params)
     rows_data = result.get("events", [])
     if use_json:
         write_json(rows_data)
@@ -83,7 +84,7 @@ def draws_cmd(
         params["sort"] = sort_field
     if limit is not None:
         params["limit"] = limit
-    result = _daemon_call("draws", params)
+    result = call("draws", params)
     rows_data = result.get("draws", [])
     summary = result.get("summary", "")
     if use_json:
@@ -118,11 +119,11 @@ def draws_cmd(
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def event_cmd(eid: int, use_json: bool) -> None:
     """Show single API call detail."""
-    result = _daemon_call("event", {"eid": eid})
+    result = call("event", {"eid": eid})
     if use_json:
         write_json(result)
         return
-    _format_kv(result)
+    write_kv(result)
 
 
 @click.command("draw")
@@ -133,8 +134,8 @@ def draw_cmd(eid: int | None, use_json: bool) -> None:
     params: dict[str, Any] = {}
     if eid is not None:
         params["eid"] = eid
-    result = _daemon_call("draw", params)
+    result = call("draw", params)
     if use_json:
         write_json(result)
         return
-    _format_kv(result)
+    write_kv(result)

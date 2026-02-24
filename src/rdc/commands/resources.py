@@ -9,12 +9,13 @@ import click
 
 from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.kv import format_kv
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import format_row, write_tsv
 
 
 @click.command("resources")
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @click.option(
     "--type", "type_filter", default=None, help="Filter by resource type (exact, case-insensitive)."
 )  # noqa: E501
@@ -30,7 +31,7 @@ from rdc.formatters.tsv import format_row, write_tsv
 )
 @list_output_options
 def resources_cmd(  # noqa: PLR0913
-    as_json: bool,
+    use_json: bool,
     type_filter: str | None,
     name_filter: str | None,
     sort: str,
@@ -48,7 +49,7 @@ def resources_cmd(  # noqa: PLR0913
         params["sort"] = sort
     result = call("resources", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
-    if as_json:
+    if use_json:
         write_json(rows)
     elif use_jsonl:
         write_jsonl(rows)
@@ -62,12 +63,12 @@ def resources_cmd(  # noqa: PLR0913
 
 @click.command("resource")
 @click.argument("resid", type=int)
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def resource_cmd(resid: int, as_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
+def resource_cmd(resid: int, use_json: bool) -> None:
     """Show details of a specific resource."""
     result = call("resource", {"id": resid})
     res = result.get("resource", {})
-    if as_json:
+    if use_json:
         write_json(res)
         return
 
@@ -77,13 +78,13 @@ def resource_cmd(resid: int, as_json: bool) -> None:
 
 
 @click.command("passes")
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @list_output_options
-def passes_cmd(as_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
+def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
     """List render passes."""
     result = call("passes", {})
     tree: dict[str, Any] = result.get("tree", {})
-    if as_json:
+    if use_json:
         write_json(tree)
         return
 
@@ -100,8 +101,8 @@ def passes_cmd(as_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> 
 
 @click.command("pass")
 @click.argument("identifier")
-@click.option("--json", "as_json", is_flag=True, default=False, help="Output JSON.")
-def pass_cmd(identifier: str, as_json: bool) -> None:
+@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
+def pass_cmd(identifier: str, use_json: bool) -> None:
     """Show detail for a single render pass by index or name."""
     params: dict[str, Any] = {}
     try:
@@ -109,7 +110,7 @@ def pass_cmd(identifier: str, as_json: bool) -> None:
     except ValueError:
         params["name"] = identifier
     result = call("pass", params)
-    if as_json:
+    if use_json:
         write_json(result)
         return
     _format_pass_detail(result)
@@ -128,7 +129,4 @@ def _format_pass_detail(data: dict[str, Any]) -> None:
         "Color Targets": ", ".join(color_ids) if color_ids else "-",
         "Depth Target": depth if depth else "-",
     }
-    max_key = max(len(k) for k in kv)
-    for key, value in kv.items():
-        label = key + ":"
-        click.echo(f"{label:<{max_key + 2}}{value}")
+    click.echo(format_kv(kv))

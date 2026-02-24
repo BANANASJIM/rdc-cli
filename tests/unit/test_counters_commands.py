@@ -45,7 +45,7 @@ _FETCH_RESPONSE = {
 
 
 def _patch(monkeypatch: Any, response: dict) -> None:
-    monkeypatch.setattr(counters_mod, "_daemon_call", lambda method, params=None: response)
+    monkeypatch.setattr(counters_mod, "call", lambda method, params=None: response)
 
 
 def test_counters_list_tsv(monkeypatch: Any) -> None:
@@ -85,7 +85,7 @@ def test_counters_eid_filter_tsv(monkeypatch: Any) -> None:
             "total": 1,
         }
 
-    monkeypatch.setattr(counters_mod, "_daemon_call", _capture)
+    monkeypatch.setattr(counters_mod, "call", _capture)
     result = CliRunner().invoke(main, ["counters", "--eid", "10"])
     assert result.exit_code == 0
     assert captured["params"].get("eid") == 10
@@ -103,7 +103,7 @@ def test_counters_name_filter_tsv(monkeypatch: Any) -> None:
             "total": 1,
         }
 
-    monkeypatch.setattr(counters_mod, "_daemon_call", _capture)
+    monkeypatch.setattr(counters_mod, "call", _capture)
     result = CliRunner().invoke(main, ["counters", "--name", "Duration"])
     assert result.exit_code == 0
     assert captured["params"].get("name") == "Duration"
