@@ -509,5 +509,11 @@ class TestSearchCli:
             return {"result": {"matches": [], "truncated": False}}
 
         monkeypatch.setattr(mod, "send_request", _capture_request)
-        CliRunner().invoke(main, ["search", "-i", "Op"])
+        CliRunner().invoke(main, ["search", "--case-sensitive", "Op"])
         assert captured[0]["params"]["case_sensitive"] is True
+
+    def test_short_i_flag_removed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B19: -i shorthand removed to avoid grep confusion."""
+        _patch_search(monkeypatch, {"matches": [], "truncated": False})
+        result = CliRunner().invoke(main, ["search", "-i", "Op"])
+        assert result.exit_code != 0

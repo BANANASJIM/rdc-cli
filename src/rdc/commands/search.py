@@ -15,7 +15,7 @@ from rdc.formatters.json_fmt import write_json
 @click.option("--stage", default=None, help="Filter by stage (vs/ps/cs/...).")
 @click.option("--limit", type=int, default=200, show_default=True, help="Max results.")
 @click.option("-C", "--context", type=int, default=0, help="Context lines.")
-@click.option("-i", "--case-sensitive", is_flag=True, help="Case-sensitive search.")
+@click.option("--case-sensitive", is_flag=True, help="Case-sensitive search.")
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")
 def search_cmd(
     pattern: str,
@@ -28,7 +28,7 @@ def search_cmd(
     """Search shader disassembly text for PATTERN (regex).
 
     Searches across all unique shaders in the capture. Case-insensitive by
-    default; use -i to enable case-sensitive mode.
+    default; use --case-sensitive to enable exact case matching.
     """
     params: dict[str, Any] = {
         "pattern": pattern,

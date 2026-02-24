@@ -143,7 +143,7 @@ def _emit_result(result: Any, use_json: bool, auto_open: bool) -> None:
         raise SystemExit(1)
 
     if result.path:
-        click.echo(f"capture saved: {result.path}", err=True)
+        click.echo(result.path)  # stdout: machine-parseable
         click.echo(f"next: rdc open {result.path}", err=True)
     elif result.ident:
         click.echo(f"injected: ident={result.ident}", err=True)
@@ -184,4 +184,5 @@ def _fallback_renderdoccmd(
     if result.returncode != 0:
         raise SystemExit(result.returncode)
     if output:
-        click.echo(f"capture saved: {output}", err=True)
+        click.echo(output)  # stdout: machine-parseable
+        click.echo(f"next: rdc open {output}", err=True)

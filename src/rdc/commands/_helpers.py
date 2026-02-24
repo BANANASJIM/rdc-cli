@@ -29,9 +29,20 @@ def require_session() -> tuple[str, int, str]:
     Returns:
         Tuple of (host, port, token).
     """
+    from rdc.session_state import delete_session, is_pid_alive
+
     session = load_session()
     if session is None:
         msg = "no active session (run 'rdc open' first)"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
+        raise SystemExit(1)
+    pid = getattr(session, "pid", None)
+    if isinstance(pid, int) and not is_pid_alive(pid):
+        delete_session()
+        msg = "stale session cleaned (daemon died); run 'rdc open' to restart"
         if _json_mode():
             click.echo(json.dumps({"error": {"message": msg}}), err=True)
         else:

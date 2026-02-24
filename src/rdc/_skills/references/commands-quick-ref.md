@@ -732,7 +732,7 @@ Search shader disassembly text for PATTERN (regex).
 | `--stage` | Filter by stage (vs/ps/cs/...). | text |  |
 | `--limit` | Max results. | integer | 200 |
 | `-C, --context` | Context lines. | integer | 0 |
-| `-i, --case-sensitive` | Case-sensitive search. | flag |  |
+| `--case-sensitive` | Case-sensitive search. | flag |  |
 | `--json` | JSON output. | flag |  |
 
 ## `rdc section`

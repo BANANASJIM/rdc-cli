@@ -94,3 +94,27 @@ def test_status_shows_default_session_name(monkeypatch: pytest.MonkeyPatch, tmp_
     assert result.exit_code == 0
     lines = result.output.splitlines()
     assert lines[0] == "session: default"
+
+
+def test_require_session_cleans_stale_pid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """B18: require_session() detects dead daemon PID and cleans up."""
+    import rdc.commands._helpers as helpers_mod
+    from rdc.session_state import SessionState
+
+    session = SessionState(
+        capture="test.rdc",
+        current_eid=0,
+        opened_at="2024-01-01",
+        host="127.0.0.1",
+        port=9999,
+        token="tok",
+        pid=99999,
+    )
+    monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
+    monkeypatch.setattr("rdc.session_state.is_pid_alive", lambda pid: False)
+    deleted: list[bool] = []
+    monkeypatch.setattr("rdc.session_state.delete_session", lambda: (deleted.append(True), True)[1])
+
+    with pytest.raises(SystemExit):
+        helpers_mod.require_session()
+    assert deleted
