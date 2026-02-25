@@ -13,6 +13,7 @@ NC='\033[0m'
 PASS=0
 FAIL=0
 CAPTURE="tests/fixtures/hello_triangle.rdc"
+TMP_CAPTURE_BASE=""
 RDC="uv run rdc"
 
 if [ ! -f "$CAPTURE" ]; then
@@ -25,6 +26,15 @@ if [ ! -f ".local/renderdoc/renderdoc.so" ]; then
   echo -e "${RED}error: renderdoc.so not found${NC}"
   echo "Run: pixi run setup-renderdoc"
   exit 1
+fi
+
+if command -v /usr/bin/vkcube > /dev/null 2>&1; then
+  TMP_CAPTURE_BASE="/tmp/rdc-e2e-$$.rdc"
+  if $RDC capture --output "$TMP_CAPTURE_BASE" -- /usr/bin/vkcube > /dev/null 2>&1; then
+    if [ -f "${TMP_CAPTURE_BASE%.rdc}_frame0.rdc" ]; then
+      CAPTURE="${TMP_CAPTURE_BASE%.rdc}_frame0.rdc"
+    fi
+  fi
 fi
 
 check() {
@@ -66,6 +76,9 @@ check_nonzero() {
 
 cleanup() {
   $RDC close > /dev/null 2>&1 || true
+  if [ -n "$TMP_CAPTURE_BASE" ]; then
+    rm -f "$TMP_CAPTURE_BASE" "${TMP_CAPTURE_BASE%.rdc}_frame0.rdc" > /dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -84,7 +97,7 @@ echo ""
 echo "=== Layer 2: Session lifecycle ==="
 $RDC close > /dev/null 2>&1 || true
 check "rdc open" $RDC open "$CAPTURE"
-check_output "rdc status" "hello_triangle" $RDC status
+check_output "rdc status" "capture:" $RDC status
 
 # --- Read-only queries ---
 echo ""

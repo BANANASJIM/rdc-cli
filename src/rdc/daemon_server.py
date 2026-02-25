@@ -31,6 +31,7 @@ from rdc.handlers._helpers import (
     _get_flat_actions as _get_flat_actions,
 )
 from rdc.handlers.buffer import HANDLERS as _BUFFER_HANDLERS
+from rdc.handlers.capture import HANDLERS as _CAPTURE_HANDLERS
 from rdc.handlers.capturefile import HANDLERS as _CAPTUREFILE_HANDLERS
 from rdc.handlers.core import HANDLERS as _CORE_HANDLERS
 from rdc.handlers.debug import HANDLERS as _DEBUG_HANDLERS
@@ -86,6 +87,7 @@ _DISPATCH: dict[str, Handler] = {
     **_VFS_HANDLERS,
     **_DEBUG_HANDLERS,
     **_SHADER_EDIT_HANDLERS,
+    **_CAPTURE_HANDLERS,
     **_CAPTUREFILE_HANDLERS,
 }
 

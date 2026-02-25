@@ -9,13 +9,13 @@
           "name": "open",
           "id": "open",
           "help": "Create local default session and start daemon skeleton.",
-          "usage": "rdc open <CAPTURE> [--preload] [--remote HOST[:PORT]]"
+          "usage": "rdc open [CAPTURE] [--preload] [--proxy HOST[:PORT]] [--remote HOST[:PORT]] [--listen [ADDR]:PORT] [--connect HOST:PORT] [--token TEXT]"
         },
         {
           "name": "close",
           "id": "close",
           "help": "Close daemon-backed session.",
-          "usage": "rdc close"
+          "usage": "rdc close [--shutdown]"
         },
         {
           "name": "status",

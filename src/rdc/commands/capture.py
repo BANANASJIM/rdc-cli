@@ -13,7 +13,14 @@ from typing import Any
 import click
 
 from rdc import _platform
-from rdc.capture_core import build_capture_options, execute_and_capture, terminate_process
+from rdc.capture_core import (
+    CaptureResult,
+    build_capture_options,
+    capture_result_from_dict,
+    execute_and_capture,
+    terminate_process,
+)
+from rdc.commands._helpers import call, split_session_active, write_capture_to_path
 from rdc.discover import find_renderdoc
 
 
@@ -101,6 +108,24 @@ def capture_cmd(
 
     output_path = str(output) if output else ""
 
+    if split_session_active():
+        if api_name:
+            click.echo("warning: --api is ignored with Python API path", err=True)
+        _run_split_capture(
+            executable,
+            app_args,
+            output_path,
+            opts,
+            frame,
+            trigger,
+            timeout,
+            wait_for_exit,
+            keep_alive,
+            use_json,
+            auto_open,
+        )
+        return
+
     rd = find_renderdoc()
     if rd is not None:
         if api_name:
@@ -127,6 +152,45 @@ def capture_cmd(
     if opts:
         click.echo("warning: CaptureOptions flags ignored in fallback mode", err=True)
     _fallback_renderdoccmd(executable, app_args, output_path, api_name)
+
+
+def _run_split_capture(
+    executable: str,
+    app_args: list[str],
+    output_path: str,
+    opts: dict[str, Any],
+    frame: int | None,
+    trigger: bool,
+    timeout: float,
+    wait_for_exit: bool,
+    keep_alive: bool,
+    use_json: bool,
+    auto_open: bool,
+) -> None:
+    payload = {
+        "app": executable,
+        "args": shlex.join(app_args),
+        "output": output_path,
+        "opts": opts,
+        "frame": frame,
+        "trigger": trigger,
+        "timeout": timeout,
+        "wait_for_exit": wait_for_exit,
+        "keep_alive": keep_alive,
+    }
+    result_dict = call("capture_run", payload)
+    result = capture_result_from_dict(result_dict)
+    result = _download_remote_capture(result, output_path)
+    _emit_result(result, use_json, auto_open)
+
+
+def _download_remote_capture(result: CaptureResult, output_path: str) -> CaptureResult:
+    if not result.success or not result.path:
+        return result
+    dest = Path(output_path or Path(result.path).name)
+    if not dest.is_absolute():
+        dest = Path.cwd() / dest
+    return write_capture_to_path(result, dest)
 
 
 def _emit_result(result: Any, use_json: bool, auto_open: bool) -> None:

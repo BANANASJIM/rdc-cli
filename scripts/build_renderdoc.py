@@ -2,17 +2,21 @@
 """Cross-platform RenderDoc Python bindings build script.
 
 Replaces build-renderdoc.sh and setup-renderdoc.sh.
-Standalone -- requires only Python 3.10+ stdlib.
+Standalone -- requires only Python 3.10+ stdlib. `pixi run setup-renderdoc`
+invokes this script and installs the required macOS build toolchain (cmake,
+ninja, autoconf/automake/libtool, pkg-config, m4) automatically.
 
 Usage:
     python scripts/build_renderdoc.py [INSTALL_DIR] [--build-dir DIR] [--jobs N]
 """
+
 from __future__ import annotations
 
 import argparse
 import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import zipfile
@@ -74,6 +78,16 @@ def check_prerequisites(plat: str) -> None:
     common = ["cmake", "git"]
     if plat == "windows":
         required = [*common]
+    elif plat == "macos":
+        required = [
+            *common,
+            "ninja",
+            "autoconf",
+            "automake",
+            "libtool",
+            "pkg-config",
+            "m4",
+        ]
     else:
         required = [*common, "ninja"]
 
@@ -84,11 +98,29 @@ def check_prerequisites(plat: str) -> None:
         missing.append("python3")
 
     if missing:
-        sys.stderr.write(f"ERROR: missing required tools: {', '.join(missing)}\n")
+        hint = "Run `pixi run sync` to install the pinned toolchain."
+        sys.stderr.write(f"ERROR: missing required tools: {', '.join(missing)}\n{hint}\n")
         raise SystemExit(1)
 
     if plat == "windows":
         _check_visual_studio()
+
+
+def verify_tool_versions(plat: str) -> None:
+    """Run lightweight --version checks to fail fast when tools are broken."""
+    tools = ["cmake"]
+    if plat != "windows":
+        tools.append("ninja")
+    for tool in tools:
+        if shutil.which(tool) is None:
+            sys.stderr.write(f"ERROR: required tool '{tool}' not found in PATH\n")
+            raise SystemExit(1)
+        subprocess.run(
+            [tool, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
 def _check_visual_studio() -> None:
@@ -106,10 +138,14 @@ def _check_visual_studio() -> None:
     result = subprocess.run(
         [
             vswhere,
-            "-products", "*",
-            "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-            "-format", "value",
-            "-property", "installationPath",
+            "-products",
+            "*",
+            "-requires",
+            "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+            "-format",
+            "value",
+            "-property",
+            "installationPath",
         ],
         capture_output=True,
         text=True,
@@ -175,6 +211,31 @@ def download_swig(build_dir: Path) -> None:
         raise
     finally:
         archive.unlink(missing_ok=True)
+
+
+def _ensure_executable(path: Path) -> None:
+    try:
+        mode = path.stat().st_mode
+    except FileNotFoundError:
+        return
+    new_mode = mode
+    for bit in (stat.S_IXUSR, stat.S_IXGRP, stat.S_IXOTH):
+        if not mode & bit:
+            new_mode |= bit
+    if new_mode != mode:
+        path.chmod(new_mode)
+
+
+def prepare_custom_swig(swig_dir: Path) -> None:
+    """Ensure custom SWIG tree is bootstrapped before cmake configure."""
+    custom = swig_dir / "custom_swig"
+    if not custom.is_dir():
+        # Older RenderDoc SWIG zips ship the patched sources at the root.
+        return
+    autogen = custom / "autogen.sh"
+    if autogen.exists():
+        _ensure_executable(autogen)
+    subprocess.run(["autoreconf", "-fi"], cwd=custom, check=True)
 
 
 def strip_lto(env: dict[str, str]) -> dict[str, str]:
@@ -281,9 +342,13 @@ def main(argv: list[str] | None = None) -> None:
 
     _log(f"=== Building renderdoc {args.version} Python module ===")
     check_prerequisites(plat)
+    verify_tool_versions(plat)
     clone_renderdoc(build_dir, args.version)
     download_swig(build_dir)
-    configure_build(build_dir, build_dir / "renderdoc-swig", plat)
+    swig_dir = build_dir / "renderdoc-swig"
+    if plat == "macos":
+        prepare_custom_swig(swig_dir)
+    configure_build(build_dir, swig_dir, plat)
     run_build(build_dir, plat, args.jobs)
     copy_artifacts(build_dir, install_dir, plat)
     _log("=== Done ===")

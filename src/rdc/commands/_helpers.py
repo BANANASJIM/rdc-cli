@@ -8,10 +8,11 @@ from typing import Any, cast
 
 import click
 
+from rdc.capture_core import CaptureResult
 from rdc.daemon_client import send_request, send_request_binary
 from rdc.discover import find_renderdoc
 from rdc.protocol import _request
-from rdc.session_state import load_session
+from rdc.session_state import SessionState, load_session
 
 __all__ = [
     "require_session",
@@ -20,7 +21,9 @@ __all__ = [
     "call_binary",
     "try_call",
     "fetch_remote_file",
+    "write_capture_to_path",
     "_json_mode",
+    "split_session_active",
 ]
 
 
@@ -192,3 +195,45 @@ def fetch_remote_file(path: str) -> bytes:
         click.echo("error: daemon returned no binary data", err=True)
         raise SystemExit(1)
     return binary
+
+
+def write_capture_to_path(result: CaptureResult, dest: Path) -> CaptureResult:
+    """Fetch ``result.path`` and persist it locally.
+
+    ``fetch_remote_file`` errors (SystemExit) propagate; local ``OSError``
+    writes are caught and converted into a failed ``CaptureResult``.  On
+    success, ``result.path`` points to ``dest`` and ``result.local`` is True.
+    """
+    if not result.success or not result.path:
+        return result
+    try:
+        data = fetch_remote_file(result.path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+    except OSError as exc:
+        result.success = False
+        result.error = f"failed to write capture to {dest}: {exc}"
+        result.path = ""
+        return result
+    result.path = str(dest)
+    result.local = True
+    return result
+
+
+def _split_session() -> SessionState | None:
+    session = load_session()
+    if session is None:
+        return None
+    pid = getattr(session, "pid", 1)
+    if isinstance(pid, int) and pid == 0:
+        return session
+    return None
+
+
+def split_session_active() -> bool:
+    """Return True if the session file indicates Split mode (pid == 0).
+
+    This is a routing hint only—the next RPC will still rely on
+    ``require_session()`` to ping the daemon and clean up stale sessions.
+    """
+    return _split_session() is not None

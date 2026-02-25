@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, fields
 from typing import Any
 
 from rdc import _platform
@@ -27,6 +28,15 @@ class CaptureResult:
     pid: int = 0
     error: str = ""
     remote_path: str = ""
+
+
+_CAPTURE_RESULT_FIELDS = {f.name for f in fields(CaptureResult)}
+
+
+def capture_result_from_dict(payload: Mapping[str, Any]) -> CaptureResult:
+    """Construct a CaptureResult from a mapping, ignoring unknown keys."""
+    filtered = {key: payload[key] for key in _CAPTURE_RESULT_FIELDS if key in payload}
+    return CaptureResult(**filtered)
 
 
 def build_capture_options(opts: dict[str, Any]) -> Any:

@@ -10,7 +10,13 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import require_renderdoc
+from rdc.capture_core import CaptureResult, capture_result_from_dict
+from rdc.commands._helpers import (
+    call,
+    require_renderdoc,
+    split_session_active,
+    write_capture_to_path,
+)
 from rdc.remote_core import (
     build_conn_url,
     connect_remote_server,
@@ -64,20 +70,23 @@ def remote_connect_cmd(url: str, use_json: bool) -> None:
         click.echo(f"error: {exc}", err=True)
         raise SystemExit(1) from None
     _check_public_ip(host)
-    rd = require_renderdoc()
-
     conn_url = build_conn_url(host, port)
-    try:
-        remote = connect_remote_server(rd, conn_url)
-    except RuntimeError as exc:
-        click.echo(f"error: {exc}", err=True)
-        raise SystemExit(1) from None
 
-    try:
-        remote.Ping()
-        save_remote_state(RemoteServerState(host=host, port=port, connected_at=time.time()))
-    finally:
-        remote.ShutdownConnection()
+    if split_session_active():
+        call("remote_connect_run", {"host": host, "port": port})
+    else:
+        rd = require_renderdoc()
+        try:
+            remote = connect_remote_server(rd, conn_url)
+        except RuntimeError as exc:
+            click.echo(f"error: {exc}", err=True)
+            raise SystemExit(1) from None
+        try:
+            remote.Ping()
+        finally:
+            remote.ShutdownConnection()
+
+    save_remote_state(RemoteServerState(host=host, port=port, connected_at=time.time()))
 
     if use_json:
         click.echo(json.dumps({"host": host, "port": port}))
@@ -92,28 +101,31 @@ def remote_list_cmd(url: str | None, use_json: bool) -> None:
     """List capturable applications on a remote host."""
     host, port = _resolve_url(url)
     _check_public_ip(host)
-    rd = require_renderdoc()
-
     conn_url = build_conn_url(host, port)
-    idents = enumerate_remote_targets(rd, conn_url)
 
-    targets: list[dict[str, Any]] = []
-    for ident in idents:
-        tc = rd.CreateTargetControl(conn_url, ident, "rdc-cli", False)
-        if tc is None:
-            targets.append({"ident": ident, "target": "unknown", "pid": 0, "api": "unknown"})
-            continue
-        try:
-            targets.append(
-                {
-                    "ident": ident,
-                    "target": tc.GetTarget(),
-                    "pid": tc.GetPID(),
-                    "api": tc.GetAPI(),
-                }
-            )
-        finally:
-            tc.Shutdown()
+    if split_session_active():
+        rpc_result = call("remote_list_run", {"host": host, "port": port})
+        targets = list(rpc_result.get("targets", []))
+    else:
+        rd = require_renderdoc()
+        idents = enumerate_remote_targets(rd, conn_url)
+        targets = []
+        for ident in idents:
+            tc = rd.CreateTargetControl(conn_url, ident, "rdc-cli", False)
+            if tc is None:
+                targets.append({"ident": ident, "target": "unknown", "pid": 0, "api": "unknown"})
+                continue
+            try:
+                targets.append(
+                    {
+                        "ident": ident,
+                        "target": tc.GetTarget(),
+                        "pid": tc.GetPID(),
+                        "api": tc.GetAPI(),
+                    }
+                )
+            finally:
+                tc.Shutdown()
 
     if use_json:
         click.echo(json.dumps({"targets": targets}))
@@ -164,7 +176,6 @@ def remote_capture_cmd(
     """Capture on a remote host and transfer to local."""
     host, port = _resolve_url(url)
     _check_public_ip(host)
-    rd = require_renderdoc()
 
     opts: dict[str, Any] = {}
     if api_validation:
@@ -178,29 +189,48 @@ def remote_capture_cmd(
     if soft_memory_limit is not None:
         opts["soft_memory_limit"] = soft_memory_limit
 
-    conn_url = build_conn_url(host, port)
-    try:
-        remote = connect_remote_server(rd, conn_url)
-    except RuntimeError as exc:
-        click.echo(f"error: {exc}", err=True)
-        raise SystemExit(1) from None
+    if split_session_active():
+        payload = {
+            "host": host,
+            "port": port,
+            "app": app,
+            "args": app_args,
+            "workdir": workdir,
+            "output": str(output),
+            "opts": opts,
+            "frame": frame,
+            "timeout": timeout,
+            "keep_remote": keep_remote,
+        }
+        result_dict = call("remote_capture_run", payload)
+        result = capture_result_from_dict(result_dict)
+        if not keep_remote:
+            result = _download_split_remote_capture(result, output)
+    else:
+        rd = require_renderdoc()
+        conn_url = build_conn_url(host, port)
+        try:
+            remote = connect_remote_server(rd, conn_url)
+        except RuntimeError as exc:
+            click.echo(f"error: {exc}", err=True)
+            raise SystemExit(1) from None
 
-    try:
-        result = remote_capture(
-            rd,
-            remote,
-            conn_url,
-            app,
-            args=app_args,
-            workdir=workdir,
-            output=str(output),
-            opts=opts,
-            frame=frame,
-            timeout=timeout,
-            keep_remote=keep_remote,
-        )
-    finally:
-        remote.ShutdownConnection()
+        try:
+            result = remote_capture(
+                rd,
+                remote,
+                conn_url,
+                app,
+                args=app_args,
+                workdir=workdir,
+                output=str(output),
+                opts=opts,
+                frame=frame,
+                timeout=timeout,
+                keep_remote=keep_remote,
+            )
+        finally:
+            remote.ShutdownConnection()
 
     if use_json:
         click.echo(json.dumps(dataclasses.asdict(result)))
@@ -214,8 +244,14 @@ def remote_capture_cmd(
 
     if result.remote_path:
         click.echo(result.remote_path)
-        url = build_conn_url(host, port)
-        click.echo(f"next: rdc open --remote {url} {result.remote_path}", err=True)
+        conn_url = build_conn_url(host, port)
+        click.echo(f"next: rdc open --remote {conn_url} {result.remote_path}", err=True)
     else:
         click.echo(result.path)
         click.echo(f"next: rdc open {result.path}", err=True)
+
+
+def _download_split_remote_capture(result: CaptureResult, output: Path) -> CaptureResult:
+    if not result.success or not result.path:
+        return result
+    return write_capture_to_path(result, output)
