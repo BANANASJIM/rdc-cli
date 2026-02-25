@@ -62,8 +62,9 @@ rdc doctor
 **AUR** (Arch Linux — builds renderdoc automatically, no extra setup)
 
 ```bash
+yay -S rdc-cli-git    # recommended: tracks latest master
+# or
 yay -S rdc-cli        # stable: tracks tagged releases
-yay -S rdc-cli-git    # git: tracks latest master
 ```
 
 **From source**
@@ -78,11 +79,11 @@ pixi run setup-renderdoc
 
 ### Platform Support Matrix
 
-| Platform | CLI install | Capture / Remote | Split client |
-|----------|-------------|------------------|--------------|
-| Linux | `pipx install rdc-cli` + `python scripts/build_renderdoc.py` | ✅ | ✅ |
-| macOS | `pipx install rdc-cli` + `pixi run setup-renderdoc` (optional for local replay) | ✅ local, ✅ remote | ✅ (no local RenderDoc needed) |
-| Windows *(experimental)* | `pipx install rdc-cli` + `python scripts/build_renderdoc.py` (VS Build Tools) | ✅ | ✅ |
+| Platform | Local capture/replay | Split client |
+|----------|----------------------|--------------|
+| Linux | ✅ | ✅ |
+| macOS | ✅ (`pixi run setup-renderdoc`) | ✅ (no local RenderDoc needed) |
+| Windows *(experimental, not tested in this PR)* | ⚠️ expected | ⚠️ expected |
 
 ### RenderDoc bootstrap (all platforms)
 
