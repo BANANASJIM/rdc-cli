@@ -1,0 +1,35 @@
+---
+import Docs from '../../layouts/Docs.astro';
+---
+
+<Docs title="Remote & Split Mode">
+  <h2>Remote Capture</h2>
+  <p>
+    Use <code>rdc remote</code> to capture from a remote RenderDoc target and
+    pull the <code>.rdc</code> file back locally.
+  </p>
+  <pre><code>rdc remote connect 10.0.0.219:39920
+rdc remote list
+rdc remote capture /usr/bin/vkcube -o /tmp/remote.rdc</code></pre>
+
+  <h2>Split Mode</h2>
+  <p>
+    Split mode lets a thin client (for example macOS) connect to a daemon that
+    has RenderDoc installed.
+  </p>
+  <pre><code># replay host (Linux/Windows)
+rdc capture --output /tmp/game.rdc -- /path/to/game
+rdc open /tmp/game_frame0.rdc --listen 0.0.0.0:54321
+
+# thin client (macOS)
+PYTHONPATH=src .venv/bin/rdc open --connect host:54321 --token TOKEN
+PYTHONPATH=src .venv/bin/rdc capture --output /tmp/mac_capture.rdc -- /usr/bin/vkcube
+PYTHONPATH=src .venv/bin/rdc close --shutdown</code></pre>
+
+  <h2>Notes</h2>
+  <ul>
+    <li>In split mode, capture and remote commands are routed through daemon RPC.</li>
+    <li>The resulting <code>.rdc</code> file is downloaded back to the client output path.</li>
+    <li>No local RenderDoc installation is required on split clients.</li>
+  </ul>
+</Docs>

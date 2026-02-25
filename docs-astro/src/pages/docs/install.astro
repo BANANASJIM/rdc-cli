@@ -7,7 +7,7 @@ import Docs from '../../layouts/Docs.astro';
   <pre><code>pipx install rdc-cli</code></pre>
   <p>
     This installs the <code>rdc</code> command. You still need the renderdoc
-    Python module — the easiest way is the one-liner build script below.
+    Python module (see bootstrap commands below).
   </p>
 
   <h2>AUR (Arch Linux)</h2>
@@ -15,16 +15,45 @@ import Docs from '../../layouts/Docs.astro';
     The AUR packages build the renderdoc Python module automatically, so no
     extra setup is needed.
   </p>
-  <pre><code># Stable: tracks tagged releases (e.g. v0.3.2)
-yay -S rdc-cli
+  <pre><code># Recommended: tracks latest master
+yay -S rdc-cli-git
 
-# Git: tracks latest master
-yay -S rdc-cli-git</code></pre>
+# or stable: tracks tagged releases
+yay -S rdc-cli</code></pre>
 
   <h2>From Source</h2>
   <pre><code>git clone https://github.com/BANANASJIM/rdc-cli.git
 cd rdc-cli
-pixi install && pixi run sync</code></pre>
+pixi install && pixi run sync
+pixi run setup-renderdoc</code></pre>
+
+  <h2>Platform Support</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>Local capture/replay</th>
+        <th>Split client</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Linux</td>
+        <td>Supported</td>
+        <td>Supported</td>
+      </tr>
+      <tr>
+        <td>macOS</td>
+        <td>Supported (<code>pixi run setup-renderdoc</code>)</td>
+        <td>Supported (no local RenderDoc needed)</td>
+      </tr>
+      <tr>
+        <td>Windows (experimental)</td>
+        <td>Expected support</td>
+        <td>Expected support</td>
+      </tr>
+    </tbody>
+  </table>
 
   <h2>RenderDoc Python Module</h2>
   <p>
@@ -34,12 +63,16 @@ pixi install && pixi run sync</code></pre>
     used to compile renderdoc.
   </p>
 
-  <h3>Build Script (Recommended)</h3>
+  <h3>Bootstrap (Recommended)</h3>
   <p>
-    One-liner that clones, builds, and installs the renderdoc Python module
-    (~3 min, needs <code>cmake</code>, <code>ninja</code>, <code>python3-dev</code>):
+    Canonical cross-platform command (run from repo root):
   </p>
-  <pre><code>curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash</code></pre>
+  <pre><code>python scripts/build_renderdoc.py .local/renderdoc --build-dir .local/renderdoc-build</code></pre>
+
+  <p>
+    If you already use pixi, use the wrapper task:
+  </p>
+  <pre><code>pixi run setup-renderdoc</code></pre>
 
   <h3>Building Manually</h3>
   <pre><code>git clone --depth 1 https://github.com/baldurk/renderdoc.git
@@ -52,7 +85,7 @@ export RENDERDOC_PYTHON_PATH=$PWD/build/lib</code></pre>
   <p>rdc-cli searches for the renderdoc module in this order:</p>
   <ol>
     <li><code>RENDERDOC_PYTHON_PATH</code> environment variable</li>
-    <li><code>~/.local/renderdoc</code> (where the build script installs)</li>
+    <li><code>~/.local/renderdoc</code> (where the bootstrap installs)</li>
     <li><code>/usr/lib/renderdoc</code>, <code>/usr/local/lib/renderdoc</code></li>
     <li>Sibling directory of <code>renderdoccmd</code> on PATH</li>
   </ol>
