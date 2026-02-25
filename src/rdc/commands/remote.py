@@ -249,10 +249,16 @@ def remote_capture_cmd(
 def _download_split_remote_capture(result: CaptureResult, output: Path) -> CaptureResult:
     if not result.success or not result.path:
         return result
-    data = fetch_remote_file(result.path)
     dest = output
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(data)
+    try:
+        data = fetch_remote_file(result.path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+    except OSError as exc:
+        result.success = False
+        result.error = f"failed to write capture to {dest}: {exc}"
+        result.path = ""
+        return result
     result.path = str(dest)
     result.local = True
     return result

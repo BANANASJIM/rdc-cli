@@ -187,12 +187,18 @@ def _download_remote_capture(result: CaptureResult, output_path: str) -> Capture
     if not result.success or not result.path:
         return result
     remote_path = result.path
-    data = fetch_remote_file(remote_path)
     dest = Path(output_path or Path(remote_path).name)
     if not dest.is_absolute():
         dest = Path.cwd() / dest
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(data)
+    try:
+        data = fetch_remote_file(remote_path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+    except OSError as exc:
+        result.success = False
+        result.error = f"failed to write capture to {dest}: {exc}"
+        result.path = ""
+        return result
     result.path = str(dest)
     result.local = True
     return result
