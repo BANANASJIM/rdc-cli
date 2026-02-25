@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import shutil
+from pathlib import Path
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, fetch_remote_file
 from rdc.commands.vfs import _deliver_binary
+from rdc.session_state import load_session
 from rdc.vfs.router import resolve_path
 
 
@@ -82,12 +83,21 @@ def rt_cmd(
         result = call("rt_overlay", params)
         src_path = result["path"]
         if output:
-            shutil.copy2(src_path, output)
+            data = fetch_remote_file(src_path)
+            Path(output).write_bytes(data)
             click.echo(
                 f"overlay: {result['overlay']} {result['size']} bytes -> {output}",
                 err=True,
             )
         else:
+            session = load_session()
+            pid = getattr(session, "pid", 1) if session else 1
+            if pid == 0:
+                click.echo(
+                    "error: --output is required when connected to a remote daemon",
+                    err=True,
+                )
+                raise SystemExit(1)
             click.echo(src_path)
         return
 

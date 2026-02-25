@@ -11,9 +11,10 @@ from typing import Any
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, fetch_remote_file
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import format_kv
+from rdc.session_state import load_session as _load_session
 from rdc.vfs.formatter import render_ls, render_ls_long, render_tree_root
 from rdc.vfs.router import resolve_path
 
@@ -173,6 +174,21 @@ def _deliver_binary(path: str, match: Any, raw: bool, output: str | None) -> Non
     if temp_path is None:
         click.echo(f"error: {path}: handler did not return file path", err=True)
         raise SystemExit(1)
+
+    session = _load_session()
+    pid = getattr(session, "pid", 1) if session else 1
+
+    if pid == 0:
+        try:
+            data = fetch_remote_file(temp_path)
+            if output is not None:
+                Path(output).write_bytes(data)
+            else:
+                sys.stdout.buffer.write(data)
+        except OSError as exc:
+            click.echo(f"error: {path}: {exc}", err=True)
+            raise SystemExit(1) from None
+        return
 
     temp = Path(temp_path)
     if not temp.exists():

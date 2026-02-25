@@ -409,8 +409,16 @@ def run_server(  # pragma: no cover
                         pass
                     continue
                 response, running = _process_request(request, state)
+                binary_path = response.get("result", {}).pop("_binary_path", None)
                 try:
                     conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+                    if binary_path:
+                        try:
+                            with Path(binary_path).open("rb") as bf:
+                                while chunk := bf.read(65536):
+                                    conn.sendall(chunk)
+                        except OSError:
+                            _log.warning("failed to send binary payload: %s", binary_path)
                 except OSError:
                     pass
                 last_activity = time.time()
