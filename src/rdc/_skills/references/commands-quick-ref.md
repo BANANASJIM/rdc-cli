@@ -233,6 +233,12 @@ Output VFS leaf node content.
 
 Close daemon-backed session.
 
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--shutdown` | Send shutdown RPC to daemon. | flag |  |
+
 ## `rdc completion`
 
 Generate shell completion script.
@@ -549,14 +555,18 @@ Create local default session and start daemon skeleton.
 
 | Name | Type | Required |
 |------|------|----------|
-| `capture` | text | yes |
+| `capture` | text | no |
 
 **Options:**
 
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--preload` | Preload shader cache after open. | flag |  |
-| `--remote` | Remote host[:port] for remote replay. | text |  |
+| `--proxy` | Proxy host[:port] for remote replay. | text |  |
+| `--remote` |  | text |  |
+| `--listen` | Listen on [ADDR]:PORT. Use :0 for auto-port on all interfaces. | text |  |
+| `--connect` | Connect to an already-running external daemon. | text |  |
+| `--token` | Authentication token (required with --connect). | text |  |
 
 ## `rdc pass`
 

@@ -39,6 +39,7 @@ def require_session() -> tuple[str, int, str]:
     Returns:
         Tuple of (host, port, token).
     """
+    from rdc.protocol import ping_request
     from rdc.session_state import delete_session, is_pid_alive
 
     session = load_session()
@@ -50,6 +51,21 @@ def require_session() -> tuple[str, int, str]:
             click.echo(f"error: {msg}", err=True)
         raise SystemExit(1)
     pid = getattr(session, "pid", None)
+    if isinstance(pid, int) and pid <= 0:
+        try:
+            ping = ping_request(session.token)
+            resp = send_request(session.host, session.port, ping, timeout=2.0)
+            if resp.get("result", {}).get("ok") is True:
+                return session.host, session.port, session.token
+        except Exception:  # noqa: BLE001
+            pass
+        delete_session()
+        msg = "stale session cleaned (daemon died); run 'rdc open' to restart"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
+        raise SystemExit(1)
     if isinstance(pid, int) and not is_pid_alive(pid):
         delete_session()
         msg = "stale session cleaned (daemon died); run 'rdc open' to restart"
