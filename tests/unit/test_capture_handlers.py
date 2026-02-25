@@ -80,3 +80,30 @@ class TestRemoteHandlers:
         monkeypatch.setattr("rdc.handlers.capture.find_renderdoc", lambda: None)
         resp = _run("remote_connect_run", {"host": "host", "port": 39920})
         assert resp["error"]["code"] == -32002
+
+    def test_remote_capture_exception_returns_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.handlers.capture.find_renderdoc", lambda: object())
+
+        class DummyRemote:
+            def ShutdownConnection(self) -> None:  # noqa: D401,N802
+                return None
+
+        monkeypatch.setattr(
+            "rdc.handlers.capture.connect_remote_server",
+            lambda rd, url: DummyRemote(),
+        )
+
+        def boom(*args: Any, **kwargs: Any) -> CaptureResult:
+            raise RuntimeError("capture failed")
+
+        monkeypatch.setattr("rdc.handlers.capture.remote_capture", boom)
+        resp = _run(
+            "remote_capture_run",
+            {
+                "host": "127.0.0.1",
+                "port": 39920,
+                "app": "demo",
+                "output": "/tmp/out.rdc",
+            },
+        )
+        assert resp["error"]["code"] == -32002

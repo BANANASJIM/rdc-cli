@@ -180,6 +180,8 @@ def _handle_remote_capture(
             timeout=float(params.get("timeout", 60.0)),
             keep_remote=bool(params.get("keep_remote", False)),
         )
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(request_id, -32002, str(exc)), True
     finally:
         remote.ShutdownConnection()
 
