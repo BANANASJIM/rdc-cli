@@ -125,8 +125,7 @@ def open_session(
 ) -> tuple[bool, str]:
     exists, err = _check_existing_session()
     if exists:
-        assert err is not None
-        return False, err
+        return False, err or "error: active session exists"
 
     host = "127.0.0.1"
     detail = "unknown error"
@@ -288,8 +287,7 @@ def connect_session(
     """
     exists, err = _check_existing_session()
     if exists:
-        assert err is not None
-        return False, err
+        return False, err or "error: active session exists"
 
     try:
         resp = send_request(host, port, status_request(token, request_id=1), timeout=5.0)
@@ -342,10 +340,10 @@ def listen_open_session(
     """
     exists, err = _check_existing_session()
     if exists:
-        assert err is not None
-        return False, err
+        return False, err or "error: active session exists"
 
     bind_host, bind_port = _parse_listen_addr(listen_addr)
+    connect_host = "127.0.0.1" if bind_host == "0.0.0.0" else bind_host
     token = secrets.token_hex(16)
     proc = start_daemon(
         capture,
@@ -355,7 +353,7 @@ def listen_open_session(
         remote_url=remote_url,
     )
 
-    ok, detail = wait_for_ping(bind_host, bind_port, token, proc=proc)
+    ok, detail = wait_for_ping(connect_host, bind_port, token, proc=proc)
     if not ok:
         proc.kill()
         try:
@@ -368,7 +366,7 @@ def listen_open_session(
 
     create_session(
         capture=capture,
-        host=bind_host,
+        host=connect_host,
         port=bind_port,
         token=token,
         pid=proc.pid,

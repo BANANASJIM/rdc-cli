@@ -87,6 +87,9 @@ def open_cmd(
         click.echo("error: CAPTURE argument is required (unless using --connect)", err=True)
         raise SystemExit(1)
 
+    if connect is None and connect_token is not None:
+        click.echo("warning: --token is ignored without --connect", err=True)
+
     # Dispatch: --connect
     if connect is not None:
         assert connect_token is not None

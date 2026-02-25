@@ -816,7 +816,7 @@ class TestConnectSessionExistingGuard:
         assert ok is False
         assert "active session exists" in msg
 
-    def test_connect_cleans_stale_and_proceeds(
+    def test_connect_cleans_stale_but_fails_if_unreachable(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         _setup_no_replay(monkeypatch, tmp_path)
