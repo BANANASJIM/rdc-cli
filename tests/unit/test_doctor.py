@@ -17,10 +17,12 @@ from rdc.commands.doctor import (
     _check_win_python_version,
     _check_win_renderdoc_install,
     _check_win_vs_build_tools,
+    _import_renderdoc,
     _make_build_hint,
     doctor_cmd,
     run_doctor,
 )
+from rdc.discover import ProbeOutcome, ProbeResult
 
 
 def _fake_renderdoc(*, with_replay: bool = True) -> SimpleNamespace:
@@ -567,3 +569,61 @@ class TestMakeBuildHintDarwin:
         assert "brew install cmake ninja" in hint
         assert "build_renderdoc.py" in hint
         assert "https://bananasjim.github.io/rdc-cli/" in hint
+
+
+class TestImportRenderdocDiagnostics:
+    """B45: _import_renderdoc surfaces crash-prone diagnostic."""
+
+    def test_crash_prone_shows_path_and_rebuild_hint(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """When candidate is crash-prone, show path and rebuild message."""
+        crash_path = str(tmp_path / "incompatible")
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoc",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor._get_diagnostic",
+            lambda: ProbeOutcome(ProbeResult.CRASH_PRONE, crash_path),
+        )
+
+        _, result = _import_renderdoc()
+
+        assert result.ok is False
+        assert crash_path in result.detail
+        assert "rebuild" in result.detail.lower() or "incompatible" in result.detail.lower()
+
+    def test_no_diagnostic_shows_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When no diagnostic available, show generic not found message."""
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoc",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor._get_diagnostic",
+            lambda: None,
+        )
+
+        _, result = _import_renderdoc()
+
+        assert result.ok is False
+        assert "not found" in result.detail.lower()
+
+    def test_success_module_returns_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When module found, return ok with version."""
+        fake_mod = SimpleNamespace(GetVersionString=lambda: "1.41")
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoc",
+            lambda: fake_mod,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor._get_diagnostic",
+            lambda: None,
+        )
+
+        module, result = _import_renderdoc()
+
+        assert result.ok is True
+        assert module is fake_mod
+        assert "1.41" in result.detail
