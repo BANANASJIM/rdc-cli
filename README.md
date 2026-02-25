@@ -33,8 +33,7 @@ rdc close
 
 ```bash
 pipx install rdc-cli                  # install the CLI
-# Build the renderdoc Python module (one-time, ~3 min, needs cmake + ninja)
-curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh | bash
+python scripts/build_renderdoc.py     # one-time build (needs cmake + ninja)
 rdc doctor                            # verify everything works
 ```
 
@@ -54,8 +53,9 @@ pipx install rdc-cli
 rdc remote connect linux-host:39920      # connect to a Linux/Windows target
 rdc remote list                          # list capturable apps
 rdc remote capture /path/to/app          # capture + pull .rdc file
-# Optional: local replay (needs cmake + ninja + Xcode CLI tools)
-python scripts/build_renderdoc.py
+# Optional: local replay — run inside repo for auto-managed deps
+# pixi run setup-renderdoc  (installs cmake/ninja/autotools via pixi)
+# or: python scripts/build_renderdoc.py
 rdc doctor
 ```
 
@@ -72,7 +72,29 @@ yay -S rdc-cli-git    # git: tracks latest master
 git clone https://github.com/BANANASJIM/rdc-cli.git
 cd rdc-cli
 pixi install && pixi run sync
+# Build renderdoc once (pixi installs toolchain on macOS automatically)
+pixi run setup-renderdoc
 ```
+
+### Platform Support Matrix
+
+| Platform | CLI install | Capture / Remote | Split client |
+|----------|-------------|------------------|--------------|
+| Linux | `pipx install rdc-cli` + `python scripts/build_renderdoc.py` | ✅ | ✅ |
+| macOS | `pipx install rdc-cli` + `pixi run setup-renderdoc` (optional for local replay) | ✅ local, ✅ remote | ✅ (no local RenderDoc needed) |
+| Windows *(experimental)* | `pipx install rdc-cli` + `python scripts/build_renderdoc.py` (VS Build Tools) | ✅ | ✅ |
+
+### RenderDoc bootstrap (all platforms)
+
+```bash
+# Always run from the repo root
+python scripts/build_renderdoc.py .local/renderdoc --build-dir .local/renderdoc-build
+
+# or, if you're already using pixi:
+pixi run setup-renderdoc
+```
+
+That single Python script is the canonical path; the pixi task wraps it for convenience (and installs cmake/ninja/autotools on macOS).
 
 ## Quickstart
 
@@ -121,6 +143,20 @@ rdc close
 rdc diff before.rdc after.rdc --shortstat        # summary: draws ±N, resources ±N
 rdc diff before.rdc after.rdc --draws             # per-draw changes
 rdc diff before.rdc after.rdc --framebuffer       # pixel-level image diff
+```
+
+**Split mode (macOS or thin clients)**
+
+```bash
+# On Linux/Windows replay host
+rdc capture --output /tmp/game.rdc -- /path/to/game
+rdc open /tmp/game_frame0.rdc --listen 0.0.0.0:54321
+
+# On macOS client (no local renderdoc required)
+PYTHONPATH=src .venv/bin/rdc open --connect host:54321 --token TOKEN
+PYTHONPATH=src .venv/bin/rdc capture --output /tmp/mac_capture.rdc -- /usr/bin/vkcube
+PYTHONPATH=src .venv/bin/rdc remote capture /usr/bin/vkcube -o /tmp/mac_remote.rdc
+rdc close --shutdown
 ```
 
 ## Why rdc-cli?
