@@ -82,6 +82,7 @@ def test_doctor_shows_build_hint_when_renderdoc_missing(monkeypatch: pytest.Monk
         "  Then re-run: rdc doctor",
     )
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: None)
+    monkeypatch.setattr("rdc.commands.doctor._get_diagnostic", lambda: None)
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoccmd", lambda: None)
 
     result = CliRunner().invoke(doctor_cmd, [])

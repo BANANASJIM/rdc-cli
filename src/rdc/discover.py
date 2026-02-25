@@ -77,10 +77,11 @@ except Exception as e:
         return ProbeOutcome(ProbeResult.IMPORT_FAILED, directory)
 
     rc = result.returncode
+    rc_unsigned = rc & 0xFFFFFFFF
     if rc == 0:
         version = result.stdout.strip() or None
         return ProbeOutcome(ProbeResult.SUCCESS, directory, version)
-    if rc < 0:
+    if rc < 0 or rc_unsigned >= 0x80000000:
         return ProbeOutcome(ProbeResult.CRASH_PRONE, directory)
     return ProbeOutcome(ProbeResult.IMPORT_FAILED, directory)
 
@@ -113,7 +114,6 @@ def find_renderdoc() -> ModuleType | None:
     # Try already-importable module first (e.g. site-packages)
     mod = _try_import()
     if mod is not None:
-        _diagnostic = None
         return mod
 
     crash_prone_candidates: list[str] = []

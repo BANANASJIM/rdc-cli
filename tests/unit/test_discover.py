@@ -96,6 +96,23 @@ class TestProbeCandidate:
         assert outcome.result == ProbeResult.IMPORT_FAILED
         assert outcome.candidate_path == fake_dir
 
+    def test_crash_prone_returns_windows_exception_code(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Windows high-bit exit code: crash-prone."""
+        from unittest.mock import MagicMock
+
+        fake_dir = str(tmp_path)
+        mock_result = MagicMock()
+        mock_result.returncode = 3221225477
+        mock_result.stdout = ""
+
+        monkeypatch.setattr("subprocess.run", lambda *a, **kw: mock_result)
+        outcome = _probe_candidate(fake_dir, timeout=5.0)
+
+        assert outcome.result == ProbeResult.CRASH_PRONE
+        assert outcome.candidate_path == fake_dir
+
     def test_crash_prone_returns_negative(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
@@ -126,6 +143,21 @@ class TestProbeCandidate:
         outcome = _probe_candidate(fake_dir, timeout=5.0)
 
         assert outcome.result == ProbeResult.TIMEOUT
+        assert outcome.candidate_path == fake_dir
+
+    def test_oserror_returns_import_failed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """OSError: import failed."""
+        fake_dir = str(tmp_path)
+
+        def raise_oserror(*a: object, **kw: object) -> object:
+            raise OSError("No such file or directory")
+
+        monkeypatch.setattr("subprocess.run", raise_oserror)
+        outcome = _probe_candidate(fake_dir, timeout=5.0)
+
+        assert outcome.result == ProbeResult.IMPORT_FAILED
         assert outcome.candidate_path == fake_dir
 
 
