@@ -394,6 +394,22 @@ class TestConnectOption:
         expected = tmp_path / ".rdc" / "sessions" / "custom.json"
         assert expected.exists()
 
+    def test_connect_empty_host(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        _setup_no_replay(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["open", "--connect", ":1234", "--token", "tok"])
+        assert result.exit_code == 1
+        assert "invalid" in result.output.lower() or "HOST" in result.output
+
+    def test_connect_port_out_of_range(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _setup_no_replay(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["open", "--connect", "host:70000", "--token", "tok"])
+        assert result.exit_code == 1
+        assert "port" in result.output.lower()
+
 
 # ===========================================================================
 # T4: optional capture argument
@@ -412,6 +428,10 @@ class TestOptionalCapture:
 
     def test_capture_still_works(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         _setup_no_replay(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            "rdc.commands.session.open_session",
+            lambda *a, **kw: (True, "opened: c.rdc"),
+        )
         capture = tmp_path / "c.rdc"
         capture.touch()
         runner = CliRunner()
@@ -433,7 +453,8 @@ class TestPid0Guards:
         session = _make_session(pid=0)
         monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
         monkeypatch.setattr(
-            "rdc.daemon_client.send_request",
+            helpers_mod,
+            "send_request",
             lambda *a, **kw: {"result": {"ok": True}},
         )
         h, p, t = helpers_mod.require_session()
@@ -449,7 +470,7 @@ class TestPid0Guards:
         def raise_conn(*a: Any, **kw: Any) -> None:
             raise ConnectionRefusedError
 
-        monkeypatch.setattr("rdc.daemon_client.send_request", raise_conn)
+        monkeypatch.setattr(helpers_mod, "send_request", raise_conn)
         deleted: list[bool] = []
         monkeypatch.setattr(
             "rdc.session_state.delete_session",
@@ -653,6 +674,14 @@ class TestCloseShutdown:
 class TestRegression:
     def test_standard_open_close(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         _setup_no_replay(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            "rdc.commands.session.open_session",
+            lambda *a, **kw: (True, "opened: c.rdc"),
+        )
+        monkeypatch.setattr(
+            "rdc.commands.session.close_session",
+            lambda **kw: (True, "session closed"),
+        )
         capture = tmp_path / "c.rdc"
         capture.touch()
         runner = CliRunner()
@@ -780,6 +809,14 @@ class TestParseListenAddr:
     def test_non_numeric_port_raises(self) -> None:
         with pytest.raises(ValueError, match="invalid port"):
             session_service._parse_listen_addr("0.0.0.0:abc")
+
+    def test_negative_port_raises(self) -> None:
+        with pytest.raises(ValueError, match="port out of range"):
+            session_service._parse_listen_addr("0.0.0.0:-1")
+
+    def test_port_above_max_raises(self) -> None:
+        with pytest.raises(ValueError, match="port out of range"):
+            session_service._parse_listen_addr("0.0.0.0:65536")
 
 
 # ===========================================================================

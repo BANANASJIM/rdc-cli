@@ -39,7 +39,6 @@ def require_session() -> tuple[str, int, str]:
     Returns:
         Tuple of (host, port, token).
     """
-    from rdc.daemon_client import send_request as _send
     from rdc.protocol import ping_request
     from rdc.session_state import delete_session, is_pid_alive
 
@@ -54,7 +53,8 @@ def require_session() -> tuple[str, int, str]:
     pid = getattr(session, "pid", None)
     if isinstance(pid, int) and pid <= 0:
         try:
-            resp = _send(session.host, session.port, ping_request(session.token), timeout=2.0)
+            ping = ping_request(session.token)
+            resp = send_request(session.host, session.port, ping, timeout=2.0)
             if resp.get("result", {}).get("ok") is True:
                 return session.host, session.port, session.token
         except Exception:  # noqa: BLE001

@@ -318,6 +318,8 @@ def _parse_listen_addr(addr: str) -> tuple[str, int]:
             port = int(port_str)
         except ValueError:
             raise ValueError(f"invalid port: {port_str!r}") from None
+        if port != 0 and not 1 <= port <= 65535:
+            raise ValueError(f"port out of range: {port} (must be 0 or 1-65535)")
         return bind_host, port if port != 0 else pick_port()
     return addr, pick_port()
 

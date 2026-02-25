@@ -97,11 +97,17 @@ def open_cmd(
             click.echo("error: --connect requires HOST:PORT format", err=True)
             raise SystemExit(1)
         host_part, port_str = connect.rsplit(":", 1)
+        if not host_part:
+            click.echo("error: invalid --connect: HOST is required in HOST:PORT", err=True)
+            raise SystemExit(1)
         try:
             port = int(port_str)
         except ValueError:
             click.echo(f"error: invalid port: {port_str}", err=True)
             raise SystemExit(1) from None
+        if not 1 <= port <= 65535:
+            click.echo(f"error: port out of range: {port} (must be 1-65535)", err=True)
+            raise SystemExit(1)
         ok, message = connect_session(host_part, port, connect_token)
         if not ok:
             click.echo(message, err=True)
