@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -81,6 +82,16 @@ class TestProxyRemoteDeprecation:
         result = runner.invoke(main, ["open", str(capture), "--remote", "host:9000"])
         assert result.exit_code == 0
         assert "deprecated" in result.stderr
+
+    def test_remote_hidden_proxy_visible_in_help(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """T1-3: --remote is hidden, --proxy is visible in help output."""
+        _setup_no_replay(monkeypatch, tmp_path)
+        runner = CliRunner()
+        result = runner.invoke(main, ["open", "--help"])
+        assert "--proxy" in result.output
+        assert "--remote" not in result.output
 
     def test_remote_value_forwards_to_proxy(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -197,6 +208,38 @@ class TestListenOption:
         )
         assert result.exit_code == 1
         assert "mutually exclusive" in result.output
+
+    def test_listen_invalid_port(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """T2-7: --listen with non-numeric port produces clean error."""
+        _setup_no_replay(monkeypatch, tmp_path)
+        capture = tmp_path / "c.rdc"
+        capture.touch()
+        runner = CliRunner()
+        result = runner.invoke(main, ["open", str(capture), "--listen", "0.0.0.0:abc"])
+        assert result.exit_code == 1
+        assert "invalid port" in result.output
+
+    def test_listen_port_in_use(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """T2-7: --listen when port is already bound produces error."""
+        _setup_no_replay(monkeypatch, tmp_path)
+        capture = tmp_path / "c.rdc"
+        capture.touch()
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            bound_port = sock.getsockname()[1]
+
+            def fake_listen(cap: str, addr: str, **kw: Any) -> tuple[bool, str]:
+                msg = f"error: daemon failed to start (bind to 127.0.0.1:{bound_port} failed)"
+                return False, msg
+
+            monkeypatch.setattr("rdc.commands.session.listen_open_session", fake_listen)
+            runner = CliRunner()
+            result = runner.invoke(
+                main, ["open", str(capture), "--listen", f"127.0.0.1:{bound_port}"]
+            )
+            assert result.exit_code == 1
+            assert "daemon failed" in result.output
 
     def test_listen_outputs_connection_info(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -319,6 +362,37 @@ class TestConnectOption:
         assert session.pid == 0
         assert session.host == "host"
         assert session.port == 1234
+
+    def test_connect_existing_session_blocks(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """T3-7: --connect when active session exists returns error."""
+        _setup_no_replay(monkeypatch, tmp_path)
+        monkeypatch.setattr(
+            "rdc.commands.session.connect_session",
+            lambda h, p, t: (False, "error: active session exists, run `rdc close` first"),
+        )
+        runner = CliRunner()
+        result = runner.invoke(main, ["open", "--connect", "host:1234", "--token", "tok"])
+        assert result.exit_code == 1
+        assert "active session exists" in result.output
+
+    def test_connect_with_custom_session_env(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """T3-8: --connect with RDC_SESSION writes to custom-named session file."""
+        _setup_no_replay(monkeypatch, tmp_path)
+        monkeypatch.setenv("RDC_SESSION", "custom")
+        monkeypatch.setattr(
+            session_service,
+            "send_request",
+            lambda *a, **kw: {"result": {"capture": "remote.rdc", "current_eid": 0}},
+        )
+        runner = CliRunner()
+        result = runner.invoke(main, ["open", "--connect", "host:1234", "--token", "tok"])
+        assert result.exit_code == 0
+        expected = tmp_path / ".rdc" / "sessions" / "custom.json"
+        assert expected.exists()
 
 
 # ===========================================================================
@@ -702,6 +776,68 @@ class TestParseListenAddr:
         h, p = session_service._parse_listen_addr(":0")
         assert h == "0.0.0.0"
         assert p == 33333
+
+    def test_non_numeric_port_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid port"):
+            session_service._parse_listen_addr("0.0.0.0:abc")
+
+
+# ===========================================================================
+# Service layer: connect_session — existing session guard
+# ===========================================================================
+
+
+class TestConnectSessionExistingGuard:
+    def test_connect_blocks_when_local_daemon_alive(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _setup_no_replay(monkeypatch, tmp_path)
+        existing = _make_session(pid=12345)
+        monkeypatch.setattr(session_service, "load_session", lambda: existing)
+        monkeypatch.setattr(session_service, "is_pid_alive", lambda pid: True)
+
+        ok, msg = session_service.connect_session("host", 1234, "tok")
+        assert ok is False
+        assert "active session exists" in msg
+
+    def test_connect_blocks_when_pid0_daemon_alive(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _setup_no_replay(monkeypatch, tmp_path)
+        existing = _make_session(pid=0)
+        monkeypatch.setattr(session_service, "load_session", lambda: existing)
+        monkeypatch.setattr(
+            session_service,
+            "send_request",
+            lambda *a, **kw: {"result": {"ok": True}},
+        )
+
+        ok, msg = session_service.connect_session("host", 1234, "tok")
+        assert ok is False
+        assert "active session exists" in msg
+
+    def test_connect_cleans_stale_and_proceeds(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        _setup_no_replay(monkeypatch, tmp_path)
+        existing = _make_session(pid=0)
+        load_count = [0]
+
+        def tracked_load() -> SessionState | None:
+            load_count[0] += 1
+            return existing if load_count[0] == 1 else None
+
+        monkeypatch.setattr(session_service, "load_session", tracked_load)
+
+        def send_raises(*a: Any, **kw: Any) -> dict[str, Any]:
+            raise ConnectionRefusedError
+
+        monkeypatch.setattr(session_service, "send_request", send_raises)
+        monkeypatch.setattr(session_service, "delete_session", lambda: True)
+
+        ok, msg = session_service.connect_session("host", 1234, "tok")
+        assert ok is False
+        assert "cannot reach" in msg
 
 
 # ===========================================================================

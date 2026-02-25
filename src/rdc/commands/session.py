@@ -114,7 +114,11 @@ def open_cmd(
         if proxy_url is None and not Path(capture).exists():
             click.echo(f"error: file not found: {capture}", err=True)
             raise SystemExit(1)
-        ok, result = listen_open_session(capture, listen, remote_url=proxy_url)
+        try:
+            ok, result = listen_open_session(capture, listen, remote_url=proxy_url)
+        except ValueError as exc:
+            click.echo(f"error: {exc}", err=True)
+            raise SystemExit(1) from None
         if not ok:
             click.echo(str(result), err=True)
             raise SystemExit(1)

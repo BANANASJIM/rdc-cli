@@ -91,28 +91,42 @@ def wait_for_ping(
     return False, f"timeout ({timeout_s}s)"
 
 
+def _check_existing_session() -> tuple[bool, str | None]:
+    """Check if an active session exists.
+
+    Returns:
+        (exists, error_msg) — True + message if a live session blocks new open.
+    """
+    existing = load_session()
+    if existing is None:
+        return False, None
+    if existing.pid > 0 and is_pid_alive(existing.pid):
+        return True, "error: active session exists, run `rdc close` first"
+    if existing.pid <= 0:
+        try:
+            resp = send_request(
+                existing.host,
+                existing.port,
+                ping_request(existing.token, request_id=1),
+                timeout=1.0,
+            )
+            if resp.get("result", {}).get("ok") is True:
+                return True, "error: active session exists, run `rdc close` first"
+        except Exception:  # noqa: BLE001
+            pass
+    delete_session()
+    return False, None
+
+
 def open_session(
     capture: str | Path,
     *,
     remote_url: str | None = None,
 ) -> tuple[bool, str]:
-    existing = load_session()
-    if existing is not None:
-        if existing.pid > 0 and is_pid_alive(existing.pid):
-            return False, "error: active session exists, run `rdc close` first"
-        if existing.pid <= 0:
-            try:
-                resp = send_request(
-                    existing.host,
-                    existing.port,
-                    ping_request(existing.token, request_id=1),
-                    timeout=1.0,
-                )
-                if resp.get("result", {}).get("ok") is True:
-                    return False, "error: active session exists, run `rdc close` first"
-            except Exception:  # noqa: BLE001
-                pass
-        delete_session()
+    exists, err = _check_existing_session()
+    if exists:
+        assert err is not None
+        return False, err
 
     host = "127.0.0.1"
     detail = "unknown error"
@@ -272,6 +286,11 @@ def connect_session(
     Returns:
         (ok, message) tuple.
     """
+    exists, err = _check_existing_session()
+    if exists:
+        assert err is not None
+        return False, err
+
     try:
         resp = send_request(host, port, status_request(token, request_id=1), timeout=5.0)
     except Exception as exc:  # noqa: BLE001
@@ -297,7 +316,10 @@ def _parse_listen_addr(addr: str) -> tuple[str, int]:
     if ":" in addr:
         host_part, port_str = addr.rsplit(":", 1)
         bind_host = host_part or "0.0.0.0"
-        port = int(port_str)
+        try:
+            port = int(port_str)
+        except ValueError:
+            raise ValueError(f"invalid port: {port_str!r}") from None
         return bind_host, port if port != 0 else pick_port()
     return addr, pick_port()
 
@@ -318,23 +340,10 @@ def listen_open_session(
     Returns:
         (ok, info_dict_or_error) tuple.
     """
-    existing = load_session()
-    if existing is not None:
-        if existing.pid > 0 and is_pid_alive(existing.pid):
-            return False, "error: active session exists, run `rdc close` first"
-        if existing.pid <= 0:
-            try:
-                resp = send_request(
-                    existing.host,
-                    existing.port,
-                    ping_request(existing.token, request_id=1),
-                    timeout=1.0,
-                )
-                if resp.get("result", {}).get("ok") is True:
-                    return False, "error: active session exists, run `rdc close` first"
-            except Exception:  # noqa: BLE001
-                pass
-        delete_session()
+    exists, err = _check_existing_session()
+    if exists:
+        assert err is not None
+        return False, err
 
     bind_host, bind_port = _parse_listen_addr(listen_addr)
     token = secrets.token_hex(16)
