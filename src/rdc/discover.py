@@ -131,7 +131,7 @@ def find_renderdoc() -> ModuleType | None:
                 return mod
 
         if outcome.result == ProbeResult.CRASH_PRONE:
-            crash_prone_candidates.append(path)
+            crash_prone_candidates.append(outcome.candidate_path)
             _diagnostic = outcome
         elif outcome.result == ProbeResult.TIMEOUT:
             _diagnostic = outcome
