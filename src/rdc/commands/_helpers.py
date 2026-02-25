@@ -198,7 +198,12 @@ def fetch_remote_file(path: str) -> bytes:
 
 
 def write_capture_to_path(result: CaptureResult, dest: Path) -> CaptureResult:
-    """Fetch ``result.path`` (daemon-side) and persist to ``dest`` on the CLI host."""
+    """Fetch ``result.path`` and persist it locally.
+
+    ``fetch_remote_file`` errors (SystemExit) propagate; local ``OSError``
+    writes are caught and converted into a failed ``CaptureResult``.  On
+    success, ``result.path`` points to ``dest`` and ``result.local`` is True.
+    """
     if not result.success or not result.path:
         return result
     try:
