@@ -16,10 +16,11 @@ from rdc import _platform
 from rdc.capture_core import (
     CaptureResult,
     build_capture_options,
+    capture_result_from_dict,
     execute_and_capture,
     terminate_process,
 )
-from rdc.commands._helpers import call, fetch_remote_file, split_session_active
+from rdc.commands._helpers import call, split_session_active, write_capture_to_path
 from rdc.discover import find_renderdoc
 
 
@@ -178,7 +179,7 @@ def _run_split_capture(
         "keep_alive": keep_alive,
     }
     result_dict = call("capture_run", payload)
-    result = CaptureResult(**result_dict)
+    result = capture_result_from_dict(result_dict)
     result = _download_remote_capture(result, output_path)
     _emit_result(result, use_json, auto_open)
 
@@ -186,22 +187,10 @@ def _run_split_capture(
 def _download_remote_capture(result: CaptureResult, output_path: str) -> CaptureResult:
     if not result.success or not result.path:
         return result
-    remote_path = result.path
-    dest = Path(output_path or Path(remote_path).name)
+    dest = Path(output_path or Path(result.path).name)
     if not dest.is_absolute():
         dest = Path.cwd() / dest
-    try:
-        data = fetch_remote_file(remote_path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
-    except OSError as exc:
-        result.success = False
-        result.error = f"failed to write capture to {dest}: {exc}"
-        result.path = ""
-        return result
-    result.path = str(dest)
-    result.local = True
-    return result
+    return write_capture_to_path(result, dest)
 
 
 def _emit_result(result: Any, use_json: bool, auto_open: bool) -> None:

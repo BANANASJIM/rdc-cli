@@ -363,7 +363,7 @@ def test_split_mode_calls_daemon(monkeypatch: Any, tmp_path: Path) -> None:
         }
 
     monkeypatch.setattr("rdc.commands.capture.call", fake_call)
-    monkeypatch.setattr("rdc.commands.capture.fetch_remote_file", lambda path: b"rdc")
+    monkeypatch.setattr("rdc.commands._helpers.fetch_remote_file", lambda path: b"rdc")
 
     result = CliRunner().invoke(
         capture_cmd,
@@ -374,3 +374,4 @@ def test_split_mode_calls_daemon(monkeypatch: Any, tmp_path: Path) -> None:
     assert captured["payload"]["opts"] == {"api_validation": True}
     assert "--width" in captured["payload"]["args"]
     assert (tmp_path / "rpc.rdc").exists()
+    assert (tmp_path / "rpc.rdc").read_bytes() == b"rdc"

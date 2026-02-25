@@ -10,8 +10,13 @@ from typing import Any
 
 import click
 
-from rdc.capture_core import CaptureResult
-from rdc.commands._helpers import call, fetch_remote_file, require_renderdoc, split_session_active
+from rdc.capture_core import CaptureResult, capture_result_from_dict
+from rdc.commands._helpers import (
+    call,
+    require_renderdoc,
+    split_session_active,
+    write_capture_to_path,
+)
 from rdc.remote_core import (
     build_conn_url,
     connect_remote_server,
@@ -198,7 +203,7 @@ def remote_capture_cmd(
             "keep_remote": keep_remote,
         }
         result_dict = call("remote_capture_run", payload)
-        result = CaptureResult(**result_dict)
+        result = capture_result_from_dict(result_dict)
         if not keep_remote:
             result = _download_split_remote_capture(result, output)
     else:
@@ -239,8 +244,8 @@ def remote_capture_cmd(
 
     if result.remote_path:
         click.echo(result.remote_path)
-        url = build_conn_url(host, port)
-        click.echo(f"next: rdc open --remote {url} {result.remote_path}", err=True)
+        conn_url = build_conn_url(host, port)
+        click.echo(f"next: rdc open --remote {conn_url} {result.remote_path}", err=True)
     else:
         click.echo(result.path)
         click.echo(f"next: rdc open {result.path}", err=True)
@@ -249,16 +254,4 @@ def remote_capture_cmd(
 def _download_split_remote_capture(result: CaptureResult, output: Path) -> CaptureResult:
     if not result.success or not result.path:
         return result
-    dest = output
-    try:
-        data = fetch_remote_file(result.path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
-    except OSError as exc:
-        result.success = False
-        result.error = f"failed to write capture to {dest}: {exc}"
-        result.path = ""
-        return result
-    result.path = str(dest)
-    result.local = True
-    return result
+    return write_capture_to_path(result, output)

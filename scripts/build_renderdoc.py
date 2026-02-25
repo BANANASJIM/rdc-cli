@@ -113,7 +113,8 @@ def verify_tool_versions(plat: str) -> None:
         tools.append("ninja")
     for tool in tools:
         if shutil.which(tool) is None:
-            continue
+            sys.stderr.write(f"ERROR: required tool '{tool}' not found in PATH\n")
+            raise SystemExit(1)
         subprocess.run(
             [tool, "--version"],
             check=True,
@@ -228,10 +229,15 @@ def _ensure_executable(path: Path) -> None:
 def prepare_custom_swig(swig_dir: Path) -> None:
     """Ensure custom SWIG tree is bootstrapped before cmake configure."""
     custom = swig_dir / "custom_swig"
+    if not custom.is_dir():
+        sys.stderr.write(f"ERROR: expected SWIG directory at {custom}\n")
+        raise SystemExit(1)
     autogen = custom / "autogen.sh"
+    if not autogen.exists():
+        sys.stderr.write(f"ERROR: missing autogen.sh inside {custom}\n")
+        raise SystemExit(1)
     _ensure_executable(autogen)
-    if custom.exists():
-        subprocess.run(["autoreconf", "-fi"], cwd=custom, check=True)
+    subprocess.run(["autoreconf", "-fi"], cwd=custom, check=True)
 
 
 def strip_lto(env: dict[str, str]) -> dict[str, str]:

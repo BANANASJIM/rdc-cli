@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import click
 
+from rdc.capture_core import CaptureResult
 from rdc.daemon_client import send_request, send_request_binary
 from rdc.discover import find_renderdoc
 from rdc.protocol import _request
@@ -20,6 +21,7 @@ __all__ = [
     "call_binary",
     "try_call",
     "fetch_remote_file",
+    "write_capture_to_path",
     "_json_mode",
     "split_session_active",
 ]
@@ -195,6 +197,24 @@ def fetch_remote_file(path: str) -> bytes:
     return binary
 
 
+def write_capture_to_path(result: CaptureResult, dest: Path) -> CaptureResult:
+    """Fetch ``result.path`` (daemon-side) and persist to ``dest`` on the CLI host."""
+    if not result.success or not result.path:
+        return result
+    try:
+        data = fetch_remote_file(result.path)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+    except OSError as exc:
+        result.success = False
+        result.error = f"failed to write capture to {dest}: {exc}"
+        result.path = ""
+        return result
+    result.path = str(dest)
+    result.local = True
+    return result
+
+
 def _split_session() -> SessionState | None:
     session = load_session()
     if session is None:
@@ -206,5 +226,9 @@ def _split_session() -> SessionState | None:
 
 
 def split_session_active() -> bool:
-    """Return True if an active split-mode session is detected (pid == 0)."""
+    """Return True if the session file indicates Split mode (pid == 0).
+
+    This is a routing hint only—the next RPC will still rely on
+    ``require_session()`` to ping the daemon and clean up stale sessions.
+    """
     return _split_session() is not None

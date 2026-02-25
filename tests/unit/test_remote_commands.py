@@ -253,11 +253,20 @@ class TestRemoteList:
         _save_state()
         monkeypatch.setattr("rdc.commands.remote.split_session_active", lambda: True)
         response = {"targets": [{"ident": 1, "target": "demo", "pid": 42, "api": "Vulkan"}]}
-        monkeypatch.setattr("rdc.commands.remote.call", lambda *a, **kw: response)
+        captured: dict[str, Any] = {}
+
+        def fake_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+            captured["method"] = method
+            captured["params"] = params
+            return response
+
+        monkeypatch.setattr("rdc.commands.remote.call", fake_call)
 
         result = CliRunner().invoke(remote_list_cmd, [])
         assert result.exit_code == 0
         assert "demo" in result.output
+        assert captured["method"] == "remote_list_run"
+        assert captured["params"] == {"host": "192.168.1.10", "port": 39920}
 
 
 # --- remote capture ---
@@ -449,13 +458,14 @@ class TestRemoteCapture:
             }
 
         monkeypatch.setattr("rdc.commands.remote.call", fake_call)
-        monkeypatch.setattr("rdc.commands.remote.fetch_remote_file", lambda path: b"data")
+        monkeypatch.setattr("rdc.commands._helpers.fetch_remote_file", lambda path: b"data")
         out_path = tmp_path / "out.rdc"
         result = CliRunner().invoke(remote_capture_cmd, ["myapp", "-o", str(out_path)])
         assert result.exit_code == 0
         assert captured["method"] == "remote_capture_run"
         assert captured["params"]["app"] == "myapp"
         assert out_path.exists()
+        assert out_path.read_bytes() == b"data"
 
 
 # --- CLI registration ---
