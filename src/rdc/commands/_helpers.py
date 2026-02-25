@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, cast
 
 import click
 
-from rdc.daemon_client import send_request
+from rdc.daemon_client import send_request, send_request_binary
 from rdc.discover import find_renderdoc
 from rdc.protocol import _request
 from rdc.session_state import load_session
 
-__all__ = ["require_session", "require_renderdoc", "call", "try_call", "_json_mode"]
+__all__ = [
+    "require_session",
+    "require_renderdoc",
+    "call",
+    "call_binary",
+    "try_call",
+    "fetch_remote_file",
+    "_json_mode",
+]
 
 
 def _json_mode() -> bool:
@@ -129,3 +138,53 @@ def try_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
     if "error" in response:
         return None
     return cast(dict[str, Any], response.get("result", {}))
+
+
+def call_binary(method: str, params: dict[str, Any]) -> tuple[dict[str, Any], bytes | None]:
+    """Send a JSON-RPC request expecting an optional binary payload.
+
+    Returns:
+        Tuple of (result_dict, binary_data_or_None).
+
+    Raises:
+        SystemExit: If the daemon returns an error or is unreachable.
+    """
+    host, port, token = require_session()
+    payload = _request(method, 1, {"_token": token, **params}).to_dict()
+    try:
+        response, binary = send_request_binary(host, port, payload)
+    except (OSError, ValueError) as exc:
+        msg = f"daemon unreachable: {exc}"
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
+        raise SystemExit(1) from exc
+    if "error" in response:
+        msg = response["error"]["message"]
+        if _json_mode():
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
+        raise SystemExit(1)
+    return cast(dict[str, Any], response["result"]), binary
+
+
+def fetch_remote_file(path: str) -> bytes:
+    """Fetch a file from the daemon machine, transparently handling local/remote.
+
+    Returns:
+        Raw file bytes.
+
+    Raises:
+        SystemExit: On any error.
+    """
+    session = load_session()
+    pid = getattr(session, "pid", 1) if session else 1
+    if pid > 0:
+        return Path(path).read_bytes()
+    result, binary = call_binary("file_read", {"path": path})
+    if binary is None:
+        click.echo("error: daemon returned no binary data", err=True)
+        raise SystemExit(1)
+    return binary

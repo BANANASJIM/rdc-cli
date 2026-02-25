@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import datetime
 import json
-import shutil
 from pathlib import Path
 
 import click
 
-from rdc.commands._helpers import call, try_call
+from rdc.commands._helpers import call, fetch_remote_file, try_call
 from rdc.formatters.json_fmt import write_json
 
 
@@ -45,13 +44,15 @@ def snapshot_cmd(eid: int, output: str, use_json: bool) -> None:
         result = try_call("rt_export", {"eid": eid, "target": i})
         if result is None:
             break
-        shutil.copy2(result["path"], out_dir / f"color{i}.png")
+        data = fetch_remote_file(result["path"])
+        (out_dir / f"color{i}.png").write_bytes(data)
         files.append(f"color{i}.png")
 
     # Depth target
     depth_result = try_call("rt_depth", {"eid": eid})
     if depth_result:
-        shutil.copy2(depth_result["path"], out_dir / "depth.png")
+        data = fetch_remote_file(depth_result["path"])
+        (out_dir / "depth.png").write_bytes(data)
         files.append("depth.png")
 
     # Manifest

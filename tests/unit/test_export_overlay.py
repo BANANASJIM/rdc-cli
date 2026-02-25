@@ -34,26 +34,29 @@ class TestRtOverlay:
         assert calls[0][1]["overlay"] == "wireframe"
         assert _OVERLAY_RESPONSE["path"] in result.output
 
-    def test_rt_overlay_with_output(self, monkeypatch: Any) -> None:
-        """--overlay with -o copies file and prints summary."""
-        copy_calls: list[tuple[str, str]] = []
+    def test_rt_overlay_with_output(self, monkeypatch: Any, tmp_path: Any) -> None:
+        """--overlay with -o fetches file and prints summary."""
+        fetch_calls: list[str] = []
+        png_bytes = b"\x89PNG_overlay"
 
         def mock_call(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
             return dict(_OVERLAY_RESPONSE)
 
-        def mock_copy2(src: str, dst: str) -> None:
-            copy_calls.append((src, dst))
+        def mock_fetch(path: str) -> bytes:
+            fetch_calls.append(path)
+            return png_bytes
 
         monkeypatch.setattr("rdc.commands.export.call", mock_call)
-        monkeypatch.setattr("rdc.commands.export.shutil.copy2", mock_copy2)
+        monkeypatch.setattr("rdc.commands.export.fetch_remote_file", mock_fetch)
+        out_file = tmp_path / "out.png"
         runner = click.testing.CliRunner()
-        result = runner.invoke(rt_cmd, ["10", "--overlay", "wireframe", "-o", "out.png"])
+        result = runner.invoke(rt_cmd, ["10", "--overlay", "wireframe", "-o", str(out_file)])
         assert result.exit_code == 0
-        assert len(copy_calls) == 1
-        assert copy_calls[0] == (_OVERLAY_RESPONSE["path"], "out.png")
+        assert len(fetch_calls) == 1
+        assert fetch_calls[0] == _OVERLAY_RESPONSE["path"]
+        assert out_file.read_bytes() == png_bytes
         assert "overlay: wireframe" in result.output
         assert "19748 bytes" in result.output
-        assert "out.png" in result.output
 
     def test_rt_overlay_dimensions(self, monkeypatch: Any) -> None:
         """--width and --height are forwarded to daemon params."""

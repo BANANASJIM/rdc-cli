@@ -1,7 +1,8 @@
-"""Core daemon handlers: ping, status, goto, count, shutdown."""
+"""Core daemon handlers: ping, status, goto, count, shutdown, file_read."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
@@ -131,11 +132,36 @@ def _handle_shutdown(
     return _result_response(request_id, {"ok": True}), False
 
 
+def _handle_file_read(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    if state.temp_dir is None:
+        return _error_response(request_id, -32002, "no temp directory available"), True
+    raw_path = params.get("path", "")
+    if not raw_path:
+        return _error_response(request_id, -32602, "missing or empty path"), True
+    try:
+        resolved = Path(raw_path).resolve()
+        temp_root = state.temp_dir.resolve()
+    except (OSError, ValueError) as exc:
+        return _error_response(request_id, -32602, f"invalid path: {exc}"), True
+    if temp_root not in resolved.parents and resolved != temp_root:
+        return _error_response(request_id, -32602, "path outside temp directory"), True
+    if not resolved.is_file():
+        return _error_response(request_id, -32602, f"file not found: {resolved}"), True
+    size = resolved.stat().st_size
+    return _result_response(
+        request_id,
+        {"size": size, "_binary_size": size, "_binary_path": str(resolved)},
+    ), True
+
+
 _handle_ping._no_replay = True  # type: ignore[attr-defined]
 _handle_status._no_replay = True  # type: ignore[attr-defined]
 _handle_goto._no_replay = True  # type: ignore[attr-defined]
 _handle_shutdown._no_replay = True  # type: ignore[attr-defined]
 _handle_count._no_replay = True  # type: ignore[attr-defined]
+_handle_file_read._no_replay = True  # type: ignore[attr-defined]
 
 HANDLERS: dict[str, Handler] = {
     "ping": _handle_ping,
@@ -143,4 +169,5 @@ HANDLERS: dict[str, Handler] = {
     "goto": _handle_goto,
     "count": _handle_count,
     "shutdown": _handle_shutdown,
+    "file_read": _handle_file_read,
 }
