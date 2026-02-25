@@ -11,7 +11,7 @@ import click
 from rdc.daemon_client import send_request, send_request_binary
 from rdc.discover import find_renderdoc
 from rdc.protocol import _request
-from rdc.session_state import load_session
+from rdc.session_state import SessionState, load_session
 
 __all__ = [
     "require_session",
@@ -21,6 +21,7 @@ __all__ = [
     "try_call",
     "fetch_remote_file",
     "_json_mode",
+    "split_session_active",
 ]
 
 
@@ -192,3 +193,18 @@ def fetch_remote_file(path: str) -> bytes:
         click.echo("error: daemon returned no binary data", err=True)
         raise SystemExit(1)
     return binary
+
+
+def _split_session() -> SessionState | None:
+    session = load_session()
+    if session is None:
+        return None
+    pid = getattr(session, "pid", 1)
+    if isinstance(pid, int) and pid == 0:
+        return session
+    return None
+
+
+def split_session_active() -> bool:
+    """Return True if an active split-mode session is detected (pid == 0)."""
+    return _split_session() is not None

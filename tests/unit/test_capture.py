@@ -338,3 +338,39 @@ def test_missing_executable() -> None:
     result = CliRunner().invoke(capture_cmd, [])
     assert result.exit_code != 0
     assert "EXECUTABLE" in result.output
+
+
+def test_split_mode_calls_daemon(monkeypatch: Any, tmp_path: Path) -> None:
+    """Split-mode session routes capture through JSON-RPC."""
+    monkeypatch.setattr("rdc.commands.capture.split_session_active", lambda: True)
+    monkeypatch.chdir(tmp_path)
+    captured: dict[str, Any] = {}
+
+    def fake_call(method: str, payload: dict[str, Any]) -> dict[str, Any]:
+        captured["method"] = method
+        captured["payload"] = payload
+        return {
+            "success": True,
+            "path": "/tmp/rpc.rdc",
+            "frame": 0,
+            "byte_size": 0,
+            "api": "Vulkan",
+            "local": True,
+            "ident": 0,
+            "pid": 0,
+            "error": "",
+            "remote_path": "",
+        }
+
+    monkeypatch.setattr("rdc.commands.capture.call", fake_call)
+    monkeypatch.setattr("rdc.commands.capture.fetch_remote_file", lambda path: b"rdc")
+
+    result = CliRunner().invoke(
+        capture_cmd,
+        ["--api-validation", "--", "/usr/bin/app", "--width", "800"],
+    )
+    assert result.exit_code == 0
+    assert captured["method"] == "capture_run"
+    assert captured["payload"]["opts"] == {"api_validation": True}
+    assert "--width" in captured["payload"]["args"]
+    assert (tmp_path / "rpc.rdc").exists()

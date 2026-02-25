@@ -7,6 +7,24 @@ platforms = ["linux-64", "osx-arm64", "osx-64"]
 python = "3.14.*"
 uv = ">=0.5"
 
+[target.osx-64.dependencies]
+cmake = "*"
+ninja = "*"
+autoconf = "*"
+automake = "*"
+libtool = "*"
+pkg-config = "*"
+m4 = "*"
+
+[target.osx-arm64.dependencies]
+cmake = "*"
+ninja = "*"
+autoconf = "*"
+automake = "*"
+libtool = "*"
+pkg-config = "*"
+m4 = "*"
+
 [activation.env]
 RENDERDOC_PYTHON_PATH = ".local/renderdoc"
 PYTHONPATH = "src"
