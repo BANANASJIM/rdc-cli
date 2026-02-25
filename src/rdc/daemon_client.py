@@ -42,6 +42,8 @@ def send_request_binary(
         binary_size = parsed.get("result", {}).get("_binary_size")
         if binary_size is not None:
             binary_size = int(binary_size)
+            if binary_size < 0:
+                raise ValueError("invalid _binary_size: must be >= 0")
             if binary_size == 0:
                 return parsed, b""
             chunks: list[bytes] = []

@@ -138,12 +138,12 @@ def _handle_file_read(
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "no temp directory available"), True
     raw_path = params.get("path", "")
-    if not raw_path:
+    if not isinstance(raw_path, str) or not raw_path:
         return _error_response(request_id, -32602, "missing or empty path"), True
     try:
         resolved = Path(raw_path).resolve()
         temp_root = state.temp_dir.resolve()
-    except (OSError, ValueError) as exc:
+    except (OSError, TypeError, ValueError) as exc:
         return _error_response(request_id, -32602, f"invalid path: {exc}"), True
     if temp_root not in resolved.parents and resolved != temp_root:
         return _error_response(request_id, -32602, "path outside temp directory"), True

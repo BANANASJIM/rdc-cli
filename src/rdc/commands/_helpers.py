@@ -182,7 +182,11 @@ def fetch_remote_file(path: str) -> bytes:
     session = load_session()
     pid = getattr(session, "pid", 1) if session else 1
     if pid > 0:
-        return Path(path).read_bytes()
+        try:
+            return Path(path).read_bytes()
+        except OSError as exc:
+            click.echo(f"error: {path}: {exc}", err=True)
+            raise SystemExit(1) from exc
     result, binary = call_binary("file_read", {"path": path})
     if binary is None:
         click.echo("error: daemon returned no binary data", err=True)

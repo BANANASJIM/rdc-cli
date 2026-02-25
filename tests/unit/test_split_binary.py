@@ -136,8 +136,12 @@ class TestSendRequestBinary:
 
     def test_connection_refused(self) -> None:
         """T2.5: Connection refused raises OSError."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.close()
         with pytest.raises(OSError):
-            send_request_binary("127.0.0.1", 1, {"method": "test"}, timeout=0.5)
+            send_request_binary("127.0.0.1", port, {"method": "test"}, timeout=0.5)
 
 
 # ===========================================================================

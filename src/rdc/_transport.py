@@ -41,6 +41,8 @@ def recv_binary(sock: socket.socket, size: int) -> bytes:
     Raises:
         OSError: If the connection closes before *size* bytes are received.
     """
+    if size < 0:
+        raise ValueError("size must be >= 0")
     if size == 0:
         return b""
     chunks: list[bytes] = []
