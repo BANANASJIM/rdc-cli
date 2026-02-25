@@ -230,13 +230,11 @@ def prepare_custom_swig(swig_dir: Path) -> None:
     """Ensure custom SWIG tree is bootstrapped before cmake configure."""
     custom = swig_dir / "custom_swig"
     if not custom.is_dir():
-        sys.stderr.write(f"ERROR: expected SWIG directory at {custom}\n")
-        raise SystemExit(1)
+        # Older RenderDoc SWIG zips ship the patched sources at the root.
+        return
     autogen = custom / "autogen.sh"
-    if not autogen.exists():
-        sys.stderr.write(f"ERROR: missing autogen.sh inside {custom}\n")
-        raise SystemExit(1)
-    _ensure_executable(autogen)
+    if autogen.exists():
+        _ensure_executable(autogen)
     subprocess.run(["autoreconf", "-fi"], cwd=custom, check=True)
 
 
