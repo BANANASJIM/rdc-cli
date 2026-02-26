@@ -15,83 +15,105 @@ from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import format_row, write_tsv
 
 
+def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
+    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
+
+
 def _complete_resource_rows() -> list[dict[str, Any]]:
     result = completion_call("resources", {})
-    if result is None:
+    if not isinstance(result, dict):
         return []
     rows = result.get("rows", [])
-    return rows if isinstance(rows, list) else []
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
 
 
 def _complete_resource_type(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    prefix = incomplete.lower()
-    seen: set[str] = set()
-    values: list[str] = []
-    for row in _complete_resource_rows():
-        value = str(row.get("type", ""))
-        if not value or value in seen:
-            continue
-        if not value.lower().startswith(prefix):
-            continue
-        seen.add(value)
-        values.append(value)
-    return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    try:
+        del ctx, param
+        prefix = incomplete.lower()
+        seen: set[str] = set()
+        values: list[str] = []
+        for row in _complete_resource_rows():
+            value = str(row.get("type", ""))
+            if not value or value in seen:
+                continue
+            if not value.lower().startswith(prefix):
+                continue
+            seen.add(value)
+            values.append(value)
+        return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    except Exception:
+        return []
 
 
 def _complete_resource_name(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    prefix = incomplete.lower()
-    seen: set[str] = set()
-    values: list[str] = []
-    for row in _complete_resource_rows():
-        value = str(row.get("name", ""))
-        if not value or value in seen:
-            continue
-        if not value.lower().startswith(prefix):
-            continue
-        seen.add(value)
-        values.append(value)
-    return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    try:
+        del ctx, param
+        prefix = incomplete.lower()
+        seen: set[str] = set()
+        values: list[str] = []
+        for row in _complete_resource_rows():
+            value = str(row.get("name", ""))
+            if not value or value in seen:
+                continue
+            if not value.lower().startswith(prefix):
+                continue
+            seen.add(value)
+            values.append(value)
+        return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    except Exception:
+        return []
 
 
 def _complete_resource_id(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    prefix = incomplete.strip()
-    values: list[str] = []
-    for row in _complete_resource_rows():
-        rid = str(row.get("id", ""))
-        if not rid or (prefix and not rid.startswith(prefix)):
-            continue
-        values.append(rid)
-    return [CompletionItem(value) for value in sorted(set(values), key=int)]
+    try:
+        del ctx, param
+        prefix = incomplete.strip()
+        values: list[str] = []
+        for row in _complete_resource_rows():
+            rid = str(row.get("id", ""))
+            if not rid or (prefix and not rid.startswith(prefix)):
+                continue
+            values.append(rid)
+        return [CompletionItem(value) for value in _sort_numeric_like(set(values))]
+    except Exception:
+        return []
 
 
 def _complete_pass_identifier(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    result = completion_call("passes", {})
-    if result is None:
+    try:
+        del ctx, param
+        result = completion_call("passes", {})
+        if not isinstance(result, dict):
+            return []
+        tree = result.get("tree", {})
+        passes = tree.get("passes", []) if isinstance(tree, dict) else []
+        if not isinstance(passes, list):
+            return []
+        prefix = incomplete.lower()
+        items: list[CompletionItem] = []
+        for idx, pass_row in enumerate(passes):
+            if not isinstance(pass_row, dict):
+                continue
+            index_text = str(idx)
+            name = str(pass_row.get("name", ""))
+            if index_text.startswith(incomplete):
+                items.append(CompletionItem(index_text))
+            if name and name.lower().startswith(prefix):
+                items.append(CompletionItem(name))
+        return items
+    except Exception:
         return []
-    tree = result.get("tree", {})
-    passes = tree.get("passes", []) if isinstance(tree, dict) else []
-    prefix = incomplete.lower()
-    items: list[CompletionItem] = []
-    for idx, pass_row in enumerate(passes):
-        index_text = str(idx)
-        name = str(pass_row.get("name", ""))
-        if index_text.startswith(incomplete):
-            items.append(CompletionItem(index_text))
-        if name and name.lower().startswith(prefix):
-            items.append(CompletionItem(name))
-    return items
 
 
 @click.command("resources")

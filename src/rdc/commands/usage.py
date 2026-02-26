@@ -14,55 +14,71 @@ from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
 
 
+def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
+    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
+
+
+def _completion_rows(result: Any, key: str) -> list[dict[str, Any]]:
+    if not isinstance(result, dict):
+        return []
+    rows = result.get(key, [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def _complete_usage_resource_id(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    result = completion_call("resources", {})
-    if result is None:
+    try:
+        del ctx, param
+        result = completion_call("resources", {})
+        rows = _completion_rows(result, "rows")
+        prefix = incomplete.strip()
+        ids = {
+            str(row.get("id", ""))
+            for row in rows
+            if str(row.get("id", "")) and (not prefix or str(row.get("id", "")).startswith(prefix))
+        }
+        return [CompletionItem(value) for value in _sort_numeric_like(ids)]
+    except Exception:
         return []
-    rows = result.get("rows", [])
-    prefix = incomplete.strip()
-    ids = {
-        str(row.get("id", ""))
-        for row in rows
-        if str(row.get("id", "")) and (not prefix or str(row.get("id", "")).startswith(prefix))
-    }
-    return [CompletionItem(value) for value in sorted(ids, key=int)]
 
 
 def _complete_usage_resource_type(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    result = completion_call("resources", {})
-    if result is None:
+    try:
+        del ctx, param
+        result = completion_call("resources", {})
+        rows = _completion_rows(result, "rows")
+        prefix = incomplete.lower()
+        values = {
+            str(row.get("type", ""))
+            for row in rows
+            if str(row.get("type", "")) and str(row.get("type", "")).lower().startswith(prefix)
+        }
+        return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    except Exception:
         return []
-    rows = result.get("rows", [])
-    prefix = incomplete.lower()
-    values = {
-        str(row.get("type", ""))
-        for row in rows
-        if str(row.get("type", "")) and str(row.get("type", "")).lower().startswith(prefix)
-    }
-    return [CompletionItem(value) for value in sorted(values, key=str.lower)]
 
 
 def _complete_usage_kind(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
-    del ctx, param
-    result = completion_call("usage_all", {})
-    if result is None:
+    try:
+        del ctx, param
+        result = completion_call("usage_all", {})
+        rows = _completion_rows(result, "rows")
+        prefix = incomplete.lower()
+        values = {
+            str(row.get("usage", ""))
+            for row in rows
+            if str(row.get("usage", "")) and str(row.get("usage", "")).lower().startswith(prefix)
+        }
+        return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    except Exception:
         return []
-    rows = result.get("rows", [])
-    prefix = incomplete.lower()
-    values = {
-        str(row.get("usage", ""))
-        for row in rows
-        if str(row.get("usage", "")) and str(row.get("usage", "")).lower().startswith(prefix)
-    }
-    return [CompletionItem(value) for value in sorted(values, key=str.lower)]
 
 
 @click.command("usage")

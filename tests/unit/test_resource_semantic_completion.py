@@ -142,3 +142,70 @@ def test_rt_target_completion_defaults_without_eid() -> None:
         params: dict[str, int] = {}
 
     assert _values(export_mod._complete_rt_target(_Ctx(), None, "1")) == ["1"]
+
+
+def test_completion_non_numeric_ids_do_not_crash(monkeypatch) -> None:
+    def fake_call(method: str, params: dict):
+        if method == "resources":
+            return {
+                "rows": [
+                    {"id": "foo", "type": "Texture", "name": "Albedo"},
+                    {"id": 10, "type": "Buffer", "name": "VB"},
+                    {"id": 2, "type": "Texture", "name": "Mask"},
+                ]
+            }
+        return {"draws": [{"eid": "last"}, {"eid": 20}, {"eid": 5}]}
+
+    monkeypatch.setattr(resources_mod, "completion_call", fake_call)
+    monkeypatch.setattr(usage_mod, "completion_call", fake_call)
+    monkeypatch.setattr(export_mod, "completion_call", fake_call)
+
+    assert _values(resources_mod._complete_resource_id(None, None, "")) == ["2", "10", "foo"]
+    assert _values(usage_mod._complete_usage_resource_id(None, None, "")) == ["2", "10", "foo"]
+    assert _values(export_mod._complete_texture_id(None, None, "")) == ["2", "foo"]
+    assert _values(export_mod._complete_rt_eid(None, None, "")) == ["5", "20", "last"]
+
+
+def test_completion_malformed_payload_shapes_return_empty_or_filtered(monkeypatch) -> None:
+    monkeypatch.setattr(resources_mod, "completion_call", lambda method, params: {"rows": "bad"})
+    monkeypatch.setattr(usage_mod, "completion_call", lambda method, params: {"rows": "bad"})
+
+    assert resources_mod._complete_resource_id(None, None, "") == []
+    assert resources_mod._complete_resource_type(None, None, "") == []
+    assert usage_mod._complete_usage_resource_id(None, None, "") == []
+    assert usage_mod._complete_usage_kind(None, None, "") == []
+
+    monkeypatch.setattr(export_mod, "completion_call", lambda method, params: {"draws": "bad"})
+    assert export_mod._complete_rt_eid(None, None, "") == []
+
+
+def test_completion_malformed_items_are_ignored(monkeypatch) -> None:
+    def fake_call(method: str, params: dict):
+        if method == "resources":
+            return {
+                "rows": [
+                    {"id": 9, "type": "Texture", "name": "Good"},
+                    "bad",
+                    123,
+                ]
+            }
+        if method == "passes":
+            return {"tree": {"passes": [{"name": "Main"}, "bad"]}}
+        if method == "vfs_ls":
+            return {
+                "children": [
+                    {"name": "color1.png", "kind": "leaf_bin"},
+                    "bad",
+                ]
+            }
+        return None
+
+    monkeypatch.setattr(resources_mod, "completion_call", fake_call)
+    monkeypatch.setattr(export_mod, "completion_call", fake_call)
+
+    class _Ctx:
+        params = {"eid": 100}
+
+    assert _values(resources_mod._complete_resource_id(None, None, "")) == ["9"]
+    assert _values(resources_mod._complete_pass_identifier(None, None, "")) == ["0", "Main"]
+    assert _values(export_mod._complete_rt_target(_Ctx(), None, "")) == ["1"]
