@@ -52,9 +52,9 @@ def _complete_capture_path(
         if not child.name.startswith(prefix):
             continue
         if child.is_dir():
-            items.append(CompletionItem(f"{base}{child.name}/"))
+            items.append(CompletionItem(f"{base}{child.name}", type="dir"))
         elif child.suffix.lower() == ".rdc":
-            items.append(CompletionItem(f"{base}{child.name}"))
+            items.append(CompletionItem(f"{base}{child.name}", type="file"))
     return items
 
 
