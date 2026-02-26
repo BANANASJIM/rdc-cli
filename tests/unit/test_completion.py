@@ -20,6 +20,8 @@ def test_completion_bash() -> None:
     assert result.exit_code == 0
     assert "_rdc_completion" in result.output
     assert "complete" in result.output
+    assert "compopt -o nospace" in result.output
+    assert 'COMPREPLY+=("$value")' in result.output
 
 
 def test_completion_zsh() -> None:
