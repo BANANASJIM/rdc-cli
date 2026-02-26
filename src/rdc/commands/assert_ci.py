@@ -9,7 +9,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import _json_mode, complete_eid
+from rdc.commands._helpers import _json_mode, complete_eid, complete_pass_name
 from rdc.commands.unix_helpers import _COUNT_TARGETS
 from rdc.daemon_client import send_request
 from rdc.protocol import _request
@@ -248,7 +248,13 @@ def assert_clean_cmd(min_severity: str, use_json: bool) -> None:
     type=click.Choice(["eq", "gt", "lt", "ge", "le"]),
     help="Comparison operator.",
 )
-@click.option("--pass", "pass_name", default=None, help="Filter by render pass name.")
+@click.option(
+    "--pass",
+    "pass_name",
+    default=None,
+    help="Filter by render pass name.",
+    shell_complete=complete_pass_name,
+)
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")
 def assert_count_cmd(
     what: str,

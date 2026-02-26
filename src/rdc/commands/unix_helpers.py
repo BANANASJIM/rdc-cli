@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_pass_name
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.tsv import write_tsv
 
@@ -27,7 +27,13 @@ _SHADER_MAP_COLS = ["eid", "vs", "hs", "ds", "gs", "ps", "cs"]
 
 @click.command("count")
 @click.argument("what", type=click.Choice(_COUNT_TARGETS, case_sensitive=False))
-@click.option("--pass", "pass_name", default=None, help="Filter by render pass name.")
+@click.option(
+    "--pass",
+    "pass_name",
+    default=None,
+    help="Filter by render pass name.",
+    shell_complete=complete_pass_name,
+)
 def count_cmd(what: str, pass_name: str | None) -> None:
     """Output a single integer count to stdout.
 

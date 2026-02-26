@@ -8,7 +8,7 @@ from typing import Any
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call, completion_call
+from rdc.commands._helpers import call, complete_pass_identifier, completion_call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import format_kv
 from rdc.formatters.options import list_output_options
@@ -210,7 +210,7 @@ def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) ->
 
 
 @click.command("pass")
-@click.argument("identifier", shell_complete=_complete_pass_identifier)
+@click.argument("identifier", shell_complete=complete_pass_identifier)
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def pass_cmd(identifier: str, use_json: bool) -> None:
     """Show detail for a single render pass by 0-based index or name."""

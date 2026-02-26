@@ -29,6 +29,8 @@ __all__ = [
     "_json_mode",
     "split_session_active",
     "complete_eid",
+    "complete_pass_name",
+    "complete_pass_identifier",
 ]
 
 
@@ -284,6 +286,87 @@ def complete_eid(
                     items.append(CompletionItem(value, help=label))
                 else:
                     items.append(CompletionItem(value))
+            return items
+        except Exception:  # noqa: BLE001
+            return []
+
+
+def complete_pass_name(
+    _ctx: click.Context | None,
+    _param: click.Parameter | None,
+    incomplete: str,
+) -> list[CompletionItem]:
+    """Complete render pass names from daemon metadata.
+
+    Fail-safe behavior: return an empty list if session/RPC is unavailable.
+    """
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            result = try_call("passes", {})
+            if not isinstance(result, dict):
+                return []
+            tree = result.get("tree")
+            if not isinstance(tree, dict):
+                return []
+            passes = tree.get("passes", [])
+            if not isinstance(passes, list):
+                return []
+
+            prefix = incomplete.casefold()
+            names: set[str] = set()
+            items: list[CompletionItem] = []
+            for p in passes:
+                if not isinstance(p, dict):
+                    continue
+                name = p.get("name")
+                if not isinstance(name, str):
+                    continue
+                if prefix and not name.casefold().startswith(prefix):
+                    continue
+                if name in names:
+                    continue
+                names.add(name)
+                items.append(CompletionItem(name))
+            return items
+        except Exception:  # noqa: BLE001
+            return []
+
+
+def complete_pass_identifier(
+    _ctx: click.Context | None,
+    _param: click.Parameter | None,
+    incomplete: str,
+) -> list[CompletionItem]:
+    """Complete pass identifier as index or name."""
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            result = try_call("passes", {})
+            if not isinstance(result, dict):
+                return []
+            tree = result.get("tree", {})
+            passes = tree.get("passes", []) if isinstance(tree, dict) else []
+            if not isinstance(passes, list):
+                return []
+
+            prefix = incomplete.casefold()
+            items: list[CompletionItem] = []
+            seen_names: set[str] = set()
+            for index, p in enumerate(passes):
+                if not isinstance(p, dict):
+                    continue
+                index_text = str(index)
+                if index_text.startswith(incomplete):
+                    items.append(CompletionItem(index_text))
+
+                name = p.get("name")
+                if not isinstance(name, str) or not name:
+                    continue
+                if prefix and not name.casefold().startswith(prefix):
+                    continue
+                if name in seen_names:
+                    continue
+                seen_names.add(name)
+                items.append(CompletionItem(name))
             return items
         except Exception:  # noqa: BLE001
             return []
