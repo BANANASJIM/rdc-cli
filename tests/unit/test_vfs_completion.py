@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import click
 from click.shell_completion import CompletionItem
 
 import rdc.commands.vfs as vfs_mod
@@ -112,6 +113,17 @@ def test_complete_no_session(monkeypatch) -> None:
     monkeypatch.setattr(vfs_mod, "call", fake_call)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/d")
     assert result == []
+
+
+def test_complete_no_session_silent(monkeypatch, capsys) -> None:
+    def fake_call(method: str, params: dict | None = None) -> dict:
+        click.echo("error: no active session (run 'rdc open' first)", err=True)
+        raise SystemExit(1)
+
+    monkeypatch.setattr(vfs_mod, "call", fake_call)
+    result = _complete_vfs_path(ctx=None, param=None, incomplete="/d")
+    assert result == []
+    assert capsys.readouterr().err == ""
 
 
 def test_complete_no_matches(monkeypatch) -> None:

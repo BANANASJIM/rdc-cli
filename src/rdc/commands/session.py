@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import click
+from click.shell_completion import CompletionItem
 
 from rdc.services.session_service import (
     close_session,
@@ -16,8 +17,44 @@ from rdc.services.session_service import (
 from rdc.session_state import session_path
 
 
+def _complete_capture_path(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    """Shell completion callback for local capture paths."""
+    del ctx, param
+    if "/" in incomplete:
+        dir_part, prefix = incomplete.rsplit("/", 1)
+        dir_path = Path(os.path.expanduser(dir_part or "/"))
+        base = f"{dir_part}/"
+    else:
+        dir_path = Path(".")
+        prefix = incomplete
+        base = ""
+
+    try:
+        children = sorted(dir_path.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return []
+
+    items: list[CompletionItem] = []
+    for child in children:
+        if not child.name.startswith(prefix):
+            continue
+        if child.is_dir():
+            items.append(CompletionItem(f"{base}{child.name}/"))
+        elif child.suffix == ".rdc":
+            items.append(CompletionItem(f"{base}{child.name}"))
+    return items
+
+
 @click.command("open")
-@click.argument("capture", type=str, required=False, default=None)
+@click.argument(
+    "capture",
+    type=str,
+    required=False,
+    default=None,
+    shell_complete=_complete_capture_path,
+)
 @click.option("--preload", is_flag=True, default=False, help="Preload shader cache after open.")
 @click.option(
     "--proxy",

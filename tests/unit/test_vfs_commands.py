@@ -453,12 +453,16 @@ def test_complete_root(monkeypatch) -> None:
 
 def test_complete_daemon_unreachable(monkeypatch) -> None:
     def fake_call(method, params=None):
+        import click
+
+        click.echo("error: no active session (run 'rdc open' first)", err=True)
         raise SystemExit(1)
 
     monkeypatch.setattr(vfs_mod, "call", fake_call)
     result = CliRunner().invoke(complete_cmd, ["/draws/14"])
     assert result.exit_code == 0
     assert result.output == ""
+    assert result.stderr == ""
 
 
 # ── ls -l (long format) ───────────────────────────────────────────
