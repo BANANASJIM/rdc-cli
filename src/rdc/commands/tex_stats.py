@@ -6,14 +6,14 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json
 from rdc.formatters.tsv import write_tsv
 
 
 @click.command("tex-stats")
 @click.argument("resource_id", type=int)
-@click.argument("eid", required=False, type=int)
+@click.argument("eid", required=False, type=int, shell_complete=complete_eid)
 @click.option("--mip", default=0, type=int, help="Mip level (default 0)")
 @click.option("--slice", "array_slice", default=0, type=int, help="Array slice (default 0)")
 @click.option("--histogram", is_flag=True, help="Show 256-bucket histogram")

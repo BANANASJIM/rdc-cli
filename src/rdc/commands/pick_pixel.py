@@ -6,14 +6,14 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json
 
 
 @click.command("pick-pixel")
 @click.argument("x", type=int)
 @click.argument("y", type=int)
-@click.argument("eid", required=False, type=int)
+@click.argument("eid", required=False, type=int, shell_complete=complete_eid)
 @click.option("--target", default=0, type=int, help="Color target index (default 0)")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def pick_pixel_cmd(x: int, y: int, eid: int | None, target: int, use_json: bool) -> None:

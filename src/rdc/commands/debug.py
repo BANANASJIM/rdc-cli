@@ -6,7 +6,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json
 
 
@@ -70,7 +70,7 @@ def _print_dump_at(result: dict[str, Any], target_line: int, no_header: bool) ->
 
 
 @debug_group.command("pixel")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("x", type=int)
 @click.argument("y", type=int)
 @click.option("--trace", "show_trace", is_flag=True, help="Full execution trace (TSV)")
@@ -116,7 +116,7 @@ def pixel_cmd(
 
 
 @debug_group.command("thread")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("gx", type=int)
 @click.argument("gy", type=int)
 @click.argument("gz", type=int)
@@ -169,7 +169,7 @@ def thread_cmd(
 
 
 @debug_group.command("vertex")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("vtx_id", type=int)
 @click.option("--trace", "show_trace", is_flag=True, help="Full execution trace (TSV)")
 @click.option("--dump-at", "dump_at", type=int, default=None, help="Var snapshot at LINE")

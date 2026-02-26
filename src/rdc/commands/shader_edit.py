@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json
 
 
@@ -54,7 +54,7 @@ def shader_build_cmd(
 
 
 @click.command("shader-replace")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("stage", type=click.Choice(["vs", "hs", "ds", "gs", "ps", "cs"]))
 @click.option(
     "--with", "shader_id", required=True, type=int, help="Built shader ID from shader-build"
@@ -71,7 +71,7 @@ def shader_replace_cmd(eid: int, stage: str, shader_id: int, use_json: bool) -> 
 
 
 @click.command("shader-restore")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("stage", type=click.Choice(["vs", "hs", "ds", "gs", "ps", "cs"]))
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def shader_restore_cmd(eid: int, stage: str, use_json: bool) -> None:

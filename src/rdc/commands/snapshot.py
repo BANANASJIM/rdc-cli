@@ -8,12 +8,12 @@ from pathlib import Path
 
 import click
 
-from rdc.commands._helpers import call, fetch_remote_file, try_call
+from rdc.commands._helpers import call, complete_eid, fetch_remote_file, try_call
 from rdc.formatters.json_fmt import write_json
 
 
 @click.command("snapshot")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.option("-o", "--output", required=True, type=click.Path(), help="Output directory")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def snapshot_cmd(eid: int, output: str, use_json: bool) -> None:

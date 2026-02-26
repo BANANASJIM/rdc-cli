@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from rdc.commands._helpers import call, fetch_remote_file
+from rdc.commands._helpers import call, complete_eid, fetch_remote_file
 from rdc.commands.vfs import _deliver_binary
 from rdc.session_state import load_session
 from rdc.vfs.router import resolve_path
@@ -42,7 +42,7 @@ def texture_cmd(id: int, output: str | None, mip: int, raw: bool) -> None:
 
 
 @click.command("rt")
-@click.argument("eid", type=int, required=False, default=None)
+@click.argument("eid", type=int, required=False, default=None, shell_complete=complete_eid)
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option("--target", default=0, type=int, help="Color target index (default 0)")
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")

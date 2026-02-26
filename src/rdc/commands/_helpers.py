@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 from pathlib import Path
 from typing import Any, cast
 
 import click
+from click.shell_completion import CompletionItem
 
 from rdc.capture_core import CaptureResult
 from rdc.daemon_client import send_request, send_request_binary
@@ -24,6 +27,7 @@ __all__ = [
     "write_capture_to_path",
     "_json_mode",
     "split_session_active",
+    "complete_eid",
 ]
 
 
@@ -237,3 +241,42 @@ def split_session_active() -> bool:
     ``require_session()`` to ping the daemon and clean up stale sessions.
     """
     return _split_session() is not None
+
+
+def complete_eid(
+    _ctx: click.Context | None,
+    _param: click.Parameter | None,
+    incomplete: str,
+) -> list[CompletionItem]:
+    """Return shell-completion items for event-id arguments.
+
+    Completion is best-effort and must stay silent/fail-safe when session or
+    daemon access is unavailable.
+    """
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            result = try_call("events", {})
+            if result is None:
+                return []
+            rows = result.get("events", [])
+            if not isinstance(rows, list):
+                return []
+
+            items: list[CompletionItem] = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                eid = row.get("eid")
+                if not isinstance(eid, int):
+                    continue
+                value = str(eid)
+                if incomplete and not value.startswith(incomplete):
+                    continue
+                label = row.get("name")
+                if isinstance(label, str) and label:
+                    items.append(CompletionItem(value, help=label))
+                else:
+                    items.append(CompletionItem(value))
+            return items
+        except Exception:  # noqa: BLE001
+            return []

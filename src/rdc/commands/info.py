@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import write_kv
 from rdc.formatters.options import list_output_options
@@ -82,7 +82,13 @@ def stats_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> 
     type=click.Choice(["HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"], case_sensitive=False),
     help="Filter by severity.",
 )
-@click.option("--eid", default=None, type=int, help="Filter by event ID.")
+@click.option(
+    "--eid",
+    default=None,
+    type=int,
+    shell_complete=complete_eid,
+    help="Filter by event ID.",
+)
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 @list_output_options
 def log_cmd(
