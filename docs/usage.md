@@ -10,7 +10,15 @@ rdc open capture.rdc     # start a session (launches daemon)
 rdc draws                # list draw calls
 rdc pipeline 142         # inspect pipeline state at EID 142
 rdc shader 142 ps        # view pixel shader disassembly
+rdc shader ps            # view PS at current EID (after goto)
 rdc close                # end session (stops daemon)
+```
+
+Render pass lookup accepts either a pass name or a 0-based pass index:
+
+```bash
+rdc pass 0               # first pass
+rdc pass GBuffer         # pass by name
 ```
 
 ## Named sessions

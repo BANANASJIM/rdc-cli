@@ -570,7 +570,7 @@ Create local default session and start daemon skeleton.
 
 ## `rdc pass`
 
-Show detail for a single render pass by index or name.
+Show detail for a single render pass by 0-based index or name.
 
 **Arguments:**
 
@@ -849,8 +849,8 @@ Show shader metadata for a stage at EID.
 
 | Name | Type | Required |
 |------|------|----------|
-| `eid` | integer | no |
-| `stage` | choice | no |
+| `first` | text | no |
+| `second` | text | no |
 
 **Options:**
 

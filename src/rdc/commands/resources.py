@@ -103,7 +103,7 @@ def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) ->
 @click.argument("identifier")
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def pass_cmd(identifier: str, use_json: bool) -> None:
-    """Show detail for a single render pass by index or name."""
+    """Show detail for a single render pass by 0-based index or name."""
     params: dict[str, Any] = {}
     try:
         params["index"] = int(identifier)

@@ -137,8 +137,8 @@ def bindings_cmd(
 
 
 @click.command("shader")
-@click.argument("eid", required=False, type=int)
-@click.argument("stage", required=False, type=click.Choice(_STAGE_CHOICES, case_sensitive=False))
+@click.argument("first", required=False)
+@click.argument("second", required=False)
 @click.option(
     "--reflect",
     "get_reflect",
@@ -160,8 +160,8 @@ def bindings_cmd(
 @click.option("--all", "get_all", is_flag=True, help="Get all shader data for all stages.")
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def shader_cmd(
-    eid: int | None,
-    stage: str | None,
+    first: str | None,
+    second: str | None,
     get_reflect: bool,
     get_constants: bool,
     get_source: bool,
@@ -176,6 +176,8 @@ def shader_cmd(
     EID is the event ID. STAGE is the shader stage (vs, hs, ds, gs, ps, cs).
     Use --all to get data for all stages.
     """
+    eid, stage = _parse_shader_positionals(first, second)
+
     params: dict[str, Any] = {}
     if eid is not None:
         params["eid"] = eid
@@ -234,9 +236,16 @@ def shader_cmd(
 
     # --target dispatches to shader_disasm
     if target is not None:
-        disasm_result = call(
-            "shader_disasm", {"eid": eid or 0, "stage": stage or "ps", "target": target}
-        )
+        disasm_params: dict[str, Any] = {"target": target}
+        if eid is None and stage is None:
+            disasm_params["eid"] = 0
+            disasm_params["stage"] = "ps"
+        else:
+            if eid is not None:
+                disasm_params["eid"] = eid
+            if stage is not None:
+                disasm_params["stage"] = stage
+        disasm_result = call("shader_disasm", disasm_params)
         if use_json:
             write_json(disasm_result)
             return
@@ -323,6 +332,37 @@ def shader_cmd(
                             ["  ", v.get("name", "-"), v.get("type", "-"), v.get("value", "-")]
                         )
                     )
+
+
+def _parse_shader_positionals(
+    first: str | None, second: str | None
+) -> tuple[int | None, str | None]:
+    """Parse shader positional arguments as ``[eid] [stage]`` or ``[stage]``."""
+    if first is None:
+        return None, None
+
+    first_lower = first.lower()
+    if first_lower in _SHADER_STAGES_CLI:
+        if second is not None:
+            msg = "unexpected extra argument when using stage-only form"
+            raise click.BadParameter(msg, param_hint="SECOND")
+        return None, first_lower
+
+    try:
+        eid = int(first)
+    except ValueError as exc:
+        msg = f"'{first}' is not a valid EID or shader stage"
+        raise click.BadParameter(msg, param_hint="FIRST") from exc
+
+    if second is None:
+        return eid, None
+
+    stage = second.lower()
+    if stage not in _SHADER_STAGES_CLI:
+        allowed = ", ".join(_STAGE_CHOICES)
+        msg = f"'{second}' is not a valid stage (choose from {allowed})"
+        raise click.BadParameter(msg, param_hint="SECOND")
+    return eid, stage
 
 
 @click.command("shaders")

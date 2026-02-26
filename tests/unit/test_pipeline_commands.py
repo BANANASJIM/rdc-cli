@@ -195,6 +195,72 @@ def test_shader_single_json(monkeypatch) -> None:
     assert '"shader": 101' in result.output
 
 
+def test_shader_stage_only_uses_current_eid(monkeypatch) -> None:
+    calls: list[dict] = []
+    import rdc.commands._helpers as mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(mod, "load_session", lambda: session)
+
+    def capture(_h, _p, payload):
+        calls.append(payload)
+        return {
+            "result": {
+                "row": {
+                    "eid": 77,
+                    "stage": "ps",
+                    "shader": 101,
+                    "entry": "main_ps",
+                    "ro": 1,
+                    "rw": 0,
+                    "cbuffers": 1,
+                }
+            }
+        }
+
+    monkeypatch.setattr(mod, "send_request", capture)
+
+    result = CliRunner().invoke(main, ["shader", "ps"])
+
+    assert result.exit_code == 0
+    assert calls[0]["method"] == "shader"
+    assert calls[0]["params"]["stage"] == "ps"
+    assert "eid" not in calls[0]["params"]
+
+
+def test_shader_explicit_eid_stage_form_still_supported(monkeypatch) -> None:
+    calls: list[dict] = []
+    import rdc.commands._helpers as mod
+
+    session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
+    monkeypatch.setattr(mod, "load_session", lambda: session)
+
+    def capture(_h, _p, payload):
+        calls.append(payload)
+        return {
+            "result": {
+                "row": {
+                    "eid": 10,
+                    "stage": "ps",
+                    "shader": 101,
+                    "entry": "main_ps",
+                    "ro": 1,
+                    "rw": 0,
+                    "cbuffers": 1,
+                }
+            }
+        }
+
+    monkeypatch.setattr(mod, "send_request", capture)
+
+    result = CliRunner().invoke(main, ["shader", "10", "ps"])
+
+    assert result.exit_code == 0
+    assert calls[0]["method"] == "shader"
+    assert calls[0]["params"]["eid"] == 10
+    assert calls[0]["params"]["stage"] == "ps"
+
+
 def test_shader_with_source_output(monkeypatch, tmp_path) -> None:
     patch_cli_session(
         monkeypatch,
