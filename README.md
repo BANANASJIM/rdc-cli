@@ -45,17 +45,14 @@ python scripts/build_renderdoc.py     # needs cmake + Visual Studio Build Tools
 rdc doctor
 ```
 
-**PyPI — macOS** (remote replay recommended)
+**PyPI — macOS** (Split client only)
 
 ```bash
 pipx install rdc-cli
-# Remote replay (no local renderdoc needed):
-rdc remote connect linux-host:39920      # connect to a Linux/Windows target
-rdc remote list                          # list capturable apps
-rdc remote capture /path/to/app          # capture + pull .rdc file
-# Optional: local replay — run inside repo for auto-managed deps
-# pixi run setup-renderdoc  (installs cmake/ninja/autotools via pixi)
-# or: python scripts/build_renderdoc.py
+# Local replay on macOS is not supported right now.
+# Use Split mode and run replay on a Linux/Windows daemon:
+#   rdc open /tmp/frame.rdc --listen 0.0.0.0:54321   # on replay host
+#   rdc open --connect host:54321 --token TOKEN       # on macOS client
 rdc doctor
 ```
 
@@ -82,8 +79,8 @@ pixi run setup-renderdoc
 | Platform | Local capture/replay | Split client |
 |----------|----------------------|--------------|
 | Linux | ✅ | ✅ |
-| macOS | ✅ (`pixi run setup-renderdoc`) | ✅ (no local RenderDoc needed) |
-| Windows *(experimental, not tested in this PR)* | ⚠️ expected | ⚠️ expected |
+| macOS | ❌ (not supported yet) | ✅ (recommended) |
+| Windows (experimental) | ⚠️ expected | ⚠️ expected |
 
 ### RenderDoc bootstrap (all platforms)
 

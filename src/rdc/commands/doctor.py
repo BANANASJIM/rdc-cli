@@ -13,7 +13,7 @@ from typing import Any
 
 import click
 
-from rdc.discover import find_renderdoc, find_renderdoccmd
+from rdc.discover import ProbeResult, _get_diagnostic, find_renderdoc, find_renderdoccmd
 
 
 @dataclass(frozen=True)
@@ -70,6 +70,13 @@ _RENDERDOC_BUILD_HINT = _make_build_hint(sys.platform)
 def _import_renderdoc() -> tuple[Any | None, CheckResult]:
     module = find_renderdoc()
     if module is None:
+        diag = _get_diagnostic()
+        if diag is not None and diag.result == ProbeResult.CRASH_PRONE:
+            return None, CheckResult(
+                "renderdoc-module",
+                False,
+                f"incompatible at {diag.candidate_path} — rebuild renderdoc for current Python",
+            )
         return None, CheckResult("renderdoc-module", False, "not found in search paths")
 
     version = getattr(module, "GetVersionString", lambda: "unknown")()
