@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 from click.shell_completion import CompletionItem
 
+from rdc.commands._helpers import complete_eid
 from rdc.services.session_service import (
     close_session,
     connect_session,
@@ -226,7 +227,7 @@ def status_cmd() -> None:
 
 
 @click.command("goto")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 def goto_cmd(eid: int) -> None:
     """Update current event id via daemon."""
     ok, message = goto_session(eid)

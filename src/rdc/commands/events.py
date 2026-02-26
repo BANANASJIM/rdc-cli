@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import write_kv
 from rdc.formatters.tsv import write_footer, write_tsv
@@ -115,7 +115,7 @@ def draws_cmd(
 
 
 @click.command("event")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def event_cmd(eid: int, use_json: bool) -> None:
     """Show single API call detail."""
@@ -127,7 +127,7 @@ def event_cmd(eid: int, use_json: bool) -> None:
 
 
 @click.command("draw")
-@click.argument("eid", type=int, required=False, default=None)
+@click.argument("eid", type=int, required=False, default=None, shell_complete=complete_eid)
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def draw_cmd(eid: int | None, use_json: bool) -> None:
     """Show draw call detail."""

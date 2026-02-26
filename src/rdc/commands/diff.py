@@ -10,6 +10,7 @@ from typing import Any
 
 import click
 
+from rdc.commands._helpers import complete_eid
 from rdc.diff import stats as diff_stats_mod
 from rdc.diff.alignment import align_draws
 from rdc.diff.draws import DiffStatus
@@ -195,7 +196,13 @@ def _handle_summary(ctx: DiffContext, *, use_json: bool) -> None:
     type=float,
     help="Max diff ratio %% to count as identical",
 )
-@click.option("--eid", default=None, type=int, help="Compare at specific EID (default: last draw)")
+@click.option(
+    "--eid",
+    default=None,
+    type=int,
+    shell_complete=complete_eid,
+    help="Compare at specific EID (default: last draw)",
+)
 @click.option(
     "--diff-output",
     default=None,

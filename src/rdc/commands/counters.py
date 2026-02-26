@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
@@ -15,7 +15,13 @@ from rdc.formatters.tsv import write_tsv
 
 @click.command("counters")
 @click.option("--list", "show_list", is_flag=True, help="List available counters.")
-@click.option("--eid", type=int, default=None, help="Filter to specific event ID.")
+@click.option(
+    "--eid",
+    type=int,
+    default=None,
+    shell_complete=complete_eid,
+    help="Filter to specific event ID.",
+)
 @click.option("--name", "name_filter", default=None, help="Filter counters by name substring.")
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")
 @list_output_options

@@ -9,7 +9,7 @@ from typing import Any
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import format_row, write_tsv
@@ -20,8 +20,19 @@ _SORT_CHOICES = ["name", "stage", "uses"]
 _SHADER_STAGES_CLI: frozenset[str] = frozenset(STAGE_MAP)
 
 
+def _complete_shader_first(
+    ctx: click.Context | None,
+    param: click.Parameter | None,
+    incomplete: str,
+) -> list[CompletionItem]:
+    stage_items = [
+        CompletionItem(stage) for stage in _STAGE_CHOICES if stage.startswith(incomplete.lower())
+    ]
+    return [*complete_eid(ctx, param, incomplete), *stage_items]
+
+
 @click.command("pipeline")
-@click.argument("eid", required=False, type=int)
+@click.argument("eid", required=False, type=int, shell_complete=complete_eid)
 @click.argument("section", required=False)
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def pipeline_cmd(eid: int | None, section: str | None, use_json: bool) -> None:
@@ -86,7 +97,7 @@ def pipeline_cmd(eid: int | None, section: str | None, use_json: bool) -> None:
 
 
 @click.command("bindings")
-@click.argument("eid", required=False, type=int)
+@click.argument("eid", required=False, type=int, shell_complete=complete_eid)
 @click.option("--binding", "binding_index", type=int, help="Filter by binding index.")
 @click.option("--set", "set_index", type=int, help="Filter by descriptor set index.")
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
@@ -142,9 +153,7 @@ def bindings_cmd(
     "first",
     required=False,
     metavar="[EID|STAGE]",
-    shell_complete=lambda _ctx, _param, incomplete: [
-        CompletionItem(stage) for stage in _STAGE_CHOICES if stage.startswith(incomplete.lower())
-    ],
+    shell_complete=_complete_shader_first,
 )
 @click.argument(
     "second",

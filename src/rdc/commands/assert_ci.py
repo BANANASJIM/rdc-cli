@@ -9,7 +9,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import _json_mode
+from rdc.commands._helpers import _json_mode, complete_eid
 from rdc.commands.unix_helpers import _COUNT_TARGETS
 from rdc.daemon_client import send_request
 from rdc.protocol import _request
@@ -132,7 +132,7 @@ def _normalize_value(v: Any) -> str:
 
 
 @click.command("assert-pixel")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("x", type=int)
 @click.argument("y", type=int)
 @click.option("--expect", required=True, help="Expected RGBA as 4 space-separated floats.")
@@ -292,7 +292,7 @@ def assert_count_cmd(
 
 
 @click.command("assert-state")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 @click.argument("key_path", metavar="KEY_PATH")
 @click.option("--expect", required=True, help="Expected value.")
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")

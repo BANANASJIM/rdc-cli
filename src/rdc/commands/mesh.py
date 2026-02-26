@@ -7,12 +7,12 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json
 
 
 @click.command("mesh")
-@click.argument("eid", type=int, required=False, default=None)
+@click.argument("eid", type=int, required=False, default=None, shell_complete=complete_eid)
 @click.option(
     "--stage",
     type=click.Choice(["vs-out", "gs-out"]),
