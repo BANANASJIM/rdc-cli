@@ -227,8 +227,26 @@ def _run_list_apis(*, use_json: bool) -> None:
         else:
             click.echo("error: renderdoccmd not found", err=True)
         raise SystemExit(1)
+    if not _supports_list_apis(bin_path):
+        msg = "renderdoccmd does not support 'capture --list-apis'"
+        if use_json:
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
+        raise SystemExit(1)
     result = subprocess.run([bin_path, "capture", "--list-apis"], check=False)
     raise SystemExit(result.returncode)
+
+
+def _supports_list_apis(bin_path: str) -> bool:
+    """Return whether renderdoccmd advertises capture --list-apis support."""
+    result = subprocess.run(
+        [bin_path, "capture", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return "--list-apis" in ((result.stdout or "") + (result.stderr or ""))
 
 
 def _fallback_renderdoccmd(
