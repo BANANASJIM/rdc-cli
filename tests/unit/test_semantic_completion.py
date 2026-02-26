@@ -47,6 +47,37 @@ def test_pass_completion_prefix_match_is_case_insensitive(monkeypatch) -> None:
     assert _values(helpers.complete_pass_name(None, None, "g")) == ["GBuffer"]
 
 
+def test_pass_identifier_completion_returns_indexes_and_names(monkeypatch) -> None:
+    monkeypatch.setattr(
+        helpers,
+        "try_call",
+        lambda method, params: {
+            "tree": {"passes": [{"name": "GBuffer"}, {"name": "Shadow"}, {"name": "GBuffer"}]}
+        },
+    )
+
+    assert _values(helpers.complete_pass_identifier(None, None, "")) == [
+        "0",
+        "GBuffer",
+        "1",
+        "Shadow",
+        "2",
+    ]
+
+
+def test_pass_identifier_completion_prefix_filters_indexes_and_names(monkeypatch) -> None:
+    monkeypatch.setattr(
+        helpers,
+        "try_call",
+        lambda method, params: {
+            "tree": {"passes": [{"name": "GBuffer"}, {"name": "Shadow"}, {"name": "PostFX"}]}
+        },
+    )
+
+    assert _values(helpers.complete_pass_identifier(None, None, "1")) == ["1"]
+    assert _values(helpers.complete_pass_identifier(None, None, "g")) == ["GBuffer"]
+
+
 def test_pass_completion_falls_back_to_empty_on_error(monkeypatch) -> None:
     monkeypatch.setattr(helpers, "try_call", lambda method, params: None)
     assert helpers.complete_pass_name(None, None, "") == []
