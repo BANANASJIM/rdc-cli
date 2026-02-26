@@ -173,7 +173,6 @@ class TestRemoteList:
     def test_one_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
-        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
 
         tc = MagicMock()
@@ -187,10 +186,28 @@ class TestRemoteList:
         assert "ident=1" in result.output
         assert "myapp" in result.output
 
+    def test_non_empty_skips_preflight_connect(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _save_state()
+        rd = _mock_rd(monkeypatch)
+        monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [7])
+        monkeypatch.setattr(
+            "rdc.commands.remote.connect_remote_server",
+            MagicMock(side_effect=RuntimeError("preflight should not run")),
+        )
+
+        tc = MagicMock()
+        tc.GetTarget.return_value = "myapp"
+        tc.GetPID.return_value = 12345
+        tc.GetAPI.return_value = "Vulkan"
+        rd.CreateTargetControl.return_value = tc
+
+        result = CliRunner().invoke(remote_list_cmd, [])
+        assert result.exit_code == 0
+        assert "ident=7" in result.output
+
     def test_multiple_targets(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
-        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr(
             "rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1, 2, 3]
         )
@@ -208,7 +225,6 @@ class TestRemoteList:
     def test_json_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
-        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
 
         tc = MagicMock()
@@ -285,6 +301,7 @@ class TestRemoteList:
 
     def test_unreachable_url_reports_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _mock_rd(monkeypatch)
+        monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [])
         monkeypatch.setattr(
             "rdc.commands.remote.connect_remote_server",
             MagicMock(side_effect=RuntimeError("connection failed: timeout")),

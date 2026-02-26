@@ -124,14 +124,16 @@ def remote_list_cmd(url: str | None, use_json: bool) -> None:
     host, port = _resolve_url(url)
     _check_public_ip(host)
     conn_url = build_conn_url(host, port)
-    _ensure_remote_reachable(host, port)
 
     if split_session_active():
+        _ensure_remote_reachable(host, port)
         rpc_result = call("remote_list_run", {"host": host, "port": port})
         targets = list(rpc_result.get("targets", []))
     else:
         rd = require_renderdoc()
         idents = enumerate_remote_targets(rd, conn_url)
+        if not idents:
+            _ensure_remote_reachable(host, port)
         targets = []
         for ident in idents:
             tc = rd.CreateTargetControl(conn_url, ident, "rdc-cli", False)
