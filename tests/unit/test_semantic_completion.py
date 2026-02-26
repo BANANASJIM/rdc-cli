@@ -1,0 +1,70 @@
+"""Tests for semantic shell completion callbacks."""
+
+from __future__ import annotations
+
+from click.shell_completion import CompletionItem
+
+import rdc.commands._helpers as helpers
+from rdc.commands.events import draws_cmd
+from rdc.commands.pipeline import _complete_pipeline_section, pipeline_cmd
+from rdc.commands.resources import pass_cmd
+from rdc.commands.unix_helpers import count_cmd
+
+
+def _values(items: list[CompletionItem]) -> list[str]:
+    return [item.value for item in items]
+
+
+def _param(cmd, name: str):
+    return next(p for p in cmd.params if p.name == name)
+
+
+def test_pass_completion_returns_daemon_pass_names(monkeypatch) -> None:
+    monkeypatch.setattr(
+        helpers,
+        "try_call",
+        lambda method, params: {
+            "tree": {"passes": [{"name": "GBuffer"}, {"name": "Shadow"}, {"name": "GBuffer"}]}
+        },
+    )
+
+    assert _values(helpers.complete_pass_name(None, None, "")) == ["GBuffer", "Shadow"]
+
+
+def test_pass_completion_prefix_match_is_case_insensitive(monkeypatch) -> None:
+    monkeypatch.setattr(
+        helpers,
+        "try_call",
+        lambda method, params: {
+            "tree": {"passes": [{"name": "GBuffer"}, {"name": "Shadow"}, {"name": "PostFX"}]}
+        },
+    )
+
+    assert _values(helpers.complete_pass_name(None, None, "g")) == ["GBuffer"]
+
+
+def test_pass_completion_falls_back_to_empty_on_error(monkeypatch) -> None:
+    monkeypatch.setattr(helpers, "try_call", lambda method, params: None)
+    assert helpers.complete_pass_name(None, None, "") == []
+
+
+def test_pipeline_section_completion_candidates() -> None:
+    values = _values(_complete_pipeline_section(None, None, ""))
+    assert "topology" in values
+    assert "depth-stencil" in values
+    assert "push-constants" in values
+    assert "ps" in values
+
+
+def test_pipeline_section_completion_prefix_match() -> None:
+    assert _values(_complete_pipeline_section(None, None, "de")) == ["depth-stencil"]
+
+
+def test_pass_like_options_are_wired_for_shell_complete() -> None:
+    assert _param(draws_cmd, "pass_name").shell_complete is not None
+    assert _param(count_cmd, "pass_name").shell_complete is not None
+    assert _param(pass_cmd, "identifier").shell_complete is not None
+
+
+def test_pipeline_section_argument_has_shell_complete() -> None:
+    assert _param(pipeline_cmd, "section").shell_complete is not None

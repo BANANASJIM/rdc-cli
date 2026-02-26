@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from rdc.commands._helpers import call, complete_eid
+from rdc.commands._helpers import call, complete_eid, complete_pass_name
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import write_kv
 from rdc.formatters.tsv import write_footer, write_tsv
@@ -60,7 +60,13 @@ def events_cmd(
 
 
 @click.command("draws")
-@click.option("--pass", "pass_name", default=None, help="Filter by pass name")
+@click.option(
+    "--pass",
+    "pass_name",
+    default=None,
+    help="Filter by pass name",
+    shell_complete=complete_pass_name,
+)
 @click.option("--sort", "sort_field", default=None, help="Sort field")
 @click.option("--limit", type=int, default=None, help="Max rows")
 @click.option("--no-header", is_flag=True, help="Omit TSV header")

@@ -18,6 +18,31 @@ from rdc.services.query_service import STAGE_MAP
 _STAGE_CHOICES = ["vs", "hs", "ds", "gs", "ps", "cs"]
 _SORT_CHOICES = ["name", "stage", "uses"]
 _SHADER_STAGES_CLI: frozenset[str] = frozenset(STAGE_MAP)
+_PIPELINE_SECTIONS = [
+    "topology",
+    "viewport",
+    "scissor",
+    "blend",
+    "stencil",
+    "rasterizer",
+    "depth-stencil",
+    "msaa",
+    "vbuffers",
+    "ibuffer",
+    "samplers",
+    "push-constants",
+    "vinputs",
+    *_STAGE_CHOICES,
+]
+
+
+def _complete_pipeline_section(
+    _ctx: click.Context | None,
+    _param: click.Parameter | None,
+    incomplete: str,
+) -> list[CompletionItem]:
+    prefix = incomplete.lower()
+    return [CompletionItem(s) for s in _PIPELINE_SECTIONS if s.startswith(prefix)]
 
 
 def _complete_shader_first(
@@ -33,7 +58,7 @@ def _complete_shader_first(
 
 @click.command("pipeline")
 @click.argument("eid", required=False, type=int, shell_complete=complete_eid)
-@click.argument("section", required=False)
+@click.argument("section", required=False, shell_complete=_complete_pipeline_section)
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def pipeline_cmd(eid: int | None, section: str | None, use_json: bool) -> None:
     """Show pipeline summary for current or specified EID.
