@@ -46,3 +46,16 @@ def test_complete_capture_nested_path(monkeypatch, tmp_path: Path) -> None:
     assert "captures/a.rdc" in values
     assert "captures/nested/" in values
     assert "captures/ignore.bin" not in values
+
+
+def test_complete_capture_nested_path_with_backslashes(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "captures").mkdir()
+    (tmp_path / "captures" / "a.rdc").touch()
+    (tmp_path / "captures" / "b.rdc").touch()
+    (tmp_path / "captures" / "nested").mkdir()
+
+    values = [item.value for item in _complete_capture_path(None, None, "captures\\a")]
+    assert "captures/a.rdc" in values
+    assert "captures/b.rdc" not in values
+    assert "captures/nested/" not in values

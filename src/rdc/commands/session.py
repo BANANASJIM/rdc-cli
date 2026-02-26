@@ -22,10 +22,21 @@ def _complete_capture_path(
 ) -> list[CompletionItem]:
     """Shell completion callback for local capture paths."""
     del ctx, param
-    if "/" in incomplete:
-        dir_part, prefix = incomplete.rsplit("/", 1)
-        dir_path = Path(os.path.expanduser(dir_part or "/"))
-        base = f"{dir_part}/"
+    last_forward = incomplete.rfind("/")
+    last_back = incomplete.rfind("\\")
+    sep_index = max(last_forward, last_back)
+
+    if sep_index >= 0:
+        dir_part = incomplete[:sep_index]
+        prefix = incomplete[sep_index + 1 :]
+        if dir_part:
+            lookup_dir = dir_part.replace("\\", os.sep).replace("/", os.sep)
+            dir_path = Path(os.path.expanduser(lookup_dir))
+            normalized_dir = dir_part.replace("\\", "/")
+            base = f"{normalized_dir}/"
+        else:
+            dir_path = Path("/")
+            base = "/"
     else:
         dir_path = Path(".")
         prefix = incomplete
