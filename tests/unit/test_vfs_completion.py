@@ -77,11 +77,15 @@ def test_complete_nested_dir(monkeypatch) -> None:
 def test_complete_nested_partial(monkeypatch) -> None:
     _patch(monkeypatch, _DRAWS_CHILDREN)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/draws/14")
+    typed = {item.value: item.type for item in result}
     values = _values(result)
     assert "/draws/140" in values
     assert "/draws/141" in values
     assert "/draws/142" in values
     assert "/draws/200" not in values
+    assert typed["/draws/140"] == "dir"
+    assert typed["/draws/141"] == "dir"
+    assert typed["/draws/142"] == "dir"
 
 
 def test_complete_leaf_no_slash(monkeypatch) -> None:

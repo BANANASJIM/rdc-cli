@@ -289,5 +289,5 @@ def complete_cmd(partial: str) -> None:
     for child in children:
         name = child["name"]
         if name.startswith(prefix):
-            suffix = "/" if child.get("kind") == "dir" else ""
+            suffix = "/" if child.get("kind") in {"dir", "alias"} else ""
             click.echo(base + name + suffix)
