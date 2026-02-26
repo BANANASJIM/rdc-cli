@@ -183,19 +183,20 @@ def _try_import() -> ModuleType | None:
 
 
 def _try_import_from(directory: str) -> ModuleType | None:
-    """Add *directory* to sys.path, attempt import, clean up on failure.
+    """Put *directory* first on sys.path, attempt import, clean up on failure.
 
     On success the directory stays in sys.path so that subsequent
     ``import renderdoc`` calls succeed.  On failure it is removed.
     """
     if directory in sys.path:
-        return _try_import()
+        sys.path.remove(directory)
 
-    sys.path.append(directory)
+    sys.path.insert(0, directory)
     try:
         mod = importlib.import_module("renderdoc")
     except Exception:  # noqa: BLE001
-        sys.path.remove(directory)
+        if directory in sys.path:
+            sys.path.remove(directory)
         return None
     log.debug("renderdoc found at %s", directory)
     return mod

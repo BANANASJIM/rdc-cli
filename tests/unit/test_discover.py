@@ -19,10 +19,10 @@ from rdc.discover import (
 
 
 class TestTryImportFrom:
-    """_try_import_from appends to sys.path (not insert at 0) and cleans up on failure."""
+    """_try_import_from prepends to sys.path and cleans up on failure."""
 
-    def test_success_appends_to_end(self, tmp_path: str, monkeypatch: object) -> None:
-        """On success, directory appears at the END of sys.path."""
+    def test_success_prepends_to_front(self, tmp_path: str, monkeypatch: object) -> None:
+        """On success, directory appears at the FRONT of sys.path."""
         import types
 
         fake_dir = str(tmp_path)
@@ -38,8 +38,7 @@ class TestTryImportFrom:
 
         assert result is fake_mod
         assert fake_dir in sys.path
-        # It should be at the end, not at index 0
-        assert sys.path[-1] == fake_dir
+        assert sys.path[0] == fake_dir
 
         # Cleanup
         sys.path.remove(fake_dir)
