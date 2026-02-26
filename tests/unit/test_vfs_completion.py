@@ -43,17 +43,17 @@ def _values(items: list[CompletionItem]) -> list[str]:
 def test_complete_root_partial(monkeypatch) -> None:
     _patch(monkeypatch, _ROOT_CHILDREN)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/d")
+    assert any(item.value == "/draws" and item.type == "dir" for item in result)
     values = _values(result)
-    assert "/draws/" in values
     assert "/info" not in values
 
 
 def test_complete_root_empty(monkeypatch) -> None:
     _patch(monkeypatch, _ROOT_CHILDREN)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="")
+    assert any(item.value == "/draws" and item.type == "dir" for item in result)
+    assert any(item.value == "/events" and item.type == "dir" for item in result)
     values = _values(result)
-    assert "/draws/" in values
-    assert "/events/" in values
     assert "/info" in values
     assert "/stats" in values
 
@@ -70,18 +70,22 @@ def test_complete_nested_dir(monkeypatch) -> None:
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/draws/")
     assert called_with[0]["path"] == "/draws"
     values = _values(result)
-    assert "/draws/142/" in values
-    assert "/draws/140/" in values
+    assert "/draws/142" in values
+    assert "/draws/140" in values
 
 
 def test_complete_nested_partial(monkeypatch) -> None:
     _patch(monkeypatch, _DRAWS_CHILDREN)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/draws/14")
+    typed = {item.value: item.type for item in result}
     values = _values(result)
-    assert "/draws/140/" in values
-    assert "/draws/141/" in values
-    assert "/draws/142/" in values
-    assert "/draws/200/" not in values
+    assert "/draws/140" in values
+    assert "/draws/141" in values
+    assert "/draws/142" in values
+    assert "/draws/200" not in values
+    assert typed["/draws/140"] == "dir"
+    assert typed["/draws/141"] == "dir"
+    assert typed["/draws/142"] == "dir"
 
 
 def test_complete_leaf_no_slash(monkeypatch) -> None:
@@ -95,15 +99,22 @@ def test_complete_leaf_no_slash(monkeypatch) -> None:
     values = _values(result)
     assert "/draws/142/descriptors" in values
     assert "/draws/142/binary_buf" in values
-    assert "/draws/142/shader/" in values
+    assert "/draws/142/shader" in values
+    assert any(item.value == "/draws/142/shader" and item.type == "dir" for item in result)
 
 
 def test_complete_deep_path(monkeypatch) -> None:
     _patch(monkeypatch, _DRAW_142_CHILDREN)
     result = _complete_vfs_path(ctx=None, param=None, incomplete="/draws/142/sh")
     values = _values(result)
-    assert "/draws/142/shader/" in values
-    assert "/draws/142/pipeline/" not in values
+    assert "/draws/142/shader" in values
+    assert "/draws/142/pipeline" not in values
+
+
+def test_complete_alias_treated_as_directory(monkeypatch) -> None:
+    _patch(monkeypatch, [{"name": "current", "kind": "alias"}])
+    result = _complete_vfs_path(ctx=None, param=None, incomplete="/c")
+    assert any(item.value == "/current" and item.type == "dir" for item in result)
 
 
 def test_complete_no_session(monkeypatch) -> None:
