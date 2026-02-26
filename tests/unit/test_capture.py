@@ -10,12 +10,15 @@ from unittest.mock import MagicMock
 import click
 from click.testing import CliRunner
 
+from rdc.cli import main
 from rdc.commands.capture import capture_cmd
 
 
 class DummyResult:
-    def __init__(self, code: int) -> None:
+    def __init__(self, code: int, stdout: str = "", stderr: str = "") -> None:
         self.returncode = code
+        self.stdout = stdout
+        self.stderr = stderr
 
 
 def _make_capture_result(
@@ -86,8 +89,15 @@ def test_list_apis(monkeypatch: Any) -> None:
     """--list-apis delegates to renderdoccmd."""
     captured_argv: list[list[str]] = []
 
-    def fake_run(argv: list[str], check: bool = False) -> DummyResult:
+    def fake_run(
+        argv: list[str],
+        check: bool = False,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> DummyResult:
         captured_argv.append(argv)
+        if argv[-1] == "--help":
+            return DummyResult(0, stdout="... --list-apis ...")
         return DummyResult(0)
 
     monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
@@ -95,7 +105,152 @@ def test_list_apis(monkeypatch: Any) -> None:
 
     result = CliRunner().invoke(capture_cmd, ["--list-apis"])
     assert result.exit_code == 0
-    assert captured_argv[0] == ["/usr/bin/renderdoccmd", "capture", "--list-apis"]
+    assert captured_argv == [
+        ["/usr/bin/renderdoccmd", "capture", "--help"],
+        ["/usr/bin/renderdoccmd", "capture", "--list-apis"],
+    ]
+
+
+def test_list_apis_is_early_return_info_mode(monkeypatch: Any) -> None:
+    """B49: --list-apis never enters executable validation/injection paths."""
+
+    def _fail(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("should not be called for --list-apis")
+
+    captured_argv: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str],
+        check: bool = False,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> DummyResult:
+        captured_argv.append(argv)
+        if argv[-1] == "--help":
+            return DummyResult(0, stdout="... --list-apis ...")
+        return DummyResult(0)
+
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr("rdc.commands.capture.split_session_active", _fail)
+    monkeypatch.setattr("rdc.commands.capture.find_renderdoc", _fail)
+    monkeypatch.setattr("rdc.commands.capture.execute_and_capture", _fail)
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(
+        capture_cmd,
+        ["--list-apis", "--json", "--", "/usr/bin/app", "--foo", "bar"],
+    )
+    assert result.exit_code == 0
+    assert captured_argv == [
+        ["/usr/bin/renderdoccmd", "capture", "--help"],
+        ["/usr/bin/renderdoccmd", "capture", "--list-apis"],
+    ]
+
+
+def test_list_apis_missing_renderdoccmd_json_error(monkeypatch: Any) -> None:
+    """B49: --list-apis keeps JSON error shape when binary is missing."""
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: None)
+
+    result = CliRunner().invoke(capture_cmd, ["--list-apis", "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert data == {"error": {"message": "renderdoccmd not found"}}
+
+
+def test_list_apis_unsupported_in_renderdoccmd(monkeypatch: Any) -> None:
+    """B49: unsupported renderdoccmd versions fail fast without capture attempt."""
+    calls: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str],
+        check: bool = False,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> DummyResult:
+        calls.append(argv)
+        return DummyResult(0, stdout="usage: renderdoccmd capture ...")
+
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(capture_cmd, ["--list-apis"])
+    assert result.exit_code == 1
+    assert "does not support" in result.output
+    assert calls == [["/usr/bin/renderdoccmd", "capture", "--help"]]
+
+
+def test_list_apis_nonzero_returns_json_error(monkeypatch: Any) -> None:
+    """--list-apis --json emits JSON error shape on non-zero subprocess exit."""
+    calls: list[tuple[list[str], bool, bool]] = []
+
+    def fake_run(
+        argv: list[str],
+        check: bool = False,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> DummyResult:
+        calls.append((argv, capture_output, text))
+        if argv[-1] == "--help":
+            return DummyResult(0, stdout="... --list-apis ...")
+        return DummyResult(7, stdout="plain text from tool", stderr="another line")
+
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(capture_cmd, ["--list-apis", "--json"])
+    assert result.exit_code == 7
+    assert calls == [
+        (["/usr/bin/renderdoccmd", "capture", "--help"], True, True),
+        (["/usr/bin/renderdoccmd", "capture", "--list-apis"], True, True),
+    ]
+    assert "plain text from tool" not in result.output
+    assert "another line" not in result.output
+    assert result.output.count("\n") == 1
+    data = json.loads(result.output)
+    assert data == {"error": {"message": "renderdoccmd capture --list-apis failed (exit 7)"}}
+
+
+def test_top_level_capture_list_apis_short_circuits(monkeypatch: Any) -> None:
+    """B49 regression: top-level CLI routes capture --list-apis to info mode."""
+
+    def _fail(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("capture flow should not run for --list-apis")
+
+    calls: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str],
+        check: bool = False,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> DummyResult:
+        calls.append(argv)
+        if argv[-1] == "--help":
+            return DummyResult(0, stdout="... --list-apis ...")
+        return DummyResult(0)
+
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr("rdc.commands.capture.split_session_active", _fail)
+    monkeypatch.setattr("rdc.commands.capture.find_renderdoc", _fail)
+    monkeypatch.setattr("rdc.commands.capture.execute_and_capture", _fail)
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(main, ["capture", "--list-apis"])
+    assert result.exit_code == 0
+    assert calls == [
+        ["/usr/bin/renderdoccmd", "capture", "--help"],
+        ["/usr/bin/renderdoccmd", "capture", "--list-apis"],
+    ]
+
+
+def test_top_level_capture_list_apis_json_error(monkeypatch: Any) -> None:
+    """B49 regression: top-level --list-apis --json preserves JSON errors."""
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: None)
+
+    result = CliRunner().invoke(main, ["capture", "--list-apis", "--json"])
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert data == {"error": {"message": "renderdoccmd not found"}}
 
 
 def test_json_output(monkeypatch: Any) -> None:

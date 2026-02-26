@@ -161,6 +161,12 @@ def test_pass_no_session(monkeypatch) -> None:
     assert result.exit_code == 1
 
 
+def test_pass_help_mentions_zero_based_index() -> None:
+    result = CliRunner().invoke(pass_cmd, ["--help"])
+    assert result.exit_code == 0
+    assert "0-based index" in result.output
+
+
 # ── resources output options ────────────────────────────────────────
 
 _RESOURCES_ROWS = {

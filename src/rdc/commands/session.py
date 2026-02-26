@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 import click
+from click.shell_completion import CompletionItem
 
 from rdc.services.session_service import (
     close_session,
@@ -16,8 +17,55 @@ from rdc.services.session_service import (
 from rdc.session_state import session_path
 
 
+def _complete_capture_path(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    """Shell completion callback for local capture paths."""
+    del ctx, param
+    last_forward = incomplete.rfind("/")
+    last_back = incomplete.rfind("\\")
+    sep_index = max(last_forward, last_back)
+
+    if sep_index >= 0:
+        dir_part = incomplete[:sep_index]
+        prefix = incomplete[sep_index + 1 :]
+        if dir_part:
+            lookup_dir = dir_part.replace("\\", os.sep).replace("/", os.sep)
+            dir_path = Path(os.path.expanduser(lookup_dir))
+            normalized_dir = dir_part.replace("\\", "/")
+            base = f"{normalized_dir}/"
+        else:
+            dir_path = Path("/")
+            base = "/"
+    else:
+        dir_path = Path(".")
+        prefix = incomplete
+        base = ""
+
+    try:
+        children = sorted(dir_path.iterdir(), key=lambda p: p.name)
+    except OSError:
+        return []
+
+    items: list[CompletionItem] = []
+    for child in children:
+        if not child.name.startswith(prefix):
+            continue
+        if child.is_dir():
+            items.append(CompletionItem(f"{base}{child.name}/"))
+        elif child.suffix.lower() == ".rdc":
+            items.append(CompletionItem(f"{base}{child.name}"))
+    return items
+
+
 @click.command("open")
-@click.argument("capture", type=str, required=False, default=None)
+@click.argument(
+    "capture",
+    type=str,
+    required=False,
+    default=None,
+    shell_complete=_complete_capture_path,
+)
 @click.option("--preload", is_flag=True, default=False, help="Preload shader cache after open.")
 @click.option(
     "--proxy",

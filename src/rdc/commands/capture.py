@@ -84,7 +84,7 @@ def capture_cmd(
     Usage: rdc capture [OPTIONS] -- EXECUTABLE [APP_ARGS...]
     """
     if list_apis:
-        _run_list_apis()
+        _run_list_apis(use_json=use_json)
         return
 
     if not ctx.args:
@@ -218,14 +218,52 @@ def _emit_result(result: Any, use_json: bool, auto_open: bool) -> None:
         subprocess.run([sys.executable, "-m", "rdc", "open", result.path], check=False)
 
 
-def _run_list_apis() -> None:
+def _run_list_apis(*, use_json: bool) -> None:
     """List available capture APIs via renderdoccmd."""
     bin_path = _find_renderdoccmd()
     if not bin_path:
-        click.echo("error: renderdoccmd not found", err=True)
+        if use_json:
+            click.echo(json.dumps({"error": {"message": "renderdoccmd not found"}}), err=True)
+        else:
+            click.echo("error: renderdoccmd not found", err=True)
         raise SystemExit(1)
-    result = subprocess.run([bin_path, "capture", "--list-apis"], check=False)
+    if not _supports_list_apis(bin_path):
+        msg = "renderdoccmd does not support 'capture --list-apis'"
+        if use_json:
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+        else:
+            click.echo(f"error: {msg}", err=True)
+        raise SystemExit(1)
+    if use_json:
+        result = subprocess.run(
+            [bin_path, "capture", "--list-apis"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            msg = f"renderdoccmd capture --list-apis failed (exit {result.returncode})"
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+            raise SystemExit(result.returncode)
+        if result.stdout:
+            click.echo(result.stdout, nl=False)
+        if result.stderr:
+            click.echo(result.stderr, err=True, nl=False)
+        raise SystemExit(0)
+
+    result = subprocess.run([bin_path, "capture", "--list-apis"], check=False, text=True)
     raise SystemExit(result.returncode)
+
+
+def _supports_list_apis(bin_path: str) -> bool:
+    """Return whether renderdoccmd advertises capture --list-apis support."""
+    result = subprocess.run(
+        [bin_path, "capture", "--help"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return "--list-apis" in ((result.stdout or "") + (result.stderr or ""))
 
 
 def _fallback_renderdoccmd(

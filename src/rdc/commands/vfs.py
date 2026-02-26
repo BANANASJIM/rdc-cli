@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import shutil
 import sys
 from collections.abc import Callable
@@ -76,6 +78,14 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
 }
 
 
+def _complete_vfs_ls(path: str) -> dict[str, Any] | None:
+    with contextlib.redirect_stderr(io.StringIO()):
+        try:
+            return call("vfs_ls", {"path": path})
+        except SystemExit:
+            return None
+
+
 def _complete_vfs_path(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
@@ -88,9 +98,8 @@ def _complete_vfs_path(
         dir_path = "/"
         prefix = incomplete
 
-    try:
-        result = call("vfs_ls", {"path": dir_path})
-    except SystemExit:
+    result = _complete_vfs_ls(dir_path)
+    if result is None:
         return []
 
     base = dir_path if dir_path == "/" else dir_path + "/"
@@ -271,9 +280,8 @@ def complete_cmd(partial: str) -> None:
         dir_path = "/"
         prefix = partial
 
-    try:
-        result = call("vfs_ls", {"path": dir_path})
-    except SystemExit:
+    result = _complete_vfs_ls(dir_path)
+    if result is None:
         return
 
     children = result.get("children", [])
