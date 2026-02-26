@@ -305,8 +305,10 @@ def complete_pass_name(
             result = try_call("passes", {})
             if not isinstance(result, dict):
                 return []
-            tree = result.get("tree", {})
-            passes = tree.get("passes", []) if isinstance(tree, dict) else []
+            tree = result.get("tree")
+            if not isinstance(tree, dict):
+                return []
+            passes = tree.get("passes", [])
             if not isinstance(passes, list):
                 return []
 

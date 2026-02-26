@@ -6,9 +6,10 @@ from click.shell_completion import CompletionItem
 
 import rdc.commands._helpers as helpers
 from rdc.commands.events import draws_cmd
-from rdc.commands.pipeline import _complete_pipeline_section, pipeline_cmd
+from rdc.commands.pipeline import _PIPELINE_SECTIONS, _complete_pipeline_section, pipeline_cmd
 from rdc.commands.resources import pass_cmd
 from rdc.commands.unix_helpers import count_cmd
+from rdc.handlers._helpers import _SECTION_MAP, _SHADER_STAGES
 
 
 def _values(items: list[CompletionItem]) -> list[str]:
@@ -48,6 +49,11 @@ def test_pass_completion_falls_back_to_empty_on_error(monkeypatch) -> None:
     assert helpers.complete_pass_name(None, None, "") == []
 
 
+def test_pass_completion_falls_back_to_empty_on_malformed_payload(monkeypatch) -> None:
+    monkeypatch.setattr(helpers, "try_call", lambda method, params: {"tree": []})
+    assert helpers.complete_pass_name(None, None, "") == []
+
+
 def test_pipeline_section_completion_candidates() -> None:
     values = _values(_complete_pipeline_section(None, None, ""))
     assert "topology" in values
@@ -58,6 +64,11 @@ def test_pipeline_section_completion_candidates() -> None:
 
 def test_pipeline_section_completion_prefix_match() -> None:
     assert _values(_complete_pipeline_section(None, None, "de")) == ["depth-stencil"]
+
+
+def test_pipeline_section_completion_matches_server_section_keys() -> None:
+    expected = set(_SECTION_MAP) | set(_SHADER_STAGES)
+    assert set(_PIPELINE_SECTIONS) == expected
 
 
 def test_pass_like_options_are_wired_for_shell_complete() -> None:
