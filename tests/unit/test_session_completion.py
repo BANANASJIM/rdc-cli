@@ -27,6 +27,14 @@ def test_complete_capture_suggests_dirs_and_rdc(monkeypatch, tmp_path: Path) -> 
     assert "notes.txt" not in values
 
 
+def test_complete_capture_accepts_uppercase_rdc_suffix(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "FRAME.RDC").touch()
+
+    values = [item.value for item in _complete_capture_path(None, None, "")]
+    assert "FRAME.RDC" in values
+
+
 def test_complete_capture_nested_path(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     (tmp_path / "captures").mkdir()

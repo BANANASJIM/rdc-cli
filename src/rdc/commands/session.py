@@ -43,7 +43,7 @@ def _complete_capture_path(
             continue
         if child.is_dir():
             items.append(CompletionItem(f"{base}{child.name}/"))
-        elif child.suffix == ".rdc":
+        elif child.suffix.lower() == ".rdc":
             items.append(CompletionItem(f"{base}{child.name}"))
     return items
 
