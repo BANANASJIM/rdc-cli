@@ -46,3 +46,7 @@ gen-commands = "bash -c 'uv run python scripts/gen-commands.py > docs-astro/src/
 check-commands = "bash -c 'diff <(uv run python scripts/gen-commands.py) docs-astro/src/data/commands.json'"
 verify = "bash scripts/verify-package.sh"
 e2e = "bash scripts/e2e-test.sh"
+docs-install = "npm --prefix docs-astro ci"
+docs-build = "npm --prefix docs-astro run build"
+docs-test = "npm --prefix docs-astro test"
+docs-dev = "npm --prefix docs-astro run dev"

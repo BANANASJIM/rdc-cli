@@ -44,8 +44,8 @@ pixi run setup-renderdoc</code></pre>
       </tr>
       <tr>
         <td>macOS</td>
-        <td>Supported (<code>pixi run setup-renderdoc</code>)</td>
-        <td>Supported (no local RenderDoc needed)</td>
+        <td>Not supported yet</td>
+        <td>Supported (recommended)</td>
       </tr>
       <tr>
         <td>Windows (experimental)</td>
@@ -54,6 +54,24 @@ pixi run setup-renderdoc</code></pre>
       </tr>
     </tbody>
   </table>
+
+  <h2>macOS Split Mode</h2>
+  <p>
+    Local replay on macOS is not supported right now. Use macOS as a Split
+    client and run replay on a Linux/Windows daemon.
+  </p>
+  <pre><code># On Linux/Windows replay host
+rdc open /tmp/frame.rdc --listen 0.0.0.0:54321
+
+# On macOS client
+rdc open --connect host:54321 --token TOKEN</code></pre>
+
+  <h2>Windows Notes</h2>
+  <ul>
+    <li>Windows 10/11 64-bit</li>
+    <li>Python minor version must match renderdoc <code>.pyd</code></li>
+    <li>Visual Studio 2022 Build Tools with C++ workload</li>
+  </ul>
 
   <h2>RenderDoc Python Module</h2>
   <p>
