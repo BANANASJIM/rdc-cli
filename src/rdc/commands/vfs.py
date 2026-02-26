@@ -107,8 +107,8 @@ def _complete_vfs_path(
     for child in result.get("children", []):
         name = child["name"]
         if name.startswith(prefix):
-            suffix = "/" if child.get("kind") == "dir" else ""
-            items.append(CompletionItem(base + name + suffix))
+            item_type = "dir" if child.get("kind") in {"dir", "alias"} else "plain"
+            items.append(CompletionItem(base + name, type=item_type))
     return items
 
 
