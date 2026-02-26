@@ -131,7 +131,7 @@ def test_pass_like_options_are_wired_for_shell_complete() -> None:
     assert (
         _param(assert_count_cmd, "pass_name")._custom_shell_complete is helpers.complete_pass_name
     )
-    assert _param(pass_cmd, "identifier").shell_complete is not None
+    assert _param(pass_cmd, "identifier")._custom_shell_complete is helpers.complete_pass_identifier
 
 
 def test_pipeline_section_argument_has_shell_complete() -> None:
