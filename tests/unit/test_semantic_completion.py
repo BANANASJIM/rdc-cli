@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from click.shell_completion import CompletionItem
 
 import rdc.commands._helpers as helpers
@@ -51,6 +53,18 @@ def test_pass_completion_falls_back_to_empty_on_error(monkeypatch) -> None:
 
 def test_pass_completion_failure_path_keeps_stderr_empty(monkeypatch, capsys) -> None:
     monkeypatch.setattr(helpers, "load_session", lambda: None)
+
+    assert helpers.complete_pass_name(None, None, "") == []
+    captured = capsys.readouterr()
+    assert captured.err == ""
+
+
+def test_pass_completion_try_call_exception_is_silent(monkeypatch, capsys) -> None:
+    def _raising_try_call(_method, _params):
+        sys.stderr.write("should-not-leak\n")
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(helpers, "try_call", _raising_try_call)
 
     assert helpers.complete_pass_name(None, None, "") == []
     captured = capsys.readouterr()
