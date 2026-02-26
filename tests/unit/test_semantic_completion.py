@@ -49,6 +49,14 @@ def test_pass_completion_falls_back_to_empty_on_error(monkeypatch) -> None:
     assert helpers.complete_pass_name(None, None, "") == []
 
 
+def test_pass_completion_failure_path_keeps_stderr_empty(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(helpers, "load_session", lambda: None)
+
+    assert helpers.complete_pass_name(None, None, "") == []
+    captured = capsys.readouterr()
+    assert captured.err == ""
+
+
 def test_pass_completion_falls_back_to_empty_on_malformed_payload(monkeypatch) -> None:
     monkeypatch.setattr(helpers, "try_call", lambda method, params: {"tree": []})
     assert helpers.complete_pass_name(None, None, "") == []
