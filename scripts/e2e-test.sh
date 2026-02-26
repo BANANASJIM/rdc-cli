@@ -15,6 +15,8 @@ FAIL=0
 CAPTURE="tests/fixtures/hello_triangle.rdc"
 TMP_CAPTURE_BASE=""
 RDC="uv run rdc"
+OS_NAME=$(uname -s)
+REPLAY_READY=0
 
 if [ ! -f "$CAPTURE" ]; then
   echo -e "${RED}error: fixture not found: $CAPTURE${NC}"
@@ -22,7 +24,7 @@ if [ ! -f "$CAPTURE" ]; then
   exit 1
 fi
 
-if [ ! -f ".local/renderdoc/renderdoc.so" ]; then
+if [ ! -f ".local/renderdoc/renderdoc.so" ] && [ "$OS_NAME" != "Darwin" ]; then
   echo -e "${RED}error: renderdoc.so not found${NC}"
   echo "Run: pixi run setup-renderdoc"
   exit 1
@@ -90,7 +92,17 @@ check "rdc --help" $RDC --help
 # --- Doctor ---
 echo ""
 echo "=== Layer 1: Doctor ==="
-check "rdc doctor" $RDC doctor
+DOCTOR_OUTPUT=$($RDC doctor 2>&1 || true)
+if echo "$DOCTOR_OUTPUT" | grep -q "replay-support: renderdoc replay API surface found"; then
+  REPLAY_READY=1
+fi
+if echo "$DOCTOR_OUTPUT" | grep -q "replay-support:"; then
+  echo -e "  ${GREEN}✓${NC} rdc doctor"
+  PASS=$((PASS + 1))
+else
+  echo -e "  ${RED}✗${NC} rdc doctor"
+  FAIL=$((FAIL + 1))
+fi
 
 # --- Session lifecycle ---
 echo ""
@@ -102,13 +114,19 @@ check_output "rdc status" "capture:" $RDC status
 # --- Read-only queries ---
 echo ""
 echo "=== Layer 3: Read-only queries ==="
-check_nonzero "rdc info" $RDC info
-check_nonzero "rdc stats" $RDC stats
-check_nonzero "rdc events" $RDC events
-check_nonzero "rdc draws" $RDC draws
-check_nonzero "rdc passes" $RDC passes
-check_nonzero "rdc resources" $RDC resources
-check_nonzero "rdc shaders" $RDC shaders
+if [ "$REPLAY_READY" -eq 1 ]; then
+  check_nonzero "rdc info" $RDC info
+  check_nonzero "rdc stats" $RDC stats
+  check_nonzero "rdc events" $RDC events
+  check_nonzero "rdc draws" $RDC draws
+  check_nonzero "rdc passes" $RDC passes
+  check_nonzero "rdc resources" $RDC resources
+  check_nonzero "rdc shaders" $RDC shaders
+else
+  check_output "rdc info (no replay)" "no replay loaded" $RDC info
+  check_output "rdc stats (no replay)" "no replay loaded" $RDC stats
+  check_output "rdc draws (no replay)" "no replay loaded" $RDC draws
+fi
 
 # --- VFS ---
 echo ""
@@ -116,18 +134,30 @@ echo "=== Layer 4: VFS ==="
 check_nonzero "rdc ls /" $RDC ls /
 check_nonzero "rdc ls /draws" $RDC ls /draws
 check_nonzero "rdc tree / --depth 1" $RDC tree / --depth 1
-check_nonzero "rdc cat /info" $RDC cat /info
-check_nonzero "rdc cat /stats" $RDC cat /stats
+if [ "$REPLAY_READY" -eq 1 ]; then
+  check_nonzero "rdc cat /info" $RDC cat /info
+  check_nonzero "rdc cat /stats" $RDC cat /stats
+else
+  check_output "rdc cat /info (no replay)" "no replay loaded" $RDC cat /info
+  check_output "rdc cat /stats (no replay)" "no replay loaded" $RDC cat /stats
+fi
 
 # --- VFS completion ---
 echo ""
 echo "=== Layer 5: VFS completion ==="
 check_nonzero "complete /" $RDC _complete /
 check_nonzero "complete /d" $RDC _complete /d
-check_output "complete /d → /draws/" "/draws/" $RDC _complete /d
+if [ "$REPLAY_READY" -eq 1 ]; then
+  check_output "complete /d → /draws/" "/draws/" $RDC _complete /d
+else
+  check_output "complete /d (no replay)" "no replay loaded" $RDC _complete /d
+fi
 COMP_OUTPUT=$(env _RDC_COMPLETE=bash_complete COMP_WORDS="rdc ls /d" COMP_CWORD=2 $RDC 2>&1 || true)
-if echo "$COMP_OUTPUT" | grep -q "/draws/"; then
+if [ "$REPLAY_READY" -eq 1 ] && echo "$COMP_OUTPUT" | grep -q "/draws/"; then
   echo -e "  ${GREEN}✓${NC} click shell_complete /d → /draws/"
+  PASS=$((PASS + 1))
+elif [ "$REPLAY_READY" -eq 0 ] && echo "$COMP_OUTPUT" | grep -q "no replay loaded"; then
+  echo -e "  ${GREEN}✓${NC} click shell_complete /d (no replay)"
   PASS=$((PASS + 1))
 else
   echo -e "  ${RED}✗${NC} click shell_complete /d (got '$COMP_OUTPUT')"

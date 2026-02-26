@@ -134,8 +134,9 @@ console.log('\n\x1b[1mContent\x1b[0m');
 
 const indexHtml = readFileSync(join(DIST, 'index.html'), 'utf-8');
 
-test('landing page has typed.js script', () => {
-  assert(indexHtml.includes('typed-output'), 'Missing typed.js #typed-output element');
+test('landing page has terminal replay elements', () => {
+  assert(indexHtml.includes('replay-terminal'), 'Missing #replay-terminal element');
+  assert(indexHtml.includes('replay-lines'), 'Missing #replay-lines element');
 });
 
 test('landing page has GSAP ScrollTrigger bundle', () => {
