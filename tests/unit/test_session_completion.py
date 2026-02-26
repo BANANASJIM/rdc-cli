@@ -22,7 +22,7 @@ def test_complete_capture_suggests_dirs_and_rdc(monkeypatch, tmp_path: Path) -> 
     (tmp_path / "notes.txt").touch()
 
     values = [item.value for item in _complete_capture_path(None, None, "")]
-    assert "captures/" in values
+    assert "captures" in values
     assert "frame.rdc" in values
     assert "notes.txt" not in values
 
@@ -44,7 +44,7 @@ def test_complete_capture_nested_path(monkeypatch, tmp_path: Path) -> None:
 
     values = [item.value for item in _complete_capture_path(None, None, "captures/")]
     assert "captures/a.rdc" in values
-    assert "captures/nested/" in values
+    assert "captures/nested" in values
     assert "captures/ignore.bin" not in values
 
 
@@ -58,4 +58,15 @@ def test_complete_capture_nested_path_with_backslashes(monkeypatch, tmp_path: Pa
     values = [item.value for item in _complete_capture_path(None, None, "captures\\a")]
     assert "captures/a.rdc" in values
     assert "captures/b.rdc" not in values
-    assert "captures/nested/" not in values
+    assert "captures/nested" not in values
+
+
+def test_complete_capture_marks_dirs_and_files(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "captures").mkdir()
+    (tmp_path / "frame.rdc").touch()
+
+    items = _complete_capture_path(None, None, "")
+    by_value = {item.value: item for item in items}
+    assert by_value["captures"].type == "dir"
+    assert by_value["frame.rdc"].type == "file"
