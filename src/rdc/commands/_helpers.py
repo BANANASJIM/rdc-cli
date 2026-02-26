@@ -23,6 +23,7 @@ __all__ = [
     "call",
     "call_binary",
     "try_call",
+    "completion_call",
     "fetch_remote_file",
     "write_capture_to_path",
     "_json_mode",
@@ -145,6 +146,12 @@ def try_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
     if "error" in response:
         return None
     return cast(dict[str, Any], response.get("result", {}))
+
+
+def completion_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
+    """Send a request for shell completion, silently returning None on failure."""
+    with contextlib.redirect_stderr(io.StringIO()):
+        return try_call(method, params)
 
 
 def call_binary(method: str, params: dict[str, Any]) -> tuple[dict[str, Any], bytes | None]:

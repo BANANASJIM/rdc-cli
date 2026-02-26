@@ -6,21 +6,109 @@ import sys
 from typing import Any
 
 import click
+from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, completion_call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import format_kv
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import format_row, write_tsv
 
 
+def _complete_resource_rows() -> list[dict[str, Any]]:
+    result = completion_call("resources", {})
+    if result is None:
+        return []
+    rows = result.get("rows", [])
+    return rows if isinstance(rows, list) else []
+
+
+def _complete_resource_type(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    del ctx, param
+    prefix = incomplete.lower()
+    seen: set[str] = set()
+    values: list[str] = []
+    for row in _complete_resource_rows():
+        value = str(row.get("type", ""))
+        if not value or value in seen:
+            continue
+        if not value.lower().startswith(prefix):
+            continue
+        seen.add(value)
+        values.append(value)
+    return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+
+
+def _complete_resource_name(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    del ctx, param
+    prefix = incomplete.lower()
+    seen: set[str] = set()
+    values: list[str] = []
+    for row in _complete_resource_rows():
+        value = str(row.get("name", ""))
+        if not value or value in seen:
+            continue
+        if not value.lower().startswith(prefix):
+            continue
+        seen.add(value)
+        values.append(value)
+    return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+
+
+def _complete_resource_id(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    del ctx, param
+    prefix = incomplete.strip()
+    values: list[str] = []
+    for row in _complete_resource_rows():
+        rid = str(row.get("id", ""))
+        if not rid or (prefix and not rid.startswith(prefix)):
+            continue
+        values.append(rid)
+    return [CompletionItem(value) for value in sorted(set(values), key=int)]
+
+
+def _complete_pass_identifier(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    del ctx, param
+    result = completion_call("passes", {})
+    if result is None:
+        return []
+    tree = result.get("tree", {})
+    passes = tree.get("passes", []) if isinstance(tree, dict) else []
+    prefix = incomplete.lower()
+    items: list[CompletionItem] = []
+    for idx, pass_row in enumerate(passes):
+        index_text = str(idx)
+        name = str(pass_row.get("name", ""))
+        if index_text.startswith(incomplete):
+            items.append(CompletionItem(index_text))
+        if name and name.lower().startswith(prefix):
+            items.append(CompletionItem(name))
+    return items
+
+
 @click.command("resources")
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @click.option(
-    "--type", "type_filter", default=None, help="Filter by resource type (exact, case-insensitive)."
+    "--type",
+    "type_filter",
+    default=None,
+    shell_complete=_complete_resource_type,
+    help="Filter by resource type (exact, case-insensitive).",
 )  # noqa: E501
 @click.option(
-    "--name", "name_filter", default=None, help="Filter by name substring (case-insensitive)."
+    "--name",
+    "name_filter",
+    default=None,
+    shell_complete=_complete_resource_name,
+    help="Filter by name substring (case-insensitive).",
 )  # noqa: E501
 @click.option(
     "--sort",
@@ -62,7 +150,7 @@ def resources_cmd(  # noqa: PLR0913
 
 
 @click.command("resource")
-@click.argument("resid", type=int)
+@click.argument("resid", type=int, shell_complete=_complete_resource_id)
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def resource_cmd(resid: int, use_json: bool) -> None:
     """Show details of a specific resource."""
@@ -100,7 +188,7 @@ def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) ->
 
 
 @click.command("pass")
-@click.argument("identifier")
+@click.argument("identifier", shell_complete=_complete_pass_identifier)
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 def pass_cmd(identifier: str, use_json: bool) -> None:
     """Show detail for a single render pass by 0-based index or name."""
