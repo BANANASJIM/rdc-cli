@@ -6,18 +6,98 @@ import sys
 from typing import Any
 
 import click
+from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call
+from rdc.commands._helpers import call, completion_call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
 
 
+def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
+    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
+
+
+def _completion_rows(result: Any, key: str) -> list[dict[str, Any]]:
+    if not isinstance(result, dict):
+        return []
+    rows = result.get(key, [])
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _complete_usage_resource_id(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    try:
+        del ctx, param
+        result = completion_call("resources", {})
+        rows = _completion_rows(result, "rows")
+        prefix = incomplete.strip()
+        ids = {
+            str(row.get("id", ""))
+            for row in rows
+            if str(row.get("id", "")) and (not prefix or str(row.get("id", "")).startswith(prefix))
+        }
+        return [CompletionItem(value) for value in _sort_numeric_like(ids)]
+    except Exception:
+        return []
+
+
+def _complete_usage_resource_type(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    try:
+        del ctx, param
+        result = completion_call("resources", {})
+        rows = _completion_rows(result, "rows")
+        prefix = incomplete.lower()
+        values = {
+            str(row.get("type", ""))
+            for row in rows
+            if str(row.get("type", "")) and str(row.get("type", "")).lower().startswith(prefix)
+        }
+        return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    except Exception:
+        return []
+
+
+def _complete_usage_kind(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    try:
+        del ctx, param
+        result = completion_call("usage_all", {})
+        rows = _completion_rows(result, "rows")
+        prefix = incomplete.lower()
+        values = {
+            str(row.get("usage", ""))
+            for row in rows
+            if str(row.get("usage", "")) and str(row.get("usage", "")).lower().startswith(prefix)
+        }
+        return [CompletionItem(value) for value in sorted(values, key=str.lower)]
+    except Exception:
+        return []
+
+
 @click.command("usage")
-@click.argument("resource_id", required=False, type=int)
+@click.argument("resource_id", required=False, type=int, shell_complete=_complete_usage_resource_id)
 @click.option("--all", "show_all", is_flag=True, help="Show all resources usage matrix.")
-@click.option("--type", "res_type", default=None, help="Filter by resource type.")
-@click.option("--usage", "usage_filter", default=None, help="Filter by usage type.")
+@click.option(
+    "--type",
+    "res_type",
+    default=None,
+    shell_complete=_complete_usage_resource_type,
+    help="Filter by resource type.",
+)
+@click.option(
+    "--usage",
+    "usage_filter",
+    default=None,
+    shell_complete=_complete_usage_kind,
+    help="Filter by usage type.",
+)
 @click.option("--json", "use_json", is_flag=True, help="JSON output.")
 @list_output_options
 def usage_cmd(

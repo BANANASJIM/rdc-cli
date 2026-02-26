@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import click
+from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call, complete_eid, fetch_remote_file
+from rdc.commands._helpers import call, complete_eid, completion_call, fetch_remote_file
 from rdc.commands.vfs import _deliver_binary
 from rdc.session_state import load_session
 from rdc.vfs.router import resolve_path
+
+
+def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
+    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
 
 
 def _export_vfs_path(vfs_path: str, output: str | None, raw: bool) -> None:
@@ -30,8 +36,85 @@ def _export_vfs_path(vfs_path: str, output: str | None, raw: bool) -> None:
     _deliver_binary(vfs_path, match, raw, output)
 
 
+def _complete_resource_id_for_export(incomplete: str, kind_substring: str) -> list[CompletionItem]:
+    try:
+        result = completion_call("resources", {})
+        if not isinstance(result, dict):
+            return []
+        rows = result.get("rows", [])
+        if not isinstance(rows, list):
+            return []
+        prefix = incomplete.strip()
+        values: list[str] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            rtype = str(row.get("type", "")).lower()
+            if kind_substring not in rtype:
+                continue
+            rid = str(row.get("id", ""))
+            if not rid or (prefix and not rid.startswith(prefix)):
+                continue
+            values.append(rid)
+        return [CompletionItem(value) for value in _sort_numeric_like(set(values))]
+    except Exception:
+        return []
+
+
+def _complete_texture_id(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    del ctx, param
+    return _complete_resource_id_for_export(incomplete, "texture")
+
+
+def _complete_buffer_id(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    del ctx, param
+    return _complete_resource_id_for_export(incomplete, "buffer")
+
+
+def _complete_rt_target(
+    ctx: click.Context, param: click.Parameter, incomplete: str
+) -> list[CompletionItem]:
+    try:
+        del param
+        eid = ctx.params.get("eid") if ctx is not None else None
+        prefix = incomplete.strip()
+        if not isinstance(eid, int):
+            defaults = [str(i) for i in range(8)]
+            return [
+                CompletionItem(value)
+                for value in defaults
+                if not prefix or value.startswith(prefix)
+            ]
+
+        result = completion_call("vfs_ls", {"path": f"/draws/{eid}/targets"})
+        if not isinstance(result, dict):
+            return []
+        children = result.get("children", [])
+        if not isinstance(children, list):
+            return []
+        values: set[str] = set()
+        for child in children:
+            if not isinstance(child, dict):
+                continue
+            name = str(child.get("name", ""))
+            match = re.fullmatch(r"color(\d+)\.png", name)
+            if match is None:
+                continue
+            target = match.group(1)
+            if prefix and not target.startswith(prefix):
+                continue
+            values.add(target)
+        return [CompletionItem(value) for value in _sort_numeric_like(values)]
+    except Exception:
+        return []
+
+
 @click.command("texture")
-@click.argument("id", type=int)
+@click.argument("id", type=int, shell_complete=_complete_texture_id)
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option("--mip", default=0, type=int, help="Mip level (default 0)")
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
@@ -44,7 +127,13 @@ def texture_cmd(id: int, output: str | None, mip: int, raw: bool) -> None:
 @click.command("rt")
 @click.argument("eid", type=int, required=False, default=None, shell_complete=complete_eid)
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
-@click.option("--target", default=0, type=int, help="Color target index (default 0)")
+@click.option(
+    "--target",
+    default=0,
+    type=int,
+    shell_complete=_complete_rt_target,
+    help="Color target index (default 0)",
+)
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
 @click.option(
     "--overlay",
@@ -107,7 +196,7 @@ def rt_cmd(
 
 
 @click.command("buffer")
-@click.argument("id", type=int)
+@click.argument("id", type=int, shell_complete=_complete_buffer_id)
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
 def buffer_cmd(id: int, output: str | None, raw: bool) -> None:
