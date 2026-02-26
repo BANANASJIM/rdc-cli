@@ -173,6 +173,7 @@ class TestRemoteList:
     def test_one_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
 
         tc = MagicMock()
@@ -208,6 +209,7 @@ class TestRemoteList:
     def test_multiple_targets(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr(
             "rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1, 2, 3]
         )
@@ -225,6 +227,7 @@ class TestRemoteList:
     def test_json_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
 
         tc = MagicMock()
