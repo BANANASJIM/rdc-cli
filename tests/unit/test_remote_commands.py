@@ -37,6 +37,12 @@ def _save_state() -> None:
     save_remote_state(RemoteServerState(host="192.168.1.10", port=39920, connected_at=1000.0))
 
 
+def _mock_remote_connection(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    remote = MagicMock()
+    monkeypatch.setattr("rdc.commands.remote.connect_remote_server", lambda rd, url: remote)
+    return remote
+
+
 # --- remote connect ---
 
 
@@ -157,6 +163,7 @@ class TestRemoteList:
     def test_no_targets(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [])
 
         result = CliRunner().invoke(remote_list_cmd, [])
@@ -166,6 +173,7 @@ class TestRemoteList:
     def test_one_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
 
         tc = MagicMock()
@@ -182,6 +190,7 @@ class TestRemoteList:
     def test_multiple_targets(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr(
             "rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1, 2, 3]
         )
@@ -199,6 +208,7 @@ class TestRemoteList:
     def test_json_output(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
 
         tc = MagicMock()
@@ -221,6 +231,7 @@ class TestRemoteList:
     def test_url_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # No saved state but --url provided
         _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         captured_urls: list[str] = []
 
         def fake_enum(rd: Any, url: str) -> list[int]:
@@ -242,6 +253,7 @@ class TestRemoteList:
     def test_tc_connect_failure_skips_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _save_state()
         rd = _mock_rd(monkeypatch)
+        _mock_remote_connection(monkeypatch)
         monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [1])
         rd.CreateTargetControl.return_value = None
 
@@ -253,11 +265,12 @@ class TestRemoteList:
         _save_state()
         monkeypatch.setattr("rdc.commands.remote.split_session_active", lambda: True)
         response = {"targets": [{"ident": 1, "target": "demo", "pid": 42, "api": "Vulkan"}]}
-        captured: dict[str, Any] = {}
+        calls: list[tuple[str, dict[str, Any]]] = []
 
         def fake_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
-            captured["method"] = method
-            captured["params"] = params
+            calls.append((method, params))
+            if method == "remote_connect_run":
+                return {"host": "192.168.1.10", "port": 39920}
             return response
 
         monkeypatch.setattr("rdc.commands.remote.call", fake_call)
@@ -265,8 +278,22 @@ class TestRemoteList:
         result = CliRunner().invoke(remote_list_cmd, [])
         assert result.exit_code == 0
         assert "demo" in result.output
-        assert captured["method"] == "remote_list_run"
-        assert captured["params"] == {"host": "192.168.1.10", "port": 39920}
+        assert calls == [
+            ("remote_connect_run", {"host": "192.168.1.10", "port": 39920}),
+            ("remote_list_run", {"host": "192.168.1.10", "port": 39920}),
+        ]
+
+    def test_unreachable_url_reports_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _mock_rd(monkeypatch)
+        monkeypatch.setattr(
+            "rdc.commands.remote.connect_remote_server",
+            MagicMock(side_effect=RuntimeError("connection failed: timeout")),
+        )
+
+        result = CliRunner().invoke(remote_list_cmd, ["--url", "bad.host:39920"])
+        assert result.exit_code == 1
+        assert "error: connection failed: timeout" in result.output
+        assert "no targets found" not in result.output
 
 
 # --- remote capture ---

@@ -84,7 +84,7 @@ def capture_cmd(
     Usage: rdc capture [OPTIONS] -- EXECUTABLE [APP_ARGS...]
     """
     if list_apis:
-        _run_list_apis()
+        _run_list_apis(use_json=use_json)
         return
 
     if not ctx.args:
@@ -218,11 +218,14 @@ def _emit_result(result: Any, use_json: bool, auto_open: bool) -> None:
         subprocess.run([sys.executable, "-m", "rdc", "open", result.path], check=False)
 
 
-def _run_list_apis() -> None:
+def _run_list_apis(*, use_json: bool) -> None:
     """List available capture APIs via renderdoccmd."""
     bin_path = _find_renderdoccmd()
     if not bin_path:
-        click.echo("error: renderdoccmd not found", err=True)
+        if use_json:
+            click.echo(json.dumps({"error": {"message": "renderdoccmd not found"}}), err=True)
+        else:
+            click.echo("error: renderdoccmd not found", err=True)
         raise SystemExit(1)
     result = subprocess.run([bin_path, "capture", "--list-apis"], check=False)
     raise SystemExit(result.returncode)

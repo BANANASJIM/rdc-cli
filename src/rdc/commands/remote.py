@@ -54,6 +54,28 @@ def _check_public_ip(host: str) -> None:
         click.echo(warning, err=True)
 
 
+def _ensure_remote_reachable(host: str, port: int) -> None:
+    """Validate that a remote host is reachable before listing targets."""
+    if split_session_active():
+        call("remote_connect_run", {"host": host, "port": port})
+        return
+
+    rd = require_renderdoc()
+    conn_url = build_conn_url(host, port)
+    try:
+        remote = connect_remote_server(rd, conn_url)
+    except RuntimeError as exc:
+        click.echo(f"error: {exc}", err=True)
+        raise SystemExit(1) from None
+    try:
+        remote.Ping()
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"error: connection failed: {exc}", err=True)
+        raise SystemExit(1) from None
+    finally:
+        remote.ShutdownConnection()
+
+
 @click.group("remote")
 def remote_group() -> None:
     """Remote RenderDoc server commands."""
@@ -102,6 +124,7 @@ def remote_list_cmd(url: str | None, use_json: bool) -> None:
     host, port = _resolve_url(url)
     _check_public_ip(host)
     conn_url = build_conn_url(host, port)
+    _ensure_remote_reachable(host, port)
 
     if split_session_active():
         rpc_result = call("remote_list_run", {"host": host, "port": port})
