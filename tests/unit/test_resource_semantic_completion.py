@@ -7,6 +7,7 @@ from click.shell_completion import CompletionItem
 import rdc.commands.export as export_mod
 import rdc.commands.resources as resources_mod
 import rdc.commands.usage as usage_mod
+from rdc.commands._helpers import complete_eid
 from rdc.commands.export import buffer_cmd, rt_cmd, texture_cmd
 from rdc.commands.resources import pass_cmd, resource_cmd, resources_cmd
 from rdc.commands.usage import usage_cmd
@@ -40,7 +41,7 @@ def test_usage_command_shell_complete_wiring() -> None:
 def test_export_command_shell_complete_wiring() -> None:
     assert _arg(texture_cmd, "id").shell_complete is not None
     assert _arg(buffer_cmd, "id").shell_complete is not None
-    assert _arg(rt_cmd, "eid").shell_complete is not None
+    assert _arg(rt_cmd, "eid")._custom_shell_complete is complete_eid
     assert _opt(rt_cmd, "target").shell_complete is not None
 
 
@@ -104,8 +105,6 @@ def test_export_completion_candidates(monkeypatch) -> None:
                     {"id": 22, "type": "Buffer", "name": "VB"},
                 ]
             }
-        if method == "draws":
-            return {"draws": [{"eid": 100}, {"eid": 200}]}
         return {
             "children": [
                 {"name": "color0.png", "kind": "leaf_bin"},
@@ -116,7 +115,6 @@ def test_export_completion_candidates(monkeypatch) -> None:
     monkeypatch.setattr(export_mod, "completion_call", fake_call)
     assert _values(export_mod._complete_texture_id(None, None, "")) == ["21"]
     assert _values(export_mod._complete_buffer_id(None, None, "")) == ["22"]
-    assert _values(export_mod._complete_rt_eid(None, None, "2")) == ["200"]
 
     class _Ctx:
         params = {"eid": 100}
@@ -134,7 +132,6 @@ def test_resource_completion_errors_return_empty(monkeypatch) -> None:
     assert usage_mod._complete_usage_resource_id(None, None, "") == []
     assert usage_mod._complete_usage_kind(None, None, "") == []
     assert export_mod._complete_texture_id(None, None, "") == []
-    assert export_mod._complete_rt_eid(None, None, "") == []
 
 
 def test_rt_target_completion_defaults_without_eid() -> None:
@@ -163,7 +160,6 @@ def test_completion_non_numeric_ids_do_not_crash(monkeypatch) -> None:
     assert _values(resources_mod._complete_resource_id(None, None, "")) == ["2", "10", "foo"]
     assert _values(usage_mod._complete_usage_resource_id(None, None, "")) == ["2", "10", "foo"]
     assert _values(export_mod._complete_texture_id(None, None, "")) == ["2", "foo"]
-    assert _values(export_mod._complete_rt_eid(None, None, "")) == ["5", "20", "last"]
 
 
 def test_completion_malformed_payload_shapes_return_empty_or_filtered(monkeypatch) -> None:
@@ -176,7 +172,6 @@ def test_completion_malformed_payload_shapes_return_empty_or_filtered(monkeypatc
     assert usage_mod._complete_usage_kind(None, None, "") == []
 
     monkeypatch.setattr(export_mod, "completion_call", lambda method, params: {"draws": "bad"})
-    assert export_mod._complete_rt_eid(None, None, "") == []
 
 
 def test_completion_malformed_items_are_ignored(monkeypatch) -> None:
