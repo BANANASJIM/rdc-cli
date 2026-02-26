@@ -7,6 +7,7 @@ import sys
 from click.shell_completion import CompletionItem
 
 import rdc.commands._helpers as helpers
+from rdc.commands.assert_ci import assert_count_cmd
 from rdc.commands.events import draws_cmd
 from rdc.commands.pipeline import _PIPELINE_SECTIONS, _complete_pipeline_section, pipeline_cmd
 from rdc.commands.resources import pass_cmd
@@ -96,6 +97,9 @@ def test_pipeline_section_completion_matches_server_section_keys() -> None:
 def test_pass_like_options_are_wired_for_shell_complete() -> None:
     assert _param(draws_cmd, "pass_name").shell_complete is not None
     assert _param(count_cmd, "pass_name").shell_complete is not None
+    assert (
+        _param(assert_count_cmd, "pass_name")._custom_shell_complete is helpers.complete_pass_name
+    )
     assert _param(pass_cmd, "identifier").shell_complete is not None
 
 
