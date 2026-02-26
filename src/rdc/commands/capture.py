@@ -234,10 +234,24 @@ def _run_list_apis(*, use_json: bool) -> None:
         else:
             click.echo(f"error: {msg}", err=True)
         raise SystemExit(1)
-    result = subprocess.run([bin_path, "capture", "--list-apis"], check=False)
-    if use_json and result.returncode != 0:
-        msg = f"renderdoccmd capture --list-apis failed (exit {result.returncode})"
-        click.echo(json.dumps({"error": {"message": msg}}), err=True)
+    if use_json:
+        result = subprocess.run(
+            [bin_path, "capture", "--list-apis"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            msg = f"renderdoccmd capture --list-apis failed (exit {result.returncode})"
+            click.echo(json.dumps({"error": {"message": msg}}), err=True)
+            raise SystemExit(result.returncode)
+        if result.stdout:
+            click.echo(result.stdout, nl=False)
+        if result.stderr:
+            click.echo(result.stderr, err=True, nl=False)
+        raise SystemExit(0)
+
+    result = subprocess.run([bin_path, "capture", "--list-apis"], check=False, text=True)
     raise SystemExit(result.returncode)
 
 

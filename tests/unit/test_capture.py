@@ -181,6 +181,7 @@ def test_list_apis_unsupported_in_renderdoccmd(monkeypatch: Any) -> None:
 
 def test_list_apis_nonzero_returns_json_error(monkeypatch: Any) -> None:
     """--list-apis --json emits JSON error shape on non-zero subprocess exit."""
+    calls: list[tuple[list[str], bool, bool]] = []
 
     def fake_run(
         argv: list[str],
@@ -188,16 +189,24 @@ def test_list_apis_nonzero_returns_json_error(monkeypatch: Any) -> None:
         capture_output: bool = False,
         text: bool = False,
     ) -> DummyResult:
+        calls.append((argv, capture_output, text))
         if argv[-1] == "--help":
             return DummyResult(0, stdout="... --list-apis ...")
-        return DummyResult(7)
+        return DummyResult(7, stdout="plain text from tool", stderr="another line")
 
     monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
     monkeypatch.setattr("subprocess.run", fake_run)
 
     result = CliRunner().invoke(capture_cmd, ["--list-apis", "--json"])
     assert result.exit_code == 7
-    data = json.loads(result.output.splitlines()[-1])
+    assert calls == [
+        (["/usr/bin/renderdoccmd", "capture", "--help"], True, True),
+        (["/usr/bin/renderdoccmd", "capture", "--list-apis"], True, True),
+    ]
+    assert "plain text from tool" not in result.output
+    assert "another line" not in result.output
+    assert result.output.count("\n") == 1
+    data = json.loads(result.output)
     assert data == {"error": {"message": "renderdoccmd capture --list-apis failed (exit 7)"}}
 
 
