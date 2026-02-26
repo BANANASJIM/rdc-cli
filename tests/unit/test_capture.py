@@ -179,6 +179,28 @@ def test_list_apis_unsupported_in_renderdoccmd(monkeypatch: Any) -> None:
     assert calls == [["/usr/bin/renderdoccmd", "capture", "--help"]]
 
 
+def test_list_apis_nonzero_returns_json_error(monkeypatch: Any) -> None:
+    """--list-apis --json emits JSON error shape on non-zero subprocess exit."""
+
+    def fake_run(
+        argv: list[str],
+        check: bool = False,
+        capture_output: bool = False,
+        text: bool = False,
+    ) -> DummyResult:
+        if argv[-1] == "--help":
+            return DummyResult(0, stdout="... --list-apis ...")
+        return DummyResult(7)
+
+    monkeypatch.setattr("rdc.commands.capture._find_renderdoccmd", lambda: "/usr/bin/renderdoccmd")
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    result = CliRunner().invoke(capture_cmd, ["--list-apis", "--json"])
+    assert result.exit_code == 7
+    data = json.loads(result.output.splitlines()[-1])
+    assert data == {"error": {"message": "renderdoccmd capture --list-apis failed (exit 7)"}}
+
+
 def test_top_level_capture_list_apis_short_circuits(monkeypatch: Any) -> None:
     """B49 regression: top-level CLI routes capture --list-apis to info mode."""
 

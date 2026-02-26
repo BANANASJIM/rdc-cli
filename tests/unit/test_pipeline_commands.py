@@ -261,6 +261,20 @@ def test_shader_explicit_eid_stage_form_still_supported(monkeypatch) -> None:
     assert calls[0]["params"]["stage"] == "ps"
 
 
+def test_shader_invalid_first_token_errors_clearly() -> None:
+    result = CliRunner().invoke(main, ["shader", "not-an-eid"])
+
+    assert result.exit_code != 0
+    assert "not a valid EID or shader stage" in result.output
+
+
+def test_shader_stage_only_rejects_extra_argument() -> None:
+    result = CliRunner().invoke(main, ["shader", "ps", "extra"])
+
+    assert result.exit_code != 0
+    assert "unexpected extra argument when using stage-only form" in result.output
+
+
 def test_shader_with_source_output(monkeypatch, tmp_path) -> None:
     patch_cli_session(
         monkeypatch,

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+from click.shell_completion import CompletionItem
 
 from rdc.commands._helpers import call
 from rdc.formatters.json_fmt import write_json, write_jsonl
@@ -137,8 +138,22 @@ def bindings_cmd(
 
 
 @click.command("shader")
-@click.argument("first", required=False)
-@click.argument("second", required=False)
+@click.argument(
+    "first",
+    required=False,
+    metavar="[EID|STAGE]",
+    shell_complete=lambda _ctx, _param, incomplete: [
+        CompletionItem(stage) for stage in _STAGE_CHOICES if stage.startswith(incomplete.lower())
+    ],
+)
+@click.argument(
+    "second",
+    required=False,
+    metavar="[STAGE]",
+    shell_complete=lambda _ctx, _param, incomplete: [
+        CompletionItem(stage) for stage in _STAGE_CHOICES if stage.startswith(incomplete.lower())
+    ],
+)
 @click.option(
     "--reflect",
     "get_reflect",
@@ -173,7 +188,8 @@ def shader_cmd(
 ) -> None:
     """Show shader metadata for a stage at EID.
 
-    EID is the event ID. STAGE is the shader stage (vs, hs, ds, gs, ps, cs).
+    Positional forms: ``shader [STAGE]`` or ``shader [EID] [STAGE]``.
+    EID is the event ID. STAGE is one of ``vs/hs/ds/gs/ps/cs``.
     Use --all to get data for all stages.
     """
     eid, stage = _parse_shader_positionals(first, second)
@@ -351,7 +367,7 @@ def _parse_shader_positionals(
     try:
         eid = int(first)
     except ValueError as exc:
-        msg = f"'{first}' is not a valid EID or shader stage"
+        msg = f"'{first}' is not a valid EID or shader stage (vs, hs, ds, gs, ps, cs)"
         raise click.BadParameter(msg, param_hint="FIRST") from exc
 
     if second is None:
