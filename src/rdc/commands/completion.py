@@ -10,6 +10,51 @@ import click
 _SUPPORTED_SHELLS = ("bash", "zsh", "fish")
 
 
+def _patch_bash_source(source: str) -> str:
+    """Override Click bash handler to avoid filesystem fallback for typed dirs."""
+    import re
+
+    source = re.sub(r"_rdc_completion\(\)\s*\{.*?\n\}\s*", "", source, flags=re.DOTALL)
+    source = re.sub(r"_rdc_completion_setup\(\)\s*\{.*?\n\}\s*", "", source, flags=re.DOTALL)
+    source = re.sub(r"_rdc_completion_setup;\s*", "", source)
+
+    override = """\
+_rdc_completion() {
+    local IFS=$'\\n'
+    local response
+    local has_dir=0
+    COMPREPLY=()
+
+    response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD \
+        _RDC_COMPLETE=bash_complete $1)
+
+    for completion in $response; do
+        IFS=',' read -r type value <<< "$completion"
+
+        if [[ $type == 'dir' ]]; then
+            COMPREPLY+=("$value")
+            has_dir=1
+        elif [[ $type == 'file' || $type == 'plain' ]]; then
+            COMPREPLY+=("$value")
+        fi
+    done
+
+    if [[ $has_dir -eq 1 ]]; then
+        compopt -o nospace 2>/dev/null || true
+    fi
+
+    return 0
+}
+
+_rdc_completion_setup() {
+    complete -o nosort -F _rdc_completion rdc
+}
+
+_rdc_completion_setup;
+"""
+    return source + override
+
+
 def _detect_shell() -> str:
     """Detect current shell from $SHELL."""
     name = Path(os.environ.get("SHELL", "bash")).name
@@ -26,7 +71,10 @@ def _generate(shell: str) -> str:
     if cls is None:
         raise click.ClickException(f"Unsupported shell: {shell}")
     comp = cls(cli=main, ctx_args={}, prog_name="rdc", complete_var="_RDC_COMPLETE")
-    return comp.source()
+    source = comp.source()
+    if shell == "bash":
+        return _patch_bash_source(source)
+    return source
 
 
 @click.command("completion")
