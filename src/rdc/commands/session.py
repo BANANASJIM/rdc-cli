@@ -41,10 +41,13 @@ def _complete_capture_path(
     for child in children:
         if not child.name.startswith(prefix):
             continue
-        if child.is_dir():
-            items.append(CompletionItem(f"{base}{child.name}/"))
-        elif child.suffix.lower() == ".rdc":
-            items.append(CompletionItem(f"{base}{child.name}"))
+        try:
+            if child.is_dir():
+                items.append(CompletionItem(f"{base}{child.name}/"))
+            elif child.suffix.lower() == ".rdc":
+                items.append(CompletionItem(f"{base}{child.name}"))
+        except OSError:
+            continue
     return items
 
 
