@@ -12,7 +12,13 @@ _SUPPORTED_SHELLS = ("bash", "zsh", "fish")
 
 def _patch_bash_source(source: str) -> str:
     """Override Click bash handler to avoid filesystem fallback for typed dirs."""
-    override = """
+    import re
+
+    source = re.sub(r"_rdc_completion\(\)\s*\{.*?\n\}\s*", "", source, flags=re.DOTALL)
+    source = re.sub(r"_rdc_completion_setup\(\)\s*\{.*?\n\}\s*", "", source, flags=re.DOTALL)
+    source = re.sub(r"_rdc_completion_setup;\s*", "", source)
+
+    override = """\
 _rdc_completion() {
     local IFS=$'\\n'
     local response
