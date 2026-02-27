@@ -16,6 +16,7 @@ def _patch_bash_source(source: str) -> str:
 _rdc_completion() {
     local IFS=$'\\n'
     local response
+    local has_dir=0
     COMPREPLY=()
 
     response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD \
@@ -26,11 +27,15 @@ _rdc_completion() {
 
         if [[ $type == 'dir' ]]; then
             COMPREPLY+=("$value")
-            compopt -o nospace 2>/dev/null || true
+            has_dir=1
         elif [[ $type == 'file' || $type == 'plain' ]]; then
             COMPREPLY+=("$value")
         fi
     done
+
+    if [[ $has_dir -eq 1 ]]; then
+        compopt -o nospace 2>/dev/null || true
+    fi
 
     return 0
 }

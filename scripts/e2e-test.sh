@@ -152,10 +152,10 @@ if [ "$REPLAY_READY" -eq 1 ]; then
 else
   check_output "complete /d (no replay)" "no replay loaded" $RDC _complete /d
 fi
- COMP_OUTPUT=$(env _RDC_COMPLETE=bash_complete COMP_WORDS="rdc ls /d" COMP_CWORD=2 $RDC 2>&1 || true)
- if [ "$REPLAY_READY" -eq 1 ] && echo "$COMP_OUTPUT" | grep -Eq "(/draws/|dir,/draws)"; then
-   echo -e "  ${GREEN}✓${NC} click shell_complete /d"
-   PASS=$((PASS + 1))
+COMP_OUTPUT=$(env _RDC_COMPLETE=bash_complete COMP_WORDS="rdc ls /d" COMP_CWORD=2 $RDC 2>&1 || true)
+if [ "$REPLAY_READY" -eq 1 ] && echo "$COMP_OUTPUT" | grep -Eq "(/draws/|dir,/draws)"; then
+  echo -e "  ${GREEN}✓${NC} click shell_complete /d"
+  PASS=$((PASS + 1))
 elif [ "$REPLAY_READY" -eq 0 ] && echo "$COMP_OUTPUT" | grep -q "no replay loaded"; then
   echo -e "  ${GREEN}✓${NC} click shell_complete /d (no replay)"
   PASS=$((PASS + 1))

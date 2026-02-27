@@ -216,7 +216,7 @@ def status_cmd() -> None:
 
 
 @click.command("goto")
-@click.argument("eid", type=int)
+@click.argument("eid", type=int, shell_complete=complete_eid)
 def goto_cmd(eid: int) -> None:
     """Update current event id via daemon."""
     ok, message = goto_session(eid)
