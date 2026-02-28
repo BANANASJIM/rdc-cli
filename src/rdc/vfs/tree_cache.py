@@ -304,24 +304,33 @@ def populate_draw_subtree(
     subtree[targets_path] = list(target_children)
 
     # Populate bindings/ subtree
-    binding_sets: set[int] = set()
+    binding_sets: dict[int, set[int]] = {}
     for stage_name in stages:
         stage_idx = STAGE_MAP[stage_name]
         refl = pipe_state.GetShaderReflection(stage_idx)
         if refl is None:
             continue
         for r in getattr(refl, "readOnlyResources", []):
-            binding_sets.add(getattr(r, "fixedBindSetOrSpace", 0))
+            s = getattr(r, "fixedBindSetOrSpace", 0)
+            b = getattr(r, "fixedBindNumber", 0)
+            binding_sets.setdefault(s, set()).add(b)
         for r in getattr(refl, "readWriteResources", []):
-            binding_sets.add(getattr(r, "fixedBindSetOrSpace", 0))
+            s = getattr(r, "fixedBindSetOrSpace", 0)
+            b = getattr(r, "fixedBindNumber", 0)
+            binding_sets.setdefault(s, set()).add(b)
 
     bindings_path = f"{prefix}/bindings"
     binding_set_names = sorted(str(s) for s in binding_sets)
     tree.static[bindings_path].children = list(binding_set_names)
     subtree[bindings_path] = list(binding_set_names)
-    for s in binding_sets:
+    for s, bindings in binding_sets.items():
         set_path = f"{bindings_path}/{s}"
-        tree.static[set_path] = VfsNode(str(s), "dir")
+        binding_names = sorted(str(b) for b in bindings)
+        tree.static[set_path] = VfsNode(str(s), "dir", list(binding_names))
+        subtree[set_path] = list(binding_names)
+        for b in bindings:
+            leaf_path = f"{set_path}/{b}"
+            tree.static[leaf_path] = VfsNode(str(b), "leaf")
 
     # Populate cbuffer/ subtree
     cbuffer_sets: dict[int, set[int]] = {}

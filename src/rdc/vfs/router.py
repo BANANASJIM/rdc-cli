@@ -125,6 +125,12 @@ _r(
     [("eid", int), ("x", int), ("y", int), ("target", int)],
 )
 _r(r"/draws/(?P<eid>\d+)/bindings", "dir", None, [("eid", int)])
+_r(
+    r"/draws/(?P<eid>\d+)/bindings/(?P<set>\d+)/(?P<binding>\d+)",
+    "leaf",
+    "bindings",
+    [("eid", int), ("set", int), ("binding", int)],
+)
 _r(r"/draws/(?P<eid>\d+)/bindings/(?P<set>\d+)", "dir", None, [("eid", int), ("set", int)])
 
 # draw targets

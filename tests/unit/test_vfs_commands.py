@@ -624,6 +624,26 @@ def test_ls_long_quiet(monkeypatch) -> None:
     assert lines == ["Shadow", "GBuffer"]
 
 
+def test_bindings_extractor() -> None:
+    from rdc.commands.vfs import _EXTRACTORS
+
+    data = {
+        "rows": [{"eid": 100, "stage": "ps", "kind": "SRV", "set": 0, "slot": 1, "name": "tex"}],
+    }
+    result = _EXTRACTORS["bindings"](data)
+    lines = result.split("\n")
+    assert lines[0] == "EID\tSTAGE\tKIND\tSET\tSLOT\tNAME"
+    assert lines[1] == "100\tps\tSRV\t0\t1\ttex"
+
+
+def test_bindings_extractor_empty() -> None:
+    from rdc.commands.vfs import _EXTRACTORS
+
+    data = {"rows": []}
+    result = _EXTRACTORS["bindings"](data)
+    assert result == "EID\tSTAGE\tKIND\tSET\tSLOT\tNAME\n"
+
+
 def test_ls_long_options_ignored_without_l(monkeypatch) -> None:
     _patch(
         monkeypatch,

@@ -71,6 +71,13 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
             for d in r.get("descriptors", [])
         )
     ),
+    "bindings": lambda r: (
+        "EID\tSTAGE\tKIND\tSET\tSLOT\tNAME\n"
+        + "\n".join(
+            f"{row['eid']}\t{row['stage']}\t{row['kind']}\t{row['set']}\t{row['slot']}\t{row['name']}"
+            for row in r.get("rows", [])
+        )
+    ),
     "pixel_history": lambda r: (
         "EID\tFRAG\tDEPTH\tPASSED\tFLAGS\n"
         + "\n".join(_fmt_pixel_mod(m) for m in r.get("modifications", []))

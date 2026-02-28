@@ -12,6 +12,7 @@ from mock_renderdoc import (
     ResourceDescription,
     ResourceId,
     ShaderReflection,
+    ShaderResource,
     TextureDescription,
 )
 
@@ -475,6 +476,75 @@ class TestPopulateDrawSubtree:
 # ---------------------------------------------------------------------------
 # LRU eviction tests
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Bindings leaf node tests
+# ---------------------------------------------------------------------------
+
+
+def _make_pipe_with_bindings() -> MockPipeState:
+    """PipeState with VS+PS active and readOnly/readWrite resources."""
+    state = MockPipeState()
+    state._shaders[0] = ResourceId(100)  # VS
+    state._shaders[4] = ResourceId(200)  # PS
+    vs_refl = ShaderReflection(
+        readOnlyResources=[
+            ShaderResource(fixedBindSetOrSpace=0, fixedBindNumber=0),
+            ShaderResource(fixedBindSetOrSpace=0, fixedBindNumber=3),
+        ],
+    )
+    ps_refl = ShaderReflection(
+        readOnlyResources=[
+            ShaderResource(fixedBindSetOrSpace=0, fixedBindNumber=1),
+        ],
+        readWriteResources=[
+            ShaderResource(fixedBindSetOrSpace=1, fixedBindNumber=0),
+        ],
+    )
+    state._reflections[0] = vs_refl
+    state._reflections[4] = ps_refl
+    return state
+
+
+class TestBindingsLeafNodes:
+    @pytest.fixture
+    def skel(self) -> VfsTree:
+        return build_vfs_skeleton(_make_actions(), _make_resources())
+
+    def test_binding_leaf_created(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_bindings()
+        populate_draw_subtree(skel, 10, pipe)
+        assert skel.static["/draws/10/bindings/0/0"].kind == "leaf"
+        assert skel.static["/draws/10/bindings/0/1"].kind == "leaf"
+        assert skel.static["/draws/10/bindings/0/3"].kind == "leaf"
+        assert skel.static["/draws/10/bindings/1/0"].kind == "leaf"
+
+    def test_set_dir_has_binding_children(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_bindings()
+        populate_draw_subtree(skel, 10, pipe)
+        set0 = skel.static["/draws/10/bindings/0"]
+        assert set0.kind == "dir"
+        assert sorted(set0.children) == ["0", "1", "3"]
+
+    def test_set_dir_children_for_set1(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_bindings()
+        populate_draw_subtree(skel, 10, pipe)
+        set1 = skel.static["/draws/10/bindings/1"]
+        assert set1.kind == "dir"
+        assert set1.children == ["0"]
+
+    def test_bindings_dir_has_set_children(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_bindings()
+        populate_draw_subtree(skel, 10, pipe)
+        bindings = skel.static["/draws/10/bindings"]
+        assert sorted(bindings.children) == ["0", "1"]
+
+    def test_subtree_includes_binding_paths(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_bindings()
+        subtree = populate_draw_subtree(skel, 10, pipe)
+        assert "/draws/10/bindings/0" in subtree
+        assert "/draws/10/bindings/1" in subtree
 
 
 class TestLruEviction:
