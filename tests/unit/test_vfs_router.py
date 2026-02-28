@@ -131,6 +131,23 @@ def test_draws_bindings_dir() -> None:
     assert m == PathMatch(kind="dir", handler=None, args={"eid": 142})
 
 
+def test_draws_bindings_set_dir() -> None:
+    m = resolve_path("/draws/142/bindings/0")
+    assert m == PathMatch(kind="dir", handler=None, args={"eid": 142, "set": 0})
+
+
+def test_draws_bindings_leaf() -> None:
+    m = resolve_path("/draws/142/bindings/0/0")
+    expected = PathMatch(kind="leaf", handler="bindings", args={"eid": 142, "set": 0, "binding": 0})
+    assert m == expected
+
+
+def test_draws_bindings_leaf_other_slot() -> None:
+    m = resolve_path("/draws/142/bindings/0/5")
+    expected = PathMatch(kind="leaf", handler="bindings", args={"eid": 142, "set": 0, "binding": 5})
+    assert m == expected
+
+
 # ── Passes ───────────────────────────────────────────────────────────
 
 

@@ -263,6 +263,7 @@ class TestListenOption:
         assert "host: 0.0.0.0" in result.output
         assert "port: 9999" in result.output
         assert "token: secret123" in result.output
+        assert "connect with: rdc open --connect 0.0.0.0:9999 --token secret123" in result.output
 
 
 # ===========================================================================
