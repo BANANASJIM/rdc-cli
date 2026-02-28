@@ -606,6 +606,21 @@ class TestLruEviction:
         # Dynamic nodes for eid 10 should be cleaned up
         assert "/draws/10/shader/ps" not in skeleton.static
         assert "/draws/10/shader/ps/disasm" not in skeleton.static
+
+    def test_eviction_cleans_binding_leaf_nodes(self) -> None:
+        """LRU eviction must remove binding leaf nodes and reset children."""
+        skeleton = build_vfs_skeleton(_make_actions(), _make_resources())
+        skeleton._lru_capacity = 1
+        pipe = _make_pipe_with_bindings()
+
+        populate_draw_subtree(skeleton, 10, pipe)
+        assert "/draws/10/bindings/0/0" in skeleton.static
+        assert "/draws/10/bindings/0" in skeleton.static
+
+        populate_draw_subtree(skeleton, 20, pipe)
+        assert skeleton.get_draw_subtree(10) is None
+        assert "/draws/10/bindings/0/0" not in skeleton.static
+        assert "/draws/10/bindings/0" not in skeleton.static
         # Shader dir should have empty children
         assert skeleton.static["/draws/10/shader"].children == []
         # Eid 20 should still have its nodes

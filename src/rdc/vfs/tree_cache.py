@@ -320,12 +320,13 @@ def populate_draw_subtree(
             binding_sets.setdefault(s, set()).add(b)
 
     bindings_path = f"{prefix}/bindings"
-    binding_set_names = sorted(str(s) for s in binding_sets)
+    binding_set_names = [str(s) for s in sorted(binding_sets)]
     tree.static[bindings_path].children = list(binding_set_names)
     subtree[bindings_path] = list(binding_set_names)
-    for s, bindings in binding_sets.items():
+    for s in sorted(binding_sets):
+        bindings = binding_sets[s]
         set_path = f"{bindings_path}/{s}"
-        binding_names = sorted(str(b) for b in bindings)
+        binding_names = [str(b) for b in sorted(bindings)]
         tree.static[set_path] = VfsNode(str(s), "dir", list(binding_names))
         subtree[set_path] = list(binding_names)
         for b in bindings:
