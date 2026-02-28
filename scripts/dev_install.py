@@ -80,7 +80,7 @@ def main() -> None:
     ok = install_completion(shell)
 
     print("\n--- Summary ---")
-    print(f"  Binary:     installed")
+    print("  Binary:     installed")
     print(f"  Shell:      {shell}")
     print(f"  Completion: {'installed' if ok else 'SKIPPED (see warnings above)'}")
 

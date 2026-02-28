@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,7 +16,7 @@ import pytest
 _GENERATE = "rdc.commands.completion._generate"
 
 
-def _import_dev_install():  # noqa: ANN202
+def _import_dev_install() -> ModuleType:
     """Import dev_install module from scripts/."""
     import importlib.util
 
