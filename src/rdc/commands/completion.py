@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 import click
+
+_log = logging.getLogger(__name__)
 
 _SUPPORTED_SHELLS = ("bash", "zsh", "fish")
 
@@ -127,6 +130,8 @@ def _patch_zsh_source(source: str) -> str:
     fi
 }"""
     source = source.replace(old_tail, new_tail)
+    if "_path_files" in source:
+        _log.warning("zsh completion patch incomplete: Click's template may have changed")
     return source
 
 

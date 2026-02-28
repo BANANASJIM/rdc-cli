@@ -29,7 +29,11 @@ def test_completion_zsh() -> None:
     assert result.exit_code == 0
     assert "compdef" in result.output or "_rdc_completion" in result.output
     assert "_path_files" not in result.output
-    assert "completions_nospace" in result.output
+    assert "completions_nospace_with_descriptions" in result.output
+    assert "compadd -U -V unsorted -q -S '' -a completions_nospace" in result.output
+    assert (
+        "_describe -V unsorted completions_nospace_with_descriptions -U -q -S ''" in result.output
+    )
 
 
 def test_completion_fish() -> None:
