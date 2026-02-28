@@ -58,6 +58,14 @@ _rdc_completion_setup;
     return source + override
 
 
+def _checked_replace(src: str, old: str, new: str, label: str) -> str:
+    """Replace *old* with *new*, raising if *old* is absent."""
+    if old not in src:
+        _log.warning("zsh patch: %r block not found — Click template may have changed", label)
+        return src
+    return src.replace(old, new)
+
+
 def _patch_zsh_source(source: str) -> str:
     """Override Zsh source to use VFS values instead of filesystem fallback."""
     old_type_block = """\
@@ -101,7 +109,7 @@ def _patch_zsh_source(source: str) -> str:
                 completions_with_descriptions+=("$key":"$descr")
             fi
         fi"""
-    source = source.replace(old_type_block, new_type_block)
+    source = _checked_replace(source, old_type_block, new_type_block, "type-dispatch")
 
     old_local = """\
     local -a completions_with_descriptions"""
@@ -109,7 +117,7 @@ def _patch_zsh_source(source: str) -> str:
     local -a completions_with_descriptions
     local -a completions_nospace
     local -a completions_nospace_with_descriptions"""
-    source = source.replace(old_local, new_local)
+    source = _checked_replace(source, old_local, new_local, "local-vars")
 
     old_tail = """\
     if [ -n "$completions" ]; then
@@ -129,9 +137,7 @@ def _patch_zsh_source(source: str) -> str:
         compadd -U -V unsorted -q -S '' -a completions_nospace
     fi
 }"""
-    source = source.replace(old_tail, new_tail)
-    if "_path_files" in source:
-        _log.warning("zsh completion patch incomplete: Click's template may have changed")
+    source = _checked_replace(source, old_tail, new_tail, "compadd-tail")
     return source
 
 
