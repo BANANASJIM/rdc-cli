@@ -1,7 +1,7 @@
 [workspace]
 name = "rdc-cli"
 channels = ["conda-forge"]
-platforms = ["linux-64", "osx-arm64", "osx-64"]
+platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 
 [dependencies]
 python = "3.14.*"
@@ -31,6 +31,7 @@ PYTHONPATH = "src"
 
 [tasks]
 sync = "uv sync --extra dev && git config core.hooksPath .githooks && bash scripts/ensure-renderdoc.sh"
+install = "uv run python scripts/dev_install.py"
 setup-renderdoc = "python scripts/build_renderdoc.py .local/renderdoc --build-dir .local/renderdoc-build"
 lint = "uv run ruff check src tests && uv run ruff format --check src tests"
 typecheck = "uv run mypy src"

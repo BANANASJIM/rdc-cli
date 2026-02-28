@@ -209,6 +209,8 @@ Options available on most list/query commands (not every command supports all):
 
 ### Shell completions
 
+Completions are installed automatically by `pixi run install`. To install manually:
+
 ```bash
 rdc completion bash > ~/.local/share/bash-completion/completions/rdc
 rdc completion zsh  > ~/.zfunc/_rdc
@@ -219,6 +221,7 @@ rdc completion fish > ~/.config/fish/completions/rdc.fish
 
 ```bash
 pixi run sync                 # install deps + git hooks + renderdoc symlink
+pixi run install              # editable install + shell completions
 pixi run check                # lint + typecheck + test
 pixi run verify               # full packaging verification
 ```
