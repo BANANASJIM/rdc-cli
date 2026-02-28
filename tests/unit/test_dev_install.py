@@ -207,7 +207,7 @@ class TestErrorHandling:
         assert "WARNING" in capsys.readouterr().out
         assert not (tmp_path / ".local/share/bash-completion/completions/rdc").exists()
 
-    def test_eh2_permission_error(
+    def test_eh2_os_error(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
@@ -221,7 +221,7 @@ class TestErrorHandling:
         monkeypatch.setattr(Path, "write_text", _deny)
         ok = dev_install.install_completion("bash", home=tmp_path)
         assert not ok
-        assert "permission denied" in capsys.readouterr().out
+        assert "WARNING" in capsys.readouterr().out
 
 
 # =========================================================================

@@ -38,17 +38,17 @@ def install_completion(shell: str, home: Path | None = None) -> bool:
 
     Returns True on success, False on failure (non-fatal).
     """
-    from rdc.commands.completion import _generate
-
     if home is None:
         home = Path.home()
 
     if shell == "powershell":
         print("PowerShell: add to your $PROFILE:")
-        print("  rdc --shell-completion powershell | Out-String | Invoke-Expression")
+        print("  rdc completion powershell | Out-String | Invoke-Expression")
         return True
 
     try:
+        from rdc.commands.completion import _generate
+
         source = _generate(shell)
     except Exception as exc:
         print(f"WARNING: completion generation failed for {shell}: {exc}")
@@ -58,8 +58,8 @@ def install_completion(shell: str, home: Path | None = None) -> bool:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source)
-    except PermissionError:
-        print(f"WARNING: cannot write {path} — permission denied")
+    except OSError as exc:
+        print(f"WARNING: cannot write {path} — {exc}")
         return False
 
     print(f"Completion written: {path}")

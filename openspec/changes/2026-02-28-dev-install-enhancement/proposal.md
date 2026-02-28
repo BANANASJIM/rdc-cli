@@ -69,7 +69,7 @@ Parent directories are created via `Path.mkdir(parents=True, exist_ok=True)`.
 
 **Step 5 — summary**
 
-```
+```text
 [ok] rdc installed via uv tool install
 [ok] zsh completion written to ~/.zfunc/_rdc
      hint: add 'fpath=(~/.zfunc $fpath)' and 'autoload -Uz compinit && compinit' to ~/.zshrc
