@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 import click
+
+_log = logging.getLogger(__name__)
 
 _SUPPORTED_SHELLS = ("bash", "zsh", "fish")
 
@@ -31,7 +34,7 @@ _rdc_completion() {
     for completion in $response; do
         IFS=',' read -r type value <<< "$completion"
 
-        if [[ $type == 'dir' ]]; then
+        if [[ $type == 'dir' || ($type == 'plain' && $value == */) ]]; then
             COMPREPLY+=("$value")
             has_dir=1
         elif [[ $type == 'file' || $type == 'plain' ]]; then
@@ -55,6 +58,89 @@ _rdc_completion_setup;
     return source + override
 
 
+def _checked_replace(src: str, old: str, new: str, label: str) -> str:
+    """Replace *old* with *new*, raising if *old* is absent."""
+    if old not in src:
+        _log.warning("zsh patch: %r block not found — Click template may have changed", label)
+        return src
+    return src.replace(old, new)
+
+
+def _patch_zsh_source(source: str) -> str:
+    """Override Zsh source to use VFS values instead of filesystem fallback."""
+    old_type_block = """\
+        if [[ "$type" == "plain" ]]; then
+            if [[ "$descr" == "_" ]]; then
+                completions+=("$key")
+            else
+                completions_with_descriptions+=("$key":"$descr")
+            fi
+        elif [[ "$type" == "dir" ]]; then
+            _path_files -/
+        elif [[ "$type" == "file" ]]; then
+            _path_files -f
+        fi"""
+
+    new_type_block = """\
+        if [[ "$type" == "plain" ]]; then
+            if [[ "$key" == */ ]]; then
+                if [[ "$descr" == "_" ]]; then
+                    completions_nospace+=("$key")
+                else
+                    completions_nospace_with_descriptions+=("$key":"$descr")
+                fi
+            else
+                if [[ "$descr" == "_" ]]; then
+                    completions+=("$key")
+                else
+                    completions_with_descriptions+=("$key":"$descr")
+                fi
+            fi
+        elif [[ "$type" == "dir" ]]; then
+            if [[ "$descr" == "_" ]]; then
+                completions_nospace+=("$key")
+            else
+                completions_nospace_with_descriptions+=("$key":"$descr")
+            fi
+        elif [[ "$type" == "file" ]]; then
+            if [[ "$descr" == "_" ]]; then
+                completions+=("$key")
+            else
+                completions_with_descriptions+=("$key":"$descr")
+            fi
+        fi"""
+    source = _checked_replace(source, old_type_block, new_type_block, "type-dispatch")
+
+    old_local = """\
+    local -a completions_with_descriptions"""
+    new_local = """\
+    local -a completions_with_descriptions
+    local -a completions_nospace
+    local -a completions_nospace_with_descriptions"""
+    source = _checked_replace(source, old_local, new_local, "local-vars")
+
+    old_tail = """\
+    if [ -n "$completions" ]; then
+        compadd -U -V unsorted -a completions
+    fi
+}"""
+    new_tail = """\
+    if [ -n "$completions" ]; then
+        compadd -U -V unsorted -a completions
+    fi
+
+    if [ -n "$completions_nospace_with_descriptions" ]; then
+        _describe -V unsorted completions_nospace_with_descriptions -U -q -S ''
+    fi
+
+    if [ -n "$completions_nospace" ]; then
+        compadd -U -V unsorted -q -S '' -a completions_nospace
+    fi
+}"""
+    source = _checked_replace(source, old_tail, new_tail, "compadd-tail")
+    return source
+
+
 def _detect_shell() -> str:
     """Detect current shell from $SHELL."""
     name = Path(os.environ.get("SHELL", "bash")).name
@@ -74,6 +160,8 @@ def _generate(shell: str) -> str:
     source = comp.source()
     if shell == "bash":
         return _patch_bash_source(source)
+    elif shell == "zsh":
+        return _patch_zsh_source(source)
     return source
 
 
