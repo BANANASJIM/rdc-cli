@@ -177,6 +177,11 @@ def open_cmd(
         click.echo(f"host: {result['host']}")
         click.echo(f"port: {result['port']}")
         click.echo(f"token: {result['token']}")
+        click.echo(
+            f"connect with: rdc open --connect"
+            f" {result['host']}:{result['port']}"
+            f" --token {result['token']}"
+        )
         click.echo(f"session: {session_path()}")
         return
 
