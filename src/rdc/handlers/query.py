@@ -538,6 +538,21 @@ def _handle_search(
     return _result_response(request_id, {"matches": matches, "truncated": truncated}), True
 
 
+def _handle_pass_deps(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    assert state.adapter is not None
+    from rdc.services.query_service import _build_pass_list, build_pass_deps
+
+    actions = state.adapter.get_root_actions()
+    passes = _build_pass_list(actions, state.structured_file)
+    usage_data: dict[int, list[Any]] = {}
+    for resid, rid_obj in state.res_rid_map.items():
+        usage_data[resid] = state.adapter.controller.GetUsage(rid_obj)
+    result = build_pass_deps(passes, usage_data)
+    return _result_response(request_id, result), True
+
+
 def _handle_preload(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -559,6 +574,7 @@ HANDLERS: dict[str, Handler] = {
     "resource": _handle_resource,
     "passes": _handle_passes,
     "pass": _handle_pass,
+    "pass_deps": _handle_pass_deps,
     "log": _handle_log,
     "info": _handle_info,
     "stats": _handle_stats,

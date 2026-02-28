@@ -2,14 +2,18 @@
 
 Provides helpers for walking the RenderDoc action tree, filtering
 events by type/pass/pattern, and aggregating per-pass statistics.
-Also includes count, shader-map, pipeline, resource and pass helpers.
+Also includes count, shader-map, pipeline, resource, pass and
+pass-dependency-DAG helpers.
 """
 
 from __future__ import annotations
 
 import fnmatch
+import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 # ActionFlags constants (matching renderdoc v1.41)
 _CLEAR = 0x0001
@@ -623,3 +627,122 @@ def get_pass_detail(
         if p["name"].lower() == lower:
             return p
     return None
+
+
+# ---------------------------------------------------------------------------
+# Pass dependency DAG
+# ---------------------------------------------------------------------------
+
+_WRITE_USAGES: frozenset[int] = frozenset(
+    {
+        32,  # ColorTarget
+        33,  # DepthStencilTarget
+        35,  # Clear
+        43,  # CopyDst
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,  # *_RWResource
+        37,  # GenMips
+        40,  # ResolveDst
+        12,  # StreamOut
+    }
+)
+
+_READ_USAGES: frozenset[int] = frozenset(
+    {
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,  # VS..CS_Resource
+        19,
+        20,
+        21,  # TS, MS, All_Resource
+        42,  # CopySrc
+        1,  # VertexBuffer
+        2,  # IndexBuffer
+        39,  # ResolveSrc
+        34,  # Indirect
+        31,  # InputTarget
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,  # *_Constants
+    }
+)
+
+
+def build_pass_deps(
+    passes: list[dict[str, Any]],
+    usage_data: dict[int, list[Any]],
+) -> dict[str, Any]:
+    """Build a pass dependency DAG from pass list and resource usage data.
+
+    Args:
+        passes: List of pass dicts with name, begin_eid, end_eid keys.
+        usage_data: Map of resource ID to list of EventUsage objects.
+
+    Returns:
+        Dict with "edges" key containing list of edge dicts.
+    """
+    if not passes or not usage_data:
+        return {"edges": []}
+
+    n = len(passes)
+    writes: list[set[int]] = [set() for _ in range(n)]
+    reads: list[set[int]] = [set() for _ in range(n)]
+
+    for rid, events in usage_data.items():
+        if rid == 0:
+            continue
+        for ev in events:
+            eid = ev.eventId
+            usage_val = int(ev.usage)
+            pidx = _bucket_eid(eid, passes)
+            if pidx < 0:
+                continue
+            if usage_val in _WRITE_USAGES:
+                writes[pidx].add(rid)
+            elif usage_val in _READ_USAGES:
+                reads[pidx].add(rid)
+            else:
+                _log.debug("unknown ResourceUsage %d at eid %d", usage_val, eid)
+
+    seen: set[tuple[int, int]] = set()
+    edges: list[dict[str, Any]] = []
+    for a in range(n):
+        if not writes[a]:
+            continue
+        for b in range(n):
+            if a == b:
+                continue
+            shared = writes[a] & reads[b]
+            if shared and (a, b) not in seen:
+                seen.add((a, b))
+                edges.append(
+                    {
+                        "src": passes[a]["name"],
+                        "dst": passes[b]["name"],
+                        "resources": sorted(shared),
+                    }
+                )
+    return {"edges": edges}
+
+
+def _bucket_eid(eid: int, passes: list[dict[str, Any]]) -> int:
+    for i, p in enumerate(passes):
+        if p["begin_eid"] <= eid <= p["end_eid"]:
+            return i
+    return -1

@@ -189,9 +189,24 @@ def resource_cmd(resid: int, use_json: bool) -> None:
 
 @click.command("passes")
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--deps", is_flag=True, default=False, help="Show pass dependency DAG.")
+@click.option("--dot", is_flag=True, default=False, help="Graphviz DOT output (requires --deps).")
 @list_output_options
-def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
+def passes_cmd(
+    use_json: bool,
+    deps: bool,
+    dot: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
+) -> None:
     """List render passes."""
+    if dot and not deps:
+        raise click.UsageError("--dot requires --deps")
+    if deps:
+        _passes_deps(use_json, dot)
+        return
+
     result = call("passes", {})
     tree: dict[str, Any] = result.get("tree", {})
     if use_json:
@@ -207,6 +222,31 @@ def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) ->
     else:
         tsv_rows = [[p.get("name", "-"), p.get("draws", 0)] for p in passes]
         write_tsv(tsv_rows, header=["NAME", "DRAWS"], no_header=no_header)
+
+
+def _passes_deps(use_json: bool, dot: bool) -> None:
+    result = call("pass_deps", {})
+    edges: list[dict[str, Any]] = result.get("edges", [])
+    if use_json:
+        write_json(result)
+        return
+    if dot:
+        _format_dot(edges)
+        return
+    click.echo(format_row(["SRC", "DST", "RESOURCES"]))
+    for e in edges:
+        rids = ",".join(str(r) for r in e["resources"])
+        click.echo(format_row([e["src"], e["dst"], rids]))
+
+
+def _format_dot(edges: list[dict[str, Any]]) -> None:
+    click.echo("digraph {")
+    for e in edges:
+        label = ",".join(str(r) for r in e["resources"])
+        src = e["src"].replace('"', '\\"')
+        dst = e["dst"].replace('"', '\\"')
+        click.echo(f'  "{src}" -> "{dst}" [label="{label}"];')
+    click.echo("}")
 
 
 @click.command("pass")
