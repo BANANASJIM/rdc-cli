@@ -28,6 +28,8 @@ def test_completion_zsh() -> None:
     result = CliRunner().invoke(completion_cmd, ["zsh"])
     assert result.exit_code == 0
     assert "compdef" in result.output or "_rdc_completion" in result.output
+    assert "_path_files" not in result.output
+    assert "completions_nospace" in result.output
 
 
 def test_completion_fish() -> None:
