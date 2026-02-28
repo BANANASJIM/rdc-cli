@@ -595,6 +595,7 @@ List render passes.
 | `--json` | Output JSON. | flag |  |
 | `--deps` | Show pass dependency DAG. | flag |  |
 | `--dot` | Graphviz DOT output (requires --deps). | flag |  |
+| `--graph` | Human-readable graph (requires --deps). | flag |  |
 | `--no-header` | Omit TSV header | flag |  |
 | `--jsonl` | JSONL output | flag |  |
 | `-q, --quiet` | Print primary key column only | flag |  |

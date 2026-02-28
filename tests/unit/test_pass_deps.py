@@ -651,3 +651,36 @@ class TestCliDepsErrors:
     def test_dot_without_deps(self, monkeypatch: Any) -> None:
         result = CliRunner().invoke(passes_cmd, ["--dot"])
         assert result.exit_code == 2
+
+    def test_graph_without_deps(self, monkeypatch: Any) -> None:
+        result = CliRunner().invoke(passes_cmd, ["--graph"])
+        assert result.exit_code == 2
+
+
+class TestCliDepsGraph:
+    """--graph output."""
+
+    def test_graph_one_edge(self, monkeypatch: Any) -> None:
+        patch_cli_session(monkeypatch, _ONE_EDGE)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--graph"])
+        assert result.exit_code == 0
+        assert "Legend:" in result.output
+        assert "Graph:" in result.output
+        assert "[A]" in result.output
+        assert "[B]" in result.output
+        assert "──▶" in result.output
+
+    def test_graph_chain(self, monkeypatch: Any) -> None:
+        patch_cli_session(monkeypatch, _TWO_EDGES)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--graph"])
+        assert result.exit_code == 0
+        assert "[A]" in result.output
+        assert "[B]" in result.output
+        assert "[C]" in result.output
+        assert "(sink)" in result.output
+
+    def test_graph_no_edges(self, monkeypatch: Any) -> None:
+        patch_cli_session(monkeypatch, _NO_EDGES)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--graph"])
+        assert result.exit_code == 0
+        assert "no dependencies" in result.output
