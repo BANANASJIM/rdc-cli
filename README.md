@@ -32,7 +32,7 @@ rdc close
 **PyPI — Linux** (recommended)
 
 ```bash
-pipx install rdc-cli                  # install the CLI
+uv tool install rdc-cli               # or: pipx install rdc-cli
 python scripts/build_renderdoc.py     # one-time build (needs cmake + ninja)
 rdc doctor                            # verify everything works
 ```
@@ -40,7 +40,7 @@ rdc doctor                            # verify everything works
 **PyPI — Windows** (experimental)
 
 ```bash
-pipx install rdc-cli
+uv tool install rdc-cli               # or: pipx install rdc-cli
 python scripts/build_renderdoc.py     # needs cmake + Visual Studio Build Tools
 rdc doctor
 ```
@@ -48,7 +48,7 @@ rdc doctor
 **PyPI — macOS** (Split client only)
 
 ```bash
-pipx install rdc-cli
+uv tool install rdc-cli               # or: pipx install rdc-cli
 # Local replay on macOS is not supported right now.
 # Use Split mode and run replay on a Linux/Windows daemon:
 #   rdc open /tmp/frame.rdc --listen 0.0.0.0:54321   # on replay host
@@ -70,8 +70,8 @@ yay -S rdc-cli        # stable: tracks tagged releases
 git clone https://github.com/BANANASJIM/rdc-cli.git
 cd rdc-cli
 pixi install && pixi run sync
-# Build renderdoc once (pixi installs toolchain on macOS automatically)
-pixi run setup-renderdoc
+pixi run install                      # editable install + shell completions
+pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain on macOS)
 ```
 
 ### Platform Support Matrix
@@ -151,9 +151,9 @@ rdc capture --output /tmp/game.rdc -- /path/to/game
 rdc open /tmp/game_frame0.rdc --listen 0.0.0.0:54321
 
 # On macOS client (no local renderdoc required)
-PYTHONPATH=src .venv/bin/rdc open --connect host:54321 --token TOKEN
-PYTHONPATH=src .venv/bin/rdc capture --output /tmp/mac_capture.rdc -- /usr/bin/vkcube
-PYTHONPATH=src .venv/bin/rdc remote capture /usr/bin/vkcube -o /tmp/mac_remote.rdc
+rdc open --connect host:54321 --token TOKEN
+rdc capture --output /tmp/mac_capture.rdc -- /usr/bin/vkcube
+rdc remote capture /usr/bin/vkcube -o /tmp/mac_remote.rdc
 rdc close --shutdown
 ```
 
