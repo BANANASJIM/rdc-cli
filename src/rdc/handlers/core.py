@@ -155,13 +155,6 @@ def _handle_file_read(
     ), True
 
 
-_handle_ping._no_replay = True  # type: ignore[attr-defined]
-_handle_status._no_replay = True  # type: ignore[attr-defined]
-_handle_goto._no_replay = True  # type: ignore[attr-defined]
-_handle_shutdown._no_replay = True  # type: ignore[attr-defined]
-_handle_count._no_replay = True  # type: ignore[attr-defined]
-_handle_file_read._no_replay = True  # type: ignore[attr-defined]
-
 HANDLERS: dict[str, Handler] = {
     "ping": _handle_ping,
     "status": _handle_status,

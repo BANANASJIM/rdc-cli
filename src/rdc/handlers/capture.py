@@ -188,12 +188,6 @@ def _handle_remote_capture(
     return _result_response(request_id, _serialize(result)), True
 
 
-_handle_capture_run._no_replay = True  # type: ignore[attr-defined]
-_handle_remote_connect._no_replay = True  # type: ignore[attr-defined]
-_handle_remote_list._no_replay = True  # type: ignore[attr-defined]
-_handle_remote_capture._no_replay = True  # type: ignore[attr-defined]
-
-
 HANDLERS: dict[str, Handler] = {
     "capture_run": _handle_capture_run,
     "remote_connect_run": _handle_remote_connect,
