@@ -82,6 +82,8 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
         "EID\tFRAG\tDEPTH\tPASSED\tFLAGS\n"
         + "\n".join(_fmt_pixel_mod(m) for m in r.get("modifications", []))
     ),
+    "pass_attachment": lambda r: format_kv(r),
+    "shader_used_by": lambda r: "\n".join(str(e) for e in r.get("eids", [])),
 }
 
 

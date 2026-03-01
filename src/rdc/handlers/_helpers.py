@@ -47,6 +47,7 @@ _LOG_SEVERITY_MAP: dict[int, str] = {0: "HIGH", 1: "MEDIUM", 2: "LOW", 3: "INFO"
 _VALID_LOG_LEVELS: set[str] = {*_LOG_SEVERITY_MAP.values(), "UNKNOWN"}
 
 _SHADER_PATH_RE = re.compile(r"^/draws/(\d+)/(?:shader|targets|bindings|cbuffer)(?:/|$)")
+_PASS_ATTACH_RE = re.compile(r"^/passes/([^/]+)/attachments(?:/|$)")
 
 
 def _result_response(request_id: int, result: dict[str, Any]) -> dict[str, Any]:
@@ -212,6 +213,7 @@ def _build_shader_cache(state: DaemonState) -> None:
             "stages": shader_stages[sid],
             "uses": len(shader_eids[sid]),
             "first_eid": shader_eids[sid][0],
+            "eids": shader_eids[sid],
             "entry": getattr(refl, "entryPoint", "main") if refl else "main",
             "inputs": len(getattr(refl, "readOnlyResources", [])) if refl else 0,
             "outputs": len(getattr(refl, "readWriteResources", [])) if refl else 0,
@@ -346,4 +348,34 @@ def _ensure_shader_populated(
         pipe = state.adapter.get_pipeline_state()  # type: ignore[union-attr]
         assert state.vfs_tree is not None
         populate_draw_subtree(state.vfs_tree, eid, pipe)
+    return None
+
+
+def _ensure_pass_attachments_populated(
+    request_id: int, path: str, state: DaemonState
+) -> dict[str, Any] | None:
+    """Trigger dynamic pass attachment subtree population if needed."""
+    m = _PASS_ATTACH_RE.match(path)
+    if m is None or state.vfs_tree is None:
+        return None
+    pass_name = m.group(1)
+    attach_path = f"/passes/{pass_name}/attachments"
+    node = state.vfs_tree.static.get(attach_path)
+    if node is None or node.children:
+        return None
+
+    safe_map = state.vfs_tree.pass_name_map
+    orig_name = safe_map.get(pass_name, pass_name)
+    pass_info = next((p for p in state.vfs_tree.pass_list if p["name"] == orig_name), None)
+    if pass_info is None:
+        return None
+
+    begin_eid = pass_info.get("begin_eid", 0)
+    err = _seek_replay(state, begin_eid)
+    if err:
+        return _error_response(request_id, -32002, err)
+    pipe = state.adapter.get_pipeline_state()  # type: ignore[union-attr]
+    from rdc.vfs.tree_cache import populate_pass_attachments
+
+    populate_pass_attachments(state.vfs_tree, pass_name, pipe)
     return None

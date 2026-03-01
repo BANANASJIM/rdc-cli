@@ -45,6 +45,7 @@ _DRAW_CHILDREN = [
     "vbuffer",
     "ibuffer",
     "descriptors",
+    "pixel",
 ]
 _PIPELINE_CHILDREN = [
     "summary",
@@ -64,7 +65,7 @@ _PIPELINE_CHILDREN = [
 ]
 _PASS_CHILDREN = ["info", "draws", "attachments"]
 _SHADER_STAGE_CHILDREN = ["disasm", "source", "reflect", "constants"]
-_SHADER_CHILDREN = ["info", "disasm"]
+_SHADER_CHILDREN = ["info", "disasm", "used-by"]
 
 
 @dataclass
@@ -171,6 +172,7 @@ def build_vfs_skeleton(
         tree.static[f"{prefix}/vbuffer"] = VfsNode("vbuffer", "leaf")
         tree.static[f"{prefix}/ibuffer"] = VfsNode("ibuffer", "leaf")
         tree.static[f"{prefix}/descriptors"] = VfsNode("descriptors", "leaf")
+        tree.static[f"{prefix}/pixel"] = VfsNode("pixel", "dir")
 
     # /passes — sanitize names containing "/" to avoid path corruption
     safe_pass_names = [n.replace("/", "_") for n in pass_names]
@@ -362,6 +364,32 @@ def populate_draw_subtree(
     return subtree
 
 
+def populate_pass_attachments(
+    tree: VfsTree,
+    pass_name: str,
+    pipe_state: Any,
+) -> None:
+    """Populate /passes/<name>/attachments/ with color and depth leaves."""
+    prefix = f"/passes/{pass_name}/attachments"
+    node = tree.static.get(prefix)
+    if node is None or node.children:
+        return
+
+    children: list[str] = []
+    for i, t in enumerate(pipe_state.GetOutputTargets()):
+        if int(t.resource) != 0:
+            name = f"color{i}"
+            children.append(name)
+            tree.static[f"{prefix}/{name}"] = VfsNode(name, "leaf")
+
+    depth = pipe_state.GetDepthTarget()
+    if int(depth.resource) != 0:
+        children.append("depth")
+        tree.static[f"{prefix}/depth"] = VfsNode("depth", "leaf")
+
+    node.children = list(children)
+
+
 def populate_shaders_subtree(tree: VfsTree, shader_meta: dict[int, dict[str, Any]]) -> None:
     """Populate /shaders/<id>/ dir nodes from shader metadata.
 
@@ -376,3 +404,4 @@ def populate_shaders_subtree(tree: VfsTree, shader_meta: dict[int, dict[str, Any
         tree.static[prefix] = VfsNode(str(sid), "dir", list(_SHADER_CHILDREN))
         tree.static[f"{prefix}/info"] = VfsNode("info", "leaf")
         tree.static[f"{prefix}/disasm"] = VfsNode("disasm", "leaf")
+        tree.static[f"{prefix}/used-by"] = VfsNode("used-by", "leaf")

@@ -112,6 +112,8 @@ _r(r"/draws/(?P<eid>\d+)/cbuffer/(?P<set>\d+)", "dir", None, [("eid", int), ("se
 _r(r"/draws/(?P<eid>\d+)/vbuffer", "leaf", "vbuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/ibuffer", "leaf", "ibuffer_decode", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/descriptors", "leaf", "descriptors", [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pixel", "dir", None, [("eid", int)])
+_r(r"/draws/(?P<eid>\d+)/pixel/(?P<x>\d+)", "dir", None, [("eid", int), ("x", int)])
 _r(
     r"/draws/(?P<eid>\d+)/pixel/(?P<x>\d+)/(?P<y>\d+)",
     "leaf",
@@ -149,6 +151,7 @@ _r(r"/passes/(?P<name>[^/]+)", "dir")
 _r(r"/passes/(?P<name>[^/]+)/info", "leaf", "pass")
 _r(r"/passes/(?P<name>[^/]+)/draws", "dir")
 _r(r"/passes/(?P<name>[^/]+)/attachments", "dir")
+_r(r"/passes/(?P<name>[^/]+)/attachments/(?P<attachment>[^/]+)", "leaf", "pass_attachment")
 
 # resources
 _r("/resources", "dir")
@@ -161,6 +164,7 @@ _r("/shaders", "dir")
 _r(r"/shaders/(?P<id>\d+)", "dir", None, [("id", int)])
 _r(r"/shaders/(?P<id>\d+)/info", "leaf", "shader_list_info", [("id", int)])
 _r(r"/shaders/(?P<id>\d+)/disasm", "leaf", "shader_list_disasm", [("id", int)])
+_r(r"/shaders/(?P<id>\d+)/used-by", "leaf", "shader_used_by", [("id", int)])
 _r("/by-marker", "dir")
 _r("/textures", "dir")
 _r(r"/textures/(?P<id>\d+)", "dir", None, [("id", int)])
