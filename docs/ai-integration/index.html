@@ -1,0 +1,81 @@
+<!DOCTYPE html><html lang="en" class="dark"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Pipe-friendly TSV output, JSON mode, 67 commands, daemon-backed session for interactive GPU capture exploration."><meta name="theme-color" content="#0a0e17"><link rel="icon" type="image/svg+xml" href="/rdc-cli/favicon.svg"><title>AI Agent Integration — rdc-cli</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><script>
+      // Apply saved mode before first paint to prevent FOUC
+      (function(){var m=localStorage.getItem('rdc-mode');if(m==='light'){document.documentElement.classList.add('light');document.documentElement.classList.remove('dark');}})();
+    </script><link rel="stylesheet" href="/rdc-cli/_astro/ai-integration.reMtq-hk.css"></head> <body class="min-h-screen">  <nav class="fixed top-0 w-full z-50 bg-gpu-dark/80 backdrop-blur-xl border-b border-gpu-border/50"> <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between"> <a href="/rdc-cli/" class="flex items-center gap-3 group"> <span class="font-mono font-bold text-lg text-gpu-accent group-hover:text-gpu-accent-dim transition-colors">
+rdc<span class="text-gray-500">-cli</span> </span> </a> <!-- Desktop nav --> <div class="hidden md:flex items-center gap-8"> <a href="/rdc-cli/docs/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Docs </a><a href="/rdc-cli/docs/commands/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Commands </a><a href="/rdc-cli/docs/examples/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Examples </a><a href="/rdc-cli/docs/install/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Install </a> <button id="theme-toggle" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Toggle light/dark mode"> <!-- Sun icon (shown in dark mode) --> <svg id="icon-sun" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <circle cx="12" cy="12" r="5"></circle> <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path> </svg> <!-- Moon icon (shown in light mode) --> <svg id="icon-moon" class="w-4.5 h-4.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <script type="module">const o=document.getElementById("theme-toggle"),n=document.getElementById("icon-sun"),c=document.getElementById("icon-moon");function t(e){document.documentElement.classList.toggle("light",e),document.documentElement.classList.toggle("dark",!e),n.classList.toggle("hidden",e),c.classList.toggle("hidden",!e),localStorage.setItem("rdc-mode",e?"light":"dark")}const d=localStorage.getItem("rdc-mode");d==="light"&&t(!0);o.addEventListener("click",()=>{t(!document.documentElement.classList.contains("light"))});</script> <a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-gpu-accent transition-colors" aria-label="GitHub"> <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"> <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"></path> </svg> </a> </div> <!-- Mobile: theme toggle + hamburger --> <div class="flex md:hidden items-center gap-3"> <button id="theme-toggle" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Toggle light/dark mode"> <!-- Sun icon (shown in dark mode) --> <svg id="icon-sun" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <circle cx="12" cy="12" r="5"></circle> <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path> </svg> <!-- Moon icon (shown in light mode) --> <svg id="icon-moon" class="w-4.5 h-4.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button>  <button id="mobile-menu-btn" class="text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Menu"> <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path> </svg> </button> </div> </div> <!-- Mobile menu --> <div id="mobile-menu" class="hidden md:hidden bg-gpu-dark/95 backdrop-blur-xl border-b border-gpu-border/50 px-6 py-4 space-y-2"> <a href="/rdc-cli/docs/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Docs</a><a href="/rdc-cli/docs/commands/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Commands</a><a href="/rdc-cli/docs/examples/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Examples</a><a href="/rdc-cli/docs/install/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Install</a> <a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">GitHub</a> </div> </nav> <script type="module">const e=document.getElementById("mobile-menu-btn"),n=document.getElementById("mobile-menu");e?.addEventListener("click",()=>n?.classList.toggle("hidden"));</script> <div class="pt-16 min-h-screen flex flex-col md:flex-row"> <!-- Mobile sidebar toggle --> <div class="md:hidden px-6 pt-4"> <button id="sidebar-toggle" class="flex items-center gap-2 text-sm text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer"> <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path> </svg>
+Navigation
+</button> <nav id="mobile-sidebar" class="hidden mt-3 space-y-1 pb-4 border-b border-gpu-border"> <a href="/rdc-cli/docs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Overview </a><a href="/rdc-cli/docs/install/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Installation </a><a href="/rdc-cli/docs/usage/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Usage Patterns </a><a href="/rdc-cli/docs/commands/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Commands </a><a href="/rdc-cli/docs/remote/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Remote &amp; Split </a><a href="/rdc-cli/docs/vfs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> VFS Paths </a><a href="/rdc-cli/docs/ai-integration/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gpu-accent bg-gpu-accent/10"> AI Agent Integration </a><a href="/rdc-cli/docs/design/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Design </a><a href="/rdc-cli/docs/examples/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Examples </a> </nav> </div> <!-- Desktop sidebar --> <aside class="hidden md:block w-64 shrink-0 border-r border-gpu-border bg-gpu-deeper/50 p-6 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto"> <nav class="space-y-1"> <a href="/rdc-cli/docs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Overview </a><a href="/rdc-cli/docs/install/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Installation </a><a href="/rdc-cli/docs/usage/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Usage Patterns </a><a href="/rdc-cli/docs/commands/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Commands </a><a href="/rdc-cli/docs/remote/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Remote &amp; Split </a><a href="/rdc-cli/docs/vfs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> VFS Paths </a><a href="/rdc-cli/docs/ai-integration/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gpu-accent bg-gpu-accent/10"> AI Agent Integration </a><a href="/rdc-cli/docs/design/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Design </a><a href="/rdc-cli/docs/examples/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Examples </a> </nav> </aside> <!-- Content --> <main class="flex-1 max-w-3xl mx-auto px-8 py-12"> <h1 class="text-4xl font-bold text-gray-100 mb-8">AI Agent Integration</h1> <div class="prose prose-invert prose-base max-w-none
+        prose-headings:text-gray-200 prose-headings:font-semibold
+        prose-a:text-gpu-accent prose-a:no-underline hover:prose-a:underline
+        prose-code:text-gpu-accent prose-code:bg-[#0a1525] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-[#060d18] prose-pre:border prose-pre:border-[#1e3050] prose-pre:rounded-xl
+        [&_pre_code]:p-0 [&_pre_code]:bg-transparent
+        prose-td:text-gray-400 prose-th:text-gray-300
+        prose-strong:text-gray-200
+        prose-li:text-gray-400
+      ">  <p>
+rdc-cli is designed from the ground up for AI agent consumption &mdash;
+    not just human users. Every command outputs machine-parseable TSV or JSON,
+    and the VFS path system lets agents explore captures without memorizing
+    command arguments.
+</p> <h2 id="claude-code-skill">Claude Code Skill</h2> <p>
+rdc-cli ships with a built-in Claude Code skill. After installing, Claude Code
+    auto-discovers rdc-cli commands and can open, inspect, and debug GPU captures
+    on your behalf.
+</p> <pre><code>rdc install-skill</code></pre> <p>
+This copies skill definition files to <code>~/.claude/skills/rdc-cli/</code>.
+    Once installed, Claude Code recognizes trigger phrases like:
+</p> <ul> <li><em>"open capture"</em>, <em>".rdc"</em>, <em>"renderdoc"</em></li> <li><em>"shader debug"</em>, <em>"pixel trace"</em></li> <li><em>"GPU state"</em>, <em>"draw calls"</em>, <em>"pipeline"</em></li> </ul> <h2 id="agent-friendly-design">Agent-Friendly Design</h2> <h3>VFS Path Navigation</h3> <p>
+The virtual filesystem lets agents explore capture structure iteratively.
+    Start broad with <code>rdc ls /</code> and drill down into specific draws,
+    shaders, and state &mdash; no need to know the exact command for each query.
+</p> <h3>Machine-Parseable Output</h3> <p>
+TSV output works with standard Unix tools. <code>--json</code> output works
+    with <code>jq</code> and any JSON parser. Metadata goes to stderr so stdout
+    is always clean data.
+</p> <h3>Stable Paths</h3> <p>
+Every piece of data has a deterministic path like
+<code>/draws/142/shader/ps</code>. Paths are stable across
+    sessions, so agents can build reliable scripts.
+</p> <h2 id="recommended-workflow">Recommended Agent Workflow</h2> <p>A typical agent session follows this pattern:</p> <pre><code># Open the capture
+rdc open capture.rdc
+
+# Discover structure
+rdc ls /
+
+# Find draw calls
+rdc draws
+
+# Explore a specific draw
+rdc ls /draws/142/
+
+# Read shader source
+rdc cat /draws/142/shader/ps
+
+# Check constant buffer values
+rdc shader 142 ps --constants
+
+# Done
+rdc close</code></pre> <h2 id="system-prompt">System Prompt Snippet</h2> <p>
+If you are building a custom AI agent that uses rdc-cli, include this
+    context in your system prompt:
+</p> <pre><code>You have access to rdc-cli, a Unix CLI for RenderDoc .rdc captures.
+
+Key commands:
+- rdc open &lt;file.rdc&gt;   Open a capture (starts daemon)
+- rdc ls [PATH]          Browse capture via VFS paths
+- rdc cat &lt;PATH&gt;         Read VFS leaf content
+- rdc draws              List draw calls
+- rdc pipeline &lt;EID&gt;     Show GPU pipeline state
+- rdc shader &lt;EID&gt; &lt;STAGE&gt; --source   Read shader code
+- rdc debug pixel &lt;EID&gt; &lt;X&gt; &lt;Y&gt;      Debug pixel shader
+- rdc close              Close session
+
+All commands support --json for structured output.
+VFS root: / (explore with ls, drill down with cat)
+Paths: /draws/&lt;EID&gt;/, /resources/&lt;ID&gt;/, /passes/&lt;N&gt;/</code></pre> <h2 id="tips">Tips for Agent Developers</h2> <ul> <li>Always use <code>--json</code> when parsing output programmatically</li> <li>Use <code>rdc count draws</code> to get counts without parsing lists</li> <li>Check <code>rdc status</code> before commands to verify a session is open</li> <li>Use <code>rdc doctor</code> to verify the environment is configured correctly</li> <li>The <code>rdc script</code> command runs arbitrary Python inside the daemon for advanced queries</li> </ul>  </div> </main> </div> <footer class="border-t border-gpu-border/50 bg-gpu-deeper/80"> <div class="max-w-6xl mx-auto px-6 py-16"> <div class="grid grid-cols-1 md:grid-cols-3 gap-8"> <div> <span class="font-mono font-bold text-gpu-accent">rdc<span class="text-gray-500">-cli</span></span> <p class="mt-3 text-sm text-gray-500">
+Unix-friendly CLI for RenderDoc captures.<br>
+Built for CI pipelines and AI agents.
+</p> </div> <div> <h4 class="text-sm font-semibold text-gray-300 mb-3">Links</h4> <ul class="space-y-2 text-sm text-gray-500"> <li><a href="/rdc-cli/docs/" class="hover:text-gpu-accent transition-colors">Documentation</a></li> <li><a href="/rdc-cli/docs/install/" class="hover:text-gpu-accent transition-colors">Installation</a></li> <li><a href="https://pypi.org/project/rdc-cli/" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">PyPI</a></li> </ul> </div> <div> <h4 class="text-sm font-semibold text-gray-300 mb-3">Community</h4> <ul class="space-y-2 text-sm text-gray-500"> <li><a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">GitHub</a></li> <li><a href="https://github.com/BANANASJIM/rdc-cli/issues" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">Issues</a></li> <li><a href="https://github.com/BANANASJIM/rdc-cli/blob/master/LICENSE" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">MIT License</a></li> </ul> </div> </div> <div class="mt-8 pt-6 border-t border-gpu-border text-center text-xs text-gray-500">
+MIT License &copy; 2026 rdc-cli contributors
+</div> </div> </footer>  </body></html> <script type="module">const e=document.getElementById("sidebar-toggle"),t=document.getElementById("mobile-sidebar");e?.addEventListener("click",()=>t?.classList.toggle("hidden"));</script>

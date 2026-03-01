@@ -1,0 +1,5275 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Unix-friendly CLI for RenderDoc .rdc captures">
+      
+      
+      
+        <link rel="canonical" href="https://bananasjim.github.io/rdc-cli/docs/cli-reference/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+    
+    
+      
+        <title>CLI Reference - rdc-cli</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="purple">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="rdc-cli" class="md-header__button md-logo" aria-label="rdc-cli" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            rdc-cli
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="purple"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="purple"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/BANANASJIM/rdc-cli" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BANANASJIM/rdc-cli
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="rdc-cli" class="md-nav__button md-logo" aria-label="rdc-cli" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    rdc-cli
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/BANANASJIM/rdc-cli" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BANANASJIM/rdc-cli
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rdc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rdc
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rdc">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#assert-clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-clean
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-pixel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attach
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bindings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bindings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#buffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        buffer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#callstacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        callstacks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture-copy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture-copy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture-list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture-trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#close" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        close
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        completion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        counters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debug" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        debug
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="debug">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pixel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vertex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vertex
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#doctor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        doctor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#draw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        draw
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#draws" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        draws
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#goto" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        goto
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gpus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gpus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        install-skill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        open
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        passes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pick-pixel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pick-pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pixel_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remote
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="remote">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#capture_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        connect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        script
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        search
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#section" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        section
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        serve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-encodings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-encodings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-replace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-replace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-restore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-restore-all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-restore-all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shaders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shaders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        snapshot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tex-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tex-stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#texture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        texture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thumbnail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thumbnail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tree
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rdc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rdc
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rdc">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#assert-clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-clean
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-pixel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        assert-state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#attach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        attach
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bindings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bindings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#buffer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        buffer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#callstacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        callstacks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture-copy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture-copy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture-list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#capture-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture-trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        cat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#close" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        close
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        completion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#count" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        count
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        counters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#debug" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        debug
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="debug">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pixel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thread
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vertex" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vertex
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#diff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        diff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#doctor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        doctor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#draw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        draw
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#draws" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        draws
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#goto" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        goto
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gpus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gpus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-skill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        install-skill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mesh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mesh
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        open
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#passes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        passes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pick-pixel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pick-pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pixel_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pixel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remote
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="remote">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#capture_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        capture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#connect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        connect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        list
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        rt
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        script
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        search
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#section" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        section
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        sections
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        serve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-encodings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-encodings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-replace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-replace
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-restore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shader-restore-all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shader-restore-all
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shaders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        shaders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#snapshot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        snapshot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tex-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tex-stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#texture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        texture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#thumbnail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        thumbnail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tree" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tree
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cli-reference">CLI Reference</h1>
+<h2 id="rdc">rdc</h2>
+<p>rdc: Unix-friendly CLI for RenderDoc captures.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc [OPTIONS] COMMAND [ARGS]...
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--version</code></td>
+<td>boolean</td>
+<td>Show the version and exit.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--session</code></td>
+<td>text</td>
+<td>Named session (default: value of $RDC_SESSION or 'default').</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="assert-clean">assert-clean</h3>
+<p>Assert capture log has no messages at or above given severity.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc assert-clean [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--min-severity</code></td>
+<td>choice (<code>HIGH</code> &#x7C; <code>MEDIUM</code> &#x7C; <code>LOW</code> &#x7C; <code>INFO</code>)</td>
+<td>Minimum severity threshold.</td>
+<td><code>HIGH</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="assert-count">assert-count</h3>
+<p>Assert a capture metric satisfies a numeric comparison.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc assert-count [OPTIONS] {draws|events|resources|triangles|passes|dispatches
+                 |clears|shaders}
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--expect</code></td>
+<td>integer</td>
+<td>Expected count value.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--op</code></td>
+<td>choice (<code>eq</code> &#x7C; <code>gt</code> &#x7C; <code>lt</code> &#x7C; <code>ge</code> &#x7C; <code>le</code>)</td>
+<td>Comparison operator.</td>
+<td><code>eq</code></td>
+</tr>
+<tr>
+<td><code>--pass</code></td>
+<td>text</td>
+<td>Filter by render pass name.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="assert-image">assert-image</h3>
+<p>Compare two images pixel-by-pixel.</p>
+<p>Exit 0 if images match (within threshold), exit 1 if they differ,
+exit 2 on error (size mismatch, invalid image).</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc assert-image [OPTIONS] EXPECTED ACTUAL
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--threshold</code></td>
+<td>float</td>
+<td>Diff ratio threshold (%).</td>
+<td><code>0.0</code></td>
+</tr>
+<tr>
+<td><code>--diff-output</code></td>
+<td>file</td>
+<td>Write diff visualization PNG.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="assert-pixel">assert-pixel</h3>
+<p>Assert pixel RGBA at (x, y) matches expected value within tolerance.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc assert-pixel [OPTIONS] EID X Y
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--expect</code></td>
+<td>text</td>
+<td>Expected RGBA as 4 space-separated floats.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--tolerance</code></td>
+<td>float</td>
+<td>Per-channel tolerance.</td>
+<td><code>0.01</code></td>
+</tr>
+<tr>
+<td><code>--target</code></td>
+<td>integer</td>
+<td>Render target index.</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="assert-state">assert-state</h3>
+<p>Assert pipeline state value at EID matches expected.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc assert-state [OPTIONS] EID KEY_PATH
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--expect</code></td>
+<td>text</td>
+<td>Expected value.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="attach">attach</h3>
+<p>Attach to a running RenderDoc target by ident.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc attach [OPTIONS] IDENT
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td>Target host.</td>
+<td><code>localhost</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="bindings">bindings</h3>
+<p>Show bound resources per shader stage.</p>
+<p>EID is the event ID. Use --binding to filter by slot, --set to filter by descriptor set.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc bindings [OPTIONS] [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--binding</code></td>
+<td>integer</td>
+<td>Filter by binding index.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--set</code></td>
+<td>integer</td>
+<td>Filter by descriptor set index.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="buffer">buffer</h3>
+<p>Export buffer raw data.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc buffer [OPTIONS] ID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Write to file</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--raw</code></td>
+<td>boolean</td>
+<td>Force raw output even on TTY</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="callstacks">callstacks</h3>
+<p>Resolve CPU callstack for an event.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc callstacks [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--eid</code></td>
+<td>integer</td>
+<td>Event ID (defaults to current).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture">capture</h3>
+<p>Execute application and capture a frame.</p>
+<p>Usage: rdc capture [OPTIONS] -- EXECUTABLE [APP_ARGS...]</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc capture [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Output .rdc file path.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--api</code></td>
+<td>text</td>
+<td>Capture API name.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--list-apis</code></td>
+<td>boolean</td>
+<td>List capture APIs and exit.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--frame</code></td>
+<td>integer</td>
+<td>Queue capture at frame N.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--trigger</code></td>
+<td>boolean</td>
+<td>Inject only; do not auto-capture.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--timeout</code></td>
+<td>float</td>
+<td>Capture timeout in seconds.</td>
+<td><code>60.0</code></td>
+</tr>
+<tr>
+<td><code>--wait-for-exit</code></td>
+<td>boolean</td>
+<td>Wait for process to exit.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--keep-alive</code></td>
+<td>boolean</td>
+<td>Keep target process running after capture.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--auto-open</code></td>
+<td>boolean</td>
+<td>Open capture after success.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--api-validation</code></td>
+<td>boolean</td>
+<td>Enable API validation.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--callstacks</code></td>
+<td>boolean</td>
+<td>Capture callstacks.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--hook-children</code></td>
+<td>boolean</td>
+<td>Hook child processes.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--ref-all-resources</code></td>
+<td>boolean</td>
+<td>Reference all resources.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--soft-memory-limit</code></td>
+<td>integer</td>
+<td>Soft memory limit (MB).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--delay-for-debugger</code></td>
+<td>integer</td>
+<td>Debugger attach delay (s).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture-copy">capture-copy</h3>
+<p>Copy a capture from the target to a local path.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc capture-copy [OPTIONS] CAPTURE_ID DEST
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--ident</code></td>
+<td>integer</td>
+<td>Target ident (default: most recent).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td>Target host.</td>
+<td><code>localhost</code></td>
+</tr>
+<tr>
+<td><code>--timeout</code></td>
+<td>float</td>
+<td>Timeout in seconds.</td>
+<td><code>30.0</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture-list">capture-list</h3>
+<p>List captures from the attached target.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc capture-list [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--ident</code></td>
+<td>integer</td>
+<td>Target ident (default: most recent).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td>Target host.</td>
+<td><code>localhost</code></td>
+</tr>
+<tr>
+<td><code>--timeout</code></td>
+<td>float</td>
+<td>Timeout in seconds.</td>
+<td><code>5.0</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="capture-trigger">capture-trigger</h3>
+<p>Trigger a capture on the attached target.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc capture-trigger [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--ident</code></td>
+<td>integer</td>
+<td>Target ident (default: most recent).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td>Target host.</td>
+<td><code>localhost</code></td>
+</tr>
+<tr>
+<td><code>--num-frames</code></td>
+<td>integer</td>
+<td>Number of frames to capture.</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cat">cat</h3>
+<p>Output VFS leaf node content.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc cat [OPTIONS] PATH
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--raw</code></td>
+<td>boolean</td>
+<td>Force raw output even on TTY</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Write binary output to file</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="close">close</h3>
+<p>Close daemon-backed session.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc close [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--shutdown</code></td>
+<td>boolean</td>
+<td>Send shutdown RPC to daemon.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="completion">completion</h3>
+<p>Generate shell completion script.</p>
+<p>Prints the completion script to stdout. Redirect or eval as needed.</p>
+<p>Examples:
+    rdc completion bash &gt; ~/.local/share/bash-completion/completions/rdc
+    rdc completion zsh &gt; ~/.zfunc/_rdc
+    eval "$(rdc completion bash)"</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc completion [OPTIONS] [[bash|zsh|fish]]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="count">count</h3>
+<p>Output a single integer count to stdout.</p>
+<p>Targets: draws, events, resources, triangles, passes, dispatches, clears, shaders.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc count [OPTIONS]
+          {draws|events|resources|triangles|passes|dispatches|clears|shaders}
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--pass</code></td>
+<td>text</td>
+<td>Filter by render pass name.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="counters">counters</h3>
+<p>Query GPU performance counters.</p>
+<p>Use --list to enumerate available counters, or run without --list
+to fetch counter values for all draw events.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc counters [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--list</code></td>
+<td>boolean</td>
+<td>List available counters.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--eid</code></td>
+<td>integer</td>
+<td>Filter to specific event ID.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--name</code></td>
+<td>text</td>
+<td>Filter counters by name substring.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="debug">debug</h3>
+<p>Debug shader execution (pixel, vertex, or compute thread trace).</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc debug [OPTIONS] COMMAND [ARGS]...
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="pixel">pixel</h4>
+<p>Debug pixel shader at (X, Y) for event EID.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc debug pixel [OPTIONS] EID X Y
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--trace</code></td>
+<td>boolean</td>
+<td>Full execution trace (TSV)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--dump-at</code></td>
+<td>integer</td>
+<td>Var snapshot at LINE</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--sample</code></td>
+<td>integer</td>
+<td>MSAA sample index</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--primitive</code></td>
+<td>integer</td>
+<td>Primitive ID override</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Suppress TSV header row</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="thread">thread</h4>
+<p>Debug compute shader thread at workgroup (GX,GY,GZ) thread (TX,TY,TZ).</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc debug thread [OPTIONS] EID GX GY GZ TX TY TZ
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--trace</code></td>
+<td>boolean</td>
+<td>Full execution trace (TSV)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--dump-at</code></td>
+<td>integer</td>
+<td>Var snapshot at LINE</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Suppress TSV header row</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="vertex">vertex</h4>
+<p>Debug vertex shader for vertex VTX_ID at event EID.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc debug vertex [OPTIONS] EID VTX_ID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--trace</code></td>
+<td>boolean</td>
+<td>Full execution trace (TSV)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--dump-at</code></td>
+<td>integer</td>
+<td>Var snapshot at LINE</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--instance</code></td>
+<td>integer</td>
+<td>Instance index (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Suppress TSV header row</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="diff">diff</h3>
+<p>Compare two RenderDoc captures side-by-side.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc diff [OPTIONS] CAPTURE_A CAPTURE_B
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--draws</code></td>
+<td>text</td>
+<td>N/A</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--resources</code></td>
+<td>text</td>
+<td>N/A</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--passes</code></td>
+<td>text</td>
+<td>N/A</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--stats</code></td>
+<td>text</td>
+<td>N/A</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--framebuffer</code></td>
+<td>text</td>
+<td>N/A</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--pipeline</code></td>
+<td>text</td>
+<td>N/A</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>N/A</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--format</code></td>
+<td>choice (<code>tsv</code> &#x7C; <code>unified</code> &#x7C; <code>json</code>)</td>
+<td>N/A</td>
+<td><code>tsv</code></td>
+</tr>
+<tr>
+<td><code>--shortstat</code></td>
+<td>boolean</td>
+<td>N/A</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>N/A</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--verbose</code></td>
+<td>boolean</td>
+<td>N/A</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--timeout</code></td>
+<td>float</td>
+<td>N/A</td>
+<td><code>60.0</code></td>
+</tr>
+<tr>
+<td><code>--target</code></td>
+<td>integer</td>
+<td>Color target index (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--threshold</code></td>
+<td>float</td>
+<td>Max diff ratio %% to count as identical</td>
+<td><code>0.0</code></td>
+</tr>
+<tr>
+<td><code>--eid</code></td>
+<td>integer</td>
+<td>Compare at specific EID (default: last draw)</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--diff-output</code></td>
+<td>path</td>
+<td>Write diff PNG here</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="doctor">doctor</h3>
+<p>Run environment checks for rdc-cli.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc doctor [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="draw">draw</h3>
+<p>Show draw call detail.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc draw [OPTIONS] [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="draws">draws</h3>
+<p>List draw calls.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc draws [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--pass</code></td>
+<td>text</td>
+<td>Filter by pass name</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--sort</code></td>
+<td>text</td>
+<td>Sort field</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--limit</code></td>
+<td>integer</td>
+<td>Max rows</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Only EID column</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="event">event</h3>
+<p>Show single API call detail.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc event [OPTIONS] EID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="events">events</h3>
+<p>List all events.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc events [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--type</code></td>
+<td>text</td>
+<td>Filter by type</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--filter</code></td>
+<td>text</td>
+<td>Filter by name glob</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--limit</code></td>
+<td>integer</td>
+<td>Max rows</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--range</code></td>
+<td>text</td>
+<td>EID range N:M</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Only EID column</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="goto">goto</h3>
+<p>Update current event id via daemon.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc goto [OPTIONS] EID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="gpus">gpus</h3>
+<p>List GPUs available at capture time.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc gpus [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="info">info</h3>
+<p>Show capture metadata.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc info [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="install-skill">install-skill</h3>
+<p>Install rdc-cli skill files to ~/.claude/skills/rdc-cli/.</p>
+<p>Copies the bundled SKILL.md and command reference so Claude Code
+can discover rdc-cli globally.</p>
+<p>Examples:
+    rdc install-skill            # install / update
+    rdc install-skill --check    # verify freshness
+    rdc install-skill --remove   # uninstall</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc install-skill [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--check</code></td>
+<td>boolean</td>
+<td>Verify installed files are current.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--remove</code></td>
+<td>boolean</td>
+<td>Remove installed skill files.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="log">log</h3>
+<p>Show debug/validation messages from the capture.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc log [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--level</code></td>
+<td>choice (<code>HIGH</code> &#x7C; <code>MEDIUM</code> &#x7C; <code>LOW</code> &#x7C; <code>INFO</code> &#x7C; <code>UNKNOWN</code>)</td>
+<td>Filter by severity.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--eid</code></td>
+<td>integer</td>
+<td>Filter by event ID.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="ls">ls</h3>
+<p>List VFS directory contents.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc ls [OPTIONS] [PATH]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-F</code>, <code>--classify</code></td>
+<td>boolean</td>
+<td>Append type indicator (/ * @)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-l</code>, <code>--long</code></td>
+<td>boolean</td>
+<td>Long format (TSV with metadata)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header (with -l)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output (with -l)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print name only (with -l)</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="mesh">mesh</h3>
+<p>Export post-transform mesh as OBJ.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc mesh [OPTIONS] [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stage</code></td>
+<td>choice (<code>vs-out</code> &#x7C; <code>gs-out</code>)</td>
+<td>Mesh data stage (default: vs-out)</td>
+<td><code>vs-out</code></td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Write to file</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Suppress OBJ header comment</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="open">open</h3>
+<p>Create local default session and start daemon skeleton.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc open [OPTIONS] [CAPTURE]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--preload</code></td>
+<td>boolean</td>
+<td>Preload shader cache after open.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--proxy</code></td>
+<td>text</td>
+<td>Proxy host[:port] for remote replay.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--listen</code></td>
+<td>text</td>
+<td>Listen on [ADDR]:PORT. Use :0 for auto-port on all interfaces.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--connect</code></td>
+<td>text</td>
+<td>Connect to an already-running external daemon.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--token</code></td>
+<td>text</td>
+<td>Authentication token (required with --connect).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pass">pass</h3>
+<p>Show detail for a single render pass by 0-based index or name.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc pass [OPTIONS] IDENTIFIER
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="passes">passes</h3>
+<p>List render passes.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc passes [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--deps</code></td>
+<td>boolean</td>
+<td>Show pass dependency DAG.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--dot</code></td>
+<td>boolean</td>
+<td>Graphviz DOT output (requires --deps).</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--graph</code></td>
+<td>boolean</td>
+<td>Human-readable graph (requires --deps).</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pick-pixel">pick-pixel</h3>
+<p>Read pixel color at (X, Y) from the current render target.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc pick-pixel [OPTIONS] X Y [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--target</code></td>
+<td>integer</td>
+<td>Color target index (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pipeline">pipeline</h3>
+<p>Show pipeline summary for current or specified EID.</p>
+<p>EID is the event ID. SECTION is optional (e.g., 'vs', 'ps', 'topology', 'blend').</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc pipeline [OPTIONS] [EID] [SECTION]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pixel_1">pixel</h3>
+<p>Query pixel history at (X, Y) for the current or specified event.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc pixel [OPTIONS] X Y [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--target</code></td>
+<td>integer</td>
+<td>Color target index (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--sample</code></td>
+<td>integer</td>
+<td>MSAA sample index (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="remote">remote</h3>
+<p>Remote RenderDoc server commands.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc remote [OPTIONS] COMMAND [ARGS]...
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="capture_1">capture</h4>
+<p>Capture on a remote host and transfer to local.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc remote capture [OPTIONS] APP
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Local output path.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--url</code></td>
+<td>text</td>
+<td>Override saved remote (host:port).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--args</code></td>
+<td>text</td>
+<td>Arguments for remote app.</td>
+<td>``</td>
+</tr>
+<tr>
+<td><code>--workdir</code></td>
+<td>text</td>
+<td>Remote working directory.</td>
+<td>``</td>
+</tr>
+<tr>
+<td><code>--frame</code></td>
+<td>integer</td>
+<td>Queue capture at frame N.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--timeout</code></td>
+<td>float</td>
+<td>Capture timeout in seconds.</td>
+<td><code>60.0</code></td>
+</tr>
+<tr>
+<td><code>--api-validation</code></td>
+<td>boolean</td>
+<td>Enable API validation.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--callstacks</code></td>
+<td>boolean</td>
+<td>Capture callstacks.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--hook-children</code></td>
+<td>boolean</td>
+<td>Hook child processes.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--ref-all-resources</code></td>
+<td>boolean</td>
+<td>Reference all resources.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--soft-memory-limit</code></td>
+<td>integer</td>
+<td>Soft memory limit (MB).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--keep-remote</code></td>
+<td>boolean</td>
+<td>Skip transfer; print remote path for use with 'rdc open --remote'.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="connect">connect</h4>
+<p>Connect to a remote RenderDoc server.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc remote connect [OPTIONS] URL
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="list">list</h4>
+<p>List capturable applications on a remote host.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc remote list [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--url</code></td>
+<td>text</td>
+<td>Override saved remote (host:port).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="resource">resource</h3>
+<p>Show details of a specific resource.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc resource [OPTIONS] RESID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="resources">resources</h3>
+<p>List all resources.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc resources [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--type</code></td>
+<td>text</td>
+<td>Filter by resource type (exact, case-insensitive).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--name</code></td>
+<td>text</td>
+<td>Filter by name substring (case-insensitive).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--sort</code></td>
+<td>choice (<code>id</code> &#x7C; <code>name</code> &#x7C; <code>type</code>)</td>
+<td>Sort order.</td>
+<td><code>id</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="rt">rt</h3>
+<p>Export render target as PNG.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc rt [OPTIONS] [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Write to file</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--target</code></td>
+<td>integer</td>
+<td>Color target index (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--raw</code></td>
+<td>boolean</td>
+<td>Force raw output even on TTY</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--overlay</code></td>
+<td>choice (<code>wireframe</code> &#x7C; <code>depth</code> &#x7C; <code>stencil</code> &#x7C; <code>backface</code> &#x7C; <code>viewport</code> &#x7C; <code>nan</code> &#x7C; <code>clipping</code> &#x7C; <code>overdraw</code> &#x7C; <code>triangle-size</code>)</td>
+<td>Render with debug overlay</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--width</code></td>
+<td>integer</td>
+<td>Overlay render width</td>
+<td><code>256</code></td>
+</tr>
+<tr>
+<td><code>--height</code></td>
+<td>integer</td>
+<td>Overlay render height</td>
+<td><code>256</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="script">script</h3>
+<p>Execute a Python script inside the daemon process.</p>
+<p>The script runs with these variables pre-injected:</p>
+<p>controller  ReplayController instance (live replay session)
+  rd          renderdoc module (enums, types, helpers)
+  adapter     RenderDocAdapter instance (high-level wrapper)
+  state       DaemonState object (capture metadata, caches)
+  args        dict of --arg KEY=VALUE arguments</p>
+<p>Assign to <code>result</code> to return structured data.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc script [OPTIONS] SCRIPT_FILE
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--arg</code></td>
+<td>text</td>
+<td>Script argument.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Raw JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="search">search</h3>
+<p>Search shader disassembly text for PATTERN (regex).</p>
+<p>Searches across all unique shaders in the capture. Case-insensitive by
+default; use --case-sensitive to enable exact case matching.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc search [OPTIONS] PATTERN
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stage</code></td>
+<td>text</td>
+<td>Filter by stage (vs/ps/cs/...).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--limit</code></td>
+<td>integer</td>
+<td>Max results.</td>
+<td><code>200</code></td>
+</tr>
+<tr>
+<td><code>-C</code>, <code>--context</code></td>
+<td>integer</td>
+<td>Context lines.</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--case-sensitive</code></td>
+<td>boolean</td>
+<td>Case-sensitive search.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="section">section</h3>
+<p>Extract or write named section contents.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc section [OPTIONS] NAME
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--write</code></td>
+<td>path</td>
+<td>Write file contents as this section (use '-' for stdin).</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sections">sections</h3>
+<p>List all embedded sections.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc sections [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="serve">serve</h3>
+<p>Launch renderdoccmd remoteserver for remote replay.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc serve [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--port</code></td>
+<td>integer</td>
+<td>Listen port.</td>
+<td><code>39920</code></td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td>Bind address.</td>
+<td><code>0.0.0.0</code></td>
+</tr>
+<tr>
+<td><code>--allow-ips</code></td>
+<td>text</td>
+<td>Comma-separated CIDR whitelist written to remoteserver.conf.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--no-exec</code></td>
+<td>boolean</td>
+<td>Add 'noexec' to config (replay-only).</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--daemon</code></td>
+<td>boolean</td>
+<td>Detach after printing PID.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader">shader</h3>
+<p>Show shader metadata for a stage at EID.</p>
+<p>Positional forms: <code>shader [STAGE]</code> or <code>shader [EID] [STAGE]</code>.
+EID is the event ID. STAGE is one of <code>vs/hs/ds/gs/ps/cs</code>.
+Use --all to get data for all stages.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader [OPTIONS] [EID|STAGE] [STAGE]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--reflect</code></td>
+<td>boolean</td>
+<td>Include reflection data (inputs/outputs/cbuffers).</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--constants</code></td>
+<td>boolean</td>
+<td>Include constant buffer values.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--source</code></td>
+<td>boolean</td>
+<td>Include debug source code.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--target</code></td>
+<td>text</td>
+<td>Disassembly target format (e.g., 'dxil', 'spirv', 'glsl').</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--targets</code></td>
+<td>boolean</td>
+<td>List available disassembly targets.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Output file path.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--all</code></td>
+<td>boolean</td>
+<td>Get all shader data for all stages.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader-build">shader-build</h3>
+<p>Build a shader from source file.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader-build [OPTIONS] SOURCE_FILE
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stage</code></td>
+<td>choice (<code>vs</code> &#x7C; <code>hs</code> &#x7C; <code>ds</code> &#x7C; <code>gs</code> &#x7C; <code>ps</code> &#x7C; <code>cs</code>)</td>
+<td>Shader stage</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--entry</code></td>
+<td>text</td>
+<td>Entry point name</td>
+<td><code>main</code></td>
+</tr>
+<tr>
+<td><code>--encoding</code></td>
+<td>text</td>
+<td>Encoding name (default: GLSL)</td>
+<td><code>GLSL</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print only shader_id</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader-encodings">shader-encodings</h3>
+<p>List available shader encodings for this capture.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader-encodings [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader-map">shader-map</h3>
+<p>Output EID-to-shader mapping as TSV.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader-map [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header row.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print EID column only.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader-replace">shader-replace</h3>
+<p>Replace shader at EID/STAGE with a built shader.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader-replace [OPTIONS] EID {vs|hs|ds|gs|ps|cs}
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--with</code></td>
+<td>integer</td>
+<td>Built shader ID from shader-build</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader-restore">shader-restore</h3>
+<p>Restore original shader at EID/STAGE.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader-restore [OPTIONS] EID {vs|hs|ds|gs|ps|cs}
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shader-restore-all">shader-restore-all</h3>
+<p>Restore all replaced shaders and free built resources.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shader-restore-all [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shaders">shaders</h3>
+<p>List unique shaders in capture.</p>
+<p>Use --stage to filter by stage, --sort to change sort order.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc shaders [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stage</code></td>
+<td>choice (<code>vs</code> &#x7C; <code>hs</code> &#x7C; <code>ds</code> &#x7C; <code>gs</code> &#x7C; <code>ps</code> &#x7C; <code>cs</code>)</td>
+<td>Filter by shader stage.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--sort</code></td>
+<td>choice (<code>name</code> &#x7C; <code>stage</code> &#x7C; <code>uses</code>)</td>
+<td>Sort order.</td>
+<td><code>name</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="snapshot">snapshot</h3>
+<p>Export a complete rendering state snapshot for a draw event.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc snapshot [OPTIONS] EID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Output directory</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="stats">stats</h3>
+<p>Show per-pass breakdown, top draws, largest resources.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc stats [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="status">status</h3>
+<p>Show current daemon-backed session status.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc status [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="tex-stats">tex-stats</h3>
+<p>Show texture min/max statistics and optional histogram.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc tex-stats [OPTIONS] RESOURCE_ID [EID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--mip</code></td>
+<td>integer</td>
+<td>Mip level (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--slice</code></td>
+<td>integer</td>
+<td>Array slice (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--histogram</code></td>
+<td>boolean</td>
+<td>Show 256-bucket histogram</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="texture">texture</h3>
+<p>Export texture as PNG.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc texture [OPTIONS] ID
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Write to file</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--mip</code></td>
+<td>integer</td>
+<td>Mip level (default 0)</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>--raw</code></td>
+<td>boolean</td>
+<td>Force raw output even on TTY</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="thumbnail">thumbnail</h3>
+<p>Export capture thumbnail.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc thumbnail [OPTIONS]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--maxsize</code></td>
+<td>integer</td>
+<td>Max thumbnail dimension.</td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--output</code></td>
+<td>path</td>
+<td>Write image to file.</td>
+<td><code>Sentinel.UNSET</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="tree">tree</h3>
+<p>Display VFS subtree structure.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc tree [OPTIONS] [PATH]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--depth</code></td>
+<td>integer range (between <code>1</code> and <code>8</code>)</td>
+<td>N/A</td>
+<td><code>2</code></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="usage">usage</h3>
+<p>Show resource usage (which events read/write a resource).</p>
+<p>Provide a RESOURCE_ID to query a single resource, or use --all for
+the full cross-resource usage matrix.</p>
+<p><strong>Usage:</strong></p>
+<pre><code class="language-text">rdc usage [OPTIONS] [RESOURCE_ID]
+</code></pre>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--all</code></td>
+<td>boolean</td>
+<td>Show all resources usage matrix.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--type</code></td>
+<td>text</td>
+<td>Filter by resource type.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--usage</code></td>
+<td>text</td>
+<td>Filter by usage type.</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>JSON output.</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>boolean</td>
+<td>Omit TSV header</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--jsonl</code></td>
+<td>boolean</td>
+<td>JSONL output</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>-q</code>, <code>--quiet</code></td>
+<td>boolean</td>
+<td>Print primary key column only</td>
+<td><code>False</code></td>
+</tr>
+<tr>
+<td><code>--help</code>, <code>-h</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.tabs", "content.code.copy", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

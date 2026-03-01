@@ -1,0 +1,347 @@
+<!DOCTYPE html><html lang="en" class="dark"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Pipe-friendly TSV output, JSON mode, 67 commands, daemon-backed session for interactive GPU capture exploration."><meta name="theme-color" content="#0a0e17"><link rel="icon" type="image/svg+xml" href="/rdc-cli/favicon.svg"><title>Examples — rdc-cli</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><script>
+      // Apply saved mode before first paint to prevent FOUC
+      (function(){var m=localStorage.getItem('rdc-mode');if(m==='light'){document.documentElement.classList.add('light');document.documentElement.classList.remove('dark');}})();
+    </script><link rel="stylesheet" href="/rdc-cli/_astro/ai-integration.reMtq-hk.css"></head> <body class="min-h-screen">  <nav class="fixed top-0 w-full z-50 bg-gpu-dark/80 backdrop-blur-xl border-b border-gpu-border/50"> <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between"> <a href="/rdc-cli/" class="flex items-center gap-3 group"> <span class="font-mono font-bold text-lg text-gpu-accent group-hover:text-gpu-accent-dim transition-colors">
+rdc<span class="text-gray-500">-cli</span> </span> </a> <!-- Desktop nav --> <div class="hidden md:flex items-center gap-8"> <a href="/rdc-cli/docs/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Docs </a><a href="/rdc-cli/docs/commands/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Commands </a><a href="/rdc-cli/docs/examples/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Examples </a><a href="/rdc-cli/docs/install/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Install </a> <button id="theme-toggle" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Toggle light/dark mode"> <!-- Sun icon (shown in dark mode) --> <svg id="icon-sun" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <circle cx="12" cy="12" r="5"></circle> <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path> </svg> <!-- Moon icon (shown in light mode) --> <svg id="icon-moon" class="w-4.5 h-4.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <script type="module">const o=document.getElementById("theme-toggle"),n=document.getElementById("icon-sun"),c=document.getElementById("icon-moon");function t(e){document.documentElement.classList.toggle("light",e),document.documentElement.classList.toggle("dark",!e),n.classList.toggle("hidden",e),c.classList.toggle("hidden",!e),localStorage.setItem("rdc-mode",e?"light":"dark")}const d=localStorage.getItem("rdc-mode");d==="light"&&t(!0);o.addEventListener("click",()=>{t(!document.documentElement.classList.contains("light"))});</script> <a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-gpu-accent transition-colors" aria-label="GitHub"> <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"> <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"></path> </svg> </a> </div> <!-- Mobile: theme toggle + hamburger --> <div class="flex md:hidden items-center gap-3"> <button id="theme-toggle" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Toggle light/dark mode"> <!-- Sun icon (shown in dark mode) --> <svg id="icon-sun" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <circle cx="12" cy="12" r="5"></circle> <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path> </svg> <!-- Moon icon (shown in light mode) --> <svg id="icon-moon" class="w-4.5 h-4.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button>  <button id="mobile-menu-btn" class="text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Menu"> <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path> </svg> </button> </div> </div> <!-- Mobile menu --> <div id="mobile-menu" class="hidden md:hidden bg-gpu-dark/95 backdrop-blur-xl border-b border-gpu-border/50 px-6 py-4 space-y-2"> <a href="/rdc-cli/docs/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Docs</a><a href="/rdc-cli/docs/commands/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Commands</a><a href="/rdc-cli/docs/examples/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Examples</a><a href="/rdc-cli/docs/install/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Install</a> <a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">GitHub</a> </div> </nav> <script type="module">const e=document.getElementById("mobile-menu-btn"),n=document.getElementById("mobile-menu");e?.addEventListener("click",()=>n?.classList.toggle("hidden"));</script> <div class="pt-16 min-h-screen flex flex-col md:flex-row"> <!-- Mobile sidebar toggle --> <div class="md:hidden px-6 pt-4"> <button id="sidebar-toggle" class="flex items-center gap-2 text-sm text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer"> <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path> </svg>
+Navigation
+</button> <nav id="mobile-sidebar" class="hidden mt-3 space-y-1 pb-4 border-b border-gpu-border"> <a href="/rdc-cli/docs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Overview </a><a href="/rdc-cli/docs/install/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Installation </a><a href="/rdc-cli/docs/usage/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Usage Patterns </a><a href="/rdc-cli/docs/commands/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Commands </a><a href="/rdc-cli/docs/remote/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Remote &amp; Split </a><a href="/rdc-cli/docs/vfs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> VFS Paths </a><a href="/rdc-cli/docs/ai-integration/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> AI Agent Integration </a><a href="/rdc-cli/docs/design/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Design </a><a href="/rdc-cli/docs/examples/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gpu-accent bg-gpu-accent/10"> Examples </a> </nav> </div> <!-- Desktop sidebar --> <aside class="hidden md:block w-64 shrink-0 border-r border-gpu-border bg-gpu-deeper/50 p-6 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto"> <nav class="space-y-1"> <a href="/rdc-cli/docs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Overview </a><a href="/rdc-cli/docs/install/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Installation </a><a href="/rdc-cli/docs/usage/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Usage Patterns </a><a href="/rdc-cli/docs/commands/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Commands </a><a href="/rdc-cli/docs/remote/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Remote &amp; Split </a><a href="/rdc-cli/docs/vfs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> VFS Paths </a><a href="/rdc-cli/docs/ai-integration/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> AI Agent Integration </a><a href="/rdc-cli/docs/design/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Design </a><a href="/rdc-cli/docs/examples/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gpu-accent bg-gpu-accent/10"> Examples </a> </nav> </aside> <!-- Content --> <main class="flex-1 max-w-3xl mx-auto px-8 py-12"> <h1 class="text-4xl font-bold text-gray-100 mb-8">Examples</h1> <div class="prose prose-invert prose-base max-w-none
+        prose-headings:text-gray-200 prose-headings:font-semibold
+        prose-a:text-gpu-accent prose-a:no-underline hover:prose-a:underline
+        prose-code:text-gpu-accent prose-code:bg-[#0a1525] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-[#060d18] prose-pre:border prose-pre:border-[#1e3050] prose-pre:rounded-xl
+        [&_pre_code]:p-0 [&_pre_code]:bg-transparent
+        prose-td:text-gray-400 prose-th:text-gray-300
+        prose-strong:text-gray-200
+        prose-li:text-gray-400
+      ">  <p>
+Real-world workflow recipes for common rdc-cli tasks. Each example
+    assumes a daemon session is running (<code>rdc open capture.rdc</code>).
+</p> <h2 id="basic-analysis">Basic Capture Analysis</h2> <pre><code>rdc open scene.rdc
+rdc info                        # API, GPU, driver
+rdc stats                       # per-pass breakdown
+rdc draws --limit 10            # top draw calls
+rdc close</code></pre> <h2 id="quick-metrics">Quick Metrics with count</h2> <pre><code># How many events / draws / shaders / resources / passes?
+rdc count events
+rdc count draws
+rdc count shaders
+rdc count resources
+rdc count passes</code></pre> <h2 id="output-formats">Output Format Cheatsheet</h2> <pre><code># Default TSV — pipe into sort, awk, cut
+rdc draws
+
+# JSON — for jq processing
+rdc draws --json
+
+# Streaming JSONL — one object per line, good for large lists
+rdc events --jsonl
+
+# No header — cleaner for awk/cut scripts
+rdc draws --no-header
+
+# Quiet — IDs only, great for xargs loops
+rdc draws -q
+# → 11
+14
+19
+
+# Combine: export all draw render targets
+for eid in $(rdc draws -q); do
+  rdc rt "$eid" -o "rt_$${eid}.png"
+done</code></pre> <h2 id="heaviest-draw">Find the Heaviest Draw Call</h2> <pre><code># TSV approach
+rdc draws --sort tri_count | tail -1
+
+# JSON approach
+rdc draws --json | jq 'sort_by(.tri_count) | last'</code></pre> <h2 id="debug-pixel">Debug a Pixel Color</h2> <pre><code># Quick result
+rdc debug pixel 142 400 300
+
+# Full step-by-step trace
+rdc debug pixel 142 400 300 --trace
+
+# Dump variables at a specific source line
+rdc debug pixel 142 400 300 --dump-at 15</code></pre> <h2 id="ci-assertions">CI/CD Pipeline Assertions</h2> <pre><code>#!/bin/bash
+set -e
+rdc open test_capture.rdc
+
+# No validation errors
+rdc assert-clean
+
+# At least 12 draw calls
+rdc assert-count draws --expect 12 --op ge
+
+# Verify pixel color at coordinates
+rdc assert-pixel 142 256 256 --expect "1.0 0.0 0.0 1.0"
+
+# Visual regression test
+rdc assert-image expected.png actual.png --threshold 1.0
+
+rdc close</code></pre> <h2 id="compute-shader">Compute Shader Analysis</h2> <pre><code># Compute dispatches have a different pipeline type
+rdc pipeline 8                    # → COMP_PIPE=345
+rdc shader 8 cs                   # compute shader disassembly
+rdc shader 8 cs --constants       # bound uniform values
+
+# Check bindings (storage buffers, images)
+rdc bindings 8                    # → cs rw Pos_var
+
+# GPU counters for compute work
+rdc counters --eid 8              # → CS invocations: 24576</code></pre> <h2 id="comparing-captures">Comparing Two Captures</h2> <pre><code># Overall summary
+rdc diff before.rdc after.rdc
+
+# Draw call changes
+rdc diff before.rdc after.rdc --draws
+
+# Pixel-level framebuffer diff
+rdc diff before.rdc after.rdc --framebuffer
+
+# Per-pass statistics diff
+rdc diff before.rdc after.rdc --stats</code></pre> <h2 id="advanced-assertions">Advanced Assertions</h2> <pre><code># Assert pipeline state with dot-path navigation
+rdc assert-state 11 topology --expect TriangleList
+rdc assert-state 11 "vs.shader" --expect "133"
+rdc assert-state 11 "vs.entry" --expect "main"
+
+# Assert counts with comparison operators
+rdc assert-count draws --expect 1 --op eq        # exactly 1 draw
+rdc assert-count draws --expect 100 --op ge       # at least 100 draws
+rdc assert-count events --expect 6                # default: eq
+
+# Assert no high-severity validation messages
+rdc assert-clean --min-severity HIGH
+
+# Visual regression with threshold
+rdc assert-image golden.png actual.png --threshold 0.001
+rdc assert-image golden.png actual.png --json     # → diff_ratio in JSON</code></pre> <h2 id="shader-hot-reload">Shader Hot-Reload</h2> <pre><code># Extract current shader
+rdc shader 142 ps --source -o original.frag
+
+# ... edit original.frag in your editor ...
+
+# Compile the modified shader (returns shader_id)
+rdc shader-build original.frag --stage ps
+
+# Hot-swap the shader in the capture
+rdc shader-replace 142 ps --with 1
+
+# Check the visual result
+rdc rt 142 -o modified.png
+
+# Revert all changes
+rdc shader-restore-all</code></pre> <h2 id="export-offline">Export Everything for Offline Analysis</h2> <pre><code># Complete snapshot: pipeline + shaders + render target
+rdc snapshot 142 -o ./snapshot/
+
+# Individual exports
+rdc texture 5 -o albedo.png             # specific texture
+rdc buffer 3 -o vertex_data.bin         # raw buffer data
+rdc mesh 142 -o geometry.obj            # post-transform mesh</code></pre> <h2 id="shell-pipelines">Shell Pipeline Power</h2> <pre><code># Find all draws using a specific shader
+rdc shader-map | grep &quot;HASH_PREFIX&quot; | cut -f1
+
+# Export all textures
+for id in $(rdc resources --type texture -q); do
+  rdc texture &quot;$id&quot; -o &quot;tex_${id}.png&quot;
+done
+
+# Count triangles per pass
+rdc draws --json | jq &#39;group_by(.pass) | .[] | {pass: .[0].pass, tris: [.[].tri_count] | add}&#39;</code></pre> <h2 id="capture-frame">Capture a Frame</h2> <pre><code># Basic capture
+rdc capture ./myapp -o frame.rdc
+
+# Capture with API validation and callstacks
+rdc capture ./myapp -o frame.rdc --api-validation --callstacks
+
+# Capture specific frame number
+rdc capture ./myapp -o frame.rdc --frame 100
+
+# Capture and immediately open for analysis
+rdc capture ./myapp -o frame.rdc --auto-open
+
+# JSON output for CI pipelines
+rdc capture ./myapp -o frame.rdc --json</code></pre> <h2 id="e2e-ci">End-to-End CI Pipeline</h2> <pre><code>#!/bin/bash
+set -e
+
+# 1. Capture a frame
+rdc capture ./myapp -o test.rdc --api-validation --timeout 30
+
+# 2. Open for analysis
+rdc open test.rdc
+
+# 3. Assert no validation errors
+rdc assert-clean
+
+# 4. Assert expected draw count
+rdc assert-count draws --expect 50 --op ge
+
+# 5. Assert pixel color
+rdc assert-pixel 142 256 256 --expect "1.0 0.0 0.0 1.0"
+
+# 6. Clean up
+rdc close</code></pre> <h2 id="target-control">Target Control (Live Capture)</h2> <pre><code># Inject and get target ident
+rdc capture ./myapp --trigger
+# → prints ident=12345
+
+# Attach to running target
+rdc attach 12345
+
+# Trigger a capture manually
+rdc capture-trigger
+
+# List captured frames
+rdc capture-list
+
+# Copy a capture locally
+rdc capture-copy 0 snapshot.rdc
+
+# Open and analyze
+rdc open snapshot.rdc</code></pre> <h2 id="multi-session">Multi-Session A/B Comparison</h2> <pre><code># Open two captures in named sessions
+rdc --session before open before.rdc
+rdc --session after open after.rdc
+
+# Compare draws side-by-side
+diff &lt;(rdc --session before draws) &lt;(rdc --session after draws)
+
+# Compare specific pipeline states
+diff &lt;(rdc --session before pipeline 142) &lt;(rdc --session after pipeline 142)
+
+# Compare shader disassembly
+diff &lt;(rdc --session before cat /draws/142/shader/ps) \
+     &lt;(rdc --session after cat /draws/142/shader/ps)
+
+# Clean up both sessions
+rdc --session before close
+rdc --session after close</code></pre> <h2 id="render-pass">Render Pass Analysis</h2> <pre><code># List all render passes
+rdc passes
+
+# Inspect a specific pass
+rdc pass GBuffer
+
+# List draws in a pass
+rdc draws --pass GBuffer
+
+# Find passes with many draws
+rdc passes --json | jq '.[] | select(.draw_count > 50)'</code></pre> <h2 id="pixel-ladder">Pixel Investigation Ladder</h2> <pre><code># Step 1: Read pixel color at (400, 300)
+rdc pick-pixel 142 400 300
+
+# Step 2: Full pixel history — who modified this pixel?
+rdc pixel 142 400 300
+
+# Step 3: Debug the pixel shader that drew it
+rdc debug pixel 142 400 300
+
+# Step 4: Step-by-step shader trace
+rdc debug pixel 142 400 300 --trace
+
+# Step 5: Dump variables at a specific line
+rdc debug pixel 142 400 300 --dump-at 15</code></pre> <h2 id="buffer-decode">Buffer Decode via VFS</h2> <pre><code># Read decoded constant buffer values
+rdc cat /draws/142/cbuffer/0/0
+
+# Read decoded vertex buffer
+rdc cat /draws/142/vbuffer
+
+# Read decoded index buffer
+rdc cat /draws/142/ibuffer
+
+# View descriptor bindings
+rdc cat /draws/142/descriptors
+
+# Export raw buffer data
+rdc cat /buffers/55/data > vertex_buffer.bin</code></pre> <h2 id="rdc-script">Custom Queries with rdc script</h2> <pre><code># Inline Python: count unique shader hashes
+rdc script -c "
+shaders = set()
+for a in controller.GetRootActions():
+    if a.flags &amp; rd.ActionFlags.Drawcall:
+        controller.SetFrameEvent(a.eventId, True)
+        pipe = controller.GetPipelineState()
+        ps = pipe.GetShader(rd.ShaderStage.Pixel)
+        if int(ps):
+            shaders.add(int(ps))
+print(len(shaders))
+"
+
+# Run a script file
+rdc script analysis.py -- --verbose</code></pre> <h2 id="perf-profiling">Performance Profiling</h2> <pre><code># List available GPU counters
+rdc counters --list
+
+# Profile a specific draw call
+rdc counters --eid 142
+
+# Profile with specific counter IDs
+rdc counters --ids 1,2,5 --eid 142
+
+# JSON output for analysis
+rdc counters --eid 142 --json</code></pre> <h2 id="resource-hunting">Resource Hunting</h2> <pre><code># Find largest resources
+rdc resources --sort size | tail -10
+
+# Find all textures
+rdc resources --type texture
+
+# Search by name
+rdc resources --name "albedo"
+
+# Trace a resource&#39;s usage across the frame
+rdc usage 88
+
+# Detailed resource metadata
+rdc resource 88</code></pre> <h2 id="shader-search">Shader Search &amp; Analysis</h2> <pre><code># Search all shaders for a pattern
+rdc search "shadowMap"
+
+# Find which draws use a shader
+rdc shader-map | grep "a1b2c3"
+
+# List unique shaders
+rdc shaders
+
+# View shader reflection data
+rdc shader 142 ps --reflect
+
+# View constant buffer values
+rdc shader 142 ps --constants</code></pre> <h2 id="validation-debug">Validation Error Debugging</h2> <pre><code># Check for validation errors
+rdc log
+
+# Filter by severity
+rdc log --level error
+
+# Assert no errors in CI
+rdc assert-clean --min-severity error
+
+# Check pipeline state for issues
+rdc pipeline 142
+rdc bindings 142</code></pre> <h2 id="texture-analysis">Texture Analysis</h2> <pre><code># Texture statistics (min/max values)
+rdc tex-stats 142
+
+# With histogram
+rdc tex-stats 142 --histogram
+
+# Export texture as PNG
+rdc texture 88 -o albedo.png
+
+# Export render target
+rdc rt 142 -o render_target.png
+
+# Export with debug overlay
+rdc rt 142 -o wireframe.png --overlay wireframe</code></pre> <h2 id="tessellation-mdi">Working with Advanced Vulkan Features</h2> <pre><code># Tessellation: view high-poly output
+rdc mesh 33                       # → 688 vertices, 358 faces
+rdc counters --eid 33             # → VS invocations: 692
+
+# Multi-draw indirect: all sub-commands expand
+rdc draws                         # → 225+ DrawIndexedIndirect sub-commands
+rdc pipeline 28                   # → gfx_pipe=2818, TriangleList
+
+# Dynamic rendering (Vulkan 1.3)
+rdc passes                        # → vkCmdBeginRendering passes
+rdc pipeline 15                   # → gfx_pipe=330, TriangleList
+rdc pick-pixel 640 360 15         # → pixel color at dynamic pass draw</code></pre> <h2 id="vfs-exploration">VFS Deep Exploration</h2> <pre><code># Top-level structure
+rdc tree / --depth 1
+
+# Browse draw calls
+rdc ls /draws
+rdc ls /draws/142
+
+# Explore shader stages
+rdc ls /draws/142/shader
+rdc cat /draws/142/shader/ps/disasm
+
+# Browse passes
+rdc ls -l /passes
+
+# Navigate via current event alias
+rdc goto 142
+rdc cat /current/shader/ps</code></pre>  </div> </main> </div> <footer class="border-t border-gpu-border/50 bg-gpu-deeper/80"> <div class="max-w-6xl mx-auto px-6 py-16"> <div class="grid grid-cols-1 md:grid-cols-3 gap-8"> <div> <span class="font-mono font-bold text-gpu-accent">rdc<span class="text-gray-500">-cli</span></span> <p class="mt-3 text-sm text-gray-500">
+Unix-friendly CLI for RenderDoc captures.<br>
+Built for CI pipelines and AI agents.
+</p> </div> <div> <h4 class="text-sm font-semibold text-gray-300 mb-3">Links</h4> <ul class="space-y-2 text-sm text-gray-500"> <li><a href="/rdc-cli/docs/" class="hover:text-gpu-accent transition-colors">Documentation</a></li> <li><a href="/rdc-cli/docs/install/" class="hover:text-gpu-accent transition-colors">Installation</a></li> <li><a href="https://pypi.org/project/rdc-cli/" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">PyPI</a></li> </ul> </div> <div> <h4 class="text-sm font-semibold text-gray-300 mb-3">Community</h4> <ul class="space-y-2 text-sm text-gray-500"> <li><a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">GitHub</a></li> <li><a href="https://github.com/BANANASJIM/rdc-cli/issues" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">Issues</a></li> <li><a href="https://github.com/BANANASJIM/rdc-cli/blob/master/LICENSE" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">MIT License</a></li> </ul> </div> </div> <div class="mt-8 pt-6 border-t border-gpu-border text-center text-xs text-gray-500">
+MIT License &copy; 2026 rdc-cli contributors
+</div> </div> </footer>  </body></html> <script type="module">const e=document.getElementById("sidebar-toggle"),t=document.getElementById("mobile-sidebar");e?.addEventListener("click",()=>t?.classList.toggle("hidden"));</script>
