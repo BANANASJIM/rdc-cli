@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import struct
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
     STAGE_MAP,
+    PipeError,
     _enum_name,
     _error_response,
     _result_response,
@@ -111,10 +112,10 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
     cb_binding = int(params.get("binding", 0))
     stage_name = str(params.get("stage", "ps"))
     stage_val = STAGE_MAP.get(stage_name, 4)
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     refl = pipe_state.GetShaderReflection(stage_val)
     if refl is None:
         return _error_response(request_id, -32001, f"no reflection for stage {stage_name}"), True
@@ -198,10 +199,10 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
 def _handle_vbuffer_decode(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     inputs = pipe_state.GetVertexInputs()
     vbuffers = pipe_state.GetVBuffers()
     if not inputs:
@@ -347,10 +348,10 @@ def _handle_mesh_data(
 def _handle_ibuffer_decode(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     ib = pipe_state.GetIBuffer()
     rid = getattr(ib, "resourceId", None)
     if rid is None or int(rid) == 0:

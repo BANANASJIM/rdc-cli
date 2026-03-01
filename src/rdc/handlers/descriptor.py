@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
+    PipeError,
     _enum_name,
     _error_response,
     _result_response,
@@ -19,10 +20,10 @@ if TYPE_CHECKING:
 def _handle_descriptors(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     if not hasattr(pipe_state, "GetAllUsedDescriptors"):
         return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
     used = pipe_state.GetAllUsedDescriptors(True)

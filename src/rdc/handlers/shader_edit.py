@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
     STAGE_MAP,
+    PipeError,
     _error_response,
     _result_response,
     require_pipe,
@@ -87,10 +88,10 @@ def _handle_shader_replace(
         return _error_response(request_id, -32001, "unknown shader_id"), True
 
     replacement_rid = state.built_shaders[shader_id]
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe = cast(tuple[int, Any], result)
+    try:
+        eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     original_rid = pipe.GetShader(STAGE_MAP[stage])
     if int(original_rid) == 0:
         return _error_response(request_id, -32001, "no shader bound at stage"), True
@@ -111,10 +112,10 @@ def _handle_shader_restore(
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
 
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    _eid, pipe = cast(tuple[int, Any], result)
+    try:
+        _eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     original_rid = pipe.GetShader(STAGE_MAP[stage])
     if int(original_rid) not in state.shader_replacements:
         return _error_response(request_id, -32001, "no replacement active for stage"), True
