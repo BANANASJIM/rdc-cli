@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
+    PipeError,
     _error_response,
     _make_subresource,
     _make_texsave,
@@ -121,10 +122,10 @@ def _handle_rt_export(
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "temp directory not available"), True
     target_idx = int(params.get("target", 0))
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe = cast(tuple[int, Any], result)
+    try:
+        eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     targets = pipe.GetOutputTargets()
     non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
     if not non_null:
@@ -150,10 +151,10 @@ def _handle_rt_depth(
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "temp directory not available"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe = cast(tuple[int, Any], result)
+    try:
+        eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     depth = pipe.GetDepthTarget()
     if int(depth.resource) == 0:
         return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
@@ -186,10 +187,10 @@ def _handle_rt_overlay(
         return _error_response(
             request_id, -32602, f"unknown overlay '{overlay_name}'; valid: {valid}"
         ), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe = cast(tuple[int, Any], result)
+    try:
+        eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     targets = pipe.GetOutputTargets()
     non_null = [t for t in targets if int(t.resource) != 0]
     if not non_null:

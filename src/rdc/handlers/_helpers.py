@@ -14,6 +14,15 @@ from rdc.services.query_service import STAGE_MAP as STAGE_MAP
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
 
+
+class PipeError(Exception):
+    """Raised by require_pipe when pipeline state cannot be obtained."""
+
+    def __init__(self, response: dict[str, Any]) -> None:
+        self.response = response
+        super().__init__()
+
+
 _UINT_MAX_SENTINEL = (1 << 64) - 1
 _STAGE_NAMES: dict[int, str] = {v: k for k, v in STAGE_MAP.items()}
 _SHADER_STAGES: frozenset[str] = frozenset(STAGE_MAP)
@@ -235,20 +244,18 @@ def _make_subresource(rd: Any, mip: int = 0) -> Any:
     return sub
 
 
-def require_pipe(
-    params: dict[str, Any], state: DaemonState, request_id: int
-) -> tuple[int, Any] | tuple[dict[str, Any], bool]:
-    """Validate adapter, set eid, return pipe_state or error response.
+def require_pipe(params: dict[str, Any], state: DaemonState, request_id: int) -> tuple[int, Any]:
+    """Validate adapter, set eid, return pipe_state.
 
-    Returns:
-        (eid, pipe_state) on success, or (error_dict, True) on failure.
+    Raises:
+        PipeError: When adapter is not loaded or eid is invalid.
     """
     if state.adapter is None:
-        return _error_response(request_id, -32002, "no replay loaded"), True
+        raise PipeError(_error_response(request_id, -32002, "no replay loaded"))
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
-        return _error_response(request_id, -32002, err), True
+        raise PipeError(_error_response(request_id, -32002, err))
     pipe_state = state.adapter.get_pipeline_state()
     return eid, pipe_state
 

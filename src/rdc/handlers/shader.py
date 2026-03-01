@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
     STAGE_MAP,
+    PipeError,
     _build_shader_cache,
     _error_response,
     _flatten_shader_var,
@@ -39,10 +40,10 @@ def _handle_shader_reflect(
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     stage_val = STAGE_MAP[stage]
     refl = pipe_state.GetShaderReflection(stage_val)
 
@@ -103,10 +104,10 @@ def _handle_shader_constants(
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     stage_val = STAGE_MAP[stage]
     refl = pipe_state.GetShaderReflection(stage_val)
 
@@ -154,10 +155,10 @@ def _handle_shader_source(
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     stage_val = STAGE_MAP[stage]
     controller = state.adapter.controller  # type: ignore[union-attr]
     refl = pipe_state.GetShaderReflection(stage_val)
@@ -195,10 +196,10 @@ def _handle_shader_disasm(
     target = str(params.get("target", ""))
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     stage_val = STAGE_MAP[stage]
     controller = state.adapter.controller  # type: ignore[union-attr]
     refl = pipe_state.GetShaderReflection(stage_val)
@@ -220,10 +221,10 @@ def _handle_shader_disasm(
 def _handle_shader_all(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     result_stages = []
     for stage, stage_val in STAGE_MAP.items():
         sid = pipe_state.GetShader(stage_val)

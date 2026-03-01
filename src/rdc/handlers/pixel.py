@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
+    PipeError,
     _error_response,
     _result_response,
     require_pipe,
@@ -82,10 +83,10 @@ def _handle_pixel_history(
     target_idx = int(params.get("target", 0))
     sample = int(params.get("sample", 0))
 
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe = cast(tuple[int, Any], result)
+    try:
+        eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     targets = pipe.GetOutputTargets()
     non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
 
@@ -148,10 +149,10 @@ def _handle_pick_pixel(
     y = int(params["y"])
     target_idx = int(params.get("target", 0))
 
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe = cast(tuple[int, Any], result)
+    try:
+        eid, pipe = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     targets = pipe.GetOutputTargets()
     non_null = [(i, t) for i, t in enumerate(targets) if int(t.resource) != 0]
 

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
     _STAGE_NAMES,
     STAGE_MAP,
+    PipeError,
     _enum_name,
     _flatten_shader_var,
     _result_response,
@@ -23,10 +24,10 @@ if TYPE_CHECKING:
 def _handle_pipe_topology(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     return _result_response(
         request_id, {"eid": eid, "topology": _enum_name(pipe_state.GetPrimitiveTopology())}
     ), True
@@ -35,10 +36,10 @@ def _handle_pipe_topology(
 def _handle_pipe_viewport(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     vp = pipe_state.GetViewport(0)
     return _result_response(
         request_id,
@@ -57,10 +58,10 @@ def _handle_pipe_viewport(
 def _handle_pipe_scissor(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     sc = pipe_state.GetScissor(0)
     return _result_response(
         request_id,
@@ -78,10 +79,10 @@ def _handle_pipe_scissor(
 def _handle_pipe_blend(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     blends = pipe_state.GetColorBlends()
     blend_rows: list[dict[str, Any]] = []
     for i, b in enumerate(blends):
@@ -106,10 +107,10 @@ def _handle_pipe_blend(
 def _handle_pipe_stencil(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     front, back = pipe_state.GetStencilFaces()
 
     def _face(f: Any) -> dict[str, Any]:
@@ -131,10 +132,10 @@ def _handle_pipe_stencil(
 def _handle_pipe_vinputs(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     inputs = pipe_state.GetVertexInputs()
     rows = []
     for vi in inputs:
@@ -155,10 +156,10 @@ def _handle_pipe_vinputs(
 def _handle_pipe_samplers(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     all_samplers: list[dict[str, Any]] = []
     for stage_name, stage_val in STAGE_MAP.items():
         if hasattr(pipe_state, "GetSamplers"):
@@ -187,10 +188,10 @@ def _handle_pipe_samplers(
 def _handle_pipe_vbuffers(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     vbs = pipe_state.GetVBuffers()
     rows = []
     for i, vb in enumerate(vbs):
@@ -209,10 +210,10 @@ def _handle_pipe_vbuffers(
 def _handle_pipe_ibuffer(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     ib = pipe_state.GetIBuffer()
     return _result_response(
         request_id,
@@ -229,10 +230,10 @@ def _handle_pipe_ibuffer(
 def _handle_pipe_push_constants(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     controller = state.adapter.controller  # type: ignore[union-attr]
     push_constants: list[dict[str, Any]] = []
     for stage_val, stage_name in _STAGE_NAMES.items():
@@ -278,10 +279,10 @@ def _handle_pipe_push_constants(
 def _handle_pipe_rasterizer(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     rast = getattr(pipe_state, "rasterizer", None)
     rast_data: dict[str, Any] = {"eid": eid}
     if rast is not None:
@@ -304,10 +305,10 @@ def _handle_pipe_rasterizer(
 def _handle_pipe_depth_stencil(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     ds = getattr(pipe_state, "depthStencil", None)
     ds_data: dict[str, Any] = {"eid": eid}
     if ds is not None:
@@ -329,10 +330,10 @@ def _handle_pipe_depth_stencil(
 def _handle_pipe_msaa(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     ms = getattr(pipe_state, "multisample", None)
     ms_data: dict[str, Any] = {"eid": eid}
     if ms is not None:

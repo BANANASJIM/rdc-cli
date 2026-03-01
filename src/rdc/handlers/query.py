@@ -5,7 +5,7 @@ resource, passes, pass, events, draws, event, draw, search, info, stats, log.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
     _LOG_SEVERITY_MAP,
@@ -13,6 +13,7 @@ from rdc.handlers._helpers import (
     _SHADER_STAGES,
     _VALID_LOG_LEVELS,
     STAGE_MAP,
+    PipeError,
     _action_type_str,
     _build_shader_cache,
     _error_response,
@@ -55,10 +56,10 @@ def _handle_pipeline(
         section = str(section).lower()
         if section not in _SHADER_STAGES and section not in _SECTION_MAP:
             return _error_response(request_id, -32602, "invalid section"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     if section is not None and section in _SECTION_MAP:
         from rdc.handlers.pipe_state import HANDLERS as PIPE_HANDLERS
 
@@ -78,10 +79,10 @@ def _handle_bindings(
 ) -> tuple[dict[str, Any], bool]:
     from rdc.services.query_service import bindings_rows
 
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    _eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        _eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     rows = bindings_rows(state.current_eid, pipe_state)
 
     set_filter = params.get("set")
@@ -102,10 +103,10 @@ def _handle_shader(
     stage = str(params.get("stage", "ps")).lower()
     if stage not in STAGE_MAP:
         return _error_response(request_id, -32602, "invalid stage"), True
-    result = require_pipe(params, state, request_id)
-    if isinstance(result[1], bool):
-        return result  # type: ignore[return-value]
-    _eid, pipe_state = cast(tuple[int, Any], result)
+    try:
+        _eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
     row = shader_row(state.current_eid, pipe_state, stage)
     return _result_response(request_id, {"row": row}), True
 
