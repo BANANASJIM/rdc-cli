@@ -97,12 +97,13 @@ def require_session() -> tuple[str, int, str]:
     return session.host, session.port, session.token
 
 
-def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+def call(method: str, params: dict[str, Any], *, timeout: float = 30.0) -> dict[str, Any]:
     """Send a JSON-RPC request to the daemon and return the result.
 
     Args:
         method: The JSON-RPC method name.
         params: Request parameters.
+        timeout: Socket timeout in seconds.
 
     Returns:
         The result dict from the daemon response.
@@ -113,7 +114,7 @@ def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
     host, port, token = require_session()
     payload = _request(method, 1, {"_token": token, **params}).to_dict()
     try:
-        response = send_request(host, port, payload)
+        response = send_request(host, port, payload, timeout=timeout)
     except (OSError, ValueError) as exc:
         _emit_error(f"daemon unreachable: {exc}")
     if "error" in response:

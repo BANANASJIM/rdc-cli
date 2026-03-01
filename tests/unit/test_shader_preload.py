@@ -270,7 +270,7 @@ class TestOpenPreloadFlag:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
 
-        def _capture_send(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture_send(_h: str, _p: int, payload: dict[str, Any], **_kw: Any) -> dict[str, Any]:
             captured.append(payload)
             return {"result": {"done": True, "shaders": 5}}
 
@@ -295,7 +295,7 @@ class TestOpenPreloadFlag:
         captured: list[dict[str, Any]] = []
         import rdc.commands._helpers as helpers_mod
 
-        monkeypatch.setattr(helpers_mod, "send_request", lambda *a: captured.append(a))
+        monkeypatch.setattr(helpers_mod, "send_request", lambda *a, **_kw: captured.append(a))
 
         capture_file = tmp_path / "test.rdc"
         capture_file.touch()

@@ -743,7 +743,7 @@ def _patch_helpers(monkeypatch: Any, response: dict[str, Any]) -> None:
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
-    monkeypatch.setattr(helpers_mod, "send_request", lambda _h, _p, _payload: response)
+    monkeypatch.setattr(helpers_mod, "send_request", lambda _h, _p, _payload, **_kw: response)
 
 
 def test_debug_pixel_error_plain_rc1(monkeypatch: Any) -> None:

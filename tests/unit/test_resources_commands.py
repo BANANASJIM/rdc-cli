@@ -65,7 +65,7 @@ def test_resource_error(monkeypatch) -> None:
     monkeypatch.setattr(
         mod,
         "send_request",
-        lambda _h, _p, _payload: {"error": {"message": "resource not found"}},
+        lambda _h, _p, _payload, **_kw: {"error": {"message": "resource not found"}},
     )
     result = CliRunner().invoke(resource_cmd, ["999"])
     assert result.exit_code == 1

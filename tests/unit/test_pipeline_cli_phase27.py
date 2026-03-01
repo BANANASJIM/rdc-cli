@@ -16,7 +16,7 @@ def _setup(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> None:
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
+    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload, **_kw: {"result": response})
 
 
 def _capture_calls(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> list[dict]:
@@ -26,7 +26,7 @@ def _capture_calls(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) ->
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
 
-    def capture(_h: str, _p: int, payload: dict) -> dict:
+    def capture(_h: str, _p: int, payload: dict, **_kw: Any) -> dict:
         calls.append(payload)
         return {"result": response}
 

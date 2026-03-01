@@ -433,7 +433,7 @@ def _patch_search(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> 
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
+    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload, **_kw: {"result": response})
 
 
 class TestSearchCli:
@@ -544,7 +544,12 @@ class TestSearchCli:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
 
-        def _capture_request(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture_request(
+            _h: str,
+            _p: int,
+            payload: dict[str, Any],
+            **_kw: Any,
+        ) -> dict[str, Any]:
             captured.append(payload)
             return {"result": {"matches": [], "truncated": False}}
 
@@ -561,7 +566,12 @@ class TestSearchCli:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(mod, "load_session", lambda: session)
 
-        def _capture_request(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture_request(
+            _h: str,
+            _p: int,
+            payload: dict[str, Any],
+            **_kw: Any,
+        ) -> dict[str, Any]:
             captured.append(payload)
             return {"result": {"matches": [], "truncated": False}}
 

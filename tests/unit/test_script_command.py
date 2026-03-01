@@ -18,7 +18,7 @@ def _patch_daemon(monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]) -> 
 
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
-    monkeypatch.setattr(helpers_mod, "send_request", lambda _h, _p, _payload: response)
+    monkeypatch.setattr(helpers_mod, "send_request", lambda _h, _p, _payload, **_kw: response)
 
 
 def _success_response(
@@ -115,7 +115,7 @@ class TestScriptArgParsing:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
 
-        def _capture(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture(_h: str, _p: int, payload: dict[str, Any], **_kw: Any) -> dict[str, Any]:
             captured.append(payload)
             return _success_response()
 
@@ -133,7 +133,7 @@ class TestScriptArgParsing:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
 
-        def _capture(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture(_h: str, _p: int, payload: dict[str, Any], **_kw: Any) -> dict[str, Any]:
             captured.append(payload)
             return _success_response()
 
@@ -158,7 +158,7 @@ class TestScriptArgParsing:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
 
-        def _capture(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture(_h: str, _p: int, payload: dict[str, Any], **_kw: Any) -> dict[str, Any]:
             captured.append(payload)
             return _success_response()
 
@@ -176,7 +176,7 @@ class TestScriptArgParsing:
         session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
         monkeypatch.setattr(helpers_mod, "load_session", lambda: session)
 
-        def _capture(_h: str, _p: int, payload: dict[str, Any]) -> dict[str, Any]:
+        def _capture(_h: str, _p: int, payload: dict[str, Any], **_kw: Any) -> dict[str, Any]:
             captured.append(payload)
             return _success_response()
 
