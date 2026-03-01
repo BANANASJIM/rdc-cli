@@ -10,6 +10,7 @@ from mock_renderdoc import (
     ActionFlags,
     APIEvent,
     BufferDescription,
+    Descriptor,
     MockPipeState,
     ResourceDescription,
     ResourceFormat,
@@ -515,3 +516,123 @@ class TestVfsLsLong:
         assert draw42["type"] == "DrawIndexed"
         dispatch300 = next(c for c in resp["result"]["children"] if c["name"] == "300")
         assert dispatch300["type"] == "Dispatch"
+
+
+# ---------------------------------------------------------------------------
+# Gap 1: /draws/<eid>/pixel/ discoverability
+# ---------------------------------------------------------------------------
+
+
+class TestVfsPixelDir:
+    def test_draw_eid_includes_pixel(self):
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws/42"}), _make_state())
+        names = [c["name"] for c in resp["result"]["children"]]
+        assert "pixel" in names
+
+    def test_vfs_ls_pixel_dir(self):
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/draws/42/pixel"}), _make_state())
+        result = resp["result"]
+        assert result["kind"] == "dir"
+        assert result["children"] == []
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: /passes/<name>/attachments/ children
+# ---------------------------------------------------------------------------
+
+
+def _make_state_with_targets():
+    """Build state with pipe state that has color and depth targets."""
+    actions = _build_actions()
+    sf = _build_sf()
+    resources = _build_resources()
+    pipe = MockPipeState(
+        output_targets=[
+            Descriptor(resource=ResourceId(300)),
+            Descriptor(resource=ResourceId(400)),
+        ],
+        depth_target=Descriptor(resource=ResourceId(500)),
+    )
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: resources,
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: pipe,
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+    )
+    state = make_daemon_state(
+        ctrl=ctrl,
+        version=(1, 33),
+        max_eid=300,
+        structured_file=sf,
+    )
+    state.vfs_tree = build_vfs_skeleton(actions, resources, sf=sf)
+    return state
+
+
+class TestVfsPassAttachments:
+    def test_vfs_ls_pass_attachments_triggers_populate(self):
+        state = _make_state_with_targets()
+        resp, _ = _handle_request(
+            rpc_request("vfs_ls", {"path": "/passes/Shadow/attachments"}), state
+        )
+        result = resp["result"]
+        assert result["kind"] == "dir"
+        names = [c["name"] for c in result["children"]]
+        assert "color0" in names
+        assert "depth" in names
+
+    def test_vfs_tree_pass_attachments_populated(self):
+        state = _make_state_with_targets()
+        resp, _ = _handle_request(
+            rpc_request("vfs_tree", {"path": "/passes/Shadow", "depth": 2}), state
+        )
+        tree = resp["result"]["tree"]
+        attach_node = next(c for c in tree["children"] if c["name"] == "attachments")
+        names = [c["name"] for c in attach_node["children"]]
+        assert "color0" in names
+        assert "depth" in names
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: /shaders/<id>/used-by in VFS
+# ---------------------------------------------------------------------------
+
+
+class TestVfsShaderUsedBy:
+    def test_vfs_ls_shaders_id_includes_used_by(self):
+        pipe = _make_pipe_with_shaders()
+        refl_vs = ShaderReflection(resourceId=ResourceId(1), entryPoint="vs_main")
+        refl_ps = ShaderReflection(resourceId=ResourceId(2), entryPoint="ps_main")
+        pipe._reflections[ShaderStage.Vertex] = refl_vs
+        pipe._reflections[ShaderStage.Pixel] = refl_ps
+        state = _make_state(pipe_state=pipe)
+        ctrl = state.adapter.controller
+        ctrl.DisassembleShader = lambda p, r, t: "; disasm"
+        ctrl.GetDisassemblyTargets = lambda _with_pipeline=False: ["SPIR-V"]
+        # Build shader cache first
+        resp, _ = _handle_request(rpc_request("shaders_preload"), state)
+        assert "error" not in resp
+        # Now check ls on a shader
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/shaders/1"}), state)
+        names = [c["name"] for c in resp["result"]["children"]]
+        assert "used-by" in names
+
+    def test_vfs_ls_shaders_used_by_is_leaf(self):
+        pipe = _make_pipe_with_shaders()
+        refl_vs = ShaderReflection(resourceId=ResourceId(1), entryPoint="vs_main")
+        refl_ps = ShaderReflection(resourceId=ResourceId(2), entryPoint="ps_main")
+        pipe._reflections[ShaderStage.Vertex] = refl_vs
+        pipe._reflections[ShaderStage.Pixel] = refl_ps
+        state = _make_state(pipe_state=pipe)
+        ctrl = state.adapter.controller
+        ctrl.DisassembleShader = lambda p, r, t: "; disasm"
+        ctrl.GetDisassemblyTargets = lambda _with_pipeline=False: ["SPIR-V"]
+        resp, _ = _handle_request(rpc_request("shaders_preload"), state)
+        assert "error" not in resp
+        resp, _ = _handle_request(rpc_request("vfs_ls", {"path": "/shaders/1"}), state)
+        used_by = next(c for c in resp["result"]["children"] if c["name"] == "used-by")
+        assert used_by["kind"] == "leaf"

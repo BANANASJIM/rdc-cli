@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from conftest import rdc, rdc_json, rdc_ok
+from e2e_helpers import rdc, rdc_json, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

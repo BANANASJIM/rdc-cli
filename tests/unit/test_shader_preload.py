@@ -195,6 +195,20 @@ class TestBuildShaderCacheIdempotent:
         assert s.disasm_cache[100] == "sentinel"
 
 
+class TestShaderMetaContainsEids:
+    def test_eids_present(self, state: DaemonState) -> None:
+        _build_shader_cache(state)
+        assert "eids" in state.shader_meta[100]
+        assert "eids" in state.shader_meta[200]
+
+    def test_tracked_eids_correct(self, tracked_state: tuple[DaemonState, list[int]]) -> None:
+        s, _ = tracked_state
+        _build_shader_cache(s)
+        assert set(s.shader_meta[100]["eids"]) == {10, 20}
+        assert set(s.shader_meta[200]["eids"]) == {10, 20, 30}
+        assert set(s.shader_meta[300]["eids"]) == {30}
+
+
 class TestBuildShaderCachePopulatesCaches:
     def test_disasm_and_meta(self, state: DaemonState) -> None:
         _build_shader_cache(state)

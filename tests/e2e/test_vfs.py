@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conftest import rdc_fail, rdc_ok
+from e2e_helpers import rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -259,3 +259,97 @@ class TestTreeBadFlag:
             exit_code=2,
         )
         assert "depth" in out.lower()
+
+
+class TestLsDrawPixel:
+    """5.28: rdc ls /draws/11/ includes pixel directory."""
+
+    def test_pixel_in_draw_listing(self, vkcube_session: str) -> None:
+        out = rdc_ok("ls", "/draws/11", session=vkcube_session)
+        assert "pixel" in out
+
+
+class TestLsPassAttachments:
+    """5.29: rdc ls /passes/<name>/attachments/ shows color/depth entries."""
+
+    def test_attachments_listed(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        out = rdc_ok("ls", f"/passes/{pass_name}/attachments", session=vkcube_session)
+        assert "color0" in out
+
+
+class TestCatShaderUsedBy:
+    """5.30: rdc cat /shaders/111/used-by shows EID list."""
+
+    def test_shader_used_by(self, vkcube_session: str) -> None:
+        out = rdc_ok("cat", "/shaders/111/used-by", session=vkcube_session)
+        assert "11" in out
+
+
+class TestCatPassAttachment:
+    """5.31: rdc cat /passes/<name>/attachments/color0 shows attachment info."""
+
+    def test_attachment_info(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        out = rdc_ok("cat", f"/passes/{pass_name}/attachments/color0", session=vkcube_session)
+        assert "resource_id" in out
+
+
+class TestTreeDrawsPixel:
+    """5.32: rdc tree /draws --depth 2 shows pixel entry."""
+
+    def test_pixel_in_draw_tree(self, vkcube_session: str) -> None:
+        out = rdc_ok("tree", "/draws", "--depth", "2", session=vkcube_session)
+        assert "pixel" in out
+
+
+class TestLsPassAttachmentsDepth:
+    """5.33: rdc ls /passes/<name>/attachments/ includes depth target."""
+
+    def test_depth_in_attachments(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        out = rdc_ok("ls", f"/passes/{pass_name}/attachments", session=vkcube_session)
+        assert "depth" in out
+
+
+class TestCatPassAttachmentDepth:
+    """5.34: rdc cat /passes/<name>/attachments/depth shows depth resource."""
+
+    def test_depth_attachment(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        out = rdc_ok("cat", f"/passes/{pass_name}/attachments/depth", session=vkcube_session)
+        assert "resource_id" in out
+
+
+class TestCatPassAttachmentInvalid:
+    """5.35: rdc cat /passes/<name>/attachments/color99 returns error."""
+
+    def test_invalid_attachment(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        rdc_fail(
+            "cat",
+            f"/passes/{pass_name}/attachments/color99",
+            session=vkcube_session,
+            exit_code=1,
+        )
+
+
+class TestLsShaderUsedBy:
+    """5.36: rdc ls /shaders/111 lists used-by entry."""
+
+    def test_used_by_listed(self, vkcube_session: str) -> None:
+        out = rdc_ok("ls", "/shaders/111", session=vkcube_session)
+        assert "used-by" in out
+
+
+class TestCatShaderUsedByOther:
+    """5.37: rdc cat /shaders/112/used-by shows EID for other shader."""
+
+    def test_other_shader_used_by(self, vkcube_session: str) -> None:
+        out = rdc_ok("cat", "/shaders/112/used-by", session=vkcube_session)
+        assert "11" in out

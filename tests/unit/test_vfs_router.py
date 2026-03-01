@@ -495,3 +495,78 @@ def test_pixel_history_color_target_1() -> None:
 
 def test_pixel_history_non_integer_coord() -> None:
     assert resolve_path("/draws/120/pixel/abc/384") is None
+
+
+# ── Gap 1: Pixel directory routes ────────────────────────────────────
+
+
+def test_draws_pixel_dir() -> None:
+    m = resolve_path("/draws/142/pixel")
+    assert m == PathMatch(kind="dir", handler=None, args={"eid": 142})
+
+
+def test_draws_pixel_x_dir() -> None:
+    m = resolve_path("/draws/142/pixel/100")
+    assert m == PathMatch(kind="dir", handler=None, args={"eid": 142, "x": 100})
+
+
+def test_draws_pixel_leaf_no_regression() -> None:
+    m = resolve_path("/draws/120/pixel/512/384")
+    assert m == PathMatch(
+        kind="leaf", handler="pixel_history", args={"eid": 120, "x": 512, "y": 384}
+    )
+
+
+def test_draws_pixel_color_target_no_regression() -> None:
+    m = resolve_path("/draws/120/pixel/512/384/color0")
+    assert m == PathMatch(
+        kind="leaf",
+        handler="pixel_history",
+        args={"eid": 120, "x": 512, "y": 384, "target": 0},
+    )
+
+
+# ── Gap 2: Pass attachment routes ────────────────────────────────────
+
+
+def test_pass_attachment_color() -> None:
+    m = resolve_path("/passes/Shadow/attachments/color0")
+    assert m == PathMatch(
+        kind="leaf", handler="pass_attachment", args={"name": "Shadow", "attachment": "color0"}
+    )
+
+
+def test_pass_attachment_depth() -> None:
+    m = resolve_path("/passes/Shadow/attachments/depth")
+    assert m == PathMatch(
+        kind="leaf", handler="pass_attachment", args={"name": "Shadow", "attachment": "depth"}
+    )
+
+
+def test_pass_attachment_color1() -> None:
+    m = resolve_path("/passes/GBuffer/attachments/color1")
+    assert m == PathMatch(
+        kind="leaf", handler="pass_attachment", args={"name": "GBuffer", "attachment": "color1"}
+    )
+
+
+def test_pass_attachments_dir_no_regression() -> None:
+    m = resolve_path("/passes/Shadow/attachments")
+    assert m == PathMatch(kind="dir", handler=None, args={"name": "Shadow"})
+
+
+# ── Gap 3: Shader used-by routes ─────────────────────────────────────
+
+
+def test_shaders_used_by() -> None:
+    m = resolve_path("/shaders/100/used-by")
+    assert m == PathMatch(kind="leaf", handler="shader_used_by", args={"id": 100})
+
+
+def test_shaders_id_dir() -> None:
+    m = resolve_path("/shaders/100")
+    assert m == PathMatch(kind="dir", handler=None, args={"id": 100})
+
+
+def test_shaders_id_non_numeric_returns_none() -> None:
+    assert resolve_path("/shaders/abc/used-by") is None

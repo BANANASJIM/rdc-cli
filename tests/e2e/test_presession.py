@@ -6,7 +6,7 @@ No GPU marker needed since none of these replay a capture.
 
 from __future__ import annotations
 
-from conftest import rdc_fail, rdc_ok
+from e2e_helpers import rdc_fail, rdc_ok
 
 
 class TestVersion:

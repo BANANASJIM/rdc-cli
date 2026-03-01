@@ -585,6 +585,53 @@ def _handle_pass_deps(
     return _result_response(request_id, result), True
 
 
+def _handle_pass_attachment(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    """Return attachment info for a specific pass attachment."""
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
+    from rdc.services.query_service import get_pass_detail
+
+    name = str(params.get("name", ""))
+    attachment = str(params.get("attachment", ""))
+    if state.vfs_tree and name in state.vfs_tree.pass_name_map:
+        name = state.vfs_tree.pass_name_map[name]
+
+    actions = state.adapter.get_root_actions()
+    detail = get_pass_detail(actions, state.structured_file, name)
+    if detail is None:
+        return _error_response(request_id, -32001, f"pass not found: {name}"), True
+
+    err = _seek_replay(state, detail["begin_eid"])
+    if err:
+        return _error_response(request_id, -32002, err), True
+    pipe = state.adapter.get_pipeline_state()
+
+    if attachment == "depth":
+        depth_id = int(pipe.GetDepthTarget().resource)
+        if depth_id == 0:
+            return _error_response(request_id, -32001, "no depth target"), True
+        return _result_response(
+            request_id, {"pass": name, "attachment": "depth", "resource_id": depth_id}
+        ), True
+
+    if attachment.startswith("color"):
+        try:
+            idx = int(attachment[5:])
+        except ValueError:
+            return _error_response(request_id, -32602, f"invalid attachment: {attachment}"), True
+        all_targets = pipe.GetOutputTargets()
+        if idx < 0 or idx >= len(all_targets) or int(all_targets[idx].resource) == 0:
+            return _error_response(request_id, -32001, f"color target {idx} not found"), True
+        return _result_response(
+            request_id,
+            {"pass": name, "attachment": attachment, "resource_id": int(all_targets[idx].resource)},
+        ), True
+
+    return _error_response(request_id, -32001, f"unknown attachment: {attachment}"), True
+
+
 def _handle_preload(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -607,6 +654,7 @@ HANDLERS: dict[str, Handler] = {
     "passes": _handle_passes,
     "pass": _handle_pass,
     "pass_deps": _handle_pass_deps,
+    "pass_attachment": _handle_pass_attachment,
     "log": _handle_log,
     "info": _handle_info,
     "stats": _handle_stats,

@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from conftest import HELLO_TRIANGLE, rdc, rdc_fail, rdc_ok
+from e2e_helpers import HELLO_TRIANGLE, rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

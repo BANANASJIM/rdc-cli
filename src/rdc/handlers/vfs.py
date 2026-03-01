@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from rdc.handlers._helpers import (
     _action_type_str,
     _build_shader_cache,
+    _ensure_pass_attachments_populated,
     _ensure_shader_populated,
     _error_response,
     _get_flat_actions,
@@ -280,6 +281,10 @@ def _handle_vfs_ls(
     if pop_err:
         return pop_err, True
 
+    pop_err2 = _ensure_pass_attachments_populated(request_id, path, state)
+    if pop_err2:
+        return pop_err2, True
+
     node = state.vfs_tree.static.get(path)
     if node is None:
         return _error_response(request_id, -32001, f"not found: {path}"), True
@@ -341,6 +346,9 @@ def _handle_vfs_tree(
         err = _ensure_shader_populated(request_id, p, state)
         if err is not None:
             raise _VfsPopulateError(err)
+        err2 = _ensure_pass_attachments_populated(request_id, p, state)
+        if err2 is not None:
+            raise _VfsPopulateError(err2)
         n = tree.static.get(p)
         if n is None:
             return {"name": p.rsplit("/", 1)[-1] or "/", "kind": "dir", "children": []}

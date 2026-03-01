@@ -260,6 +260,18 @@ def _handle_shader_list_info(
     return _result_response(request_id, {"id": sid, **info_meta}), True
 
 
+def _handle_shader_used_by(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    """Return list of EIDs that use this shader."""
+    _build_shader_cache(state)
+    sid = int(params.get("id", 0))
+    meta = state.shader_meta.get(sid)
+    if meta is None:
+        return _error_response(request_id, -32001, f"shader {sid} not found"), True
+    return _result_response(request_id, {"id": sid, "eids": meta.get("eids", [])}), True
+
+
 def _handle_shader_list_disasm(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -279,4 +291,5 @@ HANDLERS: dict[str, Handler] = {
     "shader_all": _handle_shader_all,
     "shader_list_info": _handle_shader_list_info,
     "shader_list_disasm": _handle_shader_list_disasm,
+    "shader_used_by": _handle_shader_used_by,
 }

@@ -9,10 +9,16 @@ from mock_renderdoc import (
     ActionDescription,
     ActionFlags,
     APIEvent,
+    Descriptor,
+    MockPipeState,
+    ResourceDescription,
+    ResourceId,
     SDBasic,
     SDChunk,
     SDData,
     SDObject,
+    ShaderReflection,
+    ShaderStage,
     StructuredFile,
 )
 
@@ -505,3 +511,148 @@ class TestMeshDispatchClassification:
     def test_mesh_dispatch_not_classified_as_dispatch(self):
         resp, _ = _handle_request(rpc_request("count", {"what": "dispatches"}), _make_mesh_state())
         assert resp["result"]["value"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: pass_attachment handler
+# ---------------------------------------------------------------------------
+
+
+def _make_pass_attachment_state():
+    """State with a pass and pipeline targets for attachment tests."""
+    actions = _build_actions()
+    sf = _build_sf()
+    resources = [ResourceDescription(resourceId=ResourceId(100), name="tex0")]
+    pipe = MockPipeState(
+        output_targets=[
+            Descriptor(resource=ResourceId(300)),
+            Descriptor(resource=ResourceId(400)),
+        ],
+        depth_target=Descriptor(resource=ResourceId(500)),
+    )
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: resources,
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: pipe,
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+    )
+    state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=300, structured_file=sf)
+    from rdc.vfs.tree_cache import build_vfs_skeleton
+
+    state.vfs_tree = build_vfs_skeleton(actions, resources, sf=sf)
+    return state
+
+
+class TestPassAttachmentHandler:
+    def test_returns_color_resource_id(self):
+        state = _make_pass_attachment_state()
+        resp, _ = _handle_request(
+            rpc_request("pass_attachment", {"name": "Shadow", "attachment": "color0"}), state
+        )
+        assert "error" not in resp
+        assert resp["result"]["resource_id"] == 300
+
+    def test_returns_depth_resource_id(self):
+        state = _make_pass_attachment_state()
+        resp, _ = _handle_request(
+            rpc_request("pass_attachment", {"name": "Shadow", "attachment": "depth"}), state
+        )
+        assert "error" not in resp
+        assert resp["result"]["resource_id"] == 500
+
+    def test_color_not_found(self):
+        state = _make_pass_attachment_state()
+        resp, _ = _handle_request(
+            rpc_request("pass_attachment", {"name": "Shadow", "attachment": "color99"}), state
+        )
+        assert resp["error"]["code"] == -32001
+
+    def test_pass_not_found(self):
+        state = _make_pass_attachment_state()
+        resp, _ = _handle_request(
+            rpc_request("pass_attachment", {"name": "NonExistent", "attachment": "color0"}), state
+        )
+        assert resp["error"]["code"] == -32001
+
+    def test_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(
+            rpc_request("pass_attachment", {"name": "Shadow", "attachment": "color0"}), state
+        )
+        assert resp["error"]["code"] == -32002
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: shader_used_by handler
+# ---------------------------------------------------------------------------
+
+
+def _make_shader_used_by_state():
+    """State with shader cache for used-by tests."""
+    pipe = MockPipeState()
+    pipe._shaders[ShaderStage.Vertex] = ResourceId(100)
+    pipe._shaders[ShaderStage.Pixel] = ResourceId(200)
+    refl_vs = ShaderReflection(resourceId=ResourceId(100), entryPoint="vs_main")
+    refl_ps = ShaderReflection(resourceId=ResourceId(200), entryPoint="ps_main")
+    pipe._reflections[ShaderStage.Vertex] = refl_vs
+    pipe._reflections[ShaderStage.Pixel] = refl_ps
+
+    actions = [
+        ActionDescription(eventId=10, flags=ActionFlags.Drawcall, numIndices=3, _name="Draw1"),
+        ActionDescription(eventId=20, flags=ActionFlags.Drawcall, numIndices=3, _name="Draw2"),
+    ]
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: actions,
+        GetResources=lambda: [ResourceDescription(resourceId=ResourceId(1), name="res0")],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: pipe,
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: SimpleNamespace(chunks=[]),
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+        DisassembleShader=lambda p, r, t: "; disasm",
+        GetDisassemblyTargets=lambda _with_pipeline=False: ["SPIR-V"],
+    )
+    state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=20)
+    from rdc.vfs.tree_cache import build_vfs_skeleton
+
+    state.vfs_tree = build_vfs_skeleton(actions, [])
+    return state
+
+
+class TestShaderUsedByHandler:
+    def test_returns_eids(self):
+        state = _make_shader_used_by_state()
+        resp, _ = _handle_request(rpc_request("shader_used_by", {"id": 100}), state)
+        assert "error" not in resp
+        assert isinstance(resp["result"]["eids"], list)
+        assert set(resp["result"]["eids"]) == {10, 20}
+
+    def test_all_eids_correct(self):
+        state = _make_shader_used_by_state()
+        resp, _ = _handle_request(rpc_request("shader_used_by", {"id": 200}), state)
+        assert "error" not in resp
+        assert set(resp["result"]["eids"]) == {10, 20}
+
+    def test_not_found(self):
+        state = _make_shader_used_by_state()
+        # Build cache first
+        _handle_request(rpc_request("shader_used_by", {"id": 100}), state)
+        resp, _ = _handle_request(rpc_request("shader_used_by", {"id": 9999}), state)
+        assert resp["error"]["code"] == -32001
+
+    def test_no_adapter(self):
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        resp, _ = _handle_request(rpc_request("shader_used_by", {"id": 100}), state)
+        assert resp["error"]["code"] == -32002
+
+    def test_cache_auto_build(self):
+        state = _make_shader_used_by_state()
+        assert not state._shader_cache_built
+        resp, _ = _handle_request(rpc_request("shader_used_by", {"id": 100}), state)
+        assert "error" not in resp
+        assert state._shader_cache_built

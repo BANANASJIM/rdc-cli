@@ -17,7 +17,13 @@ from mock_renderdoc import (
 )
 
 from rdc.vfs.formatter import render_ls, render_tree_root
-from rdc.vfs.tree_cache import VfsTree, build_vfs_skeleton, populate_draw_subtree
+from rdc.vfs.tree_cache import (
+    VfsTree,
+    build_vfs_skeleton,
+    populate_draw_subtree,
+    populate_pass_attachments,
+    populate_shaders_subtree,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -152,6 +158,7 @@ class TestBuildVfsSkeleton:
             "vbuffer",
             "ibuffer",
             "descriptors",
+            "pixel",
         ]
         assert node.children == expected
 
@@ -625,6 +632,83 @@ class TestLruEviction:
         assert skeleton.static["/draws/10/shader"].children == []
         # Eid 20 should still have its nodes
         assert "/draws/20/shader/ps" in skeleton.static
+
+
+# ---------------------------------------------------------------------------
+# Gap 1: /draws/<eid>/pixel/ discoverability
+# ---------------------------------------------------------------------------
+
+
+class TestPixelDir:
+    def test_pixel_in_draw_children(self, skeleton: VfsTree) -> None:
+        assert "pixel" in skeleton.static["/draws/10"].children
+
+    def test_pixel_dir_exists(self, skeleton: VfsTree) -> None:
+        assert skeleton.static["/draws/10/pixel"].kind == "dir"
+        assert skeleton.static["/draws/10/pixel"].children == []
+
+
+# ---------------------------------------------------------------------------
+# Gap 2: /passes/<name>/attachments/ children
+# ---------------------------------------------------------------------------
+
+
+class TestPopulatePassAttachments:
+    @pytest.fixture
+    def skel(self) -> VfsTree:
+        return build_vfs_skeleton(_make_actions(), _make_resources())
+
+    def test_color_and_depth(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_targets()
+        populate_pass_attachments(skel, "ShadowPass", pipe)
+        assert skel.static["/passes/ShadowPass/attachments"].children == [
+            "color0",
+            "color1",
+            "depth",
+        ]
+
+    def test_color_only(self, skel: VfsTree) -> None:
+        pipe = MockPipeState(
+            output_targets=[Descriptor(resource=ResourceId(300))],
+        )
+        populate_pass_attachments(skel, "ShadowPass", pipe)
+        assert skel.static["/passes/ShadowPass/attachments"].children == ["color0"]
+
+    def test_no_targets(self, skel: VfsTree) -> None:
+        pipe = MockPipeState()
+        populate_pass_attachments(skel, "ShadowPass", pipe)
+        assert skel.static["/passes/ShadowPass/attachments"].children == []
+
+    def test_idempotent(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_targets()
+        populate_pass_attachments(skel, "ShadowPass", pipe)
+        populate_pass_attachments(skel, "ShadowPass", pipe)
+        assert len(skel.static["/passes/ShadowPass/attachments"].children) == 3
+
+    def test_leaf_nodes(self, skel: VfsTree) -> None:
+        pipe = _make_pipe_with_targets()
+        populate_pass_attachments(skel, "ShadowPass", pipe)
+        assert skel.static["/passes/ShadowPass/attachments/color0"].kind == "leaf"
+        assert skel.static["/passes/ShadowPass/attachments/depth"].kind == "leaf"
+
+
+# ---------------------------------------------------------------------------
+# Gap 3: /shaders/<id>/used-by
+# ---------------------------------------------------------------------------
+
+
+class TestShaderUsedBy:
+    def test_shader_children_include_used_by(self) -> None:
+        skel = build_vfs_skeleton(_make_actions(), _make_resources())
+        meta = {100: {"stages": ["vs"], "eids": [10]}}
+        populate_shaders_subtree(skel, meta)
+        assert "used-by" in skel.static["/shaders/100"].children
+
+    def test_shader_used_by_leaf_exists(self) -> None:
+        skel = build_vfs_skeleton(_make_actions(), _make_resources())
+        meta = {100: {"stages": ["vs"], "eids": [10]}}
+        populate_shaders_subtree(skel, meta)
+        assert skel.static["/shaders/100/used-by"].kind == "leaf"
 
 
 # ---------------------------------------------------------------------------
