@@ -25,7 +25,7 @@ def _complete_capture_path(
     del ctx, param
     if "/" in incomplete:
         dir_part, prefix = incomplete.rsplit("/", 1)
-        dir_path = Path(os.path.expanduser(dir_part or "/"))
+        dir_path = Path(dir_part or "/").expanduser()
         base = f"{dir_part}/"
     else:
         dir_path = Path(".")

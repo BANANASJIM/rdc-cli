@@ -8,14 +8,16 @@ from pathlib import Path
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call, complete_eid, completion_call, fetch_remote_file
+from rdc.commands._helpers import (
+    _sort_numeric_like,
+    call,
+    complete_eid,
+    completion_call,
+    fetch_remote_file,
+)
 from rdc.commands.vfs import _deliver_binary
 from rdc.session_state import load_session
 from rdc.vfs.router import resolve_path
-
-
-def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
-    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
 
 
 def _export_vfs_path(vfs_path: str, output: str | None, raw: bool) -> None:

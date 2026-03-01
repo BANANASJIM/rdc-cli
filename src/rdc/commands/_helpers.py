@@ -6,7 +6,7 @@ import contextlib
 import io
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 import click
 from click.shell_completion import CompletionItem
@@ -31,7 +31,14 @@ __all__ = [
     "complete_eid",
     "complete_pass_name",
     "complete_pass_identifier",
+    "_sort_numeric_like",
+    "_emit_error",
 ]
+
+
+def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
+    """Sort values with numeric strings first (ascending), then alphabetic."""
+    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
 
 
 def _json_mode() -> bool:
@@ -41,6 +48,15 @@ def _json_mode() -> bool:
         return False
     params = ctx.params
     return bool(params.get("use_json"))
+
+
+def _emit_error(msg: str) -> NoReturn:
+    """Emit error message in JSON or text format and exit."""
+    if _json_mode():
+        click.echo(json.dumps({"error": {"message": msg}}), err=True)
+    else:
+        click.echo(f"error: {msg}", err=True)
+    raise SystemExit(1)
 
 
 def require_renderdoc() -> Any:
@@ -63,12 +79,7 @@ def require_session() -> tuple[str, int, str]:
 
     session = load_session()
     if session is None:
-        msg = "no active session (run 'rdc open' first)"
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1)
+        _emit_error("no active session (run 'rdc open' first)")
     pid = getattr(session, "pid", None)
     if isinstance(pid, int) and pid <= 0:
         try:
@@ -79,20 +90,10 @@ def require_session() -> tuple[str, int, str]:
         except Exception:  # noqa: BLE001
             pass
         delete_session()
-        msg = "stale session cleaned (daemon died); run 'rdc open' to restart"
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1)
+        _emit_error("stale session cleaned (daemon died); run 'rdc open' to restart")
     if isinstance(pid, int) and not is_pid_alive(pid):
         delete_session()
-        msg = "stale session cleaned (daemon died); run 'rdc open' to restart"
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1)
+        _emit_error("stale session cleaned (daemon died); run 'rdc open' to restart")
     return session.host, session.port, session.token
 
 
@@ -114,19 +115,9 @@ def call(method: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
         response = send_request(host, port, payload)
     except (OSError, ValueError) as exc:
-        msg = f"daemon unreachable: {exc}"
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1) from exc
+        _emit_error(f"daemon unreachable: {exc}")
     if "error" in response:
-        msg = response["error"]["message"]
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1)
+        _emit_error(response["error"]["message"])
     return cast(dict[str, Any], response["result"])
 
 
@@ -170,19 +161,9 @@ def call_binary(method: str, params: dict[str, Any]) -> tuple[dict[str, Any], by
     try:
         response, binary = send_request_binary(host, port, payload)
     except (OSError, ValueError) as exc:
-        msg = f"daemon unreachable: {exc}"
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1) from exc
+        _emit_error(f"daemon unreachable: {exc}")
     if "error" in response:
-        msg = response["error"]["message"]
-        if _json_mode():
-            click.echo(json.dumps({"error": {"message": msg}}), err=True)
-        else:
-            click.echo(f"error: {msg}", err=True)
-        raise SystemExit(1)
+        _emit_error(response["error"]["message"])
     return cast(dict[str, Any], response["result"]), binary
 
 

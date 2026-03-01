@@ -261,3 +261,30 @@ def test_tex_stats_valid_mip0_slice0() -> None:
     assert "result" in resp
     assert resp["result"]["mip"] == 0
     assert resp["result"]["slice"] == 0
+
+
+# ---------------------------------------------------------------------------
+# B54: histogram channel length mismatch guard
+# ---------------------------------------------------------------------------
+
+
+def test_tex_stats_histogram_channel_length_mismatch() -> None:
+    """B54: extra buckets in later channels must not cause IndexError."""
+    mn = rd.PixelValue(floatValue=[0.0, 0.0, 0.0, 0.0])
+    mx = rd.PixelValue(floatValue=[1.0, 1.0, 1.0, 1.0])
+    # ch0 returns 4 buckets (histogram list will have 4 entries),
+    # ch1 returns 8 buckets (would overflow without the guard).
+    hist = {
+        (42, 0): [10, 20, 30, 40],
+        (42, 1): [1, 2, 3, 4, 5, 6, 7, 8],
+        (42, 2): [0] * 4,
+        (42, 3): [0] * 4,
+    }
+    state = _make_state(min_max=(mn, mx), histogram=hist)
+    resp, running = _handle_request(rpc_request("tex_stats", {"id": 42, "histogram": True}), state)
+    assert running
+    h = resp["result"]["histogram"]
+    assert len(h) == 4
+    # First 4 buckets should have ch1 data
+    assert h[0]["g"] == 1
+    assert h[3]["g"] == 4

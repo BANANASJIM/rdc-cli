@@ -8,15 +8,16 @@ from typing import Any
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call, complete_pass_identifier, completion_call
+from rdc.commands._helpers import (
+    _sort_numeric_like,
+    call,
+    complete_pass_identifier,
+    completion_call,
+)
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import format_kv
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import format_row, write_tsv
-
-
-def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
-    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
 
 
 def _complete_resource_rows() -> list[dict[str, Any]]:
@@ -84,34 +85,6 @@ def _complete_resource_id(
                 continue
             values.append(rid)
         return [CompletionItem(value) for value in _sort_numeric_like(set(values))]
-    except Exception:
-        return []
-
-
-def _complete_pass_identifier(
-    ctx: click.Context, param: click.Parameter, incomplete: str
-) -> list[CompletionItem]:
-    try:
-        del ctx, param
-        result = completion_call("passes", {})
-        if not isinstance(result, dict):
-            return []
-        tree = result.get("tree", {})
-        passes = tree.get("passes", []) if isinstance(tree, dict) else []
-        if not isinstance(passes, list):
-            return []
-        prefix = incomplete.lower()
-        items: list[CompletionItem] = []
-        for idx, pass_row in enumerate(passes):
-            if not isinstance(pass_row, dict):
-                continue
-            index_text = str(idx)
-            name = str(pass_row.get("name", ""))
-            if index_text.startswith(incomplete):
-                items.append(CompletionItem(index_text))
-            if name and name.lower().startswith(prefix):
-                items.append(CompletionItem(name))
-        return items
     except Exception:
         return []
 

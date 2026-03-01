@@ -52,7 +52,7 @@ def events_cmd(
         return
     if quiet:
         for r in rows_data:
-            sys.stdout.write(str(r["eid"]) + chr(10))
+            sys.stdout.write(str(r["eid"]) + "\n")
         return
     header = ["EID", "TYPE", "NAME"]
     rows = [[r["eid"], r["type"], r["name"]] for r in rows_data]
@@ -101,7 +101,7 @@ def draws_cmd(
         return
     if quiet:
         for r in rows_data:
-            sys.stdout.write(str(r["eid"]) + chr(10))
+            sys.stdout.write(str(r["eid"]) + "\n")
         return
     header = ["EID", "TYPE", "TRIANGLES", "INSTANCES", "PASS", "MARKER"]
     rows = [
