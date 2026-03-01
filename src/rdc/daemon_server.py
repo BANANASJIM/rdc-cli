@@ -54,6 +54,7 @@ from rdc.handlers._types import Handler
 __all__ = [
     "DaemonState",
     "Handler",
+    "_NO_REPLAY_METHODS",
     "_build_shader_cache",
     "_cleanup_temp",
     "_enum_name",
@@ -90,6 +91,21 @@ _DISPATCH: dict[str, Handler] = {
     **_CAPTURE_HANDLERS,
     **_CAPTUREFILE_HANDLERS,
 }
+
+_NO_REPLAY_METHODS: frozenset[str] = frozenset(
+    {
+        "ping",
+        "status",
+        "goto",
+        "shutdown",
+        "count",
+        "file_read",
+        "capture_run",
+        "remote_connect_run",
+        "remote_list_run",
+        "remote_capture_run",
+    }
+)
 
 
 @dataclass
@@ -350,7 +366,7 @@ def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[s
     handler = _DISPATCH.get(method)
     if handler is None:
         return _error_response(request_id, -32601, "method not found"), True
-    if not getattr(handler, "_no_replay", False) and state.adapter is None:
+    if method not in _NO_REPLAY_METHODS and state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
     result: tuple[dict[str, Any], bool] = handler(request_id, params, state)
     return result

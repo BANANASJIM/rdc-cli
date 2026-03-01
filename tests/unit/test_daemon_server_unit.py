@@ -13,6 +13,7 @@ import pytest
 from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import (
     _DISPATCH,
+    _NO_REPLAY_METHODS,
     DaemonState,
     _cleanup_temp_capture,
     _handle_request,
@@ -175,7 +176,6 @@ class TestShutdownExceptionStops:
         def _boom(request_id: int, params: dict, state: Any) -> Any:
             raise RuntimeError("boom")
 
-        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "shutdown", _boom)
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
         request = {"id": 1, "method": "shutdown", "params": {"_token": "tok"}}
@@ -304,8 +304,10 @@ class TestProcessRequest:
         def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
             raise RuntimeError("boom")
 
-        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
+        monkeypatch.setattr(
+            "rdc.daemon_server._NO_REPLAY_METHODS", _NO_REPLAY_METHODS | {"test_boom"}
+        )
         state = self._state()
         request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
         with patch.object(logging.getLogger("rdc.daemon"), "exception") as mock_log:
@@ -320,8 +322,10 @@ class TestProcessRequest:
         def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
             raise RuntimeError("boom")
 
-        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
+        monkeypatch.setattr(
+            "rdc.daemon_server._NO_REPLAY_METHODS", _NO_REPLAY_METHODS | {"test_boom"}
+        )
         state = self._state()
         request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
         resp, _running = _process_request(request, state)
@@ -336,8 +340,10 @@ class TestProcessRequest:
         def _boom(_rid: Any, _params: Any, _state: Any) -> Any:
             raise RuntimeError("boom")
 
-        _boom._no_replay = True  # type: ignore[attr-defined]
         monkeypatch.setitem(_DISPATCH, "test_boom", _boom)
+        monkeypatch.setattr(
+            "rdc.daemon_server._NO_REPLAY_METHODS", _NO_REPLAY_METHODS | {"test_boom"}
+        )
         state = self._state()
         request = {"id": 1, "method": "test_boom", "params": {"_token": "tok"}}
         _resp, running = _process_request(request, state)
@@ -479,3 +485,23 @@ class TestEmitError:
         with pytest.raises(SystemExit) as exc_info:
             _emit_error("something went wrong")
         assert exc_info.value.code == 1
+
+
+class TestNoReplayRegistry:
+    def test_no_replay_methods_exact_contents(self) -> None:
+        """Registry contains exactly the expected 10 methods."""
+        expected = frozenset(
+            {
+                "ping",
+                "status",
+                "goto",
+                "shutdown",
+                "count",
+                "file_read",
+                "capture_run",
+                "remote_connect_run",
+                "remote_list_run",
+                "remote_capture_run",
+            }
+        )
+        assert _NO_REPLAY_METHODS == expected

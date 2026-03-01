@@ -189,9 +189,11 @@ class TestFileReadHandler:
         """T3.6: file_read is registered in HANDLERS."""
         assert "file_read" in HANDLERS
 
-    def test_no_replay_flag(self) -> None:
-        """T3.7: _no_replay is True."""
-        assert getattr(_handle_file_read, "_no_replay", False) is True
+    def test_file_read_in_no_replay_methods(self) -> None:
+        """T3.7: file_read is in _NO_REPLAY_METHODS registry."""
+        from rdc.daemon_server import _NO_REPLAY_METHODS
+
+        assert "file_read" in _NO_REPLAY_METHODS
 
 
 # ===========================================================================
