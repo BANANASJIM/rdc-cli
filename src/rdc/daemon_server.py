@@ -435,7 +435,7 @@ def run_server(  # pragma: no cover
                 binary_path = response.get("result", {}).pop("_binary_path", None)
                 try:
                     payload = json.dumps(response) + "\n"
-                except TypeError as exc:
+                except (TypeError, ValueError, RecursionError) as exc:
                     _log.warning("serialization error: %s", exc)
                     err_resp: dict[str, Any] = {
                         "jsonrpc": "2.0",

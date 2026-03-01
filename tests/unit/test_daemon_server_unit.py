@@ -550,6 +550,7 @@ class TestSerializationResilience:
             "id": 42,
             "result": {"data": Unserializable()},
         }
+        payload = ""
         try:
             json.dumps(response)
             payload_ok = True
