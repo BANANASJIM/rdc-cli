@@ -86,7 +86,7 @@ def test_bindings_with_filters(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
 
-    def capture(h, p, payload):
+    def capture(h, p, payload, **_kw):
         calls.append(payload)
         return {"result": {"rows": []}}
 
@@ -202,7 +202,7 @@ def test_shader_stage_only_uses_current_eid(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
 
-    def capture(_h, _p, payload):
+    def capture(_h, _p, payload, **_kw):
         calls.append(payload)
         return {
             "result": {
@@ -235,7 +235,7 @@ def test_shader_explicit_eid_stage_form_still_supported(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
 
-    def capture(_h, _p, payload):
+    def capture(_h, _p, payload, **_kw):
         calls.append(payload)
         return {
             "result": {
@@ -387,7 +387,7 @@ def test_shaders_with_filters(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
 
-    def capture(h, p, payload):
+    def capture(h, p, payload, **_kw):
         calls.append(payload)
         return {"result": {"rows": []}}
 

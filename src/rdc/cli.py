@@ -20,6 +20,7 @@ from rdc.commands.capture_control import (
     capture_trigger_cmd,
 )
 from rdc.commands.capturefile import (
+    callstacks_cmd,
     gpus_cmd,
     section_cmd,
     sections_cmd,
@@ -150,6 +151,7 @@ main.add_command(capture_list_cmd, name="capture-list")
 main.add_command(capture_copy_cmd, name="capture-copy")
 main.add_command(remote_group, name="remote")
 main.add_command(serve_cmd, name="serve")
+main.add_command(callstacks_cmd, name="callstacks")
 
 
 if __name__ == "__main__":

@@ -390,6 +390,7 @@ class SectionType(IntEnum):
     ResourceRenames = 5
     AMDRGPProfile = 6
     ExtendedThumbnail = 7
+    EmbeddedLogfile = 8
 
 
 class SectionFlags(IntFlag):
@@ -1569,6 +1570,10 @@ class MockReplayController:
     def RemoveReplacement(self, original: Any) -> None:
         self._replacements.pop(int(original), None)
 
+    def GetCallstack(self, eid: int) -> list[int]:
+        """Mock GetCallstack -- returns instruction addresses for the event."""
+        return []
+
     def FreeTargetResource(self, rid: Any) -> None:
         self._freed.add(int(rid))
 
@@ -1694,6 +1699,9 @@ class MockCaptureFile:
         self._structured_data: StructuredFile = StructuredFile()
         self._path: str = ""
         self._shutdown_called: bool = False
+        self._has_callstacks: bool = False
+        self._resolver_ready: bool = False
+        self._written_sections: list[tuple[SectionProperties, bytes]] = []
 
     def OpenFile(self, path: str, filetype: str, progress: Any) -> ResultCode:
         self._path = path
@@ -1727,7 +1735,17 @@ class MockCaptureFile:
         return 0 if name == "FrameCapture" else -1
 
     def HasCallstacks(self) -> bool:
-        return False
+        return self._has_callstacks
+
+    def InitResolver(self, interactive: bool = False, progress: Any = None) -> bool:
+        self._resolver_ready = True
+        return True
+
+    def GetResolve(self, callstack: list[int]) -> list[str]:
+        return [f"mock_function mock_file.c:{42 + i}" for i in range(len(callstack))]
+
+    def WriteSection(self, props: SectionProperties, contents: bytes) -> None:
+        self._written_sections.append((props, contents))
 
     def RecordedMachineIdent(self) -> str:
         return "mock-machine-ident"

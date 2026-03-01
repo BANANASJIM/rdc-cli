@@ -146,7 +146,7 @@ def test_cli_pipeline_json_output(monkeypatch) -> None:  # type: ignore[no-untyp
     monkeypatch.setattr(
         pipeline_mod,
         "send_request",
-        lambda _h, _p, _payload: {"result": {"row": {"eid": 10, "api": "Vulkan"}}},
+        lambda _h, _p, _payload, **_kw: {"result": {"row": {"eid": 10, "api": "Vulkan"}}},
     )
     runner = CliRunner()
     result = runner.invoke(main, ["pipeline", "--json"])
@@ -162,7 +162,7 @@ def test_cli_shader_invalid_stage(monkeypatch) -> None:  # type: ignore[no-untyp
     monkeypatch.setattr(
         pipeline_mod,
         "send_request",
-        lambda _h, _p, _payload: {"error": {"message": "invalid stage"}},
+        lambda _h, _p, _payload, **_kw: {"error": {"message": "invalid stage"}},
     )
     runner = CliRunner()
     result = runner.invoke(main, ["shader", "1", "ps"])
@@ -177,7 +177,7 @@ def test_cli_pipeline_replay_unavailable(monkeypatch) -> None:  # type: ignore[n
     monkeypatch.setattr(
         pipeline_mod,
         "send_request",
-        lambda _h, _p, _payload: {"error": {"message": "no replay loaded"}},
+        lambda _h, _p, _payload, **_kw: {"error": {"message": "no replay loaded"}},
     )
     runner = CliRunner()
     result = runner.invoke(main, ["pipeline"])

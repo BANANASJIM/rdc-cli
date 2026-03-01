@@ -119,7 +119,7 @@ def patch_cli_session(
 
     session = type("S", (), {"host": host, "port": port, "token": token})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
-    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload: {"result": response})
+    monkeypatch.setattr(mod, "send_request", lambda _h, _p, _payload, **_kw: {"result": response})
 
 
 def assert_json_output(result: Any) -> dict[str, Any]:

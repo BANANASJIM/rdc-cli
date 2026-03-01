@@ -109,7 +109,9 @@ def test_daemon_call_error_response(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
     monkeypatch.setattr(
-        mod, "send_request", lambda _h, _p, _payload: {"error": {"message": "no replay loaded"}}
+        mod,
+        "send_request",
+        lambda _h, _p, _payload, **_kw: {"error": {"message": "no replay loaded"}},
     )
     result = CliRunner().invoke(main, ["info"])
     assert result.exit_code == 1
@@ -122,7 +124,7 @@ def test_daemon_call_connection_error(monkeypatch) -> None:
     session = type("S", (), {"host": "127.0.0.1", "port": 1, "token": "tok"})()
     monkeypatch.setattr(mod, "load_session", lambda: session)
 
-    def raise_error(*args):
+    def raise_error(*args, **_kw):
         raise ConnectionRefusedError("refused")
 
     monkeypatch.setattr(mod, "send_request", raise_error)

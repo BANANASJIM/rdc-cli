@@ -142,6 +142,17 @@ Export buffer raw data.
 | `-o, --output` | Write to file | path |  |
 | `--raw` | Force raw output even on TTY | flag |  |
 
+## `rdc callstacks`
+
+Resolve CPU callstack for an event.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--eid` | Event ID (defaults to current). | integer |  |
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc capture`
 
 Execute application and capture a frame.
@@ -806,7 +817,7 @@ Search shader disassembly text for PATTERN (regex).
 
 ## `rdc section`
 
-Extract named section contents.
+Extract or write named section contents.
 
 **Arguments:**
 
@@ -819,6 +830,7 @@ Extract named section contents.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--json` | Output as JSON. | flag |  |
+| `--write` | Write file contents as this section (use '-' for stdin). | path |  |
 
 ## `rdc sections`
 
