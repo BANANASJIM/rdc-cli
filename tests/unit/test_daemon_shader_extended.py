@@ -234,3 +234,39 @@ def test_events_handler() -> None:
     resp, _ = _handle_request(rpc_request("events"), state)
     # Events handler may or may not be implemented
     assert "result" in resp or "error" in resp
+
+
+def test_shader_handler_reflect_param() -> None:
+    """_handle_shader includes reflection when reflect=True."""
+    state = _state_with_adapter()
+    # Add input/output signatures with real enum values
+    refl_obj = state.adapter.controller._pipe_state._reflections[rd.ShaderStage.Pixel]
+    refl_obj.inputSignature = [
+        rd.SigParameter(varName="fragCoord", compType=rd.CompType.Float, regIndex=0, compCount=4),
+    ]
+    refl_obj.outputSignature = [
+        rd.SigParameter(varName="outColor", compType=rd.CompType.Float, regIndex=0, compCount=4),
+    ]
+    resp, running = _handle_request(
+        rpc_request("shader", {"eid": 10, "stage": "ps", "reflect": True}), state
+    )
+    assert running
+    r = resp["result"]["row"]
+    assert "reflection" in r
+    refl = r["reflection"]
+    assert len(refl["inputs"]) == 1
+    assert refl["inputs"][0]["name"] == "fragCoord"
+    assert refl["inputs"][0]["type"] == "Float"
+    assert len(refl["outputs"]) == 1
+    assert refl["outputs"][0]["name"] == "outColor"
+    assert len(refl["cbuffers"]) == 1
+    assert refl["cbuffers"][0]["name"] == "Globals"
+
+
+def test_shader_handler_no_reflect_by_default() -> None:
+    """_handle_shader excludes reflection when reflect not set."""
+    state = _state_with_adapter()
+    resp, running = _handle_request(rpc_request("shader", {"eid": 10, "stage": "ps"}), state)
+    assert running
+    r = resp["result"]["row"]
+    assert "reflection" not in r

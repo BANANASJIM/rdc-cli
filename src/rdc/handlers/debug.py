@@ -131,6 +131,8 @@ def _handle_debug_pixel(
     eid = int(params["eid"])
     x = int(params["x"])
     y = int(params["y"])
+    if x < 0 or y < 0:
+        return _error_response(request_id, -32602, "pixel coordinates must be >= 0"), True
 
     err = _set_frame_event(state, eid)
     if err:
