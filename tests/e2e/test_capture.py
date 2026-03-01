@@ -28,7 +28,10 @@ def _force_kill(proc: subprocess.Popen[str], timeout: float = 15) -> None:
         proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass  # D-state; best-effort
 
 
 def _rdc_capture(
@@ -91,15 +94,15 @@ class TestCaptureInject:
                 "--",
                 vulkan_samples_bin,
             ],
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
         )
         try:
-            # Poll until injection completes (process stays alive in trigger mode)
+            # Wait up to 10s; process should stay alive in trigger mode
             for _ in range(20):
                 if proc.poll() is not None:
-                    break
+                    break  # Premature exit; assertion below will catch it
                 time.sleep(0.5)
             assert proc.poll() is None, f"Process exited prematurely with code {proc.returncode}"
         finally:
@@ -153,7 +156,7 @@ class TestCaptureWorkflow:
                 "--",
                 vulkan_samples_bin,
             ],
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
         )
