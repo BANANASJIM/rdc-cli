@@ -189,9 +189,30 @@ def resource_cmd(resid: int, use_json: bool) -> None:
 
 @click.command("passes")
 @click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
+@click.option("--deps", is_flag=True, default=False, help="Show pass dependency DAG.")
+@click.option("--dot", is_flag=True, default=False, help="Graphviz DOT output (requires --deps).")
+@click.option(
+    "--graph", is_flag=True, default=False, help="Human-readable graph (requires --deps)."
+)
 @list_output_options
-def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
+def passes_cmd(
+    use_json: bool,
+    deps: bool,
+    dot: bool,
+    graph: bool,
+    no_header: bool,
+    use_jsonl: bool,
+    quiet: bool,
+) -> None:
     """List render passes."""
+    if (dot or graph) and not deps:
+        raise click.UsageError("--dot/--graph requires --deps")
+    if deps and (no_header or use_jsonl or quiet):
+        raise click.UsageError("--deps only supports --json, --dot, and --graph")
+    if deps:
+        _passes_deps(use_json, dot, graph)
+        return
+
     result = call("passes", {})
     tree: dict[str, Any] = result.get("tree", {})
     if use_json:
@@ -207,6 +228,83 @@ def passes_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) ->
     else:
         tsv_rows = [[p.get("name", "-"), p.get("draws", 0)] for p in passes]
         write_tsv(tsv_rows, header=["NAME", "DRAWS"], no_header=no_header)
+
+
+def _passes_deps(use_json: bool, dot: bool, graph: bool) -> None:
+    result = call("pass_deps", {})
+    edges: list[dict[str, Any]] = result.get("edges", [])
+    if use_json:
+        write_json(result)
+        return
+    if dot:
+        _format_dot(edges)
+        return
+    if graph:
+        _format_graph(edges)
+        return
+    click.echo(format_row(["SRC", "DST", "RESOURCES"]))
+    for e in edges:
+        rids = ",".join(str(r) for r in e["resources"])
+        click.echo(format_row([e["src"], e["dst"], rids]))
+
+
+def _format_dot(edges: list[dict[str, Any]]) -> None:
+    click.echo("digraph {")
+    for e in edges:
+        label = ",".join(str(r) for r in e["resources"])
+        src = e["src"].replace("\\", "\\\\").replace('"', '\\"')
+        dst = e["dst"].replace("\\", "\\\\").replace('"', '\\"')
+        click.echo(f'  "{src}" -> "{dst}" [label="{label}"];')
+    click.echo("}")
+
+
+def _format_graph(edges: list[dict[str, Any]]) -> None:
+    if not edges:
+        click.echo("(no dependencies)")
+        return
+
+    # Collect nodes in order, assign short labels
+    out: dict[str, list[str]] = {}
+    inc: dict[str, set[str]] = {}
+    nodes: list[str] = []
+    for e in edges:
+        src, dst = e["src"], e["dst"]
+        out.setdefault(src, []).append(dst)
+        inc.setdefault(dst, set()).add(src)
+        out.setdefault(dst, [])
+        inc.setdefault(src, set())
+        if src not in nodes:
+            nodes.append(src)
+        if dst not in nodes:
+            nodes.append(dst)
+
+    # Short labels: A, B, C, ... Z, AA, AB, ...
+    labels: dict[str, str] = {}
+    for i, n in enumerate(nodes):
+        if i < 26:
+            labels[n] = chr(65 + i)
+        else:
+            labels[n] = chr(64 + i // 26) + chr(65 + i % 26)
+    lbl = labels  # alias
+
+    # Legend
+    click.echo("Legend:")
+    for node in nodes:
+        marker = "●" if out.get(node) else "○"
+        click.echo(f"  [{lbl[node]}] {marker} {node}")
+    click.echo("")
+
+    # Graph: each node shows outgoing edges
+    click.echo("Graph:")
+    for node in nodes:
+        targets = out.get(node, [])
+        producers = inc.get(node, set())
+        from_part = f"  ◀ {','.join(lbl[p] for p in nodes if p in producers)}" if producers else ""
+        if targets:
+            to_part = " ──▶ " + ", ".join(lbl[t] for t in targets)
+            click.echo(f"  {lbl[node]}{to_part}{from_part}")
+        else:
+            click.echo(f"  {lbl[node]}  (sink){from_part}")
 
 
 @click.command("pass")
