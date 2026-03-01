@@ -188,6 +188,7 @@ Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See 
 | Diff | `diff` (with `--draws`, `--stats`, `--framebuffer`, `--pipeline`, etc.) |
 | VFS | `ls`, `cat`, `tree` |
 | Remote | `remote connect`, `remote list`, `remote capture` |
+| Capture file | `sections`, `section`, `callstacks`, `gpus`, `thumbnail` |
 | Utility | `doctor`, `completion`, `capture`, `count`, `script`, `install-skill` |
 
 All list commands output TSV. All commands support `--json`. Footer/summary goes to stderr — stdout is always clean data.

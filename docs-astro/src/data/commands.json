@@ -168,7 +168,7 @@
           "name": "passes",
           "id": "passes",
           "help": "List render passes.",
-          "usage": "rdc passes [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc passes [--deps] [--dot] [--graph] [--json] [--no-header] [--jsonl] [-q]"
         },
         {
           "name": "pass",
@@ -402,8 +402,14 @@
         {
           "name": "section",
           "id": "section",
-          "help": "Extract named section contents.",
-          "usage": "rdc section <NAME> [--json]"
+          "help": "Read or write named section contents.",
+          "usage": "rdc section <NAME> [--write <FILE>] [--json]"
+        },
+        {
+          "name": "callstacks",
+          "id": "callstacks",
+          "help": "Resolve CPU callstack for an event.",
+          "usage": "rdc callstacks [--eid INTEGER] [--json]"
         }
       ]
     },
