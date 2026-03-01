@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from conftest import HELLO_TRIANGLE, VKCUBE, rdc, rdc_fail, rdc_ok
+from e2e_helpers import HELLO_TRIANGLE, VKCUBE, rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

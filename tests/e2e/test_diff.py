@@ -9,7 +9,7 @@ available.
 from __future__ import annotations
 
 import pytest
-from conftest import HELLO_TRIANGLE, VKCUBE, VKCUBE_VALIDATION, rdc, rdc_ok
+from e2e_helpers import HELLO_TRIANGLE, VKCUBE, VKCUBE_VALIDATION, rdc, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

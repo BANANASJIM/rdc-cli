@@ -50,7 +50,7 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-pythonpath = ["src", "tests/mocks", "scripts"]
+pythonpath = ["src", "tests/mocks", "tests/e2e", "scripts"]
 markers = [
   "gpu: requires real renderdoc module and GPU",
   "vulkan_samples: requires vulkan-samples binary for live capture testing",
