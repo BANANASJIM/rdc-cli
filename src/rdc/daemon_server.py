@@ -124,6 +124,7 @@ class DaemonState:
     remote_url: str = ""
     is_remote: bool = False
     local_capture_path: str = ""
+    local_capture_is_temp: bool = False
     _ping_stop: Any = None
     _ping_thread: Any = None
 
@@ -250,10 +251,13 @@ def _stop_ping_thread(state: DaemonState) -> None:
 
 def _cleanup_temp_capture(state: DaemonState) -> None:
     """Remove temp metadata directory created for remote replay, if any."""
+    if not state.local_capture_is_temp:
+        return
     lcp = state.local_capture_path
-    if lcp and "rdc-remote-" in lcp:
+    if lcp:
         shutil.rmtree(Path(lcp).parent, ignore_errors=True)
-        state.local_capture_path = ""
+    state.local_capture_path = ""
+    state.local_capture_is_temp = False
 
 
 def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
@@ -297,6 +301,7 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                 remote.ShutdownConnection()
                 return f"CopyCaptureFromRemote failed: {exc}"
             state.local_capture_path = str(local_tmp)
+            state.local_capture_is_temp = True
 
         result, controller = remote.OpenCapture(
             rd.RemoteServer.NoPreference, remote_path, rd.ReplayOptions(), None

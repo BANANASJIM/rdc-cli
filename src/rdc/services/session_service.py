@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import socket
 import subprocess
@@ -19,6 +20,8 @@ from rdc.session_state import (
     load_session,
     save_session,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def pick_port() -> int:
@@ -262,6 +265,7 @@ def close_session(*, force_shutdown: bool = False) -> tuple[bool, str]:
     try:
         send_request(state.host, state.port, shutdown_request(state.token, request_id=4))
     except Exception:
+        logger.debug("shutdown request failed, terminating", exc_info=True)
         _platform.terminate_process(state.pid)
 
     removed = delete_session()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from click.shell_completion import CompletionItem
 
+import rdc.commands._helpers as helpers_mod
 import rdc.commands.export as export_mod
 import rdc.commands.resources as resources_mod
 import rdc.commands.usage as usage_mod
@@ -63,11 +64,11 @@ def test_resources_completion_candidates(monkeypatch) -> None:
 
 def test_pass_identifier_completion_candidates(monkeypatch) -> None:
     monkeypatch.setattr(
-        resources_mod,
-        "completion_call",
+        helpers_mod,
+        "try_call",
         lambda method, params: {"tree": {"passes": [{"name": "Shadow"}, {"name": "Main"}]}},
     )
-    values = _values(resources_mod._complete_pass_identifier(None, None, ""))
+    values = _values(helpers_mod.complete_pass_identifier(None, None, ""))
     assert "0" in values
     assert "1" in values
     assert "Shadow" in values
@@ -128,7 +129,8 @@ def test_resource_completion_errors_return_empty(monkeypatch) -> None:
     monkeypatch.setattr(export_mod, "completion_call", lambda method, params: None)
 
     assert resources_mod._complete_resource_id(None, None, "") == []
-    assert resources_mod._complete_pass_identifier(None, None, "") == []
+    monkeypatch.setattr(helpers_mod, "try_call", lambda method, params: None)
+    assert helpers_mod.complete_pass_identifier(None, None, "") == []
     assert usage_mod._complete_usage_resource_id(None, None, "") == []
     assert usage_mod._complete_usage_kind(None, None, "") == []
     assert export_mod._complete_texture_id(None, None, "") == []
@@ -197,10 +199,11 @@ def test_completion_malformed_items_are_ignored(monkeypatch) -> None:
 
     monkeypatch.setattr(resources_mod, "completion_call", fake_call)
     monkeypatch.setattr(export_mod, "completion_call", fake_call)
+    monkeypatch.setattr(helpers_mod, "try_call", fake_call)
 
     class _Ctx:
         params = {"eid": 100}
 
     assert _values(resources_mod._complete_resource_id(None, None, "")) == ["9"]
-    assert _values(resources_mod._complete_pass_identifier(None, None, "")) == ["0", "Main"]
+    assert _values(helpers_mod.complete_pass_identifier(None, None, "")) == ["0", "Main"]
     assert _values(export_mod._complete_rt_target(_Ctx(), None, "")) == ["1"]

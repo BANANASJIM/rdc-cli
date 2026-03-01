@@ -129,6 +129,7 @@ class TestLoadRemoteReplay:
         mock_remote.CopyCaptureFromRemote.assert_called_once()
         assert state.local_capture_path != ""
         assert "rdc-remote-" in state.local_capture_path
+        assert state.local_capture_is_temp
 
     def test_copy_from_remote_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rd, mock_remote = _make_mock_rd()

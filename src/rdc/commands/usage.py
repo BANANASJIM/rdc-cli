@@ -8,14 +8,10 @@ from typing import Any
 import click
 from click.shell_completion import CompletionItem
 
-from rdc.commands._helpers import call, completion_call
+from rdc.commands._helpers import _sort_numeric_like, call, completion_call
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.options import list_output_options
 from rdc.formatters.tsv import write_tsv
-
-
-def _sort_numeric_like(values: set[str] | list[str]) -> list[str]:
-    return sorted(values, key=lambda value: (0, int(value)) if value.isdigit() else (1, value))
 
 
 def _completion_rows(result: Any, key: str) -> list[dict[str, Any]]:

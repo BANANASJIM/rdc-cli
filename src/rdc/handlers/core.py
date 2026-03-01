@@ -103,13 +103,12 @@ def _handle_shutdown(
         import shutil
 
         shutil.rmtree(state.temp_dir, ignore_errors=True)
-    if state.is_remote and state.local_capture_path:
+    if state.local_capture_is_temp and state.local_capture_path:
         import shutil
         from pathlib import Path
 
-        local_meta_dir = Path(state.local_capture_path).parent
-        if "rdc-remote-" in local_meta_dir.name:
-            shutil.rmtree(str(local_meta_dir), ignore_errors=True)
+        shutil.rmtree(str(Path(state.local_capture_path).parent), ignore_errors=True)
+        state.local_capture_is_temp = False
     if state.is_remote:
         if state._ping_stop is not None:
             state._ping_stop.set()

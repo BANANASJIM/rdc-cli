@@ -310,7 +310,8 @@ def _handle_tex_stats(
                 if ch == 0:
                     histogram.append({"bucket": b_idx, "r": int(count), "g": 0, "b": 0, "a": 0})
                 else:
-                    histogram[b_idx][ch_name] = int(count)
+                    if b_idx < len(histogram):
+                        histogram[b_idx][ch_name] = int(count)
         result_data["histogram"] = histogram
 
     return _result_response(request_id, result_data), True

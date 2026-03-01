@@ -11,7 +11,15 @@ from unittest.mock import patch
 import pytest
 
 from rdc.adapter import RenderDocAdapter
-from rdc.daemon_server import DaemonState, _handle_request, _load_replay, _set_frame_event
+from rdc.daemon_server import (
+    _DISPATCH,
+    DaemonState,
+    _cleanup_temp_capture,
+    _handle_request,
+    _load_replay,
+    _process_request,
+    _set_frame_event,
+)
 
 
 # Make mock module importable
@@ -161,20 +169,19 @@ class TestHandleRequest:
 
 
 class TestShutdownExceptionStops:
-    def test_shutdown_exception_still_stops(self) -> None:
-        """If shutdown handler raises, running should be False."""
-        # The fix is in run_server's except block:
-        #   running = request.get("method") != "shutdown"
-        # Verify the logic directly:
-        request: dict[str, Any] = {"method": "shutdown", "id": 1}
-        running = request.get("method") != "shutdown"
-        assert running is False
+    def test_shutdown_exception_returns_not_running(self, monkeypatch: Any) -> None:
+        """If shutdown handler raises, _process_request returns running=False."""
 
-    def test_non_shutdown_exception_keeps_running(self) -> None:
-        """If a non-shutdown handler raises, running should be True."""
-        request: dict[str, Any] = {"method": "status", "id": 1}
-        running = request.get("method") != "shutdown"
-        assert running is True
+        def _boom(request_id: int, params: dict, state: Any) -> Any:
+            raise RuntimeError("boom")
+
+        _boom._no_replay = True  # type: ignore[attr-defined]
+        monkeypatch.setitem(_DISPATCH, "shutdown", _boom)
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        request = {"id": 1, "method": "shutdown", "params": {"_token": "tok"}}
+        resp, running = _process_request(request, state)
+        assert running is False
+        assert resp["error"]["code"] == -32603
 
 
 class TestLoadReplay:
@@ -415,19 +422,60 @@ class TestConnectionTimeout:
 
         from rdc._transport import recv_line
 
-        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server.bind(("127.0.0.1", 0))
-        server.listen(1)
-        port = server.getsockname()[1]
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.bind(("127.0.0.1", 0))
+            server.listen(1)
+            port = server.getsockname()[1]
 
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect(("127.0.0.1", port))
-        conn, _ = server.accept()
-        conn.settimeout(0.1)
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+                client.connect(("127.0.0.1", port))
+                conn, _ = server.accept()
+                with conn:
+                    conn.settimeout(0.1)
+                    with pytest.raises(TimeoutError):
+                        recv_line(conn)
 
-        with pytest.raises(TimeoutError):
-            recv_line(conn)
 
-        conn.close()
-        client.close()
-        server.close()
+class TestCleanupTempCapture:
+    def test_cleanup_skips_non_temp_path(self, monkeypatch: Any) -> None:
+        """Non-temp captures (local_capture_is_temp=False) are never deleted."""
+        rmtree_calls: list[Any] = []
+        monkeypatch.setattr(
+            "rdc.daemon_server.shutil.rmtree", lambda *a, **kw: rmtree_calls.append(a)
+        )
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        state.local_capture_path = "/data/captures/important.rdc"
+        _cleanup_temp_capture(state)
+        assert rmtree_calls == []
+
+    def test_cleanup_removes_temp_path(self, monkeypatch: Any) -> None:
+        """Temp captures (local_capture_is_temp=True) are cleaned up."""
+        rmtree_calls: list[Any] = []
+        monkeypatch.setattr(
+            "rdc.daemon_server.shutil.rmtree", lambda path, **kw: rmtree_calls.append(path)
+        )
+        state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+        state.local_capture_path = "/tmp/rdc-remote-abc123/cap.rdc"
+        state.local_capture_is_temp = True
+        _cleanup_temp_capture(state)
+        assert len(rmtree_calls) == 1
+        assert str(rmtree_calls[0]).endswith("rdc-remote-abc123")
+        assert not state.local_capture_is_temp
+
+
+class TestEmitError:
+    def test_emit_error_json_mode(self, monkeypatch: Any) -> None:
+        from rdc.commands._helpers import _emit_error
+
+        monkeypatch.setattr("rdc.commands._helpers._json_mode", lambda: True)
+        with pytest.raises(SystemExit) as exc_info:
+            _emit_error("something went wrong")
+        assert exc_info.value.code == 1
+
+    def test_emit_error_text_mode(self, monkeypatch: Any) -> None:
+        from rdc.commands._helpers import _emit_error
+
+        monkeypatch.setattr("rdc.commands._helpers._json_mode", lambda: False)
+        with pytest.raises(SystemExit) as exc_info:
+            _emit_error("something went wrong")
+        assert exc_info.value.code == 1
