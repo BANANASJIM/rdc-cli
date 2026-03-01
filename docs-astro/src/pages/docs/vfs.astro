@@ -30,19 +30,29 @@ import Docs from '../../layouts/Docs.astro';
 │       ├── bindings/
 │       │   └── &lt;set&gt;/
 │       │       └── &lt;binding&gt;
-│       └── descriptors/
+│       ├── descriptors/
+│       └── pixel/
+│           └── &lt;x&gt;/
+│               └── &lt;y&gt;         # pixel history at (x,y)
 ├── resources/                   # all resources
 │   └── &lt;id&gt;/
 │       ├── info
 │       ├── usage
 │       └── data                 # binary content
 ├── passes/                      # render passes
-│   └── &lt;id&gt;/
+│   └── &lt;name&gt;/
+│       └── attachments/
+│           ├── color0, color1…  # color output targets
+│           └── depth            # depth target
 ├── textures/                    # texture resources
 │   └── &lt;id&gt;/
 ├── buffers/                     # buffer resources
 │   └── &lt;id&gt;/
-└── shaders/                     # shader resources</code></pre>
+└── shaders/                     # shader resources
+    └── &lt;id&gt;/
+        ├── info
+        ├── disasm
+        └── used-by              # EIDs that use this shader</code></pre>
 
   <h2>Browsing</h2>
 
