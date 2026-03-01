@@ -78,6 +78,19 @@ class TestEnumName:
     def test_none(self) -> None:
         assert _enum_name(None) is None
 
+    def test_swig_fallback_returns_str(self) -> None:
+        """B59: _enum_name returns str() for objects without .name."""
+
+        class SwigObj:
+            pass
+
+        obj = SwigObj()
+        result = _enum_name(obj)
+        assert isinstance(result, str)
+
+    def test_float_passthrough(self) -> None:
+        assert _enum_name(3.14) == 3.14
+
 
 class TestSanitizeSize:
     def test_normal_value(self) -> None:

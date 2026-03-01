@@ -434,7 +434,18 @@ def run_server(  # pragma: no cover
                 response, running = _process_request(request, state)
                 binary_path = response.get("result", {}).pop("_binary_path", None)
                 try:
-                    conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+                    payload = json.dumps(response) + "\n"
+                except TypeError as exc:
+                    _log.warning("serialization error: %s", exc)
+                    err_resp: dict[str, Any] = {
+                        "jsonrpc": "2.0",
+                        "id": response.get("id"),
+                        "error": {"code": -32603, "message": f"serialization error: {exc}"},
+                    }
+                    payload = json.dumps(err_resp) + "\n"
+                    binary_path = None
+                try:
+                    conn.sendall(payload.encode("utf-8"))
                     if binary_path:
                         try:
                             with Path(binary_path).open("rb") as bf:

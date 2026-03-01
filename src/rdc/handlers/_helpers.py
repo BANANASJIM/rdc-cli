@@ -59,8 +59,12 @@ def _error_response(request_id: int, code: int, message: str) -> dict[str, Any]:
 
 
 def _enum_name(v: Any) -> Any:
-    """Return .name for enum-like values, pass through others."""
-    return v.name if hasattr(v, "name") else v
+    """Return .name for enum-like values, str() for non-serializable others."""
+    if hasattr(v, "name"):
+        return v.name
+    if isinstance(v, (str, int, float)) or v is None:
+        return v
+    return str(v)
 
 
 def _sanitize_size(v: int) -> int | str:
