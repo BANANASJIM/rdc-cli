@@ -486,11 +486,9 @@ def test_section_write_api_failure(
 
     monkeypatch.setattr(state.cap, "WriteSection", _raise)
     data_b64 = base64.b64encode(b"x").decode()
-    # WriteSection raising should propagate through _process_request
-    from rdc.handlers.capturefile import HANDLERS
-
-    with pytest.raises(RuntimeError, match="disk full"):
-        HANDLERS["section_write"](1, {"name": "Notes", "data": data_b64}, state)
+    resp = _handle("section_write", {"name": "Notes", "data": data_b64}, state)
+    assert resp["error"]["code"] == -32002
+    assert "write failed" in resp["error"]["message"].lower()
 
 
 def test_section_write_empty_data(

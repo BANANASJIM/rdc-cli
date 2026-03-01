@@ -151,7 +151,8 @@ def _handle_callstack_resolve(
     try:
         ok = state.cap.InitResolver(interactive=False, progress=None)
     except Exception as exc:  # noqa: BLE001
-        return _error_response(request_id, -32002, f"symbols not available: {exc}"), True
+        _log.debug("InitResolver failed: %s", exc)
+        return _error_response(request_id, -32002, "symbols not available"), True
     if not ok:
         return _error_response(request_id, -32002, "symbols not available"), True
 
@@ -235,7 +236,11 @@ def _handle_section_write(
             uncompressedSize=0,
         )
 
-    state.cap.WriteSection(new_props, decoded)
+    try:
+        state.cap.WriteSection(new_props, decoded)
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("WriteSection failed: %s", exc)
+        return _error_response(request_id, -32002, "section write failed"), True
     return _result_response(request_id, {"name": name, "bytes": len(decoded)}), True
 
 
