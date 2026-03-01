@@ -207,6 +207,8 @@ def passes_cmd(
     """List render passes."""
     if (dot or graph) and not deps:
         raise click.UsageError("--dot/--graph requires --deps")
+    if deps and (no_header or use_jsonl or quiet):
+        raise click.UsageError("--deps only supports --json, --dot, and --graph")
     if deps:
         _passes_deps(use_json, dot, graph)
         return
@@ -250,8 +252,8 @@ def _format_dot(edges: list[dict[str, Any]]) -> None:
     click.echo("digraph {")
     for e in edges:
         label = ",".join(str(r) for r in e["resources"])
-        src = e["src"].replace('"', '\\"')
-        dst = e["dst"].replace('"', '\\"')
+        src = e["src"].replace("\\", "\\\\").replace('"', '\\"')
+        dst = e["dst"].replace("\\", "\\\\").replace('"', '\\"')
         click.echo(f'  "{src}" -> "{dst}" [label="{label}"];')
     click.echo("}")
 

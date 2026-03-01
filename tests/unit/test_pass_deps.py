@@ -656,6 +656,11 @@ class TestCliDepsErrors:
         result = CliRunner().invoke(passes_cmd, ["--graph"])
         assert result.exit_code == 2
 
+    def test_deps_with_unsupported_flags(self, monkeypatch: Any) -> None:
+        for flag in ["--no-header", "--jsonl", "-q"]:
+            result = CliRunner().invoke(passes_cmd, ["--deps", flag])
+            assert result.exit_code == 2, f"{flag} should be rejected with --deps"
+
 
 class TestCliDepsGraph:
     """--graph output."""
