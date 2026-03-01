@@ -11,6 +11,7 @@ from mock_renderdoc import (
     Descriptor,
     DescriptorAccess,
     DescriptorType,
+    FilterMode,
     MockPipeState,
     ResourceId,
     SamplerDescriptor,
@@ -127,7 +128,7 @@ def test_descriptors_mixed_types() -> None:
                 addressU=AddressMode.ClampEdge,
                 addressV=AddressMode.Wrap,
                 addressW=AddressMode.Mirror,
-                filter="Linear",
+                filter=FilterMode.Linear,
                 compareFunction="",
                 minLOD=0.0,
                 maxLOD=1000.0,
@@ -162,6 +163,7 @@ def test_descriptors_mixed_types() -> None:
     assert s["address_u"] == "ClampEdge"
     assert s["address_v"] == "Wrap"
     assert s["address_w"] == "Mirror"
+    assert s["filter"] == "Linear"
 
     for entry in non_sampler_entries:
         assert "sampler" not in entry

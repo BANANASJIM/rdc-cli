@@ -937,3 +937,25 @@ def test_debug_pixel_api_exception() -> None:
     assert resp["error"]["code"] == -32603
     err_msg = resp["error"]["message"]
     assert "DebugPixel failed" in err_msg or "GPU error" in err_msg
+
+
+def test_debug_pixel_negative_x() -> None:
+    """Negative x coordinate returns -32602."""
+    state = _make_state()
+    resp, running = _handle_request(
+        rpc_request("debug_pixel", {"eid": 100, "x": -1, "y": 0}), state
+    )
+    assert running
+    assert resp["error"]["code"] == -32602
+    assert ">= 0" in resp["error"]["message"]
+
+
+def test_debug_pixel_negative_y() -> None:
+    """Negative y coordinate returns -32602."""
+    state = _make_state()
+    resp, running = _handle_request(
+        rpc_request("debug_pixel", {"eid": 100, "x": 0, "y": -1}), state
+    )
+    assert running
+    assert resp["error"]["code"] == -32602
+    assert ">= 0" in resp["error"]["message"]

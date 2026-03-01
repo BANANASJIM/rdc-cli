@@ -55,7 +55,7 @@ def _handle_descriptors(
                     "address_u": _enum_name(au),
                     "address_v": _enum_name(av),
                     "address_w": _enum_name(aw),
-                    "filter": str(getattr(s, "filter", "")),
+                    "filter": _enum_name(getattr(s, "filter", "")),
                     "compare_function": _enum_name(cf),
                     "min_lod": float(getattr(s, "minLOD", 0.0)),
                     "max_lod": float(getattr(s, "maxLOD", 0.0)),

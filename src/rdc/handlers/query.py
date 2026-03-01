@@ -16,6 +16,7 @@ from rdc.handlers._helpers import (
     PipeError,
     _action_type_str,
     _build_shader_cache,
+    _enum_name,
     _error_response,
     _result_response,
     _seek_replay,
@@ -108,6 +109,36 @@ def _handle_shader(
     except PipeError as exc:
         return exc.response, True
     row = shader_row(state.current_eid, pipe_state, stage)
+    if params.get("reflect"):
+        stage_val = STAGE_MAP[stage]
+        refl = pipe_state.GetShaderReflection(stage_val)
+        if refl is not None:
+            row["reflection"] = {
+                "inputs": [
+                    {
+                        "name": getattr(sig, "varName", ""),
+                        "type": _enum_name(getattr(sig, "compType", "")),
+                        "location": getattr(sig, "regIndex", 0),
+                    }
+                    for sig in getattr(refl, "inputSignature", [])
+                ],
+                "outputs": [
+                    {
+                        "name": getattr(sig, "varName", ""),
+                        "type": _enum_name(getattr(sig, "compType", "")),
+                        "location": getattr(sig, "regIndex", 0),
+                    }
+                    for sig in getattr(refl, "outputSignature", [])
+                ],
+                "cbuffers": [
+                    {
+                        "name": cb.name,
+                        "slot": getattr(cb, "fixedBindNumber", getattr(cb, "bindPoint", 0)),
+                        "vars": len(getattr(cb, "variables", [])),
+                    }
+                    for cb in getattr(refl, "constantBlocks", [])
+                ],
+            }
     return _result_response(request_id, {"row": row}), True
 
 
