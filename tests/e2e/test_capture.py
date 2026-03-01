@@ -21,6 +21,19 @@ pytestmark = pytest.mark.vulkan_samples
 CAPTURE_TIMEOUT = 120
 
 
+def _force_kill(proc: subprocess.Popen[str], timeout: float = 15) -> None:
+    """Terminate *proc*, falling back to SIGKILL if it ignores SIGTERM."""
+    proc.terminate()
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass  # D-state; best-effort
+
+
 def _rdc_capture(
     *args: str,
     timeout: int = CAPTURE_TIMEOUT,
@@ -81,17 +94,20 @@ class TestCaptureInject:
                 "--",
                 vulkan_samples_bin,
             ],
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
         )
         try:
-            time.sleep(5)
-            # Process should still be running (inject mode keeps it alive)
+            # Wait up to 10s; process should stay alive in trigger mode
+            for _ in range(20):
+                if proc.poll() is not None:
+                    break  # Premature exit; assertion below will catch it
+                time.sleep(0.5)
             assert proc.poll() is None, f"Process exited prematurely with code {proc.returncode}"
         finally:
-            proc.terminate()
-            _, stderr = proc.communicate(timeout=15)
+            _force_kill(proc)
+            stderr = proc.stderr.read() if proc.stderr else ""
             assert re.search(r"injected: ident=\d+", stderr), (
                 f"Expected ident pattern in stderr, got:\n{stderr}"
             )
@@ -140,7 +156,7 @@ class TestCaptureWorkflow:
                 "--",
                 vulkan_samples_bin,
             ],
-            stdout=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
         )
@@ -199,6 +215,5 @@ class TestCaptureWorkflow:
             assert r_copy.returncode == 0, f"capture-copy failed:\n{r_copy.stderr}"
             assert Path(dest).exists(), f"Copied capture not found at {dest}"
         finally:
-            proc.terminate()
-            proc.wait(timeout=15)
+            _force_kill(proc)
             reader.join(timeout=5)
