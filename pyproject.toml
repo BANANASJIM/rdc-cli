@@ -51,7 +51,10 @@ where = ["src"]
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = ["src", "tests/mocks", "scripts"]
-markers = ["gpu: requires real renderdoc module and GPU"]
+markers = [
+  "gpu: requires real renderdoc module and GPU",
+  "vulkan_samples: requires vulkan-samples binary for live capture testing",
+]
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
