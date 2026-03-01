@@ -105,8 +105,8 @@ class TestThumbnailExport:
         assert dest.exists()
         assert dest.stat().st_size > 0
         magic = dest.read_bytes()[:4]
-        jpeg_magic = b"\xff\xd8\xff\xe0"
-        assert magic == PNG_MAGIC or magic == jpeg_magic, f"Expected PNG or JPEG, got {magic!r}"
+        is_jpeg = magic[:3] == b"\xff\xd8\xff"
+        assert magic == PNG_MAGIC or is_jpeg, f"Expected PNG or JPEG, got {magic!r}"
 
 
 class TestSnapshotExport:

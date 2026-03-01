@@ -111,12 +111,13 @@ def oit_session() -> Generator[str, None, None]:
 def vulkan_samples_bin() -> str:
     """Path to vulkan_samples binary for live capture testing."""
     path = os.environ.get("VULKAN_SAMPLES_BIN")
-    if not path:
+    candidate = Path(path) if path else None
+    if not candidate:
         local = Path(__file__).parent.parent.parent / ".local" / "vulkan-samples" / "vulkan_samples"
-        path = str(local) if local.exists() else None
-    if not path or not Path(path).exists():
+        candidate = local if local.exists() else None
+    if not candidate or not candidate.is_file() or not os.access(candidate, os.X_OK):
         pytest.skip("vulkan_samples binary not available")
-    return path
+    return str(candidate)
 
 
 @pytest.fixture

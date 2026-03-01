@@ -145,7 +145,10 @@ class TestShaderReplaceRestore:
             assert restore.returncode == 0, f"shader-restore failed:\n{restore.stderr}"
             assert "restored" in restore.stdout
         finally:
-            rdc("shader-restore-all", session=vkcube_session, timeout=TIMEOUT)
+            cleanup = rdc("shader-restore-all", session=vkcube_session, timeout=TIMEOUT)
+            assert cleanup.returncode == 0, (
+                f"shader-restore-all cleanup failed:\n{cleanup.stdout}\n{cleanup.stderr}"
+            )
 
     def test_shader_restore_all(self, vkcube_session: str) -> None:
         """shader-restore-all clears all shader replacements."""

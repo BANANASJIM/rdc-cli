@@ -8,7 +8,9 @@ Skipped unless VULKAN_SAMPLES_BIN env or .local/vulkan-samples/vulkan_samples ex
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -86,29 +88,48 @@ class TestCaptureInject:
         try:
             time.sleep(5)
             # Process should still be running (inject mode keeps it alive)
-            assert proc.poll() is None or proc.returncode == 0
+            assert proc.poll() is None, f"Process exited prematurely with code {proc.returncode}"
         finally:
             proc.terminate()
-            proc.wait(timeout=15)
+            _, stderr = proc.communicate(timeout=15)
+            assert re.search(r"injected: ident=\d+", stderr), (
+                f"Expected ident pattern in stderr, got:\n{stderr}"
+            )
+
+
+def _read_stderr(proc: subprocess.Popen[str], lines: list[str]) -> None:
+    """Read stderr lines from *proc* until EOF (runs in a thread)."""
+    assert proc.stderr is not None
+    for line in proc.stderr:
+        lines.append(line)
+
+
+def _parse_ident(lines: list[str], timeout: float = 15.0) -> int | None:
+    """Wait up to *timeout* seconds for an ``injected: ident=N`` line."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        for line in lines:
+            m = re.search(r"injected: ident=(\d+)", line)
+            if m:
+                return int(m.group(1))
+        time.sleep(0.25)
+    return None
 
 
 class TestCaptureWorkflow:
     """13.3: Full inject -> attach -> trigger -> list -> copy workflow."""
 
-    def test_workflow_placeholder(self, vulkan_samples_bin: str, tmp_path: Path) -> None:
+    def test_full_workflow(self, vulkan_samples_bin: str, tmp_path: Path) -> None:
         """Full capture control workflow test.
 
-        This test exercises the complete capture lifecycle:
+        Exercises the complete capture lifecycle:
         1. Inject into running application (capture --trigger)
-        2. Attach to target (rdc attach IDENT)
-        3. Trigger capture (rdc capture-trigger --ident IDENT)
-        4. List captures (rdc capture-list --ident IDENT)
-        5. Copy capture (rdc capture-copy ID DEST --ident IDENT)
-
-        Currently a placeholder: parsing ident from subprocess output
-        requires refinement for reliable CI operation.
+        2. Parse ident from stderr via background thread
+        3. Attach to target (rdc attach IDENT)
+        4. Trigger capture (rdc capture-trigger --ident IDENT)
+        5. List captures (rdc capture-list --ident IDENT)
+        6. Copy capture (rdc capture-copy ID DEST --ident IDENT)
         """
-        # TODO: implement full workflow once ident parsing is stabilized
         proc = subprocess.Popen(
             [
                 "uv",
@@ -116,7 +137,6 @@ class TestCaptureWorkflow:
                 "rdc",
                 "capture",
                 "--trigger",
-                "--json",
                 "--",
                 vulkan_samples_bin,
             ],
@@ -124,14 +144,61 @@ class TestCaptureWorkflow:
             stderr=subprocess.PIPE,
             text=True,
         )
-        try:
-            time.sleep(5)
-            if proc.poll() is not None:
-                pytest.skip("Process exited before injection completed")
+        stderr_lines: list[str] = []
+        reader = threading.Thread(target=_read_stderr, args=(proc, stderr_lines))
+        reader.daemon = True
+        reader.start()
 
-            # Read stderr for ident info
-            # Ident parsing requires non-blocking reads; skip for now
-            pytest.skip("Full workflow test needs non-blocking ident parsing")
+        try:
+            # Step 1: parse ident from stderr
+            ident = _parse_ident(stderr_lines, timeout=15.0)
+            if proc.poll() is not None:
+                pytest.skip(f"Process exited before injection completed: {''.join(stderr_lines)}")
+            assert ident is not None, f"Failed to parse ident from stderr:\n{''.join(stderr_lines)}"
+
+            ident_str = str(ident)
+
+            # Step 2: attach
+            r_attach = _rdc_capture("attach", ident_str)
+            assert r_attach.returncode == 0, f"attach failed:\n{r_attach.stderr}"
+            assert f"ident={ident}" in r_attach.stdout
+
+            # Step 3: trigger capture
+            r_trigger = _rdc_capture(
+                "capture-trigger",
+                "--ident",
+                ident_str,
+            )
+            assert r_trigger.returncode == 0, f"capture-trigger failed:\n{r_trigger.stderr}"
+
+            # Step 4: list captures
+            r_list = _rdc_capture(
+                "capture-list",
+                "--ident",
+                ident_str,
+                "--timeout",
+                "10",
+            )
+            assert r_list.returncode == 0, f"capture-list failed:\n{r_list.stderr}"
+
+            # Step 5: copy capture (parse capture ID from list output)
+            # List output format: [ID] path  frame=N  size=N  api=...
+            cap_match = re.search(r"\[(\d+)\]", r_list.stdout)
+            if cap_match is None:
+                pytest.skip(f"No capture ID in capture-list output:\n{r_list.stdout}")
+            cap_id = cap_match.group(1)
+            dest = str(tmp_path / "workflow.rdc")
+
+            r_copy = _rdc_capture(
+                "capture-copy",
+                cap_id,
+                dest,
+                "--ident",
+                ident_str,
+            )
+            assert r_copy.returncode == 0, f"capture-copy failed:\n{r_copy.stderr}"
+            assert Path(dest).exists(), f"Copied capture not found at {dest}"
         finally:
             proc.terminate()
             proc.wait(timeout=15)
+            reader.join(timeout=5)

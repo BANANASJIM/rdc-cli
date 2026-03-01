@@ -9,10 +9,8 @@ use timeout=60.
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from conftest import rdc, rdc_fail, rdc_ok
+from conftest import rdc_fail, rdc_json, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -98,17 +96,14 @@ class TestPickPixel:
 
     def test_pick_pixel_json(self, vkcube_session: str) -> None:
         """pick-pixel --json returns JSON with color object."""
-        r = rdc(
+        data = rdc_json(
             "pick-pixel",
             "300",
             "300",
             "11",
-            "--json",
             session=vkcube_session,
             timeout=TIMEOUT,
         )
-        assert r.returncode == 0, f"rdc pick-pixel --json failed:\n{r.stderr}"
-        data = json.loads(r.stdout)
         assert "color" in data
         color = data["color"]
         for channel in ("r", "g", "b", "a"):
@@ -132,7 +127,12 @@ class TestPixelHistoryJson:
 
     def test_pixel_history_json(self, vkcube_session: str) -> None:
         """JSON output contains a modifications key."""
-        r = rdc("pixel", "300", "300", "11", "--json", session=vkcube_session, timeout=TIMEOUT)
-        assert r.returncode == 0, f"rdc pixel --json failed:\n{r.stderr}"
-        data = json.loads(r.stdout)
+        data = rdc_json(
+            "pixel",
+            "300",
+            "300",
+            "11",
+            session=vkcube_session,
+            timeout=TIMEOUT,
+        )
         assert "modifications" in data

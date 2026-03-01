@@ -156,8 +156,9 @@ class TestClose:
         """``rdc close`` closes the session and reports success."""
         name = f"e2e_close_{_uid()}"
         rdc_ok("open", str(VKCUBE), session=name)
-        out = rdc_ok("close", session=name)
-        assert "closed" in out.lower()
-
-        # Verify session is actually gone
-        rdc_fail("status", session=name, exit_code=1)
+        try:
+            out = rdc_ok("close", session=name)
+            assert "closed" in out.lower()
+            rdc_fail("status", session=name, exit_code=1)
+        finally:
+            rdc("close", session=name)

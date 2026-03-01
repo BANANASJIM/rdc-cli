@@ -54,6 +54,7 @@ class TestDiffVkcubeVsValidation:
             "--stats",
             session=vkcube_session,
         )
+        assert r.returncode == 0, f"Expected exit 0:\n{r.stdout}\n{r.stderr}"
         combined = r.stdout + r.stderr
         # Should produce some output (either stats table or error)
         assert combined.strip() != ""
@@ -86,6 +87,7 @@ class TestDiffVkcubeVsTriangle:
             "--draws",
             session=vkcube_session,
         )
+        assert r.returncode == 0, f"Expected exit 0:\n{r.stdout}\n{r.stderr}"
         combined = r.stdout + r.stderr
         assert "STATUS" in combined or "status" in combined.lower()
         assert "EID" in combined or "eid" in combined.lower()
@@ -99,6 +101,7 @@ class TestDiffVkcubeVsTriangle:
             "--resources",
             session=vkcube_session,
         )
+        assert r.returncode == 0, f"Expected exit 0:\n{r.stdout}\n{r.stderr}"
         combined = r.stdout + r.stderr
         assert "STATUS" in combined or "status" in combined.lower()
         assert "NAME" in combined or "name" in combined.lower()

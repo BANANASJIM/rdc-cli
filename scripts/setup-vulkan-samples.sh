@@ -20,7 +20,7 @@ fi
 echo "Building Vulkan-Samples..."
 cd "${TARGET}/src"
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel "$(nproc)" --target vulkan_samples
+cmake --build build --parallel "$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)" --target vulkan_samples
 
 # Symlink binary to expected location
 cd -
