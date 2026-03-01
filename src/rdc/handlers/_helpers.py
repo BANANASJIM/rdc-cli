@@ -6,6 +6,7 @@ circular imports. daemon_server re-exports these for backward compat.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -13,6 +14,8 @@ from rdc.services.query_service import STAGE_MAP as STAGE_MAP
 
 if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
+
+_log = logging.getLogger(__name__)
 
 
 class PipeError(Exception):
@@ -59,8 +62,13 @@ def _error_response(request_id: int, code: int, message: str) -> dict[str, Any]:
 
 
 def _enum_name(v: Any) -> Any:
-    """Return .name for enum-like values, pass through others."""
-    return v.name if hasattr(v, "name") else v
+    """Return .name for enum-like values, str() for non-serializable others."""
+    if hasattr(v, "name"):
+        return v.name
+    if isinstance(v, (str, int, float)) or v is None:
+        return v
+    _log.debug("_enum_name: unexpected type %s, coercing to str", type(v).__name__)
+    return str(v)
 
 
 def _sanitize_size(v: int) -> int | str:
