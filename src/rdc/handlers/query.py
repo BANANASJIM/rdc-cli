@@ -621,12 +621,12 @@ def _handle_pass_attachment(
             idx = int(attachment[5:])
         except ValueError:
             return _error_response(request_id, -32602, f"invalid attachment: {attachment}"), True
-        targets = [t for t in pipe.GetOutputTargets() if int(t.resource) != 0]
-        if idx < 0 or idx >= len(targets):
+        all_targets = pipe.GetOutputTargets()
+        if idx < 0 or idx >= len(all_targets) or int(all_targets[idx].resource) == 0:
             return _error_response(request_id, -32001, f"color target {idx} not found"), True
         return _result_response(
             request_id,
-            {"pass": name, "attachment": attachment, "resource_id": int(targets[idx].resource)},
+            {"pass": name, "attachment": attachment, "resource_id": int(all_targets[idx].resource)},
         ), True
 
     return _error_response(request_id, -32001, f"unknown attachment: {attachment}"), True

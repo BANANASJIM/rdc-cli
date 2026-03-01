@@ -259,3 +259,39 @@ class TestTreeBadFlag:
             exit_code=2,
         )
         assert "depth" in out.lower()
+
+
+class TestLsDrawPixel:
+    """5.28: rdc ls /draws/11/ includes pixel directory."""
+
+    def test_pixel_in_draw_listing(self, vkcube_session: str) -> None:
+        out = rdc_ok("ls", "/draws/11", session=vkcube_session)
+        assert "pixel" in out
+
+
+class TestLsPassAttachments:
+    """5.29: rdc ls /passes/<name>/attachments/ shows color/depth entries."""
+
+    def test_attachments_listed(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        out = rdc_ok("ls", f"/passes/{pass_name}/attachments", session=vkcube_session)
+        assert "color0" in out
+
+
+class TestCatShaderUsedBy:
+    """5.30: rdc cat /shaders/111/used-by shows EID list."""
+
+    def test_shader_used_by(self, vkcube_session: str) -> None:
+        out = rdc_ok("cat", "/shaders/111/used-by", session=vkcube_session)
+        assert "11" in out
+
+
+class TestCatPassAttachment:
+    """5.31: rdc cat /passes/<name>/attachments/color0 shows attachment info."""
+
+    def test_attachment_info(self, vkcube_session: str) -> None:
+        passes_out = rdc_ok("ls", "/passes", session=vkcube_session)
+        pass_name = passes_out.strip().splitlines()[0].strip()
+        out = rdc_ok("cat", f"/passes/{pass_name}/attachments/color0", session=vkcube_session)
+        assert "resource_id" in out
