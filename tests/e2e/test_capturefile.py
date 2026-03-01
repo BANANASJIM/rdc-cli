@@ -60,7 +60,7 @@ class TestSectionWrite:
             rdc("close", session=name)
 
     def test_refuse_system_section(self, tmp_path) -> None:
-        """Refuse to write to FrameCapture system section."""
+        """Refuse to overwrite real system section by internal name."""
         name = f"e2e_sws_{_uid()}"
         note = tmp_path / "bad.txt"
         note.write_bytes(b"bad")
@@ -68,7 +68,7 @@ class TestSectionWrite:
             rdc_ok("open", str(VKCUBE), session=name)
             out = rdc_fail(
                 "section",
-                "FrameCapture",
+                "renderdoc/internal/framecapture",
                 "--write",
                 str(note),
                 session=name,
