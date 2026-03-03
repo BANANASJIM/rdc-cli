@@ -130,6 +130,9 @@ def _check_win_python_version() -> CheckResult:
         matched = [p for p in pyds if running_tag in Path(p).stem]
         if matched:
             pyds = matched
+        else:
+            # Tagged .pyds exist but none match running Python -- fall through to plain .pyd
+            pyds = []
     if not pyds:
         # Fall back to plain renderdoc.pyd (MSBuild output, no cpython tag)
         pyds = [

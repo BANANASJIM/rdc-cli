@@ -104,11 +104,11 @@ def test_check_prerequisites_missing_ninja_linux() -> None:
         br.check_prerequisites("linux")
 
 
-def test_check_prerequisites_windows_no_ninja() -> None:
-    """Windows does not require ninja."""
+def test_check_prerequisites_windows_no_cmake_no_ninja() -> None:
+    """Windows requires only git (not cmake or ninja)."""
     mock_run = MagicMock(return_value=MagicMock(stdout="C:\\VS\\2022"))
     with (
-        patch("shutil.which", _which_factory({"cmake", "git", "python3", "vswhere"})),
+        patch("shutil.which", _which_factory({"git", "python3", "vswhere"})),
         patch("subprocess.run", mock_run),
     ):
         br.check_prerequisites("windows")
@@ -293,17 +293,6 @@ def test_configure_macos_uses_ninja(tmp_path: Path) -> None:
     assert args[args.index("-G") + 1] == "Ninja"
 
 
-def test_configure_windows_uses_vs(tmp_path: Path) -> None:
-    mock_run = MagicMock()
-    (tmp_path / "renderdoc").mkdir()
-    with patch("subprocess.run", mock_run):
-        br.configure_build(tmp_path, tmp_path / "renderdoc-swig", "windows")
-    args = mock_run.call_args[0][0]
-    assert "Visual Studio 17 2022" in args
-    assert "-A" in args
-    assert "x64" in args
-
-
 def test_configure_common_flags(tmp_path: Path) -> None:
     mock_run = MagicMock()
     (tmp_path / "renderdoc").mkdir()
@@ -351,22 +340,12 @@ def test_run_build_parallel_flag_linux(tmp_path: Path) -> None:
     assert "8" in args
 
 
-def test_run_build_parallel_flag_windows(tmp_path: Path) -> None:
+def test_run_build_linux_no_config_flag(tmp_path: Path) -> None:
     mock_run = MagicMock()
     with patch("subprocess.run", mock_run):
-        br.run_build(tmp_path, "windows", jobs=4)
+        br.run_build(tmp_path, "linux", jobs=4)
     args = mock_run.call_args[0][0]
-    assert "--" in args
-    assert "/m:4" in args
-
-
-def test_run_build_windows_includes_config_release(tmp_path: Path) -> None:
-    mock_run = MagicMock()
-    with patch("subprocess.run", mock_run):
-        br.run_build(tmp_path, "windows", jobs=4)
-    args = mock_run.call_args[0][0]
-    assert "--config" in args
-    assert args[args.index("--config") + 1] == "Release"
+    assert "--config" not in args
 
 
 # ---------------------------------------------------------------------------
@@ -416,10 +395,11 @@ def test_copy_artifacts_macos_dylib_fallback(tmp_path: Path) -> None:
 
 def test_copy_artifacts_windows(tmp_path: Path) -> None:
     build_dir = tmp_path / "build"
-    src = build_dir / "renderdoc" / "build" / "Release"
-    src.mkdir(parents=True)
-    (src / "renderdoc.pyd").write_text("fake")
-    (src / "renderdoc.dll").write_text("fake")
+    release = build_dir / "renderdoc" / "x64" / "Release"
+    pymodules = release / "pymodules"
+    pymodules.mkdir(parents=True)
+    (pymodules / "renderdoc.pyd").write_text("fake")
+    (release / "renderdoc.dll").write_text("fake")
 
     out = tmp_path / "install"
     br.copy_artifacts(build_dir, out, "windows")
@@ -445,7 +425,6 @@ def test_main_default_install_dir(tmp_path: Path) -> None:
         patch("build_renderdoc._artifacts_present", return_value=False),
         patch("build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
         patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
         patch("build_renderdoc.clone_renderdoc"),
         patch("build_renderdoc.download_swig"),
         patch("build_renderdoc.configure_build"),
@@ -463,7 +442,6 @@ def test_main_custom_install_dir(tmp_path: Path) -> None:
     with (
         patch("build_renderdoc._artifacts_present", return_value=False),
         patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
         patch("build_renderdoc.clone_renderdoc"),
         patch("build_renderdoc.download_swig"),
         patch("build_renderdoc.configure_build"),
@@ -480,7 +458,6 @@ def test_main_custom_build_dir(tmp_path: Path) -> None:
     with (
         patch("build_renderdoc._artifacts_present", return_value=False),
         patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
         patch("build_renderdoc.clone_renderdoc") as mock_clone,
         patch("build_renderdoc.download_swig"),
         patch("build_renderdoc.configure_build"),
@@ -500,3 +477,215 @@ def test_main_idempotent_skip(tmp_path: Path) -> None:
     ):
         br.main([])
     mock_prereq.assert_not_called()
+
+
+def test_main_windows_uses_msbuild(tmp_path: Path) -> None:
+    with (
+        patch("build_renderdoc._platform", return_value="windows"),
+        patch("build_renderdoc._artifacts_present", return_value=False),
+        patch("build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
+        patch("build_renderdoc.check_prerequisites"),
+        patch("build_renderdoc.verify_tool_versions"),
+        patch("build_renderdoc.clone_renderdoc"),
+        patch("build_renderdoc._prepare_win_python", return_value=Path("C:/prefix")) as mock_prep,
+        patch("build_renderdoc._run_msbuild") as mock_msb,
+        patch("build_renderdoc.copy_artifacts"),
+    ):
+        br.main([])
+    mock_prep.assert_called_once()
+    mock_msb.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# MSBuild (Windows)
+# ---------------------------------------------------------------------------
+
+
+def test_find_msbuild_ok(tmp_path: Path) -> None:
+    msbuild = tmp_path / "MSBuild" / "Current" / "Bin" / "MSBuild.exe"
+    msbuild.parent.mkdir(parents=True)
+    msbuild.write_text("fake")
+    with patch("build_renderdoc._vs_install_path", return_value=str(tmp_path)):
+        result = br._find_msbuild()
+    assert result == str(msbuild)
+
+
+def test_find_msbuild_missing(tmp_path: Path) -> None:
+    with (
+        patch("build_renderdoc._vs_install_path", return_value=str(tmp_path)),
+        pytest.raises(SystemExit),
+    ):
+        br._find_msbuild()
+
+
+def test_run_msbuild_args(tmp_path: Path) -> None:
+    sln = tmp_path / "renderdoc" / "renderdoc.sln"
+    sln.parent.mkdir(parents=True)
+    sln.write_text("fake")
+    mock_run = MagicMock()
+    prefix = Path("C:/python")
+    with (
+        patch("build_renderdoc._find_msbuild", return_value="MSBuild.exe"),
+        patch("subprocess.run", mock_run),
+    ):
+        br._run_msbuild(tmp_path, prefix, jobs=6)
+    args = mock_run.call_args[0][0]
+    assert args[0] == "MSBuild.exe"
+    assert str(sln) in args
+    assert "/p:Configuration=Release" in args
+    assert "/p:Platform=x64" in args
+    assert "/p:PlatformToolset=v143" in args
+    assert "/m:6" in args
+    env = mock_run.call_args[1]["env"]
+    assert env["RENDERDOC_PYTHON_PREFIX64"] == str(prefix)
+    assert env["CL"] == "/wd4996"
+
+
+def test_run_msbuild_default_jobs(tmp_path: Path) -> None:
+    sln = tmp_path / "renderdoc" / "renderdoc.sln"
+    sln.parent.mkdir(parents=True)
+    sln.write_text("fake")
+    mock_run = MagicMock()
+    with (
+        patch("build_renderdoc._find_msbuild", return_value="MSBuild.exe"),
+        patch("subprocess.run", mock_run),
+        patch("os.cpu_count", return_value=12),
+    ):
+        br._run_msbuild(tmp_path, Path("C:/py"))
+    args = mock_run.call_args[0][0]
+    assert "/m:12" in args
+
+
+# ---------------------------------------------------------------------------
+# _prepare_win_python
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_win_python_creates_dummy_zip(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "include" / "Python.h").write_text("fake")
+    (prefix / "libs").mkdir()
+    (prefix / "libs" / "python314.lib").write_text("fake")
+
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    with (
+        patch("build_renderdoc.sys") as mock_sys,
+    ):
+        mock_sys.prefix = str(prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        result = br._prepare_win_python(src_dir)
+
+    assert result == prefix
+    dummy = prefix / "python314.zip"
+    assert dummy.exists()
+    with zipfile.ZipFile(dummy) as zf:
+        assert "README" in zf.namelist()
+
+
+def test_prepare_win_python_patches_props(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "include" / "Python.h").write_text("fake")
+    (prefix / "libs").mkdir()
+    (prefix / "libs" / "python314.lib").write_text("fake")
+
+    src_dir = tmp_path / "src"
+    props_dir = src_dir / "qrenderdoc" / "Code" / "pyrenderdoc"
+    props_dir.mkdir(parents=True)
+    props_file = props_dir / "python.props"
+    props_file.write_text(
+        "<Project>\n"
+        "<PropertyGroup><PythonMajorMinorTest>313</PythonMajorMinorTest></PropertyGroup>\n"
+        "</Project>\n",
+        encoding="utf-8",
+    )
+
+    with patch("build_renderdoc.sys") as mock_sys:
+        mock_sys.prefix = str(prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        br._prepare_win_python(src_dir)
+
+    content = props_file.read_text(encoding="utf-8")
+    assert "314" in content
+    assert content.index("314") < content.index("313")
+
+
+def test_prepare_win_python_missing_lib(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "include" / "Python.h").write_text("fake")
+    (prefix / "libs").mkdir()
+
+    with (
+        patch("build_renderdoc.sys") as mock_sys,
+        pytest.raises(SystemExit),
+    ):
+        mock_sys.prefix = str(prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        br._prepare_win_python(tmp_path / "src")
+
+
+def test_prepare_win_python_skips_existing_zip(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "include" / "Python.h").write_text("fake")
+    (prefix / "libs").mkdir()
+    (prefix / "libs" / "python314.lib").write_text("fake")
+    existing_zip = prefix / "python314.zip"
+    existing_zip.write_text("already here")
+
+    with patch("build_renderdoc.sys") as mock_sys:
+        mock_sys.prefix = str(prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        br._prepare_win_python(tmp_path / "src")
+
+    assert existing_zip.read_text() == "already here"
+
+
+def test_prepare_win_python_missing_python_h(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix"
+    (prefix / "libs").mkdir(parents=True)
+    (prefix / "libs" / "python314.lib").write_text("fake")
+
+    with (
+        patch("build_renderdoc.sys") as mock_sys,
+        pytest.raises(SystemExit),
+    ):
+        mock_sys.prefix = str(prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        br._prepare_win_python(tmp_path / "src")
+
+
+def test_prepare_win_python_props_already_patched(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix"
+    (prefix / "include").mkdir(parents=True)
+    (prefix / "include" / "Python.h").write_text("fake")
+    (prefix / "libs").mkdir()
+    (prefix / "libs" / "python314.lib").write_text("fake")
+
+    src_dir = tmp_path / "src"
+    props_dir = src_dir / "qrenderdoc" / "Code" / "pyrenderdoc"
+    props_dir.mkdir(parents=True)
+    props_file = props_dir / "python.props"
+    original = (
+        "<Project>\n"
+        "<PropertyGroup><PythonMajorMinorTest>314</PythonMajorMinorTest></PropertyGroup>\n"
+        "</Project>\n"
+    )
+    props_file.write_text(original, encoding="utf-8")
+
+    with patch("build_renderdoc.sys") as mock_sys:
+        mock_sys.prefix = str(prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        br._prepare_win_python(src_dir)
+
+    assert props_file.read_text(encoding="utf-8") == original

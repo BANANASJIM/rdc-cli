@@ -102,11 +102,17 @@ def main() -> None:
             python = venv / "bin" / "python"
             rdc = venv / "bin" / "rdc"
 
+        install_ok = False
         if wheels:
-            check("clean venv install", ["uv", "pip", "install", str(wheels[0]), "--python", str(python)])
+            install_ok = check("clean venv install", ["uv", "pip", "install", str(wheels[0]), "--python", str(python)])
         else:
             _log(False, "clean venv install (no wheel found)")
             _record(False)
+
+        if not install_ok:
+            _log(False, "skipping smoke tests (install failed)")
+            _record(False)
+            return
 
         ver_result = subprocess.run([str(rdc), "--version"], capture_output=True, text=True)
         ver_parts = (ver_result.stdout + ver_result.stderr).strip().split()

@@ -41,7 +41,7 @@ def _clone(src_dir: Path) -> None:
     src_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
         subprocess.run(
-            ["git", "clone", "--depth", "1", REPO_URL, str(src_dir)],
+            ["git", "clone", "--depth", "1", "--recurse-submodules", REPO_URL, str(src_dir)],
             check=True,
         )
     except subprocess.CalledProcessError as exc:

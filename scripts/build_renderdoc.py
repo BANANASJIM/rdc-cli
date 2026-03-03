@@ -69,18 +69,18 @@ def _artifact_names(plat: str) -> list[str]:
 
 def _artifact_src_dir(build_dir: Path, plat: str) -> Path:
     if plat == "windows":
-        return build_dir / "renderdoc" / "build" / "Release"
+        return build_dir / "renderdoc" / "x64" / "Release" / "pymodules"
     return build_dir / "renderdoc" / "build" / "lib"
 
 
 def check_prerequisites(plat: str) -> None:
     """Verify required build tools are available."""
-    common = ["cmake", "git"]
     if plat == "windows":
-        required = [*common]
+        required = ["git"]
     elif plat == "macos":
         required = [
-            *common,
+            "cmake",
+            "git",
             "ninja",
             "autoconf",
             "automake",
@@ -89,7 +89,7 @@ def check_prerequisites(plat: str) -> None:
             "m4",
         ]
     else:
-        required = [*common, "ninja"]
+        required = ["cmake", "git", "ninja"]
 
     missing = [cmd for cmd in required if shutil.which(cmd) is None]
 
@@ -108,9 +108,9 @@ def check_prerequisites(plat: str) -> None:
 
 def verify_tool_versions(plat: str) -> None:
     """Run lightweight --version checks to fail fast when tools are broken."""
-    tools = ["cmake"]
-    if plat != "windows":
-        tools.append("ninja")
+    if plat == "windows":
+        return
+    tools = ["cmake", "ninja"]
     for tool in tools:
         if shutil.which(tool) is None:
             sys.stderr.write(f"ERROR: required tool '{tool}' not found in PATH\n")
@@ -123,10 +123,10 @@ def verify_tool_versions(plat: str) -> None:
         )
 
 
-def _check_visual_studio() -> None:
+def _find_vswhere() -> str:
+    """Locate vswhere.exe on Windows."""
     vswhere = shutil.which("vswhere") or shutil.which("vswhere.exe")
     if not vswhere:
-        # Try default install location
         prog = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
         candidate = prog / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
         if candidate.exists():
@@ -134,7 +134,12 @@ def _check_visual_studio() -> None:
         else:
             sys.stderr.write("ERROR: vswhere.exe not found; install Visual Studio Build Tools\n")
             raise SystemExit(1)
+    return vswhere
 
+
+def _vs_install_path() -> str:
+    """Return Visual Studio installation path via vswhere."""
+    vswhere = _find_vswhere()
     result = subprocess.run(
         [
             vswhere,
@@ -150,9 +155,109 @@ def _check_visual_studio() -> None:
         capture_output=True,
         text=True,
     )
-    if not result.stdout.strip():
+    path = result.stdout.strip()
+    if not path:
         sys.stderr.write("ERROR: Visual Studio C++ Build Tools not found\n")
         raise SystemExit(1)
+    return path.splitlines()[0]
+
+
+def _check_visual_studio() -> None:
+    _vs_install_path()
+
+
+def _find_msbuild() -> str:
+    """Locate MSBuild.exe via vswhere."""
+    vs_path = _vs_install_path()
+    msbuild = Path(vs_path) / "MSBuild" / "Current" / "Bin" / "MSBuild.exe"
+    if not msbuild.exists():
+        sys.stderr.write(f"ERROR: MSBuild.exe not found at {msbuild}\n")
+        raise SystemExit(1)
+    return str(msbuild)
+
+
+def _prepare_win_python(src_dir: Path) -> Path:
+    """Prepare Python prefix for MSBuild and return the prefix path.
+
+    RenderDoc's python.props checks for:
+    - {prefix}/include/Python.h  (pixi has Include/Python.h -- case-insensitive on Windows, OK)
+    - {prefix}/python{ver}.zip   (dummy file, content irrelevant)
+    - {prefix}/libs/python{ver}.lib
+
+    Also patches python.props to add current Python version entry if missing.
+    """
+    prefix = Path(sys.prefix)
+    ver = f"{sys.version_info[0]}{sys.version_info[1]}"
+
+    # Create dummy python{ver}.zip if missing
+    dummy_zip = prefix / f"python{ver}.zip"
+    if not dummy_zip.exists():
+        _log(f"creating dummy {dummy_zip}")
+        with zipfile.ZipFile(dummy_zip, "w") as zf:
+            zf.writestr("README", "dummy zip for RenderDoc build")
+
+    # Verify required files
+    include = prefix / "include" / "Python.h"
+    if not include.exists():
+        # Case-insensitive fallback (pixi uses Include/)
+        alt = prefix / "Include" / "Python.h"
+        if not alt.exists():
+            sys.stderr.write(f"ERROR: Python.h not found at {include} or {alt}\n")
+            raise SystemExit(1)
+
+    lib = prefix / "libs" / f"python{ver}.lib"
+    if not lib.exists():
+        sys.stderr.write(f"ERROR: {lib} not found\n")
+        raise SystemExit(1)
+
+    # Patch python.props to include current Python version
+    props_file = src_dir / "qrenderdoc" / "Code" / "pyrenderdoc" / "python.props"
+    if props_file.exists():
+        content = props_file.read_text(encoding="utf-8")
+        if ver not in content:
+            _log(f"patching python.props for Python {ver}")
+            entry = (
+                f"<PropertyGroup><PythonMajorMinorTest>{ver}</PythonMajorMinorTest></PropertyGroup>\n"
+                f"<PropertyGroup Condition=\"'$(CustomPythonUsed)'=='0' AND "
+                f"Exists('$(PythonOverride)\\include\\Python.h') AND "
+                f"Exists('$(PythonOverride)\\python$(PythonMajorMinorTest).zip') AND "
+                f"(Exists('$(PythonOverride)\\python$(PythonMajorMinorTest).lib') OR "
+                f"Exists('$(PythonOverride)\\libs\\python$(PythonMajorMinorTest).lib'))\">"
+                f"<CustomPythonUsed>$(PythonMajorMinorTest)</CustomPythonUsed></PropertyGroup>\n"
+            )
+            # Insert before the "313" entry
+            marker = "<PythonMajorMinorTest>313</PythonMajorMinorTest>"
+            if marker in content:
+                idx = content.index(marker)
+                # Find the start of the PropertyGroup containing the marker
+                pg_start = content.rfind("<PropertyGroup>", 0, idx)
+                content = content[:pg_start] + entry + content[pg_start:]
+            else:
+                # Fallback: insert before closing </Project>
+                content = content.replace("</Project>", entry + "</Project>")
+            props_file.write_text(content, encoding="utf-8")
+
+    return prefix
+
+
+def _run_msbuild(build_dir: Path, python_prefix: Path, jobs: int | None = None) -> None:
+    """Build renderdoc.sln with MSBuild."""
+    sln = build_dir / "renderdoc" / "renderdoc.sln"
+    msbuild = _find_msbuild()
+    n = jobs or os.cpu_count() or 4
+    env = dict(os.environ)
+    env["RENDERDOC_PYTHON_PREFIX64"] = str(python_prefix)
+    env["CL"] = "/wd4996"
+    cmd = [
+        msbuild,
+        str(sln),
+        "/p:Configuration=Release",
+        "/p:Platform=x64",
+        "/p:PlatformToolset=v143",
+        f"/m:{n}",
+    ]
+    _log("--- MSBuild ---")
+    subprocess.run(cmd, check=True, env=env)
 
 
 def clone_renderdoc(build_dir: Path, version: str = RDOC_TAG) -> None:
@@ -252,17 +357,11 @@ def configure_build(
     swig_dir: Path,
     plat: str,
 ) -> None:
-    """Run cmake configure with platform-specific generator."""
+    """Run cmake configure (Linux/macOS only)."""
     src_dir = build_dir / "renderdoc"
     cmake_build = src_dir / "build"
 
-    cmd = ["cmake", "-B", str(cmake_build), "-S", str(src_dir)]
-
-    if plat == "windows":
-        cmd += ["-G", "Visual Studio 17 2022", "-A", "x64"]
-    else:
-        cmd += ["-G", "Ninja"]
-
+    cmd = ["cmake", "-B", str(cmake_build), "-S", str(src_dir), "-G", "Ninja"]
     cmd += CMAKE_COMMON_FLAGS
     cmd.append(f"-DRENDERDOC_SWIG_PACKAGE={swig_dir}")
 
@@ -276,17 +375,10 @@ def configure_build(
 
 
 def run_build(build_dir: Path, plat: str, jobs: int | None = None) -> None:
-    """Run cmake --build with platform-specific parallelism."""
+    """Run cmake --build (Linux/macOS only)."""
     cmake_build = build_dir / "renderdoc" / "build"
     n = jobs or os.cpu_count() or 4
-
-    cmd = ["cmake", "--build", str(cmake_build)]
-
-    if plat == "windows":
-        cmd += ["--config", "Release", "--", f"/m:{n}"]
-    else:
-        cmd += ["-j", str(n)]
-
+    cmd = ["cmake", "--build", str(cmake_build), "-j", str(n)]
     _log("--- cmake build ---")
     subprocess.run(cmd, check=True)
 
@@ -298,7 +390,11 @@ def copy_artifacts(build_dir: Path, install_dir: Path, plat: str) -> None:
     install_dir.mkdir(parents=True, exist_ok=True)
 
     for name in names:
-        artifact = src / name
+        # On Windows, renderdoc.dll lives in x64/Release/ (parent of pymodules)
+        if plat == "windows" and name == "renderdoc.dll":
+            artifact = src.parent / name
+        else:
+            artifact = src / name
         if not artifact.exists():
             # macOS may produce .dylib instead of .so for librenderdoc
             if plat == "macos" and name == "librenderdoc.so":
@@ -344,12 +440,18 @@ def main(argv: list[str] | None = None) -> None:
     check_prerequisites(plat)
     verify_tool_versions(plat)
     clone_renderdoc(build_dir, args.version)
-    download_swig(build_dir)
-    swig_dir = build_dir / "renderdoc-swig"
-    if plat == "macos":
-        prepare_custom_swig(swig_dir)
-    configure_build(build_dir, swig_dir, plat)
-    run_build(build_dir, plat, args.jobs)
+
+    if plat == "windows":
+        python_prefix = _prepare_win_python(build_dir / "renderdoc")
+        _run_msbuild(build_dir, python_prefix, args.jobs)
+    else:
+        download_swig(build_dir)
+        swig_dir = build_dir / "renderdoc-swig"
+        if plat == "macos":
+            prepare_custom_swig(swig_dir)
+        configure_build(build_dir, swig_dir, plat)
+        run_build(build_dir, plat, args.jobs)
+
     copy_artifacts(build_dir, install_dir, plat)
     _log("=== Done ===")
     _log(f'  export RENDERDOC_PYTHON_PATH="{install_dir}"')
