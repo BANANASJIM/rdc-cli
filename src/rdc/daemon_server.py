@@ -249,7 +249,7 @@ def _start_ping_thread(state: DaemonState) -> None:
                 if state.remote is not None:
                     state.remote.Ping()
             except Exception:  # noqa: BLE001
-                _log.warning("remote ping failed — connection may be lost")
+                _log.warning("remote ping failed -- connection may be lost")
                 break
 
     t = threading.Thread(target=_ping_loop, daemon=True, name="rdc-remote-ping")

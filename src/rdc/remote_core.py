@@ -35,7 +35,7 @@ def warn_if_public(host: str) -> str | None:
     """Return warning message if host appears to be a public IP."""
     if any(p.match(host) for p in _PRIVATE_NETS):
         return None
-    return f"warning: {host} is not a private IP — ensure remoteserver.conf restricts access"
+    return f"warning: {host} is not a private IP -- ensure remoteserver.conf restricts access"
 
 
 def parse_url(url: str) -> tuple[str, int]:

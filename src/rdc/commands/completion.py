@@ -61,7 +61,7 @@ _rdc_completion_setup;
 def _checked_replace(src: str, old: str, new: str, label: str) -> str:
     """Replace *old* with *new*, raising if *old* is absent."""
     if old not in src:
-        _log.warning("zsh patch: %r block not found — Click template may have changed", label)
+        _log.warning("zsh patch: %r block not found -- Click template may have changed", label)
         return src
     return src.replace(old, new)
 

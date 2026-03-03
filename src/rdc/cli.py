@@ -66,7 +66,7 @@ def _set_session_env(ctx: click.Context, param: click.Parameter, value: str | No
         return
     if not SESSION_NAME_RE.match(value):
         raise click.BadParameter(
-            f"{value!r} is invalid; use [a-zA-Z0-9_-], 1–64 chars",
+            f"{value!r} is invalid; use [a-zA-Z0-9_-], 1-64 chars",
             ctx=ctx,
             param=param,
         )
