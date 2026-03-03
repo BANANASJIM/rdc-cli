@@ -58,11 +58,10 @@ def _build(src_dir: Path) -> None:
             cwd=src_dir,
             check=True,
         )
-        subprocess.run(
-            ["cmake", "--build", "build", "--parallel", jobs, "--target", "vulkan_samples"],
-            cwd=src_dir,
-            check=True,
-        )
+        build_cmd = ["cmake", "--build", "build", "--parallel", jobs, "--target", "vulkan_samples"]
+        if _IS_WINDOWS:
+            build_cmd += ["--config", "Release"]
+        subprocess.run(build_cmd, cwd=src_dir, check=True)
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"ERROR: cmake build failed (exit {exc.returncode})\n")
         raise SystemExit(1) from exc

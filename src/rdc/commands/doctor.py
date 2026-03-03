@@ -124,6 +124,12 @@ def _check_win_python_version() -> CheckResult:
 
     # Try cpython-tagged .pyd first (setuptools output)
     pyds = [f for p in search_paths for f in glob.glob(str(Path(p) / "renderdoc.cpython-3*.pyd"))]
+    if pyds:
+        # Prefer the .pyd matching the running Python version
+        running_tag = f"cpython-{sys.version_info[0]}{sys.version_info[1]}"
+        matched = [p for p in pyds if running_tag in Path(p).stem]
+        if matched:
+            pyds = matched
     if not pyds:
         # Fall back to plain renderdoc.pyd (MSBuild output, no cpython tag)
         pyds = [

@@ -49,7 +49,11 @@ def cmd_check(script: str, output: str) -> None:
         output: Path to the file to compare against.
     """
     generated = run_generator(script)
-    existing = Path(output).read_text(encoding="utf-8")
+    out_path = Path(output)
+    if not out_path.exists():
+        sys.stderr.write(f"{output}: file not found (run 'gen' first)\n")
+        sys.exit(1)
+    existing = out_path.read_text(encoding="utf-8")
     if generated == existing:
         sys.exit(0)
     diff = difflib.unified_diff(

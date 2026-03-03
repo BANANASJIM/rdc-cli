@@ -201,6 +201,26 @@ class TestLoadReplay:
         finally:
             sys.modules.pop("renderdoc", None)
 
+    def test_load_replay_suggest_remote_accepted(self) -> None:
+        """B67: SuggestRemote captures should be accepted (not just Supported)."""
+        import mock_renderdoc as mock_rd
+
+        original_support = mock_rd.MockCaptureFile.LocalReplaySupport
+
+        def _suggest_remote(self: Any) -> mock_rd.ReplaySupport:
+            return mock_rd.ReplaySupport.SuggestRemote
+
+        mock_rd.MockCaptureFile.LocalReplaySupport = _suggest_remote  # type: ignore[assignment]
+        sys.modules["renderdoc"] = mock_rd  # type: ignore[assignment]
+        try:
+            state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+            err = _load_replay(state)
+            assert err is None
+            assert state.adapter is not None
+        finally:
+            mock_rd.MockCaptureFile.LocalReplaySupport = original_support  # type: ignore[assignment]
+            sys.modules.pop("renderdoc", None)
+
     def test_load_replay_import_failure(self, monkeypatch: Any) -> None:
         monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: None)
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")

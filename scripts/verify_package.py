@@ -47,7 +47,7 @@ def check(desc: str, cmd: list[str]) -> bool:
 def check_output(desc: str, expected: str, cmd: list[str]) -> bool:
     """Run cmd; check that output contains expected string."""
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT)
-    ok = expected in (result.stdout + result.stderr)
+    ok = bool(expected) and expected in (result.stdout + result.stderr)
     _log(ok, desc, "" if ok else f"expected '{expected}'")
     _record(ok)
     return ok
@@ -90,7 +90,11 @@ def main() -> None:
     wheels = list(dist.glob("*.whl"))
     with tempfile.TemporaryDirectory() as tmp:
         venv = Path(tmp) / "venv"
-        subprocess.run(["uv", "venv", str(venv)], capture_output=True, cwd=ROOT)
+        venv_result = subprocess.run(["uv", "venv", str(venv)], capture_output=True, cwd=ROOT)
+        if venv_result.returncode != 0:
+            _log(False, "uv venv creation failed")
+            _record(False)
+            return
         if sys.platform == "win32":
             python = venv / "Scripts" / "python.exe"
             rdc = venv / "Scripts" / "rdc.exe"
@@ -105,11 +109,8 @@ def main() -> None:
             _record(False)
 
         ver_result = subprocess.run([str(rdc), "--version"], capture_output=True, text=True)
-        installed_version = (
-            (ver_result.stdout + ver_result.stderr).strip().split()[-1]
-            if ver_result.returncode == 0
-            else ""
-        )
+        ver_parts = (ver_result.stdout + ver_result.stderr).strip().split()
+        installed_version = ver_parts[-1] if ver_result.returncode == 0 and ver_parts else ""
 
         check_output("rdc --version", installed_version, [str(rdc), "--version"])
         check("rdc --help", [str(rdc), "--help"])
