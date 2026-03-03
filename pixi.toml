@@ -15,8 +15,6 @@ automake = ">=1.16,<2"
 libtool = ">=2.4,<3"
 pkg-config = ">=0.29,<1"
 m4 = ">=1.4,<2"
-libvulkan-headers = ">=1.3"
-libvulkan-loader = ">=1.3"
 
 [target.osx-arm64.dependencies]
 cmake = ">=3.26,<4"
@@ -26,19 +24,32 @@ automake = ">=1.16,<2"
 libtool = ">=2.4,<3"
 pkg-config = ">=0.29,<1"
 m4 = ">=1.4,<2"
-libvulkan-headers = ">=1.3"
-libvulkan-loader = ">=1.3"
 
 [target.win-64.dependencies]
 cmake = ">=3.26,<4"
-libvulkan-headers = ">=1.3"
-libvulkan-loader = ">=1.3"
 
 [target.linux-64.dependencies]
 cmake = ">=3.26,<4"
 ninja = ">=1.11,<2"
+
+[feature.vulkan.target.osx-64.dependencies]
 libvulkan-headers = ">=1.3"
 libvulkan-loader = ">=1.3"
+
+[feature.vulkan.target.osx-arm64.dependencies]
+libvulkan-headers = ">=1.3"
+libvulkan-loader = ">=1.3"
+
+[feature.vulkan.target.win-64.dependencies]
+libvulkan-headers = ">=1.3"
+libvulkan-loader = ">=1.3"
+
+[feature.vulkan.target.linux-64.dependencies]
+libvulkan-headers = ">=1.3"
+libvulkan-loader = ">=1.3"
+
+[environments]
+vulkan = { features = ["vulkan"], solve-group = "default" }
 
 [activation.env]
 RENDERDOC_PYTHON_PATH = ".local/renderdoc"
@@ -61,7 +72,7 @@ check-replay = "uv run python scripts/gen_and_check.py check scripts/gen-replay.
 gen-commands = "uv run python scripts/gen_and_check.py gen scripts/gen-commands.py docs-astro/src/data/commands.json"
 check-commands = "uv run python scripts/gen_and_check.py check scripts/gen-commands.py docs-astro/src/data/commands.json"
 verify = "uv run python scripts/verify_package.py"
-e2e = "bash scripts/e2e-test.sh"
+e2e = "python scripts/e2e_test.py"
 test-e2e = "uv run pytest tests/e2e -v -m gpu --no-header"
 test-e2e-full = "uv run pytest tests/e2e -v -m 'gpu or vulkan_samples' --no-header"
 setup-vulkan-samples = "python scripts/setup_vulkan_samples.py"
