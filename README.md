@@ -157,11 +157,11 @@ rdc-cli supports three deployment modes:
 # Proxy: local daemon, remote GPU (needs renderdoccmd on remote)
 rdc open frame.rdc --proxy gpu-server:39920
 
-# Split server: expose daemon to network
-rdc open frame.rdc --listen 0.0.0.0:54321
+# Split server: bind to a specific LAN interface
+rdc open frame.rdc --listen 192.168.1.10:54321
 
 # Split client: connect from any machine (no renderdoc needed)
-rdc open --connect host:54321 --token TOKEN
+rdc open --connect replay-host:54321 --token TOKEN
 rdc draws                          # all commands work transparently
 rdc close
 ```

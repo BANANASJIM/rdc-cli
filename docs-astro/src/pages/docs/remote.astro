@@ -115,7 +115,7 @@ Split+Proxy:   [CLI] --JSON-RPC--> [daemon] --RenderDoc protocol--> [remoteserve
         <td>Daemon runs locally, GPU work forwarded to remote server</td>
       </tr>
       <tr>
-        <td>Cross-vendor replay (AMD capture on NVIDIA)</td>
+        <td>Cross-vendor replay (capture needs original GPU)</td>
         <td>Split or Proxy</td>
         <td>RenderDoc captures are GPU-vendor-bound; use remote replay on the original GPU</td>
       </tr>
@@ -151,23 +151,26 @@ Split+Proxy:   [CLI] --JSON-RPC--> [daemon] --RenderDoc protocol--> [remoteserve
   </ol>
 
   <h3>Server side</h3>
-  <pre><code># Start daemon and expose to network
-# :0 means auto-assign port on all interfaces
+  <pre><code># Bind to a specific LAN interface (recommended)
+rdc open frame.rdc --listen 192.168.1.10:54321
+
+# Or auto-assign port on all interfaces
+# WARNING: 0.0.0.0 exposes the daemon to the entire network — use only on trusted LANs
 rdc open frame.rdc --listen 0.0.0.0:0
 
 # Output:
 #   opened: frame.rdc (listening)
 #   host: 0.0.0.0
 #   port: 54321
-#   token: a1b2c3d4e5f67890a1b2c3d4e5f67890
-#   connect with: rdc open --connect 0.0.0.0:54321 --token a1b2c3d4...
+#   token: &lt;TOKEN&gt;
+#   connect with: rdc open --connect &lt;server-ip&gt;:54321 --token &lt;TOKEN&gt;
 
 # Bind to a specific interface and port (useful for CI/automation)
 rdc open frame.rdc --listen 10.0.0.1:8080</code></pre>
 
   <h3>Client side</h3>
   <pre><code># Connect from any machine (macOS, Windows, CI runner, etc.)
-rdc open --connect replay-host:54321 --token a1b2c3d4e5f67890...
+rdc open --connect replay-host:54321 --token TOKEN
 
 # Everything works exactly like local mode
 rdc status             # shows remote capture path and daemon info
@@ -195,8 +198,8 @@ rdc close --shutdown   # disconnect AND stop the remote daemon</code></pre>
     <li><strong>Token authentication:</strong> 128-bit random token
       (<code>secrets.token_hex(16)</code>), verified with
       <code>secrets.compare_digest()</code> for timing-safe comparison.</li>
-    <li><strong>Default bind:</strong> <code>127.0.0.1</code> (localhost only).
-      Use <code>--listen 0.0.0.0:PORT</code> to expose to the network.</li>
+    <li><strong>Default bind:</strong> <code>0.0.0.0</code> (all interfaces).
+      Prefer binding to a specific LAN IP or <code>127.0.0.1</code> on untrusted networks.</li>
     <li><strong>SSH tunnel (recommended for untrusted networks):</strong></li>
   </ul>
   <pre><code># On the client machine
@@ -226,8 +229,8 @@ rdc open --connect localhost:54321 --token TOKEN</code></pre>
   </ol>
 
   <h3>Start a remote server</h3>
-  <pre><code># Using rdc-cli (wraps renderdoccmd)
-rdc serve --allow-ips 0.0.0.0/0
+  <pre><code># Using rdc-cli (wraps renderdoccmd) — restrict to trusted subnet
+rdc serve --allow-ips 10.0.0.0/24
 rdc serve --daemon --port 39920      # detach after printing PID
 
 # Or use renderdoccmd directly
@@ -358,9 +361,9 @@ rdc assert-count draws --expect 50 --op ge
 rdc assert-clean --min-severity HIGH
 rdc close</code></pre>
 
-  <h3>Cross-vendor debugging (AMD capture, need NVIDIA replay)</h3>
+  <h3>Cross-vendor debugging (NVIDIA capture, AMD client)</h3>
   <pre><code># RenderDoc captures are GPU-vendor-bound.
-# An AMD capture cannot replay on NVIDIA (different memory types).
+# An NVIDIA capture cannot replay on AMD hardware (different memory types).
 # Solution: replay on the original GPU via Split mode.
 
 # NVIDIA server (where the capture was made)
@@ -419,7 +422,7 @@ rdc remote capture APP [-o OUTPUT]</code></pre>
   <ul>
     <li><code>--connect</code> is mutually exclusive with <code>CAPTURE</code>, <code>--proxy</code>, and <code>--listen</code>.</li>
     <li><code>--listen</code> can be combined with <code>--proxy</code> for Split+Proxy setups.</li>
-    <li><code>--remote</code> is a deprecated alias for <code>--proxy</code> (hidden, shows deprecation warning).</li>
+    <li>For <code>rdc open</code>, <code>--remote</code> is a deprecated alias for <code>--proxy</code> (hidden, shows deprecation warning).</li>
     <li>The daemon has a 30-minute idle timeout by default. Any command resets the timer.</li>
     <li>IPv6 is not currently supported (<code>HOST:PORT</code> parsing uses <code>rsplit(":", 1)</code>).</li>
   </ul>
