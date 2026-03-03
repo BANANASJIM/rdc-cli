@@ -74,14 +74,11 @@ def _build(src_dir: Path) -> None:
 
 
 def _find_binary(src_dir: Path) -> Path:
-    # Windows Release config places binary under app/bin/Release/
-    for candidate in (
-        src_dir / "build" / "app" / "bin" / "Release" / _BIN_NAME,
-        src_dir / "build" / "app" / "bin" / _BIN_NAME,
-    ):
-        if candidate.exists():
-            return candidate
-    sys.stderr.write(f"ERROR: built binary not found under {src_dir / 'build'}\n")
+    # MSBuild may add a platform subdirectory (e.g. Release/AMD64/), so rglob
+    bin_dir = src_dir / "build" / "app" / "bin"
+    for match in bin_dir.rglob(_BIN_NAME):
+        return match
+    sys.stderr.write(f"ERROR: built binary not found under {bin_dir}\n")
     raise SystemExit(1)
 
 
