@@ -334,7 +334,7 @@ def test_configure_linux_strips_lto(tmp_path: Path) -> None:
 def test_run_build_parallel_flag_linux(tmp_path: Path) -> None:
     mock_run = MagicMock()
     with patch("subprocess.run", mock_run):
-        br.run_build(tmp_path, "linux", jobs=8)
+        br.run_build(tmp_path, jobs=8)
     args = mock_run.call_args[0][0]
     assert "-j" in args
     assert "8" in args
@@ -343,7 +343,7 @@ def test_run_build_parallel_flag_linux(tmp_path: Path) -> None:
 def test_run_build_linux_no_config_flag(tmp_path: Path) -> None:
     mock_run = MagicMock()
     with patch("subprocess.run", mock_run):
-        br.run_build(tmp_path, "linux", jobs=4)
+        br.run_build(tmp_path, jobs=4)
     args = mock_run.call_args[0][0]
     assert "--config" not in args
 

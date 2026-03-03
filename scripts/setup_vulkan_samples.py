@@ -44,6 +44,9 @@ def _clone(src_dir: Path) -> None:
             ["git", "clone", "--depth", "1", "--recurse-submodules", REPO_URL, str(src_dir)],
             check=True,
         )
+    except FileNotFoundError as exc:
+        sys.stderr.write("ERROR: git not found on PATH\n")
+        raise SystemExit(1) from exc
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"ERROR: git clone failed (exit {exc.returncode})\n")
         raise SystemExit(1) from exc
@@ -62,6 +65,9 @@ def _build(src_dir: Path) -> None:
         if _IS_WINDOWS:
             build_cmd += ["--config", "Release"]
         subprocess.run(build_cmd, cwd=src_dir, check=True)
+    except FileNotFoundError as exc:
+        sys.stderr.write("ERROR: cmake not found on PATH\n")
+        raise SystemExit(1) from exc
     except subprocess.CalledProcessError as exc:
         sys.stderr.write(f"ERROR: cmake build failed (exit {exc.returncode})\n")
         raise SystemExit(1) from exc

@@ -236,6 +236,7 @@ def _prepare_win_python(src_dir: Path) -> Path:
                 idx = content.index(marker)
                 # Find the start of the PropertyGroup containing the marker
                 pg_start = content.rfind("<PropertyGroup>", 0, idx)
+                assert pg_start != -1, f"No <PropertyGroup> before marker in {props_file}"
                 content = content[:pg_start] + entry + content[pg_start:]
             else:
                 # Fallback: insert before closing </Project>
@@ -379,7 +380,7 @@ def configure_build(
     subprocess.run(cmd, check=True, env=env)
 
 
-def run_build(build_dir: Path, plat: str, jobs: int | None = None) -> None:
+def run_build(build_dir: Path, jobs: int | None = None) -> None:
     """Run cmake --build (Linux/macOS only)."""
     cmake_build = build_dir / "renderdoc" / "build"
     n = jobs or os.cpu_count() or 4
@@ -455,7 +456,7 @@ def main(argv: list[str] | None = None) -> None:
         if plat == "macos":
             prepare_custom_swig(swig_dir)
         configure_build(build_dir, swig_dir, plat)
-        run_build(build_dir, plat, args.jobs)
+        run_build(build_dir, args.jobs)
 
     copy_artifacts(build_dir, install_dir, plat)
     _log("=== Done ===")

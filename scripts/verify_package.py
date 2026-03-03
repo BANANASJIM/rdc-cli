@@ -73,79 +73,104 @@ def main() -> None:
     dist = ROOT / "dist"
     if dist.exists():
         shutil.rmtree(dist)
-    check("uv build", ["uv", "build"])
-    check("twine check", ["uvx", "twine", "check"] + [str(p) for p in dist.glob("*")])
-    check("wheel contents", ["uvx", "check-wheel-contents"] + [str(p) for p in dist.glob("*.whl")])
+    try:
+        check("uv build", ["uv", "build"])
+        check("twine check", ["uvx", "twine", "check"] + [str(p) for p in dist.glob("*")])
+        check(
+            "wheel contents",
+            ["uvx", "check-wheel-contents"] + [str(p) for p in dist.glob("*.whl")],
+        )
 
-    sdist_ok = any(dist.glob("*.tar.gz"))
-    _log(sdist_ok, "sdist exists")
-    _record(sdist_ok)
+        sdist_ok = any(dist.glob("*.tar.gz"))
+        _log(sdist_ok, "sdist exists")
+        _record(sdist_ok)
 
-    wheel_ok = any(dist.glob("*.whl"))
-    _log(wheel_ok, "wheel exists")
-    _record(wheel_ok)
-
-    print()
-    print("=== Layer 2: Install + smoke test ===")
-    wheels = list(dist.glob("*.whl"))
-    with tempfile.TemporaryDirectory() as tmp:
-        venv = Path(tmp) / "venv"
-        venv_result = subprocess.run(["uv", "venv", str(venv)], capture_output=True, cwd=ROOT)
-        if venv_result.returncode != 0:
-            _log(False, "uv venv creation failed")
-            _record(False)
-            return
-        if sys.platform == "win32":
-            python = venv / "Scripts" / "python.exe"
-            rdc = venv / "Scripts" / "rdc.exe"
-        else:
-            python = venv / "bin" / "python"
-            rdc = venv / "bin" / "rdc"
-
-        install_ok = False
-        if wheels:
-            install_ok = check("clean venv install", ["uv", "pip", "install", str(wheels[0]), "--python", str(python)])
-        else:
-            _log(False, "clean venv install (no wheel found)")
-            _record(False)
-
-        if not install_ok:
-            _log(False, "skipping smoke tests (install failed)")
-            _record(False)
-            return
-
-        ver_result = subprocess.run([str(rdc), "--version"], capture_output=True, text=True)
-        ver_parts = (ver_result.stdout + ver_result.stderr).strip().split()
-        installed_version = ver_parts[-1] if ver_result.returncode == 0 and ver_parts else ""
-
-        check_output("rdc --version", installed_version, [str(rdc), "--version"])
-        check("rdc --help", [str(rdc), "--help"])
-        check("import rdc.cli", [str(python), "-c", "from rdc.cli import main"])
-        check("import rdc.daemon_server", [str(python), "-c", "from rdc.daemon_server import _handle_request"])
-        check("rdc completion bash", [str(rdc), "completion", "bash"])
-        check("rdc completion zsh", [str(rdc), "completion", "zsh"])
-        check("rdc completion fish", [str(rdc), "completion", "fish"])
+        wheel_ok = any(dist.glob("*.whl"))
+        _log(wheel_ok, "wheel exists")
+        _record(wheel_ok)
 
         print()
-        print("=== Layer 3: Version consistency ===")
-        init_ver_result = subprocess.run(
-            [str(python), "-c", "from rdc import __version__; print(__version__)"],
-            capture_output=True,
-            text=True,
-        )
-        init_version = init_ver_result.stdout.strip()
-        check_output("rdc --version matches installed", installed_version, [str(rdc), "--version"])
-        check_output(
-            "__init__.py version matches installed",
-            installed_version,
-            [str(python), "-c", "from rdc import __version__; print(__version__)"],
-        )
-        if init_version and installed_version and init_version != installed_version:
-            _log(False, f"version mismatch: rdc={installed_version}, __init__={init_version}")
-            _record(False)
+        print("=== Layer 2: Install + smoke test ===")
+        wheels = list(dist.glob("*.whl"))
+        with tempfile.TemporaryDirectory() as tmp:
+            venv = Path(tmp) / "venv"
+            venv_result = subprocess.run(
+                ["uv", "venv", str(venv)], capture_output=True, cwd=ROOT
+            )
+            if venv_result.returncode != 0:
+                _log(False, "uv venv creation failed")
+                _record(False)
+                return
+            if sys.platform == "win32":
+                python = venv / "Scripts" / "python.exe"
+                rdc = venv / "Scripts" / "rdc.exe"
+            else:
+                python = venv / "bin" / "python"
+                rdc = venv / "bin" / "rdc"
 
-    if dist.exists():
-        shutil.rmtree(dist)
+            install_ok = False
+            if wheels:
+                install_ok = check(
+                    "clean venv install",
+                    ["uv", "pip", "install", str(wheels[0]), "--python", str(python)],
+                )
+            else:
+                _log(False, "clean venv install (no wheel found)")
+                _record(False)
+
+            if not install_ok:
+                _log(False, "skipping smoke tests (install failed)")
+                _record(False)
+                return
+
+            ver_result = subprocess.run(
+                [str(rdc), "--version"], capture_output=True, text=True
+            )
+            ver_parts = (ver_result.stdout + ver_result.stderr).strip().split()
+            installed_version = (
+                ver_parts[-1] if ver_result.returncode == 0 and ver_parts else ""
+            )
+
+            check_output(
+                "rdc --version", installed_version, [str(rdc), "--version"]
+            )
+            check("rdc --help", [str(rdc), "--help"])
+            check("import rdc.cli", [str(python), "-c", "from rdc.cli import main"])
+            check(
+                "import rdc.daemon_server",
+                [str(python), "-c", "from rdc.daemon_server import _handle_request"],
+            )
+            check("rdc completion bash", [str(rdc), "completion", "bash"])
+            check("rdc completion zsh", [str(rdc), "completion", "zsh"])
+            check("rdc completion fish", [str(rdc), "completion", "fish"])
+
+            print()
+            print("=== Layer 3: Version consistency ===")
+            init_ver_result = subprocess.run(
+                [str(python), "-c", "from rdc import __version__; print(__version__)"],
+                capture_output=True,
+                text=True,
+            )
+            init_version = init_ver_result.stdout.strip()
+            check_output(
+                "rdc --version matches installed",
+                installed_version,
+                [str(rdc), "--version"],
+            )
+            check_output(
+                "__init__.py version matches installed",
+                installed_version,
+                [str(python), "-c", "from rdc import __version__; print(__version__)"],
+            )
+            if init_version and installed_version and init_version != installed_version:
+                _log(
+                    False,
+                    f"version mismatch: rdc={installed_version}, __init__={init_version}",
+                )
+                _record(False)
+    finally:
+        if dist.exists():
+            shutil.rmtree(dist)
 
     print()
     print("================================")
