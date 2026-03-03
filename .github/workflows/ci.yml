@@ -41,8 +41,13 @@ jobs:
         run: uv run ruff format --check src tests
 
       - name: Verify skill reference is fresh
-        run: diff <(uv run python scripts/gen-skill-ref.py) src/rdc/_skills/references/commands-quick-ref.md
-        shell: bash
+        run: uv run python scripts/gen_and_check.py check scripts/gen-skill-ref.py src/rdc/_skills/references/commands-quick-ref.md
+
+      - name: Verify replay data is fresh
+        run: uv run python scripts/gen_and_check.py check scripts/gen-replay.py docs-astro/src/data/replay.json
+
+      - name: Verify commands data is fresh
+        run: uv run python scripts/gen_and_check.py check scripts/gen-commands.py docs-astro/src/data/commands.json
 
   security:
     name: Dependency audit
@@ -120,6 +125,9 @@ jobs:
 
       - name: Pytest + coverage
         run: uv run --python ${{ matrix.python-version }} pytest tests/unit -v --cov=rdc --cov-report=term-missing --cov-fail-under=80
+
+      - name: Verify generated files are fresh
+        run: uv run python scripts/gen_and_check.py check scripts/gen-skill-ref.py src/rdc/_skills/references/commands-quick-ref.md
 
   # macOS runners cost ~10x vs Linux — only run on manual dispatch or tag releases
   test-macos:

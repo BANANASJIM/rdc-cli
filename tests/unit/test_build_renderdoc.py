@@ -422,9 +422,11 @@ def test_copy_artifacts_missing_source(tmp_path: Path) -> None:
 
 def test_main_default_install_dir(tmp_path: Path) -> None:
     with (
+        patch("build_renderdoc._platform", return_value="linux"),
         patch("build_renderdoc._artifacts_present", return_value=False),
         patch("build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
         patch("build_renderdoc.check_prerequisites"),
+        patch("build_renderdoc.verify_tool_versions"),
         patch("build_renderdoc.clone_renderdoc"),
         patch("build_renderdoc.download_swig"),
         patch("build_renderdoc.configure_build"),
@@ -440,8 +442,10 @@ def test_main_default_install_dir(tmp_path: Path) -> None:
 def test_main_custom_install_dir(tmp_path: Path) -> None:
     custom = tmp_path / "custom"
     with (
+        patch("build_renderdoc._platform", return_value="linux"),
         patch("build_renderdoc._artifacts_present", return_value=False),
         patch("build_renderdoc.check_prerequisites"),
+        patch("build_renderdoc.verify_tool_versions"),
         patch("build_renderdoc.clone_renderdoc"),
         patch("build_renderdoc.download_swig"),
         patch("build_renderdoc.configure_build"),
@@ -456,8 +460,10 @@ def test_main_custom_install_dir(tmp_path: Path) -> None:
 def test_main_custom_build_dir(tmp_path: Path) -> None:
     bd = tmp_path / "mybuild"
     with (
+        patch("build_renderdoc._platform", return_value="linux"),
         patch("build_renderdoc._artifacts_present", return_value=False),
         patch("build_renderdoc.check_prerequisites"),
+        patch("build_renderdoc.verify_tool_versions"),
         patch("build_renderdoc.clone_renderdoc") as mock_clone,
         patch("build_renderdoc.download_swig"),
         patch("build_renderdoc.configure_build"),
