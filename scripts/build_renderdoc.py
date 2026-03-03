@@ -253,7 +253,7 @@ def _run_msbuild(build_dir: Path, python_prefix: Path, jobs: int | None = None) 
     n = jobs or os.cpu_count() or 4
     env = dict(os.environ)
     env["RENDERDOC_PYTHON_PREFIX64"] = str(python_prefix)
-    env["CL"] = "/wd4996"
+    env["CL"] = (env.get("CL", "") + " /wd4996").strip()
     cmd = [
         msbuild,
         str(sln),
