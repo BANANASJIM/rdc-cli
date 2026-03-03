@@ -6,11 +6,11 @@ Counts, EIDs, and pixel values are discovered dynamically via ``capture_meta``.
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import pytest
-from conftest import CaptureMetadata
-from e2e_helpers import rdc, rdc_fail, rdc_ok
+from e2e_helpers import VKCUBE_VALIDATION, CaptureMetadata, rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -60,10 +60,20 @@ class TestAssertPixel:
 class TestAssertClean:
     """8.3: rdc assert-clean."""
 
-    def test_fails_on_validation_messages(self, vkcube_session: str) -> None:
-        """``rdc assert-clean`` fails because capture has HIGH validation messages."""
-        out = rdc_fail("assert-clean", session=vkcube_session, exit_code=1)
-        assert "fail:" in out.lower()
+    def test_fails_on_validation_messages(self) -> None:
+        """``rdc assert-clean`` fails on capture with HIGH validation messages."""
+        if not VKCUBE_VALIDATION.exists():
+            pytest.skip("vkcube_validation.rdc not available")
+        name = f"e2e_ac_{uuid.uuid4().hex[:8]}"
+        r = rdc("open", str(VKCUBE_VALIDATION), session=name)
+        if r.returncode != 0:
+            rdc("close", session=name)
+            pytest.skip("vkcube_validation.rdc cannot replay on this GPU")
+        try:
+            out = rdc_fail("assert-clean", session=name, exit_code=1)
+            assert "fail:" in out.lower()
+        finally:
+            rdc("close", session=name)
 
 
 class TestAssertCount:

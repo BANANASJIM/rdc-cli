@@ -10,7 +10,6 @@ import logging
 import os
 import uuid
 from collections.abc import Generator
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -19,48 +18,18 @@ from e2e_helpers import (
     OIT_DEPTH_PEELING,
     VKCUBE,
     VKCUBE_BIN,
+    CaptureMetadata,
     rdc,
     rdc_json,
+    rdc_ok,
     self_capture,
 )
-
-_log = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# CaptureMetadata dataclass
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class CaptureMetadata:
-    """Dynamically discovered metadata from a self-captured .rdc file."""
-
-    draw_eid: int
-    all_eids: list[int]
-    texture_id: int
-    texture_ids: list[int]
-    buffer_id: int
-    vs_id: int
-    ps_id: int
-    shader_ids: list[int]
-    total_events: int
-    total_draws: int
-    total_resources: int
-    total_shaders: int
-    triangle_count: int
-    pass_name: str
-    pass_count: int
-    fb_width: int
-    fb_height: int
-    pixel_x: int
-    pixel_y: int
-    pixel_rgba: tuple[float, float, float, float]
-
 
 # ---------------------------------------------------------------------------
 # Session-scoped fixtures
 # ---------------------------------------------------------------------------
 
+_log = logging.getLogger(__name__)
 _DISCOVER_SESSION = "e2e_discover"
 
 
@@ -96,6 +65,17 @@ def capture_meta(captured_rdc: Path) -> CaptureMetadata:
         rdc("close", session=session)
 
 
+@pytest.fixture(scope="session")
+def can_replay_prerecorded() -> bool:
+    """Check if pre-recorded NVIDIA fixtures can replay on this GPU."""
+    if not VKCUBE.exists():
+        return False
+    name = f"e2e_probe_{uuid.uuid4().hex[:8]}"
+    r = rdc("open", str(VKCUBE), session=name)
+    rdc("close", session=name)
+    return r.returncode == 0
+
+
 def _discover_metadata(session: str) -> CaptureMetadata:
     """Run discovery queries against an open session."""
     # events
@@ -115,15 +95,16 @@ def _discover_metadata(session: str) -> CaptureMetadata:
     resources_data = rdc_json("resources", session=session)
     total_resources = len(resources_data)
 
-    texture_ids: list[int] = []
-    buffer_ids: list[int] = []
-    for res in resources_data:
-        rtype = res.get("type", "").lower()
-        rid = res["id"]
-        if "texture" in rtype or "image" in rtype:
-            texture_ids.append(rid)
-        elif "buffer" in rtype:
-            buffer_ids.append(rid)
+    # Use VFS listings as source of truth (resources may list IDs not routable in VFS)
+    textures_out = rdc_ok("ls", "/textures", session=session)
+    texture_ids = [
+        int(ln.strip()) for ln in textures_out.strip().splitlines() if ln.strip().isdigit()
+    ]
+
+    buffers_out = rdc_ok("ls", "/buffers", session=session)
+    buffer_ids = [
+        int(ln.strip()) for ln in buffers_out.strip().splitlines() if ln.strip().isdigit()
+    ]
 
     texture_id = texture_ids[0] if texture_ids else 0
     buffer_id = buffer_ids[0] if buffer_ids else 0

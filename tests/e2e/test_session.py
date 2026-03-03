@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from e2e_helpers import HELLO_TRIANGLE, rdc, rdc_fail, rdc_ok
+from e2e_helpers import rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -106,19 +106,19 @@ class TestNamedSessions:
     def test_named_session_lifecycle(self, captured_rdc: Path) -> None:
         """Named sessions (--session) provide independent isolation.
 
-        Opens hello_triangle.rdc in a named session, verifies its status
-        is independent, then closes only that session.
+        Opens the same capture in two sessions, verifies independence,
+        then closes only the secondary session.
         """
         primary = f"e2e_primary_{_uid()}"
         secondary = f"e2e_secondary_{_uid()}"
         try:
             rdc_ok("open", str(captured_rdc), session=primary)
 
-            out = rdc_ok("open", str(HELLO_TRIANGLE), session=secondary)
+            out = rdc_ok("open", str(captured_rdc), session=secondary)
             assert "session:" in out.lower()
 
             status = rdc_ok("status", session=secondary)
-            assert "hello_triangle" in status.lower()
+            assert captured_rdc.stem.lower() in status.lower()
 
             close_out = rdc_ok("close", session=secondary)
             assert "closed" in close_out.lower()
