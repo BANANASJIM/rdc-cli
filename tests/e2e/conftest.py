@@ -141,6 +141,7 @@ def _discover_metadata(session: str) -> CaptureMetadata:
     else:
         pass_count = 0
         pass_name = ""
+    assert pass_name, "Discovery found no pass name -- capture may be corrupt"
 
     # stats (for framebuffer dimensions)
     stats_data = rdc_json("stats", session=session)

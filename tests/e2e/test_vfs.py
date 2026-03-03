@@ -10,8 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conftest import CaptureMetadata
-from e2e_helpers import rdc_fail, rdc_ok
+from e2e_helpers import CaptureMetadata, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -201,8 +200,9 @@ class TestLsTextures:
     def test_texture_ids(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
         """Texture listing includes all discovered texture IDs."""
         out = rdc_ok("ls", "/textures", session=vkcube_session)
+        listed = {ln.strip() for ln in out.strip().splitlines() if ln.strip()}
         for tid in capture_meta.texture_ids:
-            assert str(tid) in out
+            assert str(tid) in listed
 
 
 class TestLsShaders:
@@ -211,8 +211,9 @@ class TestLsShaders:
     def test_shader_ids(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
         """Shader listing includes all discovered shader IDs."""
         out = rdc_ok("ls", "/shaders", session=vkcube_session)
+        listed = {ln.strip() for ln in out.strip().splitlines() if ln.strip()}
         for sid in capture_meta.shader_ids:
-            assert str(sid) in out
+            assert str(sid) in listed
 
 
 class TestLsPasses:

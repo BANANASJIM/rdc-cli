@@ -111,12 +111,14 @@ def _check_output(desc: str, expected: str, *cmd: str) -> None:
 
 
 def _check_nonzero(desc: str, *cmd: str) -> None:
-    """Pass if command produces non-empty output."""
+    """Pass if command exits 0 and produces non-empty output."""
     try:
         r = _run(*cmd)
         combined = (r.stdout + r.stderr).strip()
-        if combined:
+        if r.returncode == 0 and combined:
             _pass(desc)
+        elif r.returncode != 0:
+            _fail(desc, f"exit {r.returncode}")
         else:
             _fail(desc, "empty output")
     except Exception as exc:
