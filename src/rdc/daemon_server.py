@@ -183,7 +183,7 @@ def _load_replay(state: DaemonState) -> str | None:
         cap.Shutdown()
         return f"OpenFile failed: {result}"
 
-    if cap.LocalReplaySupport() != rd.ReplaySupport.Supported:
+    if cap.LocalReplaySupport() == rd.ReplaySupport.Unsupported:
         cap.Shutdown()
         return "local replay not supported on this platform"
 

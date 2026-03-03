@@ -376,7 +376,7 @@ def test_tree_root(monkeypatch) -> None:
     )
     result = CliRunner().invoke(tree_cmd, ["/", "--depth", "1"])
     assert result.exit_code == 0
-    assert "\u251c\u2500\u2500" in result.output or "\u2514\u2500\u2500" in result.output
+    assert "|-- " in result.output or "\\-- " in result.output
 
 
 def test_tree_json(monkeypatch) -> None:

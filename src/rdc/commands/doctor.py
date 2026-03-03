@@ -75,7 +75,7 @@ def _import_renderdoc() -> tuple[Any | None, CheckResult]:
             return None, CheckResult(
                 "renderdoc-module",
                 False,
-                f"incompatible at {diag.candidate_path} — rebuild renderdoc for current Python",
+                f"incompatible at {diag.candidate_path} -- rebuild renderdoc for current Python",
             )
         return None, CheckResult("renderdoc-module", False, "not found in search paths")
 
@@ -110,7 +110,7 @@ def _check_renderdoccmd() -> CheckResult:
     return CheckResult("renderdoccmd", True, f"{cmd_path} ({version})")
 
 
-# ── Windows-specific checks ──────────────────────────────────────────
+# -- Windows-specific checks -----------------------------------------------
 
 
 def _check_win_python_version() -> CheckResult:
@@ -122,12 +122,25 @@ def _check_win_python_version() -> CheckResult:
 
     search_paths = _platform.renderdoc_search_paths()
 
+    # Try cpython-tagged .pyd first (setuptools output)
     pyds = [f for p in search_paths for f in glob.glob(str(Path(p) / "renderdoc.cpython-3*.pyd"))]
     if not pyds:
+        # Fall back to plain renderdoc.pyd (MSBuild output, no cpython tag)
+        pyds = [
+            str(Path(p) / "renderdoc.pyd")
+            for p in search_paths
+            if (Path(p) / "renderdoc.pyd").is_file()
+        ]
+        if pyds:
+            return CheckResult(
+                "win-python-version",
+                True,
+                f"MSBuild renderdoc.pyd found at {pyds[0]} (version check skipped)",
+            )
         return CheckResult(
             "win-python-version",
             False,
-            "renderdoc.pyd not found \u2014 cannot verify Python version match",
+            "renderdoc.pyd not found -- cannot verify Python version match",
         )
 
     name = Path(pyds[0]).stem
@@ -160,7 +173,7 @@ def _check_win_vs_build_tools() -> CheckResult:
             return CheckResult(
                 "win-vs-build-tools",
                 False,
-                "vswhere.exe not found \u2014 install Visual Studio 2022 Build Tools",
+                "vswhere.exe not found -- install Visual Studio 2022 Build Tools",
             )
         vswhere = Path(found)
 
@@ -190,7 +203,7 @@ def _check_win_vs_build_tools() -> CheckResult:
         return CheckResult(
             "win-vs-build-tools",
             False,
-            "VC++ build tools not found \u2014 required to build renderdoc Python bindings",
+            "VC++ build tools not found -- required to build renderdoc Python bindings",
         )
     version = installs[0].get("installationVersion", "unknown")
     return CheckResult(
@@ -221,11 +234,11 @@ def _check_win_renderdoc_install() -> CheckResult:
     return CheckResult(
         "win-renderdoc-install",
         False,
-        "RenderDoc not found \u2014 install RenderDoc or set RENDERDOC_PYTHON_PATH",
+        "RenderDoc not found -- install RenderDoc or set RENDERDOC_PYTHON_PATH",
     )
 
 
-# ── macOS-specific checks ─────────────────────────────────────────────
+# -- macOS-specific checks -------------------------------------------------
 
 
 def _check_mac_xcode_cli() -> CheckResult:
@@ -236,9 +249,9 @@ def _check_mac_xcode_cli() -> CheckResult:
         proc = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, timeout=3)
         if proc.returncode == 0:
             return CheckResult("mac-xcode-cli", True, proc.stdout.strip())
-        return CheckResult("mac-xcode-cli", False, "not installed — run: xcode-select --install")
+        return CheckResult("mac-xcode-cli", False, "not installed -- run: xcode-select --install")
     except Exception:  # noqa: BLE001
-        return CheckResult("mac-xcode-cli", False, "not installed — run: xcode-select --install")
+        return CheckResult("mac-xcode-cli", False, "not installed -- run: xcode-select --install")
 
 
 def _check_mac_homebrew() -> CheckResult:
@@ -255,7 +268,7 @@ def _check_mac_homebrew() -> CheckResult:
         return CheckResult(
             "mac-homebrew",
             False,
-            "brew not found — install from https://brew.sh",
+            "brew not found -- install from https://brew.sh",
         )
     try:
         proc = subprocess.run([brew_path, "--version"], capture_output=True, text=True, timeout=5)
@@ -315,7 +328,7 @@ def doctor_cmd() -> None:
     has_error = False
 
     for result in results:
-        icon = "\u2705" if result.ok else "\u274c"
+        icon = "[ok]" if result.ok else "[FAIL]"
         click.echo(f"{icon} {result.name}: {result.detail}")
         if not result.ok:
             has_error = True

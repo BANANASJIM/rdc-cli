@@ -263,7 +263,7 @@ def _format_graph(edges: list[dict[str, Any]]) -> None:
     # Legend
     click.echo("Legend:")
     for node in nodes:
-        marker = "●" if out.get(node) else "○"
+        marker = "*" if out.get(node) else "o"
         click.echo(f"  [{lbl[node]}] {marker} {node}")
     click.echo("")
 
@@ -272,9 +272,9 @@ def _format_graph(edges: list[dict[str, Any]]) -> None:
     for node in nodes:
         targets = out.get(node, [])
         producers = inc.get(node, set())
-        from_part = f"  ◀ {','.join(lbl[p] for p in nodes if p in producers)}" if producers else ""
+        from_part = f"  < {','.join(lbl[p] for p in nodes if p in producers)}" if producers else ""
         if targets:
-            to_part = " ──▶ " + ", ".join(lbl[t] for t in targets)
+            to_part = " --> " + ", ".join(lbl[t] for t in targets)
             click.echo(f"  {lbl[node]}{to_part}{from_part}")
         else:
             click.echo(f"  {lbl[node]}  (sink){from_part}")

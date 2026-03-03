@@ -53,7 +53,7 @@ def test_doctor_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = CliRunner().invoke(doctor_cmd, [])
     assert result.exit_code == 0
-    assert "\u2705" in result.output
+    assert "[ok]" in result.output
     assert "platform" in result.output
     assert "replay-support" in result.output
 
@@ -146,9 +146,23 @@ class TestWinPythonVersion:
         monkeypatch.setattr("rdc.commands.doctor.sys.platform", "win32")
         monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [r"C:\RenderDoc"])
         monkeypatch.setattr("rdc.commands.doctor.glob.glob", lambda _pattern: [])
+        monkeypatch.setattr("rdc.commands.doctor.Path.is_file", lambda _self: False)
         r = _check_win_python_version()
         assert r.ok is False
         assert "not found" in r.detail.lower()
+
+    def test_msbuild_plain_pyd_accepted(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """MSBuild-produced renderdoc.pyd (no cpython tag) is accepted."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "win32")
+        (tmp_path / "renderdoc.pyd").write_text("fake")
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [str(tmp_path)])
+        monkeypatch.setattr("rdc.commands.doctor.glob.glob", lambda _pattern: [])
+        r = _check_win_python_version()
+        assert r.ok is True
+        assert "MSBuild" in r.detail
+        assert "renderdoc.pyd" in r.detail
 
 
 # ── Group X: _check_win_vs_build_tools() ──────────────────────────────

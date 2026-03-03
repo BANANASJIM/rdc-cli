@@ -673,7 +673,7 @@ class TestCliDepsGraph:
         assert "Graph:" in result.output
         assert "[A]" in result.output
         assert "[B]" in result.output
-        assert "──▶" in result.output
+        assert "-->" in result.output
 
     def test_graph_chain(self, monkeypatch: Any) -> None:
         patch_cli_session(monkeypatch, _TWO_EDGES)

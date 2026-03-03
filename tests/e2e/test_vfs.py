@@ -45,9 +45,9 @@ class TestTreeRoot:
     """5.3: rdc tree / --depth 1 shows tree formatting."""
 
     def test_tree_formatting(self, vkcube_session: str) -> None:
-        """Tree output uses box-drawing characters."""
+        """Tree output uses ASCII tree characters."""
         out = rdc_ok("tree", "/", "--depth", "1", session=vkcube_session)
-        assert "\u251c\u2500\u2500" in out  # "├──"
+        assert "|-- " in out
 
 
 class TestTreeDraws:

@@ -24,7 +24,8 @@ class ResultCode(IntEnum):
 
 class ReplaySupport(IntEnum):
     Supported = 0
-    Unsupported = 1
+    SuggestRemote = 1
+    Unsupported = 2
 
 
 class ShaderStage(IntEnum):

@@ -69,10 +69,10 @@ def _render_children(
         return
     for i, child in enumerate(children):
         is_last = i == len(children) - 1
-        connector = "\u2514\u2500\u2500 " if is_last else "\u251c\u2500\u2500 "
+        connector = "\\-- " if is_last else "|-- "
         suffix = _CLASSIFY.get(child.get("kind", "leaf"), "")
         lines.append(prefix + connector + child["name"] + suffix)
-        extension = "    " if is_last else "\u2502   "
+        extension = "    " if is_last else "|   "
         _render_children(
             child.get("children", []),
             lines,

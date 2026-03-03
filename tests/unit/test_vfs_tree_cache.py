@@ -763,11 +763,11 @@ class TestRenderTreeRoot:
         result = render_tree_root("/draws/142", node, max_depth=3)
         lines = result.split("\n")
         assert lines[0] == "/draws/142/"
-        assert lines[1] == "\u251c\u2500\u2500 pipeline/"
-        assert lines[2] == "\u2502   \u251c\u2500\u2500 summary"
-        assert lines[5] == "\u2502   \u2514\u2500\u2500 om"
-        assert lines[6] == "\u251c\u2500\u2500 shader/"
-        assert lines[7] == "\u2514\u2500\u2500 bindings/"
+        assert lines[1] == "|-- pipeline/"
+        assert lines[2] == "|   |-- summary"
+        assert lines[5] == "|   \\-- om"
+        assert lines[6] == "|-- shader/"
+        assert lines[7] == "\\-- bindings/"
 
     def test_max_depth_zero(self) -> None:
         node = {
@@ -794,8 +794,8 @@ class TestRenderTreeRoot:
         }
         result = render_tree_root("/draws/10/shader/vs", node, max_depth=1)
         lines = result.split("\n")
-        assert lines[1] == "\u251c\u2500\u2500 disasm"
-        assert lines[2] == "\u2514\u2500\u2500 binary*"
+        assert lines[1] == "|-- disasm"
+        assert lines[2] == "\\-- binary*"
 
     def test_alias_suffix(self) -> None:
         node = {
@@ -805,4 +805,4 @@ class TestRenderTreeRoot:
         }
         result = render_tree_root("/", node, max_depth=1)
         lines = result.split("\n")
-        assert lines[1] == "\u2514\u2500\u2500 current@"
+        assert lines[1] == "\\-- current@"
