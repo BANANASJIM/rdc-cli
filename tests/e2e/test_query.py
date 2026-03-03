@@ -309,4 +309,5 @@ class TestUsage:
     def test_resource_usage(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
         """``rdc usage <texture_id>`` shows usage entries."""
         out = rdc_ok("usage", str(capture_meta.texture_id), session=vkcube_session)
-        assert "PS_Resource" in out
+        lines = [ln for ln in out.strip().splitlines() if ln.strip()]
+        assert len(lines) >= 2, f"expected header + usage rows, got {len(lines)} lines"

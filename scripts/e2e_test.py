@@ -138,11 +138,13 @@ def _try_self_capture(fallback: Path) -> Path:
     try:
         _run(*_RDC, "capture", "--output", str(tmp_base), "--", vkcube, timeout=30)
         frame0 = tmp_base.with_name(tmp_base.stem + "_frame0.rdc")
+        _tmp_captures.append(tmp_base)
         if frame0.exists():
-            _tmp_captures.extend([tmp_base, frame0])
+            _tmp_captures.append(frame0)
             return frame0
-    except Exception:
-        pass
+    except Exception as exc:
+        _emit(f"  self-capture failed: {exc}")
+    _tmp_captures.append(tmp_base)
     return fallback
 
 
@@ -267,13 +269,17 @@ def main() -> int:
         _emit("Run from repo root: pixi run e2e")
         return 1
 
-    # Check renderdoc availability (skip on macOS)
+    # Check renderdoc availability
     if sys.platform == "linux":
-        rdso = _REPO_ROOT / ".local" / "renderdoc" / "renderdoc.so"
-        if not rdso.exists():
-            _emit(f"{_RED}error: renderdoc.so not found{_NC}")
-            _emit("Run: pixi run setup-renderdoc")
-            return 1
+        rd = _REPO_ROOT / ".local" / "renderdoc" / "renderdoc.so"
+    elif sys.platform == "win32":
+        rd = _REPO_ROOT / ".local" / "renderdoc" / "renderdoc.pyd"
+    else:
+        rd = None  # macOS: skip check
+    if rd is not None and not rd.exists():
+        _emit(f"{_RED}error: {rd.name} not found{_NC}")
+        _emit("Run: pixi run setup-renderdoc")
+        return 1
 
     atexit.register(_cleanup_captures)
     capture = _try_self_capture(fallback)

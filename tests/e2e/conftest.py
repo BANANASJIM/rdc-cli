@@ -31,7 +31,7 @@ _log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class CaptureMetadata:
     """Dynamically discovered metadata from a self-captured .rdc file."""
 
@@ -105,6 +105,7 @@ def _discover_metadata(session: str) -> CaptureMetadata:
 
     # draws
     draws_data = rdc_json("draws", session=session)
+    assert draws_data, "Discovery found no draw calls -- capture may be corrupt"
     total_draws = len(draws_data)
     primary_draw = draws_data[0]
     draw_eid = primary_draw["eid"]
@@ -174,8 +175,11 @@ def _discover_metadata(session: str) -> CaptureMetadata:
             break
 
     # pixel color at center
-    pixel_x = fb_width // 2 if fb_width > 0 else 300
-    pixel_y = fb_height // 2 if fb_height > 0 else 300
+    assert fb_width > 0 and fb_height > 0, (
+        f"Discovery could not determine framebuffer size (got {fb_width}x{fb_height})"
+    )
+    pixel_x = fb_width // 2
+    pixel_y = fb_height // 2
 
     pixel_data = rdc_json(
         "pick-pixel",
