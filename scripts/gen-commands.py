@@ -60,7 +60,7 @@ CATEGORIES: list[tuple[str, str, str | None, list[str]]] = [
     (
         "Capture Metadata", "capture-metadata",
         "Inspect capture file metadata without full replay.",
-        ["thumbnail", "gpus", "sections", "section"],
+        ["thumbnail", "gpus", "sections", "section", "callstacks"],
     ),
     ("VFS Navigation", "vfs", None, [
         "ls", "cat", "tree",

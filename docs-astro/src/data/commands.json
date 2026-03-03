@@ -144,7 +144,7 @@
           "name": "shader",
           "id": "shader",
           "help": "Show shader metadata for a stage at EID.",
-          "usage": "rdc shader [EID] [STAGE] [--reflect] [--constants] [--source] [--target TEXT] [--targets] [-o PATH] [--all] [--json]"
+          "usage": "rdc shader [[EID|STAGE]] [[STAGE]] [--reflect] [--constants] [--source] [--target TEXT] [--targets] [-o PATH] [--all] [--json]"
         },
         {
           "name": "shaders",
@@ -168,12 +168,12 @@
           "name": "passes",
           "id": "passes",
           "help": "List render passes.",
-          "usage": "rdc passes [--deps] [--dot] [--graph] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc passes [--json] [--deps] [--dot] [--graph] [--no-header] [--jsonl] [-q]"
         },
         {
           "name": "pass",
           "id": "pass",
-          "help": "Show detail for a single render pass by index or name.",
+          "help": "Show detail for a single render pass by 0-based index or name.",
           "usage": "rdc pass <IDENTIFIER> [--json]"
         }
       ]
@@ -402,8 +402,8 @@
         {
           "name": "section",
           "id": "section",
-          "help": "Read or write named section contents.",
-          "usage": "rdc section <NAME> [--write <FILE>] [--json]"
+          "help": "Extract or write named section contents.",
+          "usage": "rdc section <NAME> [--json] [--write PATH]"
         },
         {
           "name": "callstacks",
