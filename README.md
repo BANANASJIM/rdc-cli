@@ -80,7 +80,7 @@ pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain
 |----------|----------------------|--------------|
 | Linux | ✅ | ✅ |
 | macOS | ❌ (not supported yet) | ✅ (recommended) |
-| Windows (experimental) | ⚠️ expected | ⚠️ expected |
+| Windows | ✅ (experimental) | ✅ (experimental) |
 
 ### RenderDoc bootstrap (all platforms)
 
@@ -143,19 +143,30 @@ rdc diff before.rdc after.rdc --draws             # per-draw changes
 rdc diff before.rdc after.rdc --framebuffer       # pixel-level image diff
 ```
 
-**Split mode (macOS or thin clients)**
+**Remote replay and Split mode**
+
+rdc-cli supports three deployment modes:
+
+| Mode | Daemon runs on | GPU access | Client needs renderdoc? |
+|------|---------------|------------|------------------------|
+| **Local** | client | local GPU | yes |
+| **Proxy** (`--proxy`) | client | remote `renderdoccmd` server | yes |
+| **Split** (`--listen`/`--connect`) | server | server-local GPU | **no** |
 
 ```bash
-# On Linux/Windows replay host
-rdc capture --output /tmp/game.rdc -- /path/to/game
-rdc open /tmp/game_frame0.rdc --listen 0.0.0.0:54321
+# Proxy: local daemon, remote GPU (needs renderdoccmd on remote)
+rdc open frame.rdc --proxy gpu-server:39920
 
-# On macOS client (no local renderdoc required)
+# Split server: expose daemon to network
+rdc open frame.rdc --listen 0.0.0.0:54321
+
+# Split client: connect from any machine (no renderdoc needed)
 rdc open --connect host:54321 --token TOKEN
-rdc capture --output /tmp/mac_capture.rdc -- /usr/bin/vkcube
-rdc remote capture /usr/bin/vkcube -o /tmp/mac_remote.rdc
-rdc close --shutdown
+rdc draws                          # all commands work transparently
+rdc close
 ```
+
+Split mode is recommended for cross-platform use. All commands work transparently regardless of mode.
 
 ## Why rdc-cli?
 
