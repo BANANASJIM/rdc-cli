@@ -1,8 +1,8 @@
 """E2E tests for query commands (category 3).
 
-All tests in this module require a vkcube.rdc daemon session and a
-working RenderDoc installation. The capture has 6 events, 1 draw call
-(EID 11), 46 resources, 2 shaders (111=vs, 112=ps).
+All tests in this module require a vkcube session and a working RenderDoc
+installation. Capture metadata (EIDs, counts, IDs) is discovered dynamically
+via the ``capture_meta`` fixture.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from conftest import CaptureMetadata
 from e2e_helpers import rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
@@ -51,23 +52,24 @@ class TestLog:
 class TestEvents:
     """3.4: rdc events."""
 
-    def test_lists_six_events(self, vkcube_session: str) -> None:
-        """``rdc events`` lists 6 events as EID/TYPE/NAME TSV."""
+    def test_lists_expected_events(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc events`` lists the expected number of events."""
         out = rdc_ok("events", session=vkcube_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        # First line is header, rest are data rows
         assert lines[0].startswith("EID")
         data_lines = lines[1:]
-        assert len(data_lines) == 6
+        assert len(data_lines) == capture_meta.total_events
 
 
 class TestEvent:
     """3.5 / 3.6: rdc event."""
 
-    def test_single_event_detail(self, vkcube_session: str) -> None:
-        """``rdc event 11`` shows vkCmdDraw detail."""
-        out = rdc_ok("event", "11", session=vkcube_session)
-        assert "vkCmdDraw" in out
+    def test_single_event_detail(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc event <draw_eid>`` shows draw detail."""
+        out = rdc_ok("event", str(capture_meta.draw_eid), session=vkcube_session)
+        assert "Draw" in out or "draw" in out.lower()
 
     def test_out_of_range_eid(self, vkcube_session: str) -> None:
         """``rdc event 999`` exits 1 with out-of-range error."""
@@ -78,45 +80,47 @@ class TestEvent:
 class TestDraws:
     """3.7: rdc draws."""
 
-    def test_one_draw_call(self, vkcube_session: str) -> None:
-        """``rdc draws`` reports 1 draw call (summary on stderr)."""
+    def test_draw_call_count(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc draws`` reports expected draw call count."""
         result = rdc("draws", session=vkcube_session)
         assert result.returncode == 0, f"rdc draws failed:\n{result.stderr}"
         combined = result.stdout + result.stderr
-        assert "1 draw call" in combined.lower()
+        assert f"{capture_meta.total_draws} draw call" in combined.lower()
 
 
 class TestDraw:
-    """3.8: rdc draw 11."""
+    """3.8: rdc draw <eid>."""
 
-    def test_draw_detail_triangles(self, vkcube_session: str) -> None:
-        """``rdc draw 11`` shows 12 triangles."""
-        out = rdc_ok("draw", "11", session=vkcube_session)
-        assert "12" in out
+    def test_draw_detail_triangles(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc draw <draw_eid>`` shows triangle count."""
+        out = rdc_ok("draw", str(capture_meta.draw_eid), session=vkcube_session)
+        assert str(capture_meta.triangle_count) in out
 
 
 class TestCount:
     """3.10-3.14: rdc count."""
 
-    def test_count_events(self, vkcube_session: str) -> None:
-        """``rdc count events`` outputs 6."""
+    def test_count_events(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc count events`` outputs expected count."""
         out = rdc_ok("count", "events", session=vkcube_session)
-        assert out.strip() == "6"
+        assert out.strip() == str(capture_meta.total_events)
 
-    def test_count_draws(self, vkcube_session: str) -> None:
-        """``rdc count draws`` outputs 1."""
+    def test_count_draws(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc count draws`` outputs expected count."""
         out = rdc_ok("count", "draws", session=vkcube_session)
-        assert out.strip() == "1"
+        assert out.strip() == str(capture_meta.total_draws)
 
-    def test_count_resources(self, vkcube_session: str) -> None:
-        """``rdc count resources`` outputs 46."""
+    def test_count_resources(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc count resources`` outputs expected count."""
         out = rdc_ok("count", "resources", session=vkcube_session)
-        assert out.strip() == "46"
+        assert out.strip() == str(capture_meta.total_resources)
 
-    def test_count_shaders(self, vkcube_session: str) -> None:
-        """``rdc count shaders`` outputs 2."""
+    def test_count_shaders(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc count shaders`` outputs expected count."""
         out = rdc_ok("count", "shaders", session=vkcube_session)
-        assert out.strip() == "2"
+        assert out.strip() == str(capture_meta.total_shaders)
 
     def test_count_bad_target(self, vkcube_session: str) -> None:
         """``rdc count badtarget`` exits 2 (Click choice error)."""
@@ -157,43 +161,55 @@ class TestShaderMap:
 class TestPipeline:
     """3.19-3.23: rdc pipeline."""
 
-    def test_pipeline_summary(self, vkcube_session: str) -> None:
-        """``rdc pipeline 11`` shows TriangleList topology."""
-        out = rdc_ok("pipeline", "11", session=vkcube_session)
+    def test_pipeline_summary(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc pipeline <draw_eid>`` shows TriangleList topology."""
+        out = rdc_ok("pipeline", str(capture_meta.draw_eid), session=vkcube_session)
         assert "TriangleList" in out
 
-    def test_pipeline_topology_section(self, vkcube_session: str) -> None:
-        """``rdc pipeline 11 topology`` shows topology key and TriangleList."""
-        out = rdc_ok("pipeline", "11", "topology", session=vkcube_session)
+    def test_pipeline_topology_section(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc pipeline <draw_eid> topology`` shows TriangleList."""
+        out = rdc_ok("pipeline", str(capture_meta.draw_eid), "topology", session=vkcube_session)
         assert "topology" in out.lower()
         assert "TriangleList" in out
 
-    def test_pipeline_viewport_section(self, vkcube_session: str) -> None:
-        """``rdc pipeline 11 viewport`` shows width and height."""
-        out = rdc_ok("pipeline", "11", "viewport", session=vkcube_session)
+    def test_pipeline_viewport_section(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc pipeline <draw_eid> viewport`` shows width and height."""
+        out = rdc_ok("pipeline", str(capture_meta.draw_eid), "viewport", session=vkcube_session)
         assert "width" in out.lower()
         assert "height" in out.lower()
 
-    def test_pipeline_blend_section(self, vkcube_session: str) -> None:
-        """``rdc pipeline 11 blend`` shows blends array."""
-        out = rdc_ok("pipeline", "11", "blend", session=vkcube_session)
+    def test_pipeline_blend_section(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc pipeline <draw_eid> blend`` shows blends array."""
+        out = rdc_ok("pipeline", str(capture_meta.draw_eid), "blend", session=vkcube_session)
         assert "blends" in out.lower()
 
-    def test_pipeline_bad_section(self, vkcube_session: str) -> None:
-        """``rdc pipeline 11 badslice`` exits 1 with invalid section error."""
-        out = rdc_fail("pipeline", "11", "badslice", session=vkcube_session, exit_code=1)
+    def test_pipeline_bad_section(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc pipeline <draw_eid> badslice`` exits 1."""
+        out = rdc_fail(
+            "pipeline",
+            str(capture_meta.draw_eid),
+            "badslice",
+            session=vkcube_session,
+            exit_code=1,
+        )
         assert "error" in out.lower()
         assert "invalid section" in out.lower()
 
 
 class TestBindings:
-    """3.24: rdc bindings 11."""
+    """3.24: rdc bindings <draw_eid>."""
 
-    def test_descriptor_bindings(self, vkcube_session: str) -> None:
-        """``rdc bindings 11`` shows descriptor bindings."""
-        out = rdc_ok("bindings", "11", session=vkcube_session)
+    def test_descriptor_bindings(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc bindings <draw_eid>`` shows descriptor bindings."""
+        out = rdc_ok("bindings", str(capture_meta.draw_eid), session=vkcube_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        assert len(lines) >= 2  # header + at least 1 row
+        assert len(lines) >= 2
         assert "EID" in lines[0]
         assert "STAGE" in lines[0]
 
@@ -206,10 +222,11 @@ class TestShader:
         out = rdc_ok("shader", "vs", session=vkcube_session)
         assert "STAGE" in out or "vs" in out.lower()
 
-    def test_eid_stage_form(self, vkcube_session: str) -> None:
-        """``rdc shader 11 vs`` shows shader info for EID 11 VS stage."""
-        out = rdc_ok("shader", "11", "vs", session=vkcube_session)
-        assert "11" in out
+    def test_eid_stage_form(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc shader <draw_eid> vs`` shows shader info."""
+        eid_str = str(capture_meta.draw_eid)
+        out = rdc_ok("shader", eid_str, "vs", session=vkcube_session)
+        assert eid_str in out
         assert "vs" in out.lower()
 
     def test_invalid_stage(self, vkcube_session: str) -> None:
@@ -232,22 +249,24 @@ class TestShaders:
 class TestResources:
     """3.31: rdc resources."""
 
-    def test_lists_46_resources(self, vkcube_session: str) -> None:
-        """``rdc resources`` lists 46 resources."""
+    def test_lists_expected_resources(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc resources`` lists expected number of resources."""
         out = rdc_ok("resources", session=vkcube_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        # header + 46 data rows
-        assert len(lines) == 47
+        # header + N data rows
+        assert len(lines) == capture_meta.total_resources + 1
 
 
 class TestResource:
     """3.32-3.33: rdc resource."""
 
-    def test_resource_detail(self, vkcube_session: str) -> None:
-        """``rdc resource 97`` shows 2D Image texture info."""
-        out = rdc_ok("resource", "97", session=vkcube_session)
-        assert "97" in out
-        assert "Texture" in out or "2D Image" in out or "Image" in out
+    def test_resource_detail(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc resource <texture_id>`` shows resource info."""
+        tid_str = str(capture_meta.texture_id)
+        out = rdc_ok("resource", tid_str, session=vkcube_session)
+        assert tid_str in out
 
     def test_resource_not_found(self, vkcube_session: str) -> None:
         """``rdc resource 99999`` exits 1 with not-found error."""
@@ -258,10 +277,10 @@ class TestResource:
 class TestPasses:
     """3.34-3.38: rdc passes."""
 
-    def test_pass_list(self, vkcube_session: str) -> None:
-        """``rdc passes`` lists passes including Colour Pass."""
+    def test_pass_list(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc passes`` lists passes including the primary pass."""
         out = rdc_ok("passes", session=vkcube_session)
-        assert "Colour Pass" in out
+        assert capture_meta.pass_name in out
 
     def test_pass_detail(self, vkcube_session: str) -> None:
         """``rdc pass 0`` shows pass detail."""
@@ -285,9 +304,9 @@ class TestPasses:
 
 
 class TestUsage:
-    """3.39: rdc usage 97."""
+    """3.39: rdc usage <texture_id>."""
 
-    def test_resource_usage(self, vkcube_session: str) -> None:
-        """``rdc usage 97`` shows usage entries including PS_Resource."""
-        out = rdc_ok("usage", "97", session=vkcube_session)
+    def test_resource_usage(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
+        """``rdc usage <texture_id>`` shows usage entries."""
+        out = rdc_ok("usage", str(capture_meta.texture_id), session=vkcube_session)
         assert "PS_Resource" in out

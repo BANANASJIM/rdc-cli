@@ -7,6 +7,8 @@ without colliding with tests/conftest.py on sys.path.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,29 @@ HELLO_TRIANGLE = FIXTURES_DIR / "hello_triangle.rdc"
 DYNAMIC_RENDERING = FIXTURES_DIR / "dynamic_rendering.rdc"
 OIT_DEPTH_PEELING = FIXTURES_DIR / "oit_depth_peeling.rdc"
 VKCUBE_VALIDATION = FIXTURES_DIR / "vkcube_validation.rdc"
+
+VKCUBE_BIN: str | None = os.environ.get("VKCUBE_BIN") or shutil.which("vkcube")
+
+
+def self_capture(vkcube_path: str, output: Path, timeout: int = 60) -> Path:
+    """Run ``rdc capture`` against *vkcube_path* and return the .rdc path."""
+    r = subprocess.run(
+        ["uv", "run", "rdc", "capture", "-o", str(output), "--", vkcube_path],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if r.returncode != 0:
+        raise RuntimeError(f"self_capture failed (exit {r.returncode}):\n{r.stderr}")
+    # Output path is on stdout; RenderDoc may add a _frame0 suffix
+    stdout_path = r.stdout.strip()
+    if stdout_path and Path(stdout_path).exists():
+        return Path(stdout_path)
+    # Fallback: glob for any .rdc file in the output directory
+    candidates = list(output.parent.glob("*.rdc"))
+    if candidates:
+        return candidates[0]
+    raise RuntimeError(f"No .rdc file produced by capture:\n{r.stdout}\n{r.stderr}")
 
 
 def rdc(

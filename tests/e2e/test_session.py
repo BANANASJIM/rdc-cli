@@ -8,9 +8,10 @@ Each test function manages its own session with a unique name.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 import pytest
-from e2e_helpers import HELLO_TRIANGLE, VKCUBE, rdc, rdc_fail, rdc_ok
+from e2e_helpers import HELLO_TRIANGLE, rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 
@@ -23,20 +24,20 @@ def _uid() -> str:
 class TestOpenAndStatus:
     """2.1-2.2: Open a capture and verify status."""
 
-    def test_open_prints_session_path(self) -> None:
-        """``rdc open vkcube.rdc`` opens the capture and prints session path."""
+    def test_open_prints_session_path(self, captured_rdc: Path) -> None:
+        """``rdc open`` opens the capture and prints session path."""
         name = f"e2e_open_{_uid()}"
         try:
-            out = rdc_ok("open", str(VKCUBE), session=name)
+            out = rdc_ok("open", str(captured_rdc), session=name)
             assert "session:" in out.lower()
         finally:
             rdc("close", session=name)
 
-    def test_status_shows_session_info(self) -> None:
+    def test_status_shows_session_info(self, captured_rdc: Path) -> None:
         """``rdc status`` shows session, capture, eid, and daemon info."""
         name = f"e2e_status_{_uid()}"
         try:
-            rdc_ok("open", str(VKCUBE), session=name)
+            rdc_ok("open", str(captured_rdc), session=name)
             out = rdc_ok("status", session=name)
             assert "session:" in out
             assert "capture:" in out
@@ -49,51 +50,51 @@ class TestOpenAndStatus:
 class TestGoto:
     """2.3-2.7: Navigate to event IDs."""
 
-    def test_goto_eid_1(self) -> None:
+    def test_goto_eid_1(self, captured_rdc: Path) -> None:
         """``rdc goto 1`` sets current_eid to 1."""
         name = f"e2e_goto1_{_uid()}"
         try:
-            rdc_ok("open", str(VKCUBE), session=name)
+            rdc_ok("open", str(captured_rdc), session=name)
             out = rdc_ok("goto", "1", session=name)
             assert "current_eid set to 1" in out
         finally:
             rdc("close", session=name)
 
-    def test_goto_eid_5(self) -> None:
+    def test_goto_eid_5(self, captured_rdc: Path) -> None:
         """``rdc goto 5`` sets current_eid to 5."""
         name = f"e2e_goto5_{_uid()}"
         try:
-            rdc_ok("open", str(VKCUBE), session=name)
+            rdc_ok("open", str(captured_rdc), session=name)
             out = rdc_ok("goto", "5", session=name)
             assert "current_eid set to 5" in out
         finally:
             rdc("close", session=name)
 
-    def test_goto_out_of_range(self) -> None:
+    def test_goto_out_of_range(self, captured_rdc: Path) -> None:
         """``rdc goto 999`` errors with eid out of range."""
         name = f"e2e_goto999_{_uid()}"
         try:
-            rdc_ok("open", str(VKCUBE), session=name)
+            rdc_ok("open", str(captured_rdc), session=name)
             out = rdc_fail("goto", "999", session=name, exit_code=1)
             assert "out of range" in out.lower()
         finally:
             rdc("close", session=name)
 
-    def test_goto_negative_with_separator(self) -> None:
+    def test_goto_negative_with_separator(self, captured_rdc: Path) -> None:
         """``rdc goto -- -1`` errors with eid must be >= 0."""
         name = f"e2e_gotoneg_{_uid()}"
         try:
-            rdc_ok("open", str(VKCUBE), session=name)
+            rdc_ok("open", str(captured_rdc), session=name)
             out = rdc_fail("goto", "--", "-1", session=name, exit_code=1)
             assert "eid must be >= 0" in out.lower()
         finally:
             rdc("close", session=name)
 
-    def test_goto_negative_no_separator(self) -> None:
+    def test_goto_negative_no_separator(self, captured_rdc: Path) -> None:
         """``rdc goto -1`` triggers Click option parsing error (exit 2)."""
         name = f"e2e_gotoclk_{_uid()}"
         try:
-            rdc_ok("open", str(VKCUBE), session=name)
+            rdc_ok("open", str(captured_rdc), session=name)
             rdc_fail("goto", "-1", session=name, exit_code=2)
         finally:
             rdc("close", session=name)
@@ -102,7 +103,7 @@ class TestGoto:
 class TestNamedSessions:
     """2.8-2.10: Named sessions with independent isolation."""
 
-    def test_named_session_lifecycle(self) -> None:
+    def test_named_session_lifecycle(self, captured_rdc: Path) -> None:
         """Named sessions (--session) provide independent isolation.
 
         Opens hello_triangle.rdc in a named session, verifies its status
@@ -111,24 +112,19 @@ class TestNamedSessions:
         primary = f"e2e_primary_{_uid()}"
         secondary = f"e2e_secondary_{_uid()}"
         try:
-            # Open vkcube in primary session
-            rdc_ok("open", str(VKCUBE), session=primary)
+            rdc_ok("open", str(captured_rdc), session=primary)
 
-            # Open hello_triangle in secondary session (2.8)
             out = rdc_ok("open", str(HELLO_TRIANGLE), session=secondary)
             assert "session:" in out.lower()
 
-            # Verify secondary status is independent (2.9)
             status = rdc_ok("status", session=secondary)
             assert "hello_triangle" in status.lower()
 
-            # Close secondary only (2.10)
             close_out = rdc_ok("close", session=secondary)
             assert "closed" in close_out.lower()
 
-            # Primary should still be alive
             primary_status = rdc_ok("status", session=primary)
-            assert "vkcube" in primary_status.lower()
+            assert "capture:" in primary_status
         finally:
             rdc("close", session=secondary)
             rdc("close", session=primary)
@@ -137,11 +133,11 @@ class TestNamedSessions:
 class TestListenMode:
     """2.11: rdc open --listen :0."""
 
-    def test_listen_random_port(self) -> None:
+    def test_listen_random_port(self, captured_rdc: Path) -> None:
         """``rdc open --listen :0`` prints host, port, and token."""
         name = f"e2e_listen_{_uid()}"
         try:
-            out = rdc_ok("open", str(VKCUBE), "--listen", ":0", session=name)
+            out = rdc_ok("open", str(captured_rdc), "--listen", ":0", session=name)
             assert "port:" in out.lower()
             assert "token:" in out.lower()
             assert "connect with:" in out.lower()
@@ -152,10 +148,10 @@ class TestListenMode:
 class TestClose:
     """2.12: rdc close."""
 
-    def test_close_session(self) -> None:
+    def test_close_session(self, captured_rdc: Path) -> None:
         """``rdc close`` closes the session and reports success."""
         name = f"e2e_close_{_uid()}"
-        rdc_ok("open", str(VKCUBE), session=name)
+        rdc_ok("open", str(captured_rdc), session=name)
         try:
             out = rdc_ok("close", session=name)
             assert "closed" in out.lower()

@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from conftest import CaptureMetadata
 from e2e_helpers import HELLO_TRIANGLE, rdc, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
@@ -57,11 +58,13 @@ class TestShaderEncodings:
 class TestEventsQuiet:
     """11.4: rdc events -q line count."""
 
-    def test_quiet_mode_six_lines(self, vkcube_session: str) -> None:
-        """``rdc events -q`` outputs exactly 6 EID lines."""
+    def test_quiet_mode_line_count(
+        self, vkcube_session: str, capture_meta: CaptureMetadata
+    ) -> None:
+        """``rdc events -q`` outputs expected number of EID lines."""
         out = rdc_ok("events", "-q", session=vkcube_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        assert len(lines) == 6
+        assert len(lines) == capture_meta.total_events
 
 
 # ---------------------------------------------------------------------------
@@ -117,5 +120,4 @@ class TestOitDepthPeeling:
         """``rdc passes --deps`` outputs a DAG with dependency edges."""
         out = rdc_ok("passes", "--deps", session=oit_session)
         lines = [ln for ln in out.strip().splitlines() if ln.strip()]
-        # Should have header + at least one edge row
         assert len(lines) >= 2

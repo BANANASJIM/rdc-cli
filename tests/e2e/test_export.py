@@ -1,7 +1,8 @@
 """E2E tests for export commands (texture, rt, buffer, mesh, snapshot, etc.).
 
-Black-box tests that invoke the real CLI via subprocess against a vkcube.rdc
-capture session. Requires a working renderdoc installation.
+Black-box tests that invoke the real CLI via subprocess against a captured
+session. Requires a working renderdoc installation. All IDs are discovered
+dynamically via ``capture_meta``.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from conftest import CaptureMetadata
 from e2e_helpers import rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
@@ -17,12 +19,23 @@ PNG_MAGIC = b"\x89PNG"
 
 
 class TestTextureExport:
-    """6.1: rdc texture 97 -o {tmp}/tex.png exports a PNG file."""
+    """6.1: rdc texture <id> -o {tmp}/tex.png exports a PNG file."""
 
-    def test_texture_png(self, vkcube_session: str, tmp_out: Path) -> None:
+    def test_texture_png(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_out: Path,
+    ) -> None:
         """Exported texture is a valid PNG with non-zero size."""
         dest = tmp_out / "tex.png"
-        rdc_ok("texture", "97", "-o", str(dest), session=vkcube_session)
+        rdc_ok(
+            "texture",
+            str(capture_meta.texture_id),
+            "-o",
+            str(dest),
+            session=vkcube_session,
+        )
         assert dest.exists()
         assert dest.stat().st_size > 0
         assert dest.read_bytes()[:4] == PNG_MAGIC
@@ -39,26 +52,42 @@ class TestTextureNotFound:
 
 
 class TestRtExport:
-    """6.3: rdc rt 11 -o {tmp}/rt.png exports render target as PNG."""
+    """6.3: rdc rt <draw_eid> -o {tmp}/rt.png exports render target as PNG."""
 
-    def test_rt_png(self, vkcube_session: str, tmp_out: Path) -> None:
+    def test_rt_png(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_out: Path,
+    ) -> None:
         """Exported render target is a valid PNG with non-zero size."""
         dest = tmp_out / "rt.png"
-        rdc_ok("rt", "11", "-o", str(dest), session=vkcube_session)
+        rdc_ok(
+            "rt",
+            str(capture_meta.draw_eid),
+            "-o",
+            str(dest),
+            session=vkcube_session,
+        )
         assert dest.exists()
         assert dest.stat().st_size > 0
         assert dest.read_bytes()[:4] == PNG_MAGIC
 
 
 class TestRtOverlay:
-    """6.4: rdc rt 11 --overlay wireframe -o {tmp}/wire.png exports with overlay."""
+    """6.4: rdc rt <draw_eid> --overlay wireframe exports with overlay."""
 
-    def test_rt_overlay_png(self, vkcube_session: str, tmp_out: Path) -> None:
+    def test_rt_overlay_png(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_out: Path,
+    ) -> None:
         """Overlay render produces a valid PNG file."""
         dest = tmp_out / "wire.png"
         rdc_ok(
             "rt",
-            "11",
+            str(capture_meta.draw_eid),
             "--overlay",
             "wireframe",
             "-o",
@@ -71,23 +100,45 @@ class TestRtOverlay:
 
 
 class TestBufferExport:
-    """6.5: rdc buffer 102 -o {tmp}/buf.bin exports raw buffer data."""
+    """6.5: rdc buffer <id> -o {tmp}/buf.bin exports raw buffer data."""
 
-    def test_buffer_binary(self, vkcube_session: str, tmp_out: Path) -> None:
+    def test_buffer_binary(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_out: Path,
+    ) -> None:
         """Exported buffer has non-zero size."""
         dest = tmp_out / "buf.bin"
-        rdc_ok("buffer", "102", "-o", str(dest), session=vkcube_session)
+        rdc_ok(
+            "buffer",
+            str(capture_meta.buffer_id),
+            "-o",
+            str(dest),
+            session=vkcube_session,
+        )
         assert dest.exists()
         assert dest.stat().st_size > 0
 
 
 class TestMeshExport:
-    """6.6: rdc mesh 11 -o {tmp}/mesh.obj exports OBJ with vertices and faces."""
+    """6.6: rdc mesh <draw_eid> -o {tmp}/mesh.obj exports OBJ."""
 
-    def test_mesh_obj(self, vkcube_session: str, tmp_out: Path) -> None:
+    def test_mesh_obj(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_out: Path,
+    ) -> None:
         """Exported OBJ file contains vertex and face lines."""
         dest = tmp_out / "mesh.obj"
-        rdc_ok("mesh", "11", "-o", str(dest), session=vkcube_session)
+        rdc_ok(
+            "mesh",
+            str(capture_meta.draw_eid),
+            "-o",
+            str(dest),
+            session=vkcube_session,
+        )
         assert dest.exists()
         assert dest.stat().st_size > 0
         text = dest.read_text()
@@ -110,12 +161,23 @@ class TestThumbnailExport:
 
 
 class TestSnapshotExport:
-    """6.8: rdc snapshot 11 -o {tmp}/snap creates a snapshot directory."""
+    """6.8: rdc snapshot <draw_eid> -o {tmp}/snap creates a snapshot dir."""
 
-    def test_snapshot_directory(self, vkcube_session: str, tmp_out: Path) -> None:
+    def test_snapshot_directory(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_out: Path,
+    ) -> None:
         """Snapshot creates directory with pipeline.json and color0.png."""
         dest = tmp_out / "snap"
-        rdc_ok("snapshot", "11", "-o", str(dest), session=vkcube_session)
+        rdc_ok(
+            "snapshot",
+            str(capture_meta.draw_eid),
+            "-o",
+            str(dest),
+            session=vkcube_session,
+        )
         assert dest.is_dir()
         assert (dest / "pipeline.json").exists()
         assert (dest / "color0.png").exists()
@@ -159,11 +221,11 @@ class TestSectionNotFound:
 
 
 class TestTexStats:
-    """6.13: rdc tex-stats 97 shows CHANNEL/MIN/MAX table."""
+    """6.13: rdc tex-stats <texture_id> shows CHANNEL/MIN/MAX table."""
 
-    def test_tex_stats_table(self, vkcube_session: str) -> None:
+    def test_tex_stats_table(self, vkcube_session: str, capture_meta: CaptureMetadata) -> None:
         """Texture stats output contains CHANNEL, MIN, MAX columns."""
-        out = rdc_ok("tex-stats", "97", session=vkcube_session)
+        out = rdc_ok("tex-stats", str(capture_meta.texture_id), session=vkcube_session)
         assert "CHANNEL" in out
         assert "MIN" in out
         assert "MAX" in out

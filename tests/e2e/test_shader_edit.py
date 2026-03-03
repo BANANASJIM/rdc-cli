@@ -1,7 +1,7 @@
 """E2E tests for shader editing commands (build, replace, restore).
 
-Black-box tests that invoke the real CLI via subprocess against a vkcube.rdc
-capture session. Requires a working renderdoc installation.
+Black-box tests that invoke the real CLI via subprocess against a captured
+session. Requires a working renderdoc installation.
 
 NOTE: shader-build only supports GLSL encoding safely. SPIRV text asm causes
 segfaults in RenderDoc.
@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import CaptureMetadata
 from e2e_helpers import rdc, rdc_ok
 
 pytestmark = pytest.mark.gpu
@@ -102,12 +103,16 @@ class TestShaderBuild:
 class TestShaderReplaceRestore:
     """11.3: rdc shader-replace / shader-restore / shader-restore-all."""
 
-    def test_shader_replace_and_restore(self, vkcube_session: str, tmp_path: Path) -> None:
+    def test_shader_replace_and_restore(
+        self,
+        vkcube_session: str,
+        capture_meta: CaptureMetadata,
+        tmp_path: Path,
+    ) -> None:
         """shader-replace swaps shader, shader-restore reverts it."""
         src = tmp_path / "replace.frag"
         src.write_text(MINIMAL_FRAG)
 
-        # Build a replacement shader
         build = rdc(
             "shader-build",
             str(src),
@@ -119,12 +124,12 @@ class TestShaderReplaceRestore:
         )
         assert build.returncode == 0, f"shader-build failed:\n{build.stderr}"
         shader_id = build.stdout.strip()
+        eid_str = str(capture_meta.draw_eid)
 
         try:
-            # Replace shader at EID 11, pixel shader stage
             replace = rdc(
                 "shader-replace",
-                "11",
+                eid_str,
                 "ps",
                 "--with",
                 shader_id,
@@ -134,10 +139,9 @@ class TestShaderReplaceRestore:
             assert replace.returncode == 0, f"shader-replace failed:\n{replace.stderr}"
             assert "replaced" in replace.stdout
 
-            # Restore original
             restore = rdc(
                 "shader-restore",
-                "11",
+                eid_str,
                 "ps",
                 session=vkcube_session,
                 timeout=TIMEOUT,
