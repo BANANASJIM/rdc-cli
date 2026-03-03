@@ -47,7 +47,7 @@ class TestCallstacks:
 class TestSectionWrite:
     """T-5C-33/34/35: section write and read-back."""
 
-    def test_write_and_readback(self, captured_rdc: Path, tmp_path) -> None:
+    def test_write_and_readback(self, captured_rdc: Path, tmp_path: Path) -> None:
         """Write a custom section, then read it back."""
         name = f"e2e_sw_{_uid()}"
         note = tmp_path / "notes.txt"
@@ -60,7 +60,7 @@ class TestSectionWrite:
         finally:
             rdc("close", session=name)
 
-    def test_refuse_system_section(self, captured_rdc: Path, tmp_path) -> None:
+    def test_refuse_system_section(self, captured_rdc: Path, tmp_path: Path) -> None:
         """Refuse to overwrite real system section by internal name."""
         name = f"e2e_sws_{_uid()}"
         note = tmp_path / "bad.txt"
@@ -79,7 +79,7 @@ class TestSectionWrite:
         finally:
             rdc("close", session=name)
 
-    def test_binary_roundtrip(self, captured_rdc: Path, tmp_path) -> None:
+    def test_binary_roundtrip(self, captured_rdc: Path, tmp_path: Path) -> None:
         """Write binary section and verify base64 round-trip."""
         name = f"e2e_swb_{_uid()}"
         binfile = tmp_path / "data.bin"
