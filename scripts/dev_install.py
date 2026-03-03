@@ -59,7 +59,7 @@ def install_completion(shell: str, home: Path | None = None) -> bool:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source)
     except OSError as exc:
-        print(f"WARNING: cannot write {path} — {exc}")
+        print(f"WARNING: cannot write {path} -- {exc}")
         return False
 
     print(f"Completion written: {path}")

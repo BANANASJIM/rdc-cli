@@ -150,6 +150,7 @@ def renderdoc_search_paths() -> list[str]:
         localappdata = os.environ.get("LOCALAPPDATA", "")
         if localappdata:
             paths.append(str(Path(localappdata) / "renderdoc"))
+            paths.append(str(Path(localappdata) / "rdc" / "renderdoc"))
         return paths
     if _MAC:
         return [

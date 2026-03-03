@@ -6,7 +6,12 @@ Standalone -- requires only Python 3.10+ stdlib. `pixi run setup-renderdoc`
 invokes this script and installs the required macOS build toolchain (cmake,
 ninja, autoconf/automake/libtool, pkg-config, m4) automatically.
 
-Usage:
+Recommended invocation (requires pixi)::
+
+    pixi run setup-renderdoc
+
+Direct usage::
+
     python scripts/build_renderdoc.py [INSTALL_DIR] [--build-dir DIR] [--jobs N]
 """
 

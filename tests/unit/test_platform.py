@@ -262,6 +262,33 @@ class TestRenderdocSearchPaths:
         assert "/usr/local/lib/renderdoc" in result
 
 
+# ── Group H-win: renderdoc_search_paths() on Windows ──────────────────
+
+
+class TestRenderdocSearchPathsWindows:
+    """B73: Windows search paths include build_renderdoc default install dir."""
+
+    def test_includes_localappdata_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B73-01: Windows includes both renderdoc and rdc/renderdoc under LOCALAPPDATA."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        localappdata = r"C:\Users\test\AppData\Local"
+        monkeypatch.setenv("LOCALAPPDATA", localappdata)
+        result = renderdoc_search_paths()
+        # Use str(Path(...)) for platform-agnostic separator
+        assert str(Path(localappdata) / "renderdoc") in result
+        assert str(Path(localappdata) / "rdc" / "renderdoc") in result
+
+    def test_always_includes_program_files(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """B73-02: Windows always includes Program Files even without LOCALAPPDATA."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        monkeypatch.delenv("LOCALAPPDATA", raising=False)
+        result = renderdoc_search_paths()
+        assert r"C:\Program Files\RenderDoc" in result
+        assert len(result) == 1
+
+
 # ── Group I: renderdoccmd_search_paths() ─────────────────────────────
 
 
