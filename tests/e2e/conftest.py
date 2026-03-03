@@ -255,7 +255,8 @@ def vulkan_samples_bin() -> str:
     path = os.environ.get("VULKAN_SAMPLES_BIN")
     candidate = Path(path) if path else None
     if not candidate:
-        local = Path(__file__).parent.parent.parent / ".local" / "vulkan-samples" / "vulkan_samples"
+        bin_name = "vulkan_samples.exe" if os.name == "nt" else "vulkan_samples"
+        local = Path(__file__).parent.parent.parent / ".local" / "vulkan-samples" / bin_name
         candidate = local if local.exists() else None
     if not candidate or not candidate.is_file() or not os.access(candidate, os.X_OK):
         pytest.skip("vulkan_samples binary not available")

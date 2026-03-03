@@ -43,13 +43,15 @@ class TestAssertPixel:
         self, vkcube_session: str, capture_meta: CaptureMetadata
     ) -> None:
         """``rdc assert-pixel`` fails when expected color is wrong."""
+        r, g, b, a = capture_meta.pixel_rgba
+        wrong = f"{1.0 - r:.2f} {1.0 - g:.2f} {1.0 - b:.2f} {a:.2f}"
         result = rdc(
             "assert-pixel",
             str(capture_meta.draw_eid),
             str(capture_meta.pixel_x),
             str(capture_meta.pixel_y),
             "--expect",
-            "1.0 0.0 0.0 1.0",
+            wrong,
             session=vkcube_session,
             timeout=60,
         )
