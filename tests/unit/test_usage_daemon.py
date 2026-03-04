@@ -38,7 +38,7 @@ def _state_with_usage() -> DaemonState:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 33))
     state.res_names = {int(r.resourceId): r.name for r in resources}
     state.res_types = {int(r.resourceId): r.type.name for r in resources}
-    state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
+    state.res_rid_map = {int(r.resourceId): r for r in resources}
     return state
 
 

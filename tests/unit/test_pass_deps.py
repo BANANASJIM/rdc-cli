@@ -487,7 +487,7 @@ def _make_pass_deps_state() -> DaemonState:
     state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
     state.res_names = {int(r.resourceId): r.name for r in ctrl._resources}
     state.res_types = {int(r.resourceId): r.type.name for r in ctrl._resources}
-    state.res_rid_map = {int(r.resourceId): r.resourceId for r in ctrl._resources}
+    state.res_rid_map = {int(r.resourceId): r for r in ctrl._resources}
     return state
 
 

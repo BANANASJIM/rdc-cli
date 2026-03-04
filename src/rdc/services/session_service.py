@@ -144,6 +144,8 @@ def open_session(
         try:
             _, stderr = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
             stderr = ""
         if stderr and stderr.strip():
             detail = stderr.strip()
@@ -365,6 +367,8 @@ def listen_open_session(
         try:
             _, stderr = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
             stderr = ""
         if stderr and stderr.strip():
             detail = stderr.strip()
