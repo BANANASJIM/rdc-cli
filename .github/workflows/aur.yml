@@ -5,6 +5,11 @@ on:
     branches: [master]
     paths: ["aur/PKGBUILD"]
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g. 0.4.1)"
+        required: true
 
 permissions:
   contents: read
@@ -13,11 +18,11 @@ jobs:
   aur-git:
     name: Publish rdc-cli-git
     runs-on: ubuntu-latest
-    if: github.ref_type == 'branch'
+    if: github.ref_type == 'branch' && github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: KSXGitHub/github-actions-deploy-aur@9dfe151cf48f26a957bbd0379c120e79cb990e13 # v2.7.2
+      - uses: KSXGitHub/github-actions-deploy-aur@2ac5a4c1d7035885d46b10e3193393be8460b6f1 # v4.1.1
         with:
           pkgname: rdc-cli-git
           pkgbuild: aur/PKGBUILD
@@ -29,13 +34,20 @@ jobs:
   aur-stable:
     name: Publish rdc-cli (stable)
     runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: v${{ github.event.inputs.version || '' }}
 
       - name: Extract version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Compute tarball sha256
         id: sha
@@ -53,7 +65,7 @@ jobs:
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" aur/stable/PKGBUILD
           sed -i "s/'PLACEHOLDER'/'${SHA256}'/" aur/stable/PKGBUILD
 
-      - uses: KSXGitHub/github-actions-deploy-aur@9dfe151cf48f26a957bbd0379c120e79cb990e13 # v2.7.2
+      - uses: KSXGitHub/github-actions-deploy-aur@2ac5a4c1d7035885d46b10e3193393be8460b6f1 # v4.1.1
         with:
           pkgname: rdc-cli
           pkgbuild: aur/stable/PKGBUILD
