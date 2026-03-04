@@ -163,3 +163,64 @@ def test_free_trace_double_free_raises(mock_ctrl: rd.MockReplayController) -> No
     mock_ctrl.FreeTrace(trace)
     with pytest.raises(RuntimeError, match="double-free"):
         mock_ctrl.FreeTrace(trace)
+
+
+# ---------------------------------------------------------------------------
+# T6 — MockPipeState mutable reference via per-eid _pipe_states
+# ---------------------------------------------------------------------------
+
+
+def test_pipe_state_per_eid_switching() -> None:
+    """SetFrameEvent switches _pipe_state when per-eid states are configured."""
+    ctrl = rd.MockReplayController()
+    ps1 = rd.MockPipeState()
+    ps1._shaders[rd.ShaderStage.Vertex] = rd.ResourceId(100)
+    ps2 = rd.MockPipeState()
+    ps2._shaders[rd.ShaderStage.Vertex] = rd.ResourceId(200)
+    ctrl._pipe_states = {10: ps1, 20: ps2}
+
+    ctrl.SetFrameEvent(10, True)
+    state = ctrl.GetPipelineState()
+    assert int(state.GetShader(rd.ShaderStage.Vertex)) == 100
+    assert state is ps1
+
+    ctrl.SetFrameEvent(20, True)
+    state = ctrl.GetPipelineState()
+    assert int(state.GetShader(rd.ShaderStage.Vertex)) == 200
+    assert state is ps2
+
+
+def test_pipe_state_fallback_when_no_per_eid() -> None:
+    """SetFrameEvent keeps default _pipe_state when eid not in _pipe_states."""
+    ctrl = rd.MockReplayController()
+    default = ctrl._pipe_state
+    ctrl.SetFrameEvent(99, True)
+    assert ctrl.GetPipelineState() is default
+
+
+def test_pipe_state_backward_compat_direct_write() -> None:
+    """Direct writes to ctrl._pipe_state still work (backward compat)."""
+    ctrl = rd.MockReplayController()
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = rd.ResourceId(42)
+    assert int(ctrl.GetPipelineState().GetShader(rd.ShaderStage.Pixel)) == 42
+
+
+# ---------------------------------------------------------------------------
+# T7 — GetCallstack per-eid via _callstacks dict
+# ---------------------------------------------------------------------------
+
+
+def test_get_callstack_empty_by_default(mock_ctrl: rd.MockReplayController) -> None:
+    """GetCallstack returns empty list when no callstacks configured."""
+    assert mock_ctrl.GetCallstack(0) == []
+
+
+def test_get_callstack_per_eid(mock_ctrl: rd.MockReplayController) -> None:
+    """GetCallstack returns configured callstack for a given eid."""
+    mock_ctrl._callstacks = {
+        0: [0x1000, 0x2000, 0x3000],
+        11: [0x4000, 0x5000],
+    }
+    assert mock_ctrl.GetCallstack(0) == [0x1000, 0x2000, 0x3000]
+    assert mock_ctrl.GetCallstack(11) == [0x4000, 0x5000]
+    assert mock_ctrl.GetCallstack(99) == []
