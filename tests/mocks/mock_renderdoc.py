@@ -1383,6 +1383,7 @@ class MockReplayController:
         self._buffers: list[BufferDescription] = []
         self._api_props: APIProperties = APIProperties()
         self._pipe_state: MockPipeState = MockPipeState()
+        self._pipe_states: dict[int, MockPipeState] = {}
         self._current_eid: int = 0
         self._set_frame_event_calls: list[tuple[int, bool]] = []
         self._shutdown_called: bool = False
@@ -1411,6 +1412,7 @@ class MockReplayController:
         self._buffer_data: dict[int, bytes] = {}
         self._raise_on_texture_id: set[int] = set()
         self._raise_on_buffer_id: set[int] = set()
+        self._callstacks: dict[int, list[int]] = {}
         self._debug_step_index: dict[int, int] = {}
         self._freed_traces: set[int] = set()
 
@@ -1429,6 +1431,8 @@ class MockReplayController:
     def SetFrameEvent(self, eid: int, force: bool) -> None:
         self._current_eid = eid
         self._set_frame_event_calls.append((eid, force))
+        if eid in self._pipe_states:
+            self._pipe_state = self._pipe_states[eid]
 
     def GetStructuredFile(self) -> StructuredFile:
         return self._structured_file
@@ -1574,7 +1578,7 @@ class MockReplayController:
 
     def GetCallstack(self, eid: int) -> list[int]:
         """Mock GetCallstack -- returns instruction addresses for the event."""
-        return []
+        return self._callstacks.get(eid, [])
 
     def FreeTargetResource(self, rid: Any) -> None:
         self._freed.add(int(rid))

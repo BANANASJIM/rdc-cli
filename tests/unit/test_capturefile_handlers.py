@@ -360,6 +360,23 @@ def test_callstack_resolve_max_eid_plus_one(
     assert resp["error"]["code"] == -32602
 
 
+def test_callstack_resolve_via_mock_callstacks(tmp_path: Path) -> None:
+    """Callstack resolution using MockReplayController._callstacks dict."""
+    ctrl = mock_rd.MockReplayController()
+    ctrl._callstacks = {11: [0x4000, 0x5000]}
+    cap = mock_rd.MockCaptureFile()
+    cap.OpenFile(str(tmp_path / "test.rdc"), "", None)
+    cap._has_callstacks = True
+    state = make_daemon_state(tmp_path=tmp_path, rd=mock_rd, cap=cap, ctrl=ctrl)
+    resp = _handle("callstack_resolve", {"eid": 11}, state)
+    r = resp["result"]
+    assert r["eid"] == 11
+    assert len(r["frames"]) == 2
+    assert r["frames"][0]["function"] == "mock_function"
+    assert r["frames"][0]["file"] == "mock_file.c"
+    assert r["frames"][0]["line"] == 42
+
+
 # ---------------------------------------------------------------------------
 # section_write
 # ---------------------------------------------------------------------------
