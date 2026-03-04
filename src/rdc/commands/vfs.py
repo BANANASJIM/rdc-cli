@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
+import re
 import shutil
 import sys
 from collections.abc import Callable
@@ -19,6 +21,37 @@ from rdc.formatters.kv import format_kv
 from rdc.session_state import load_session as _load_session
 from rdc.vfs.formatter import render_ls, render_ls_long, render_tree_root
 from rdc.vfs.router import resolve_path
+
+
+def _recover_msys_path(path: str) -> str:
+    """Strip MSYS2/Git-Bash prefix from a VFS path argument.
+
+    Git Bash converts ``/`` arguments to ``C:/Program Files/Git/...``
+    before the Python process receives them.  Detect this and restore
+    the original VFS path so ``rdc ls /`` works without
+    ``MSYS_NO_PATHCONV=1``.
+    """
+    if path.startswith("/"):
+        return path
+    norm = path.replace("\\", "/")
+    if not re.match(r"^[A-Za-z]:/", norm):
+        return path
+    m = re.match(
+        r"^[A-Za-z]:/.*?(?:Git|msys64|msys32|cygwin64|cygwin32|cygwin)(?=/|$)",
+        norm,
+        re.IGNORECASE,
+    )
+    if m:
+        rest = norm[m.end() :]
+        return rest or "/"
+    # Fallback: EXEPATH env (set by Git Bash)
+    exepath = os.environ.get("EXEPATH", "")
+    if exepath:
+        root = os.path.dirname(exepath).replace("\\", "/")
+        if norm == root or norm.startswith(root + "/"):
+            rest = norm[len(root) :]
+            return rest or "/"
+    return path
 
 
 def _fmt_log(data: dict[str, Any]) -> str:
@@ -99,6 +132,7 @@ def _complete_vfs_path(
     ctx: click.Context, param: click.Parameter, incomplete: str
 ) -> list[CompletionItem]:
     """Shell completion callback for VFS paths."""
+    incomplete = _recover_msys_path(incomplete)
     if "/" in incomplete:
         last_slash = incomplete.rfind("/")
         dir_path = incomplete[: last_slash + 1].rstrip("/") or "/"
@@ -139,6 +173,7 @@ def ls_cmd(
     quiet: bool,
 ) -> None:
     """List VFS directory contents."""
+    path = _recover_msys_path(path)
     if classify and use_long:
         click.echo("error: -F and -l are mutually exclusive", err=True)
         raise SystemExit(1)
@@ -231,6 +266,7 @@ def _deliver_binary(path: str, match: Any, raw: bool, output: str | None) -> Non
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write binary output to file")
 def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
     """Output VFS leaf node content."""
+    path = _recover_msys_path(path)
     result = call("vfs_ls", {"path": path})
     kind = result.get("kind")
     resolved_path = result.get("path", path)
@@ -270,6 +306,7 @@ def cat_cmd(path: str, use_json: bool, raw: bool, output: str | None) -> None:
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 def tree_cmd(path: str, depth: int, use_json: bool) -> None:
     """Display VFS subtree structure."""
+    path = _recover_msys_path(path)
     result = call("vfs_tree", {"path": path, "depth": depth})
     if use_json:
         write_json(result)
@@ -281,6 +318,7 @@ def tree_cmd(path: str, depth: int, use_json: bool) -> None:
 @click.argument("partial")
 def complete_cmd(partial: str) -> None:
     """Tab completion helper (hidden command)."""
+    partial = _recover_msys_path(partial)
     if "/" in partial:
         last_slash = partial.rfind("/")
         dir_path = partial[: last_slash + 1].rstrip("/") or "/"

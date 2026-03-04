@@ -17,6 +17,7 @@ from rdc.commands.doctor import (
     _check_win_python_version,
     _check_win_renderdoc_install,
     _check_win_vs_build_tools,
+    _check_win_vulkan_layer,
     _import_renderdoc,
     _make_build_hint,
     doctor_cmd,
@@ -375,9 +376,13 @@ def test_run_doctor_windows_has_3_more_checks(monkeypatch: pytest.MonkeyPatch) -
         "rdc.commands.doctor._check_win_renderdoc_install",
         lambda: CheckResult("win-renderdoc-install", True, "ok"),
     )
+    monkeypatch.setattr(
+        "rdc.commands.doctor._check_win_vulkan_layer",
+        lambda: CheckResult("win-vulkan-layer", True, "ok"),
+    )
     win_count = len(run_doctor())
 
-    assert win_count - linux_count == 3
+    assert win_count - linux_count == 4
 
 
 # ── _check_renderdoccmd() version probing ─────────────────────────────
@@ -657,3 +662,92 @@ class TestImportRenderdocDiagnostics:
         assert result.ok is True
         assert module is fake_mod
         assert "1.41" in result.detail
+
+
+# ── Vulkan layer check ───────────────────────────────────────────────
+
+
+class TestCheckWinVulkanLayer:
+    @pytest.mark.skipif(sys.platform == "win32", reason="non-Windows test")
+    def test_skipped_on_non_windows(self) -> None:
+        result = _check_win_vulkan_layer()
+        assert result.ok is True
+        assert result.detail == "n/a"
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only")
+    def test_fail_when_not_registered(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import winreg
+
+        def _fake_open(hive: int, path: str) -> None:
+            raise OSError("not found")
+
+        monkeypatch.setattr(winreg, "OpenKey", _fake_open)
+        result = _check_win_vulkan_layer()
+        assert result.ok is False
+        assert "not registered" in result.detail
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only")
+    def test_fail_when_json_missing(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        import winreg
+
+        fake_json = str(tmp_path / "renderdoc_layer.json")
+
+        class _FakeKey:
+            def __enter__(self) -> _FakeKey:
+                return self
+
+            def __exit__(self, *a: object) -> None:
+                pass
+
+        def _fake_open(hive: int, path: str) -> _FakeKey:
+            return _FakeKey()
+
+        call_count = [0]
+
+        def _fake_enum(_key: object, i: int) -> tuple[str, int, int]:
+            if call_count[0] > 0:
+                raise OSError("done")
+            call_count[0] += 1
+            return (fake_json, 0, winreg.REG_DWORD)
+
+        monkeypatch.setattr(winreg, "OpenKey", _fake_open)
+        monkeypatch.setattr(winreg, "EnumValue", _fake_enum)
+        result = _check_win_vulkan_layer()
+        assert result.ok is False
+        assert "not found" in result.detail
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only")
+    def test_success_when_registered(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        import winreg
+
+        dll = tmp_path / "renderdoc.dll"
+        dll.write_bytes(b"\x00")
+        layer_json = tmp_path / "renderdoc.json"
+        layer_json.write_text(
+            '{"layer":{"library_path":".\\\\renderdoc.dll"}}',
+            encoding="utf-8",
+        )
+
+        class _FakeKey:
+            def __enter__(self) -> _FakeKey:
+                return self
+
+            def __exit__(self, *a: object) -> None:
+                pass
+
+        def _fake_open(hive: int, path: str) -> _FakeKey:
+            return _FakeKey()
+
+        call_count = [0]
+
+        def _fake_enum(_key: object, i: int) -> tuple[str, int, int]:
+            if call_count[0] > 0:
+                raise OSError("done")
+            call_count[0] += 1
+            return (str(layer_json), 0, winreg.REG_DWORD)
+
+        monkeypatch.setattr(winreg, "OpenKey", _fake_open)
+        monkeypatch.setattr(winreg, "EnumValue", _fake_enum)
+        result = _check_win_vulkan_layer()
+        assert result.ok is True
+        assert "registered" in result.detail

@@ -42,6 +42,18 @@ def _start_daemon(
     return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def _force_kill(proc: subprocess.Popen[bytes]) -> None:
+    """Terminate and reap a daemon process tree."""
+    from rdc._platform import terminate_process_tree
+
+    terminate_process_tree(proc.pid)
+    try:
+        proc.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=3)
+
+
 def _wait_ready(port: int, token: str, timeout_s: float = 2.0) -> None:
     deadline = time.time() + timeout_s
     while time.time() < deadline:
@@ -73,7 +85,7 @@ def test_daemon_status_goto_and_shutdown() -> None:
 
         send_request("127.0.0.1", port, shutdown_request(token, 5))
     finally:
-        proc.terminate()
+        _force_kill(proc)
 
 
 def test_daemon_idle_timeout_exits() -> None:
@@ -81,9 +93,13 @@ def test_daemon_idle_timeout_exits() -> None:
     token = secrets.token_hex(8)
     proc = _start_daemon(port, token, idle_timeout=1)
 
-    _wait_ready(port, token)
-    proc.wait(timeout=3)
-    assert proc.returncode == 0
+    try:
+        _wait_ready(port, token)
+        proc.wait(timeout=5)
+        assert proc.returncode == 0
+    except subprocess.TimeoutExpired:
+        _force_kill(proc)
+        pytest.fail("daemon did not exit after idle timeout")
 
 
 def test_daemon_rejects_invalid_token() -> None:
@@ -96,7 +112,7 @@ def test_daemon_rejects_invalid_token() -> None:
         bad = send_request("127.0.0.1", port, status_request("bad-token", 6))
         assert bad["error"]["code"] == -32600
     finally:
-        proc.terminate()
+        _force_kill(proc)
 
 
 # ---------------------------------------------------------------------------

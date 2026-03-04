@@ -4,11 +4,69 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from click.testing import CliRunner
 
 import rdc.commands.vfs as vfs_mod
-from rdc.commands.vfs import cat_cmd, complete_cmd, ls_cmd, tree_cmd
+from rdc.commands.vfs import _recover_msys_path, cat_cmd, complete_cmd, ls_cmd, tree_cmd
 from rdc.vfs.router import PathMatch
+
+# ── MSYS path recovery ─────────────────────────────────────────────
+
+
+class TestRecoverMsysPath:
+    def test_passthrough_vfs_root(self) -> None:
+        assert _recover_msys_path("/") == "/"
+
+    def test_passthrough_vfs_path(self) -> None:
+        assert _recover_msys_path("/info") == "/info"
+
+    def test_passthrough_deep_vfs_path(self) -> None:
+        assert _recover_msys_path("/current/pipeline/summary") == "/current/pipeline/summary"
+
+    def test_strip_git_bash_root(self) -> None:
+        assert _recover_msys_path("C:/Program Files/Git") == "/"
+
+    def test_strip_git_bash_subpath(self) -> None:
+        assert _recover_msys_path("C:/Program Files/Git/info") == "/info"
+
+    def test_strip_git_bash_deep(self) -> None:
+        path = "C:/Program Files/Git/current/pipeline/summary"
+        assert _recover_msys_path(path) == "/current/pipeline/summary"
+
+    def test_strip_backslash_style(self) -> None:
+        assert _recover_msys_path("C:\\Program Files\\Git\\info") == "/info"
+
+    def test_strip_msys64(self) -> None:
+        assert _recover_msys_path("C:/msys64/info") == "/info"
+
+    def test_strip_cygwin64(self) -> None:
+        assert _recover_msys_path("C:/cygwin64/info") == "/info"
+
+    def test_strip_cygwin32(self) -> None:
+        assert _recover_msys_path("C:/cygwin32/info") == "/info"
+
+    def test_non_msys_windows_path_unchanged(self) -> None:
+        assert _recover_msys_path("C:/Users/Jim/file.txt") == "C:/Users/Jim/file.txt"
+
+    def test_exepath_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EXEPATH", "D:/tools/custom-git/bin")
+        assert _recover_msys_path("D:/tools/custom-git/info") == "/info"
+
+    def test_exepath_root(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EXEPATH", "D:/tools/custom-git/bin")
+        assert _recover_msys_path("D:/tools/custom-git") == "/"
+
+    def test_exepath_boundary_no_false_positive(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("EXEPATH", "D:/tools/custom-git/bin")
+        # "custom-git-lfs" must NOT match "custom-git" prefix without separator
+        assert _recover_msys_path("D:/tools/custom-git-lfs/info") == "D:/tools/custom-git-lfs/info"
+
+    def test_empty_string(self) -> None:
+        assert _recover_msys_path("") == ""
+
+    def test_plain_word(self) -> None:
+        assert _recover_msys_path("info") == "info"
 
 
 def _patch(monkeypatch, responses: dict):

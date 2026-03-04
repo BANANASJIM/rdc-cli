@@ -726,6 +726,18 @@ class TestRegression:
     ) -> None:
         """B23: no-replay mode warning still works after refactor."""
         _setup_no_replay(monkeypatch, tmp_path)
+        mock_proc = MagicMock()
+        mock_proc.pid = 999
+        monkeypatch.setattr(
+            session_service,
+            "start_daemon",
+            lambda *a, **kw: mock_proc,
+        )
+        monkeypatch.setattr(
+            session_service,
+            "wait_for_ping",
+            lambda *a, **kw: (True, ""),
+        )
         capture = tmp_path / "c.rdc"
         capture.touch()
         runner = CliRunner()

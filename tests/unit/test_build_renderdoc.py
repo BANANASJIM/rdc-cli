@@ -695,3 +695,52 @@ def test_prepare_win_python_props_already_patched(tmp_path: Path) -> None:
         br._prepare_win_python(src_dir)
 
     assert props_file.read_text(encoding="utf-8") == original
+
+
+# ---------------------------------------------------------------------------
+# _install_vulkan_layer
+# ---------------------------------------------------------------------------
+
+
+def test_install_vulkan_layer_copies_json_and_patches_library_path(tmp_path: Path) -> None:
+    """Layer JSON is copied with library_path rewritten to .\\renderdoc.dll."""
+    import json
+
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    build_dir = tmp_path / "build"
+    vk_dir = build_dir / "renderdoc" / "renderdoc" / "driver" / "vulkan"
+    vk_dir.mkdir(parents=True)
+    layer_src = vk_dir / "renderdoc.json"
+    layer_src.write_text(
+        json.dumps({"layer": {"library_path": "/usr/local/lib/librenderdoc.so"}}),
+        encoding="utf-8",
+    )
+
+    # Mock winreg since we may be on Linux
+    fake_winreg = MagicMock()
+    fake_key = MagicMock()
+    fake_key.__enter__ = lambda self: self
+    fake_key.__exit__ = MagicMock(return_value=False)
+    fake_winreg.CreateKey.return_value = fake_key
+    fake_winreg.HKEY_CURRENT_USER = 0x80000001
+    fake_winreg.REG_DWORD = 4
+
+    with patch.dict("sys.modules", {"winreg": fake_winreg}):
+        br._install_vulkan_layer(install_dir, build_dir)
+
+    dst = install_dir / "renderdoc.json"
+    assert dst.is_file()
+    data = json.loads(dst.read_text(encoding="utf-8"))
+    assert data["layer"]["library_path"] == ".\\renderdoc.dll"
+
+
+def test_install_vulkan_layer_skips_when_no_json(tmp_path: Path) -> None:
+    """No crash when layer JSON is missing from build tree."""
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    build_dir = tmp_path / "build"
+    (build_dir / "renderdoc").mkdir(parents=True)
+
+    # Should not raise
+    br._install_vulkan_layer(install_dir, build_dir)

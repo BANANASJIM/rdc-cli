@@ -12,6 +12,7 @@ import pytest
 
 from rdc._platform import (
     data_dir,
+    find_pid_by_port,
     install_shutdown_signal,
     is_pid_alive,
     popen_flags,
@@ -21,6 +22,7 @@ from rdc._platform import (
     secure_permissions,
     secure_write_text,
     terminate_process,
+    terminate_process_tree,
 )
 
 pytestmark = pytest.mark.skipif(os.name == "nt", reason="Unix-only _platform tests")
@@ -73,6 +75,26 @@ class TestTerminateProcess:
     def test_pid_zero(self) -> None:
         """TP-W1-006: pid=0 -> False without calling os.kill."""
         assert terminate_process(0) is False
+
+
+# ── Group B2: terminate_process_tree() ────────────────────────────────
+
+
+class TestTerminateProcessTree:
+    """Regression: terminate_process_tree delegates to terminate_process on Unix."""
+
+    def test_delegates_to_terminate_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Unix: terminate_process_tree calls terminate_process."""
+        calls: list[tuple[int, int]] = []
+        monkeypatch.setattr("rdc._platform.os.kill", lambda pid, sig: calls.append((pid, sig)))
+        assert terminate_process_tree(42) is True
+        assert calls == [(42, signal.SIGTERM)]
+
+    def test_pid_zero_returns_false(self) -> None:
+        assert terminate_process_tree(0) is False
+
+    def test_negative_pid_returns_false(self) -> None:
+        assert terminate_process_tree(-1) is False
 
 
 # ── Group C: is_pid_alive() ──────────────────────────────────────────
@@ -480,3 +502,46 @@ def test_capture_core_wraps_terminate(monkeypatch: pytest.MonkeyPatch) -> None:
     from rdc import capture_core
 
     assert capture_core.terminate_process(42) is True
+
+
+# ── Group K: find_pid_by_port() ──────────────────────────────────────
+
+
+class TestFindPidByPort:
+    def test_returns_zero_on_unix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """find_pid_by_port returns 0 on non-Windows."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        assert find_pid_by_port(12345) == 0
+
+    def test_returns_pid_on_windows(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """find_pid_by_port parses netstat output on Windows."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        netstat_output = "  TCP    127.0.0.1:9999    0.0.0.0:0    LISTENING    4242\n"
+        mock_result = MagicMock(stdout=netstat_output)
+        monkeypatch.setattr(
+            "rdc._platform.subprocess.run",
+            lambda *a, **kw: mock_result,
+        )
+        assert find_pid_by_port(9999) == 4242
+
+    def test_returns_zero_no_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """find_pid_by_port returns 0 when port not found."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        mock_result = MagicMock(
+            stdout="  TCP    127.0.0.1:8888    0.0.0.0:0    LISTENING    1111\n"
+        )
+        monkeypatch.setattr(
+            "rdc._platform.subprocess.run",
+            lambda *a, **kw: mock_result,
+        )
+        assert find_pid_by_port(9999) == 0
+
+    def test_returns_zero_on_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """find_pid_by_port returns 0 when subprocess fails."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+
+        def _raise(*a: object, **kw: object) -> None:
+            raise OSError("netstat not found")
+
+        monkeypatch.setattr("rdc._platform.subprocess.run", _raise)
+        assert find_pid_by_port(9999) == 0

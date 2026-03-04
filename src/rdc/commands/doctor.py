@@ -33,7 +33,7 @@ def _check_platform() -> CheckResult:
     if sys.platform == "darwin":
         return CheckResult("platform", True, "darwin (dev-host only for replay)")
     if sys.platform == "win32":
-        return CheckResult("platform", True, "windows (experimental)")
+        return CheckResult("platform", True, "windows")
     return CheckResult("platform", False, f"unsupported platform: {sys.platform}")
 
 
@@ -247,6 +247,68 @@ def _check_win_renderdoc_install() -> CheckResult:
     )
 
 
+def _check_win_vulkan_layer() -> CheckResult:
+    """Check Vulkan implicit layer JSON and registry for capture support."""
+    if sys.platform != "win32":
+        return CheckResult("win-vulkan-layer", True, "n/a")
+
+    import winreg  # noqa: PLC0415
+
+    # 1. Check registry for implicit layer entry
+    reg_path = r"SOFTWARE\Khronos\Vulkan\ImplicitLayers"
+    layer_json_path: Path | None = None
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            with winreg.OpenKey(hive, reg_path) as key:
+                i = 0
+                while True:
+                    try:
+                        name, _val, _typ = winreg.EnumValue(key, i)
+                        if "renderdoc" in name.lower():
+                            layer_json_path = Path(name)
+                            break
+                    except OSError:
+                        break
+                    i += 1
+        except OSError:
+            continue
+        if layer_json_path:
+            break
+
+    if layer_json_path is None:
+        return CheckResult(
+            "win-vulkan-layer",
+            False,
+            "renderdoc not registered as Vulkan implicit layer"
+            " -- register renderdoc.json in HKCU\\SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers",
+        )
+
+    # 2. Check that the JSON file exists
+    if not layer_json_path.is_file():
+        return CheckResult(
+            "win-vulkan-layer",
+            False,
+            f"registry points to {layer_json_path} but file not found",
+        )
+
+    # 3. Validate layer JSON references renderdoc.dll that exists
+    try:
+        data = json.loads(layer_json_path.read_text(encoding="utf-8"))
+        lib_path = data.get("layer", {}).get("library_path", "")
+        if lib_path:
+            dll = (layer_json_path.parent / lib_path).resolve()
+            if not dll.is_file():
+                return CheckResult(
+                    "win-vulkan-layer",
+                    False,
+                    f"layer JSON references {lib_path} but {dll} not found",
+                )
+    except Exception:  # noqa: BLE001
+        pass
+
+    return CheckResult("win-vulkan-layer", True, f"registered at {layer_json_path}")
+
+
 # -- macOS-specific checks -------------------------------------------------
 
 
@@ -320,6 +382,7 @@ def run_doctor() -> list[CheckResult]:
             _check_win_python_version(),
             _check_win_vs_build_tools(),
             _check_win_renderdoc_install(),
+            _check_win_vulkan_layer(),
         ]
     if sys.platform == "darwin":
         results += [

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
+from pathlib import Path
 from typing import Any
 
 from rdc import _platform
@@ -82,6 +84,26 @@ def terminate_process(pid: int) -> bool:
     return result
 
 
+def _discover_latest_target(rd: Any, timeout: float = 5.0) -> int:
+    """Poll EnumerateRemoteTargets to find a newly injected target.
+
+    Some renderdoc builds (e.g. v1.41 MSBuild .pyd on Windows) return
+    ``ident=0`` from ``ExecuteAndInject`` even on success.  The injected
+    target *is* reachable — it just isn't reported in the return value.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        latest = 0
+        ident = rd.EnumerateRemoteTargets("localhost", 0)
+        while ident != 0:
+            latest = ident
+            ident = rd.EnumerateRemoteTargets("localhost", ident)
+        if latest != 0:
+            return latest
+        time.sleep(0.25)
+    return 0
+
+
 def _get_pid_for_ident(rd: Any, ident: int) -> int:
     """Connect briefly to retrieve the OS PID for an injected ident."""
     tc = rd.CreateTargetControl("", ident, "rdc-cli", True)
@@ -126,17 +148,33 @@ def execute_and_capture(
     if opts is None:
         opts = rd.GetDefaultCaptureOptions()
 
+    app_path = Path(app)
+    if app_path.parts == (app,):
+        # Bare executable name — try PATH lookup, keep original if not found
+        found = shutil.which(app)
+        if found:
+            app = found
+    else:
+        if not app_path.is_absolute() and workdir:
+            app_path = Path(workdir) / app_path
+        app = str(app_path.resolve())
+
     result = rd.ExecuteAndInject(app, workdir or "", args, [], output, opts, wait_for_exit)
     if result.result != 0:
         return CaptureResult(error=f"inject failed (code {result.result})")
-    if result.ident == 0:
-        return CaptureResult(error="inject returned zero ident")
-
-    if trigger:
-        pid = _get_pid_for_ident(rd, result.ident)
-        return CaptureResult(success=True, ident=result.ident, pid=pid)
 
     ident = result.ident
+    if ident == 0:
+        # Some renderdoc builds return ident=0 even on success; discover via enumeration.
+        ident = _discover_latest_target(rd, timeout=5.0)
+        if ident == 0:
+            return CaptureResult(error="inject returned zero ident")
+        log.debug("discovered target ident %d via enumeration", ident)
+
+    if trigger:
+        pid = _get_pid_for_ident(rd, ident)
+        return CaptureResult(success=True, ident=ident, pid=pid)
+
     tc = rd.CreateTargetControl("", ident, "rdc-cli", True)
     if tc is None:
         return CaptureResult(error="failed to connect to target", ident=ident)
@@ -168,7 +206,7 @@ def run_target_control_loop(
             return CaptureResult(error="target disconnected")
         msg = tc.ReceiveMessage(None)
         msg_type = int(msg.type)
-        # NewCapture = 4, Disconnected = 1
+        log.debug("target control message: type=%d", msg_type)
         if msg_type == 4 and msg.newCapture is not None:
             nc = msg.newCapture
             return CaptureResult(

@@ -41,6 +41,11 @@ def test_open_session_cross_name_no_conflict(
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (True, ""))
+
     # Open session "a"
     monkeypatch.setenv("RDC_SESSION", "a")
     ok_a, _ = session_service.open_session(Path("alpha.rdc"))
@@ -59,6 +64,11 @@ def test_open_session_same_name_alive_fails(
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "alpha")
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (True, ""))
 
     ok1, _ = session_service.open_session(Path("alpha.rdc"))
     assert ok1 is True
@@ -264,9 +274,82 @@ def test_close_session_fallback_kill_on_shutdown_error(
         killed_pids.append(pid)
         return True
 
-    monkeypatch.setattr("rdc.services.session_service._platform.terminate_process", fake_terminate)
+    monkeypatch.setattr(
+        "rdc.services.session_service._platform.terminate_process_tree",
+        fake_terminate,
+    )
     monkeypatch.setattr(session_service, "is_pid_alive", lambda pid: True)
 
     ok, msg = session_service.close_session()
     assert ok is True
     assert killed_pids
+
+
+def test_kill_daemon_on_port_calls_terminate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_kill_daemon_on_port kills the process when find_pid_by_port returns a PID."""
+    killed: list[int] = []
+    call_count = [0]
+
+    def _find_pid(port: int) -> int:
+        call_count[0] += 1
+        return 5678 if call_count[0] == 1 else 0
+
+    monkeypatch.setattr(
+        "rdc.services.session_service._platform.find_pid_by_port",
+        _find_pid,
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service._platform.terminate_process_tree",
+        lambda pid: killed.append(pid) or True,
+    )
+    session_service._kill_daemon_on_port(9999)
+    assert killed == [5678]
+
+
+def test_kill_daemon_on_port_noop_when_no_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_kill_daemon_on_port is a no-op when find_pid_by_port returns 0."""
+    killed: list[int] = []
+    monkeypatch.setattr(
+        "rdc.services.session_service._platform.find_pid_by_port",
+        lambda port: 0,
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service._platform.terminate_process_tree",
+        lambda pid: killed.append(pid) or True,
+    )
+    session_service._kill_daemon_on_port(9999)
+    assert killed == []
+
+
+def test_close_session_tree_kill_on_hang(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Regression: close_session calls terminate_process_tree when daemon hangs after shutdown."""
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    # Open a session first
+    mock_proc = MagicMock()
+    mock_proc.pid = 888
+    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (True, ""))
+
+    ok, _ = session_service.open_session(Path("test.rdc"))
+    assert ok is True
+
+    # Shutdown RPC succeeds, but process stays alive through the wait loop
+    monkeypatch.setattr(session_service, "send_request", lambda *a, **kw: {"result": "ok"})
+    monkeypatch.setattr(session_service, "is_pid_alive", lambda pid: True)
+
+    tree_killed: list[int] = []
+    monkeypatch.setattr(
+        "rdc.services.session_service._platform.terminate_process_tree",
+        lambda pid: tree_killed.append(pid) or True,
+    )
+
+    ok, msg = session_service.close_session()
+    assert ok is True
+    assert 888 in tree_killed

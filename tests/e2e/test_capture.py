@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -46,6 +47,11 @@ def _rdc_capture(
 class TestCapture:
     """13.1: rdc capture creates an .rdc file from a running application."""
 
+    @pytest.mark.xfail(
+        sys.platform == "win32",
+        reason="SSH Session 0: GPU apps cannot present frames",
+        strict=False,
+    )
     def test_capture_to_file(self, vulkan_samples_bin: str, tmp_path: Path) -> None:
         """capture writes an .rdc file to the specified output path."""
         out = tmp_path / "test.rdc"
@@ -62,6 +68,11 @@ class TestCapture:
         assert len(rdc_files) >= 1, f"No .rdc files in {tmp_path}"
         assert rdc_files[0].stat().st_size > 0
 
+    @pytest.mark.xfail(
+        sys.platform == "win32",
+        reason="SSH Session 0: GPU apps cannot present frames",
+        strict=False,
+    )
     def test_capture_json_output(self, vulkan_samples_bin: str, tmp_path: Path) -> None:
         """capture --json returns structured JSON result."""
         out = tmp_path / "test.rdc"
@@ -84,33 +95,19 @@ class TestCaptureInject:
 
     def test_inject_prints_ident(self, vulkan_samples_bin: str) -> None:
         """capture --trigger prints injected ident on stderr."""
-        proc = subprocess.Popen(
-            [
-                "uv",
-                "run",
-                "rdc",
-                "capture",
-                "--trigger",
-                "--",
-                vulkan_samples_bin,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
+        result = _rdc_capture(
+            "capture",
+            "--trigger",
+            "--",
+            vulkan_samples_bin,
+            timeout=60,
         )
-        try:
-            # Wait up to 10s; process should stay alive in trigger mode
-            for _ in range(20):
-                if proc.poll() is not None:
-                    break  # Premature exit; assertion below will catch it
-                time.sleep(0.5)
-            assert proc.poll() is None, f"Process exited prematurely with code {proc.returncode}"
-        finally:
-            _force_kill(proc)
-            stderr = proc.stderr.read() if proc.stderr else ""
-            assert re.search(r"injected: ident=\d+", stderr), (
-                f"Expected ident pattern in stderr, got:\n{stderr}"
-            )
+        assert result.returncode == 0, (
+            f"capture --trigger failed (rc={result.returncode}):\n{result.stderr}"
+        )
+        assert re.search(r"injected: ident=\d+", result.stderr), (
+            f"Expected ident pattern in stderr, got:\n{result.stderr}"
+        )
 
 
 def _read_stderr(proc: subprocess.Popen[str], lines: list[str]) -> None:

@@ -1,11 +1,53 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
 
 from rdc.cli import main
+
+_CURRENT_EID: dict[str, int] = {}
+
+
+def _mock_daemon(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent real daemon spawn and RPC calls."""
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    monkeypatch.setattr(
+        "rdc.services.session_service.start_daemon",
+        lambda *a, **kw: mock_proc,
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service.wait_for_ping",
+        lambda *a, **kw: (True, ""),
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service.is_pid_alive",
+        lambda pid: True,
+    )
+    _CURRENT_EID.clear()
+    _CURRENT_EID["eid"] = 0
+
+    def _fake_send(host: str, port: int, payload: dict, **kw: object) -> dict:
+        method = payload.get("method", "")
+        if method == "ping":
+            return {"result": {"ok": True}}
+        if method == "status":
+            return {"result": {"current_eid": _CURRENT_EID["eid"]}}
+        if method == "goto":
+            eid = payload.get("params", {}).get("eid", 0)
+            _CURRENT_EID["eid"] = eid
+            return {"result": {"current_eid": eid}}
+        if method == "shutdown":
+            return {"result": {"ok": True}}
+        return {"result": {}}
+
+    monkeypatch.setattr(
+        "rdc.services.session_service.send_request",
+        _fake_send,
+    )
 
 
 def _session_file(home: Path) -> Path:
@@ -16,6 +58,7 @@ def test_open_status_goto_close_flow(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    _mock_daemon(monkeypatch)
     capture_file = tmp_path / "capture.rdc"
     capture_file.touch()
     runner = CliRunner()
@@ -63,6 +106,7 @@ def test_goto_rejects_negative_eid(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    _mock_daemon(monkeypatch)
     runner = CliRunner()
 
     runner.invoke(main, ["open", "capture.rdc"])
@@ -75,6 +119,7 @@ def test_status_shows_session_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "mytest")
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    _mock_daemon(monkeypatch)
     capture_file = tmp_path / "capture.rdc"
     capture_file.touch()
     runner = CliRunner()
@@ -91,6 +136,7 @@ def test_status_shows_default_session_name(monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    _mock_daemon(monkeypatch)
     capture_file = tmp_path / "capture.rdc"
     capture_file.touch()
     runner = CliRunner()
@@ -131,6 +177,7 @@ def test_open_no_replay_mode_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    _mock_daemon(monkeypatch)
     capture_file = tmp_path / "capture.rdc"
     capture_file.touch()
     runner = CliRunner()

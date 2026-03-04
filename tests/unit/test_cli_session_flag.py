@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
@@ -79,6 +80,24 @@ def test_two_sessions_isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    monkeypatch.setattr(
+        "rdc.services.session_service.start_daemon",
+        lambda *a, **kw: mock_proc,
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service.wait_for_ping",
+        lambda *a, **kw: (True, ""),
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service.is_pid_alive",
+        lambda pid: True,
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service.send_request",
+        lambda *a, **kw: {"result": {"current_eid": 0}},
+    )
     runner = CliRunner()
 
     # Open session "a"

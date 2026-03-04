@@ -50,6 +50,28 @@ def terminate_process(pid: int) -> bool:
         return False
 
 
+def terminate_process_tree(pid: int) -> bool:
+    """Kill a process and all its children (Windows: taskkill /T, Unix: SIGTERM).
+
+    On Windows, .venv trampoline scripts spawn a child python process.
+    DETACHED_PROCESS prevents kill cascading, so we use taskkill /F /T
+    to terminate the entire process tree.
+    """
+    if pid <= 0:
+        return False
+    if _WIN:  # pragma: no cover
+        try:
+            result = subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True,
+                timeout=5,
+            )
+            return result.returncode == 0
+        except Exception:  # noqa: BLE001
+            return terminate_process(pid)
+    return terminate_process(pid)
+
+
 def is_pid_alive(pid: int, *, tag: str = "rdc") -> bool:
     """Check whether *pid* is alive and its cmdline contains *tag*."""
     if pid <= 0:
@@ -144,6 +166,27 @@ def popen_flags() -> dict[str, Any]:
         # CREATE_BREAKAWAY_FROM_JOB (0x01000000): escape sshd job object
         return {"creationflags": 0x00000008 | 0x00000200 | 0x01000000}
     return {}
+
+
+def find_pid_by_port(port: int) -> int:
+    """Return the PID listening on *port*, or 0 if not found."""
+    if not _WIN:
+        return 0
+    try:
+        result = subprocess.run(
+            ["netstat", "-ano", "-p", "TCP"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            # Match: TCP  127.0.0.1:PORT  0.0.0.0:0  LISTENING  PID
+            if f":{port} " in line and "LISTENING" in line:
+                parts = line.split()
+                return int(parts[-1])
+    except Exception:  # noqa: BLE001
+        pass
+    return 0
 
 
 def renderdoc_search_paths() -> list[str]:

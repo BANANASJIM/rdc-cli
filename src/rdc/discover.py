@@ -21,6 +21,8 @@ from rdc import _platform
 
 log = logging.getLogger(__name__)
 
+_dll_dir_handles: list[object] = []
+
 
 class ProbeResult(Enum):
     SUCCESS = "success"
@@ -191,12 +193,25 @@ def _try_import_from(directory: str) -> ModuleType | None:
     if directory in sys.path:
         sys.path.remove(directory)
 
+    # Python 3.8+ on Windows no longer searches PATH for DLL deps;
+    # renderdoc.pyd needs renderdoc.dll in the same directory.
+    dll_dir_handle = None
+    if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
+        try:
+            dll_dir_handle = os.add_dll_directory(directory)
+        except OSError:
+            pass
+
     sys.path.insert(0, directory)
     try:
         mod = importlib.import_module("renderdoc")
     except Exception:  # noqa: BLE001
         if directory in sys.path:
             sys.path.remove(directory)
+        if dll_dir_handle is not None:
+            dll_dir_handle.close()
         return None
     log.debug("renderdoc found at %s", directory)
+    if dll_dir_handle is not None:
+        _dll_dir_handles.append(dll_dir_handle)
     return mod

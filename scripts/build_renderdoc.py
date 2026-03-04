@@ -420,6 +420,43 @@ def copy_artifacts(build_dir: Path, install_dir: Path, plat: str) -> None:
     _log(f"artifacts copied to {install_dir}")
 
 
+def _install_vulkan_layer(install_dir: Path, build_dir: Path) -> None:
+    """Copy Vulkan layer JSON and register as implicit layer on Windows."""
+    src_dir = build_dir / "renderdoc"
+
+    # Find layer JSON from build output
+    layer_src: Path | None = None
+    for candidate in (
+        src_dir / "renderdoc" / "driver" / "vulkan" / "renderdoc.json",
+        src_dir / "driver" / "vulkan" / "renderdoc.json",
+    ):
+        if candidate.is_file():
+            layer_src = candidate
+            break
+    if layer_src is None:
+        _log("WARNING: Vulkan layer JSON not found in source tree, skipping layer registration")
+        return
+
+    import json
+
+    data = json.loads(layer_src.read_text(encoding="utf-8"))
+    data["layer"]["library_path"] = ".\\renderdoc.dll"
+    layer_dst = install_dir / "renderdoc.json"
+    layer_dst.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _log(f"Vulkan layer JSON installed to {layer_dst}")
+
+    # Register in Windows registry
+    import winreg
+
+    key_path = r"SOFTWARE\Khronos\Vulkan\ImplicitLayers"
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            winreg.SetValueEx(key, str(layer_dst), 0, winreg.REG_DWORD, 0)
+        _log(f"Vulkan implicit layer registered in HKCU\\{key_path}")
+    except OSError as exc:
+        _log(f"WARNING: failed to register Vulkan layer in registry: {exc}")
+
+
 def _artifacts_present(install_dir: Path, plat: str) -> bool:
     return all((install_dir / n).exists() for n in _artifact_names(plat))
 
@@ -459,6 +496,10 @@ def main(argv: list[str] | None = None) -> None:
         run_build(build_dir, args.jobs)
 
     copy_artifacts(build_dir, install_dir, plat)
+
+    if plat == "windows":
+        _install_vulkan_layer(install_dir, build_dir)
+
     _log("=== Done ===")
     _log(f'  export RENDERDOC_PYTHON_PATH="{install_dir}"')
     _log("  rdc doctor   # verify installation")

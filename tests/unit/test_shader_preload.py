@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 import mock_renderdoc as mock_rd
 import pytest
@@ -263,6 +264,16 @@ class TestOpenPreloadFlag:
         monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
         monkeypatch.delenv("RDC_SESSION", raising=False)
         monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+        mock_proc = MagicMock()
+        mock_proc.pid = 999
+        monkeypatch.setattr(
+            "rdc.services.session_service.start_daemon",
+            lambda *a, **kw: mock_proc,
+        )
+        monkeypatch.setattr(
+            "rdc.services.session_service.wait_for_ping",
+            lambda *a, **kw: (True, ""),
+        )
 
         captured: list[dict[str, Any]] = []
         import rdc.commands._helpers as helpers_mod
@@ -291,6 +302,16 @@ class TestOpenPreloadFlag:
         monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
         monkeypatch.delenv("RDC_SESSION", raising=False)
         monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+        mock_proc = MagicMock()
+        mock_proc.pid = 999
+        monkeypatch.setattr(
+            "rdc.services.session_service.start_daemon",
+            lambda *a, **kw: mock_proc,
+        )
+        monkeypatch.setattr(
+            "rdc.services.session_service.wait_for_ping",
+            lambda *a, **kw: (True, ""),
+        )
 
         captured: list[dict[str, Any]] = []
         import rdc.commands._helpers as helpers_mod

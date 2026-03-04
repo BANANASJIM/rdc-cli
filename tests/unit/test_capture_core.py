@@ -245,6 +245,139 @@ class TestExecuteAndCapture:
         assert result.pid == 0
 
 
+class TestExecutablePathResolution:
+    def _cap_msg(self) -> mock_rd.TargetControlMessage:
+        new_cap = mock_rd.NewCaptureData(
+            path="/tmp/cap.rdc", frameNumber=0, byteSize=4096, api="Vulkan", local=True
+        )
+        return mock_rd.TargetControlMessage(
+            type=mock_rd.TargetControlMessageType.NewCapture, newCapture=new_cap
+        )
+
+    def test_relative_path_is_resolved(self) -> None:
+        from pathlib import Path
+
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+        execute_and_capture(rd, "relative/app", output="/tmp/cap.rdc")
+        injected_app = rd._calls["inject"][0][0]
+        assert Path(injected_app).is_absolute()
+        assert Path(injected_app).name == "app"
+
+    def test_absolute_path_stays_absolute(self) -> None:
+        from pathlib import Path
+
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+        execute_and_capture(rd, "/usr/bin/app", output="/tmp/cap.rdc")
+        injected_app = rd._calls["inject"][0][0]
+        assert Path(injected_app).is_absolute()
+
+    def test_bare_name_uses_which(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        monkeypatch.setattr("rdc.capture_core.shutil.which", lambda _n: "/usr/bin/myapp")
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+        execute_and_capture(rd, "myapp", output="/tmp/cap.rdc")
+        injected_app = rd._calls["inject"][0][0]
+        assert injected_app == "/usr/bin/myapp"
+
+    def test_bare_name_no_which_keeps_original(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        monkeypatch.setattr("rdc.capture_core.shutil.which", lambda _n: None)
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+        execute_and_capture(rd, "myapp.exe", output="/tmp/cap.rdc")
+        injected_app = rd._calls["inject"][0][0]
+        assert injected_app == "myapp.exe"
+
+    def test_relative_path_resolved_against_workdir(self) -> None:
+        from pathlib import Path
+
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+        execute_and_capture(rd, "bin/app", workdir="/opt/project", output="/tmp/cap.rdc")
+        injected_app = rd._calls["inject"][0][0]
+        assert Path(injected_app).is_absolute()
+        assert "opt" in injected_app or "project" in injected_app
+
+
+class TestDiscoverLatestTarget:
+    """Regression tests for ident=0 fallback via EnumerateRemoteTargets."""
+
+    def test_discovers_target_on_first_poll(self) -> None:
+        from rdc.capture_core import _discover_latest_target
+
+        targets = iter([100, 101, 0])
+        rd = SimpleNamespace(EnumerateRemoteTargets=lambda _host, prev: next(targets))
+        assert _discover_latest_target(rd, timeout=1.0) == 101
+
+    def test_returns_zero_when_no_targets(self) -> None:
+        from rdc.capture_core import _discover_latest_target
+
+        rd = SimpleNamespace(EnumerateRemoteTargets=lambda _host, _prev: 0)
+        assert _discover_latest_target(rd, timeout=0.1) == 0
+
+    def test_single_target(self) -> None:
+        from rdc.capture_core import _discover_latest_target
+
+        targets = iter([42, 0])
+        rd = SimpleNamespace(EnumerateRemoteTargets=lambda _host, prev: next(targets))
+        assert _discover_latest_target(rd, timeout=1.0) == 42
+
+
+class TestIdentZeroFallback:
+    """Regression: ExecuteAndInject returns ident=0 but target is discoverable."""
+
+    def test_fallback_to_enumerate(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        new_cap = mock_rd.NewCaptureData(
+            path="/tmp/cap.rdc", frameNumber=0, byteSize=4096, api="Vulkan", local=True
+        )
+        msg = mock_rd.TargetControlMessage(
+            type=mock_rd.TargetControlMessageType.NewCapture, newCapture=new_cap
+        )
+        rd = _make_mock_rd(inject_ident=0, messages=[msg])
+
+        # Patch _discover_latest_target to return a valid ident
+        monkeypatch.setattr(
+            "rdc.capture_core._discover_latest_target", lambda _rd, timeout=5.0: 99999
+        )
+
+        result = execute_and_capture(rd, "/usr/bin/app", output="/tmp/cap.rdc")
+        assert result.success is True
+        assert result.ident == 99999
+
+    def test_fallback_fails_returns_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd(inject_ident=0)
+
+        # Patch _discover_latest_target to return 0 (no target found)
+        monkeypatch.setattr("rdc.capture_core._discover_latest_target", lambda _rd, timeout=5.0: 0)
+
+        result = execute_and_capture(rd, "/usr/bin/app")
+        assert result.success is False
+        assert "inject returned zero ident" in result.error
+
+    def test_trigger_mode_with_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        rd = _make_mock_rd(inject_ident=0)
+
+        monkeypatch.setattr(
+            "rdc.capture_core._discover_latest_target", lambda _rd, timeout=5.0: 55555
+        )
+
+        result = execute_and_capture(rd, "/usr/bin/app", trigger=True)
+        assert result.success is True
+        assert result.ident == 55555
+
+
 class TestTerminateProcess:
     @pytest.mark.skipif(
         sys.platform == "win32", reason="Unix signals: Windows uses TerminateProcess"

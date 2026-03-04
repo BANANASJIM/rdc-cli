@@ -242,6 +242,22 @@ def goto_session(eid: int) -> tuple[bool, str]:
     return True, f"current_eid set to {state.current_eid}"
 
 
+def _kill_daemon_on_port(port: int) -> None:
+    """Find and kill any process still listening on the daemon port."""
+    daemon_pid = _platform.find_pid_by_port(port)
+    if daemon_pid > 0:
+        logger.debug(
+            "daemon still listening on port %d (pid %d), killing",
+            port,
+            daemon_pid,
+        )
+        _platform.terminate_process_tree(daemon_pid)
+        for _ in range(10):
+            if _platform.find_pid_by_port(port) == 0:
+                break
+            time.sleep(0.1)
+
+
 def close_session(*, force_shutdown: bool = False) -> tuple[bool, str]:
     state = load_session()
     if state is None:
@@ -268,7 +284,24 @@ def close_session(*, force_shutdown: bool = False) -> tuple[bool, str]:
         send_request(state.host, state.port, shutdown_request(state.token, request_id=4))
     except Exception:
         logger.debug("shutdown request failed, terminating", exc_info=True)
-        _platform.terminate_process(state.pid)
+        _platform.terminate_process_tree(state.pid)
+
+    # Wait for daemon to exit; tree-kill if it hangs during cleanup
+    for _ in range(20):
+        if not is_pid_alive(state.pid):
+            break
+        time.sleep(0.1)
+    else:
+        logger.debug(
+            "daemon pid %d still alive after shutdown, terminating tree",
+            state.pid,
+        )
+        _platform.terminate_process_tree(state.pid)
+
+    # On Windows, the stored PID may be a venv trampoline that exited
+    # early while the real daemon child is still running.  Verify via
+    # port.
+    _kill_daemon_on_port(state.port)
 
     removed = delete_session()
     if not removed:
