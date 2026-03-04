@@ -37,7 +37,7 @@ python scripts/build_renderdoc.py     # one-time build (needs cmake + ninja)
 rdc doctor                            # verify everything works
 ```
 
-**PyPI — Windows** (experimental)
+**PyPI — Windows**
 
 ```bash
 uv tool install rdc-cli               # or: pipx install rdc-cli
@@ -80,7 +80,7 @@ pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain
 |----------|----------------------|--------------|
 | Linux | ✅ | ✅ |
 | macOS | ❌ (not supported yet) | ✅ (recommended) |
-| Windows | ✅ (experimental) | ✅ (experimental) |
+| Windows | ✅ | ✅ |
 
 ### RenderDoc bootstrap (all platforms)
 
