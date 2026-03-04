@@ -22,6 +22,7 @@ def main() -> None:
         return
 
     if not target.is_dir():
+        print(f"warning: skill target '{target}' not found, skipping", file=sys.stderr)
         return
 
     # Remove text-file stub left by git on Windows
@@ -35,7 +36,6 @@ def main() -> None:
         subprocess.check_call(
             ["cmd", "/c", "mklink", "/J", str(link), str(target.resolve())],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
         )
     else:
         os.symlink(Path("../../src/rdc/_skills"), link)
