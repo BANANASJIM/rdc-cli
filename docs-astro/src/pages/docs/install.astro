@@ -3,7 +3,15 @@ import Docs from '../../layouts/Docs.astro';
 ---
 
 <Docs title="Installation">
-  <h2>PyPI (Recommended)</h2>
+  <h2>Pixi (Recommended)</h2>
+  <p>
+    Pixi handles the Python environment and all dependencies automatically.
+    No manual virtualenv or renderdoc module setup needed.
+  </p>
+  <pre><code>curl -fsSL https://pixi.sh/install.sh | bash
+pixi global install rdc-cli</code></pre>
+
+  <h2>PyPI</h2>
   <pre><code>pipx install rdc-cli</code></pre>
   <p>
     This installs the <code>rdc</code> command. You still need the renderdoc

@@ -33,6 +33,16 @@ const base = import.meta.env.BASE_URL;
     <li><em>"GPU state"</em>, <em>"draw calls"</em>, <em>"pipeline"</em></li>
   </ul>
 
+  <h2 id="why-skill-not-mcp">Why Skill, Not MCP?</h2>
+  <p>rdc-cli deliberately uses a Claude Code <strong>skill</strong> (a prompt file that teaches the agent CLI usage) rather than an MCP server. Here's why:</p>
+  <ul>
+    <li><strong>Not universal</strong> -- MCP is tied to specific AI clients that implement the protocol. A CLI skill works with any agent that can execute shell commands.</li>
+    <li><strong>Cannot run in CI</strong> -- MCP requires a persistent server process and a compatible client. CI pipelines need plain CLI commands, not RPC connections.</li>
+    <li><strong>Context window bloat</strong> -- MCP returns full tool schemas and large structured payloads that fill the agent's context window. CLI output is compact text -- pipe through <code>grep</code> or <code>jq</code> to extract only what matters.</li>
+    <li><strong>No Unix pipe composability</strong> -- MCP is an RPC protocol; results don't flow through stdout. You cannot <code>rdc draws | grep Triangle | wc -l</code> with MCP. The entire Unix tool ecosystem is lost.</li>
+    <li><strong>Skill = thin CLI wrapper</strong> -- A skill is just a prompt that teaches the agent to use the CLI. Zero infrastructure, zero dependencies, full pipe composability, works in CI, works with any AI that has shell access.</li>
+  </ul>
+
   <h2 id="agent-friendly-design">Agent-Friendly Design</h2>
 
   <h3>VFS Path Navigation</h3>

@@ -275,10 +275,10 @@ rdc passes --json | jq '.[] | select(.draw_count > 50)'</code></pre>
   <h2 id="pixel-ladder">Pixel Investigation Ladder</h2>
 
   <pre><code>{"# Step 1: Read pixel color at (400, 300)"}
-rdc pick-pixel 142 400 300
+rdc pick-pixel 400 300 142
 
 {"# Step 2: Full pixel history — who modified this pixel?"}
-rdc pixel 142 400 300
+rdc pixel 400 300 142
 
 {"# Step 3: Debug the pixel shader that drew it"}
 rdc debug pixel 142 400 300
@@ -288,6 +288,9 @@ rdc debug pixel 142 400 300 --trace
 
 {"# Step 5: Dump variables at a specific line"}
 rdc debug pixel 142 400 300 --dump-at 15</code></pre>
+
+  <!-- Argument order note: debug pixel and assert-pixel take EID X Y;
+       pick-pixel and pixel take X Y [EID] -->
 
   <h2 id="buffer-decode">Buffer Decode via VFS</h2>
 
@@ -371,10 +374,10 @@ rdc shader 142 ps --constants</code></pre>
 rdc log
 
 {"# Filter by severity"}
-rdc log --level error
+rdc log --level HIGH
 
 {"# Assert no errors in CI"}
-rdc assert-clean --min-severity error
+rdc assert-clean --min-severity HIGH
 
 {"# Check pipeline state for issues"}
 rdc pipeline 142

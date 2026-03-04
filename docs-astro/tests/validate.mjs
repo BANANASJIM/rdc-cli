@@ -154,8 +154,8 @@ test('landing page has dynamic command count from stats.json', () => {
   assert(indexHtml.includes(count), `Missing "${count}" commands count (from stats.json)`);
 });
 
-test('landing page has all 12 command categories', () => {
-  const categories = ['Session', 'Inspection', 'GPU State', 'Debug', 'Shader Edit', 'Resources', 'Export', 'Assertions', 'Diff', 'Search', 'VFS', 'Utility'];
+test('landing page has all 15 command categories', () => {
+  const categories = ['Session', 'Inspection', 'GPU State', 'Debug', 'Shader Edit', 'Resources', 'Export', 'Assertions', 'Capture Control', 'Remote', 'Capture File', 'Diff', 'Search', 'VFS', 'Utility'];
   for (const cat of categories) {
     assert(indexHtml.includes(cat), `Missing command category: ${cat}`);
   }

@@ -62,9 +62,6 @@ jobs:
             > docs-astro/src/data/stats.json
           cat docs-astro/src/data/stats.json
 
-      - name: Build mkdocs
-        run: uv run --with "mkdocs<2" --with mkdocs-material --with mkdocs-click mkdocs build -d _site
-
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -77,11 +74,6 @@ jobs:
           cd docs-astro
           npm ci
           npm run build
-
-      - name: Merge mkdocs CLI reference into Astro output
-        run: |
-          mkdir -p docs-astro/dist/docs/cli-reference
-          cp -r _site/cli-reference/* docs-astro/dist/docs/cli-reference/
 
       - name: Generate badge endpoint JSONs
         run: |

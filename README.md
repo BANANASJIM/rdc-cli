@@ -183,7 +183,7 @@ rdc-cli bridges that gap:
 
 ## Commands
 
-Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See the [full command reference](https://bananasjim.github.io/rdc-cli/docs/cli-reference/rdc/) for every option.
+Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See the [full command reference](https://bananasjim.github.io/rdc-cli/docs/commands/) for every option.
 
 | Category | Commands |
 |----------|----------|

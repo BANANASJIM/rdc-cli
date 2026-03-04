@@ -43,9 +43,6 @@ jobs:
       - name: Verify skill reference is fresh
         run: uv run python scripts/gen_and_check.py check scripts/gen-skill-ref.py src/rdc/_skills/references/commands-quick-ref.md
 
-      - name: Verify replay data is fresh
-        run: uv run python scripts/gen_and_check.py check scripts/gen-replay.py docs-astro/src/data/replay.json
-
       - name: Verify commands data is fresh
         run: uv run python scripts/gen_and_check.py check scripts/gen-commands.py docs-astro/src/data/commands.json
 

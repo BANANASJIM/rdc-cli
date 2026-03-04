@@ -1,7 +1,7 @@
 {
-  "command_count": 62,
-  "test_count": 1838,
-  "coverage": "95.25%",
-  "version": "0.3.1",
-  "description": "Unix-friendly CLI for RenderDoc .rdc captures"
+  "command_count": 67,
+  "version": "0.3.9",
+  "description": "CLI for RenderDoc .rdc captures",
+  "test_count": 2542,
+  "coverage": "94%"
 }
