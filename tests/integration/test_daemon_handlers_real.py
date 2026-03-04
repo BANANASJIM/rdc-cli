@@ -50,7 +50,7 @@ def _make_state(
         int(r.resourceId): getattr(getattr(r, "type", None), "name", str(getattr(r, "type", "")))
         for r in resources
     }
-    state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
+    state.res_rid_map = {int(r.resourceId): r for r in resources}
 
     state.rd = rd_module
     state.vfs_tree = build_vfs_skeleton(root_actions, resources, textures, buffers, sf)
@@ -1867,7 +1867,7 @@ class TestHelloTriangleDebug:
             )
             for r in resources
         }
-        self.state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
+        self.state.res_rid_map = {int(r.resourceId): r for r in resources}
         self.state.rd = rd_module
 
     def _first_draw_eid(self) -> int:

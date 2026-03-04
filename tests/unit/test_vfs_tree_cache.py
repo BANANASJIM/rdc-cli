@@ -121,7 +121,6 @@ class TestBuildVfsSkeleton:
             "log",
             "events",
             "draws",
-            "by-marker",
             "passes",
             "resources",
             "textures",
@@ -232,10 +231,9 @@ class TestBuildVfsSkeleton:
         assert skeleton.static["/current"].kind == "alias"
 
     def test_placeholder_dirs(self, skeleton: VfsTree) -> None:
-        for name in ("by-marker", "shaders"):
-            node = skeleton.static[f"/{name}"]
-            assert node.kind == "dir"
-            assert node.children == []
+        node = skeleton.static["/shaders"]
+        assert node.kind == "dir"
+        assert node.children == []
 
     def test_textures_buffers_empty_when_not_provided(self, skeleton: VfsTree) -> None:
         """No textures/buffers passed produces empty dirs."""

@@ -226,7 +226,7 @@ def _init_adapter_state(state: DaemonState) -> None:
         int(r.resourceId): getattr(getattr(r, "type", None), "name", str(getattr(r, "type", "")))
         for r in resources
     }
-    state.res_rid_map = {int(r.resourceId): r.resourceId for r in resources}
+    state.res_rid_map = {int(r.resourceId): r for r in resources}
 
     state.vfs_tree = build_vfs_skeleton(
         root_actions, resources, textures, buffers, state.structured_file

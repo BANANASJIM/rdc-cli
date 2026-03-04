@@ -573,6 +573,7 @@ class ResourceDescription:
     derivedResources: list[ResourceId] = field(default_factory=list)
     parentResources: list[ResourceId] = field(default_factory=list)
     initialisationChunks: list[int] = field(default_factory=list)
+    byteSize: int = 0
 
 
 @dataclass
