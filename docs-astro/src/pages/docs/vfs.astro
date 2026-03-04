@@ -12,60 +12,97 @@ import Docs from '../../layouts/Docs.astro';
   <h2>Path Namespace</h2>
 
   <pre><code>/
+├── capabilities                 # GPU capabilities
 ├── info                         # capture metadata
+├── stats                        # per-pass statistics
+├── log                          # validation messages
 ├── events/                      # all events
-│   └── &lt;eid&gt;/                   # single event details
+│   └── &lt;eid&gt;                    # single event details
 ├── draws/                       # draw calls
 │   └── &lt;eid&gt;/
 │       ├── pipeline/
-│       │   ├── vertex-input
+│       │   ├── summary
+│       │   ├── topology
+│       │   ├── viewport
+│       │   ├── scissor
+│       │   ├── blend
+│       │   ├── stencil
+│       │   ├── vertex-inputs
+│       │   ├── samplers
+│       │   ├── vbuffers
+│       │   ├── ibuffer
+│       │   ├── push-constants
 │       │   ├── rasterizer
 │       │   ├── depth-stencil
-│       │   ├── color-blend
-│       │   ├── shader/
-│       │   │   ├── vs           # vertex shader
-│       │   │   ├── ps           # pixel shader
+│       │   └── msaa
+│       ├── shader/              # per-stage shaders (sibling of pipeline)
+│       │   ├── vs/
+│       │   │   ├── disasm
+│       │   │   ├── source
+│       │   │   ├── reflect
+│       │   │   └── constants
+│       │   ├── ps/
 │       │   │   └── ...
-│       │   └── push-constants
+│       │   └── cs/ ...
 │       ├── bindings/
 │       │   └── &lt;set&gt;/
 │       │       └── &lt;binding&gt;
-│       ├── descriptors/
+│       ├── targets/
+│       │   ├── color0.png
+│       │   └── depth.png
+│       ├── descriptors
+│       ├── postvs
+│       ├── cbuffer/
+│       │   └── &lt;set&gt;/&lt;binding&gt;
+│       ├── vbuffer
+│       ├── ibuffer
 │       └── pixel/
 │           └── &lt;x&gt;/
 │               └── &lt;y&gt;         # pixel history at (x,y)
 ├── resources/                   # all resources
 │   └── &lt;id&gt;/
 │       ├── info
-│       ├── usage
-│       └── data                 # binary content
+│       └── usage
 ├── passes/                      # render passes
 │   └── &lt;name&gt;/
+│       ├── info
+│       ├── draws/
 │       └── attachments/
-│           ├── color0, color1…  # color output targets
-│           └── depth            # depth target
+│           ├── color0, color1...
+│           └── depth
 ├── textures/                    # texture resources
 │   └── &lt;id&gt;/
+│       ├── info
+│       ├── image.png
+│       └── data                 # raw binary
 ├── buffers/                     # buffer resources
 │   └── &lt;id&gt;/
-└── shaders/                     # shader resources
-    └── &lt;id&gt;/
-        ├── info
-        ├── disasm
-        └── used-by              # EIDs that use this shader</code></pre>
+│       ├── info
+│       └── data                 # raw binary
+├── shaders/                     # shader resources
+│   └── &lt;id&gt;/
+│       ├── info
+│       ├── disasm
+│       └── used-by
+├── by-marker/
+├── counters/
+│   └── list
+└── current                      # alias for current event</code></pre>
 
   <h2>Browsing</h2>
 
   <pre><code># List top level
 rdc ls /
-# → events/  draws/  resources/  passes/  textures/  buffers/  shaders/  info
+# → capabilities  info  stats  log  events/  draws/  by-marker/
+#   passes/  resources/  textures/  buffers/  shaders/  counters/  current
 
 # Drill into a draw call
 rdc ls /draws/5/
-# → pipeline/  bindings/  descriptors/
+# → pipeline/  shader/  bindings/  targets/  postvs  cbuffer/
+#   vbuffer  ibuffer  descriptors  pixel/
 
 # Read a shader
-rdc cat /draws/5/pipeline/shader/ps
+rdc cat /draws/5/shader/ps/disasm
 
 # Tree view
 rdc tree /draws/5/ --depth 2</code></pre>

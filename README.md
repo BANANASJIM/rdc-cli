@@ -101,7 +101,7 @@ That single Python script is the canonical path; the pixi task wraps it for conv
 ```bash
 rdc ls /                              # top-level: draws, passes, resources, shaders, ...
 rdc ls /draws/142                     # what's inside this draw call?
-rdc cat /draws/142/pipeline/om        # output merger state
+rdc cat /draws/142/pipeline/blend      # color blend state
 rdc tree /passes --depth 2            # pass structure at a glance
 ```
 
@@ -121,7 +121,7 @@ rdc texture 5 -o albedo.png           # export a texture
 rdc rt 142 -o render.png              # export render target
 rdc buffer 88 -o verts.bin            # export raw buffer
 rdc snapshot 142 -o ./snap/           # pipeline + shaders + render targets
-rdc draws --json | jq '.[] | select(.tri_count > 10000)'  # filter with jq
+rdc draws --json | jq '.[] | select(.triangles > 10000)'  # filter with jq
 ```
 
 **CI assertions:**
@@ -174,7 +174,7 @@ RenderDoc is excellent at capturing GPU frames and replaying them interactively.
 
 rdc-cli bridges that gap:
 
-- **TSV by default** — every command outputs tab-separated text that pipes directly into Unix tools. Raw numbers, not human-friendly formatting (use `--table` for that).
+- **TSV by default** — every command outputs tab-separated text that pipes directly into Unix tools. Raw numbers, not human-friendly formatting.
 - **VFS path namespace** — GPU state is navigable like a filesystem: `/draws/142/shader/ps`, `/passes/GBuffer/draws`, `/resources/88`. Explore with `ls`, read with `cat`.
 - **Daemon architecture** — load the capture once, then query as many times as you want. No per-command startup cost.
 - **Built for CI** — `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` with `diff(1)`-compatible exit codes (0=pass, 1=fail, 2=error).
@@ -199,8 +199,9 @@ Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See 
 | Diff | `diff` (with `--draws`, `--stats`, `--framebuffer`, `--pipeline`, etc.) |
 | VFS | `ls`, `cat`, `tree` |
 | Remote | `remote connect`, `remote list`, `remote capture` |
+| Target control | `attach`, `capture-trigger`, `capture-list`, `capture-copy` |
 | Capture file | `sections`, `section`, `callstacks`, `gpus`, `thumbnail` |
-| Utility | `doctor`, `completion`, `capture`, `count`, `script`, `install-skill` |
+| Utility | `doctor`, `completion`, `capture`, `count`, `script`, `serve`, `install-skill` |
 
 All list commands output TSV. All commands support `--json`. Footer/summary goes to stderr — stdout is always clean data.
 
@@ -213,7 +214,7 @@ Options available on most list/query commands (not every command supports all):
 --jsonl          streaming JSON, one object per line (list commands)
 --no-header      drop TSV header for awk/cut (list commands)
 -q / --quiet     IDs only for xargs (list commands)
---sort <field>   sort by field (events, resources, shaders)
+--sort <field>   sort by field (draws, resources, shaders)
 --limit <N>      truncate rows (events, search)
 --filter <pat>   name glob filter (events)
 -o <path>        output to file (export commands)

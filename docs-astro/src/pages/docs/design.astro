@@ -71,7 +71,7 @@ import Docs from '../../layouts/Docs.astro';
 
   <p>Composability in practice:</p>
 
-  <pre><code>rdc draws --sort tri_count | tail -5        # heaviest 5 draws
+  <pre><code>rdc draws --sort triangles | tail -5         # heaviest 5 draws
 rdc resources --type texture | wc -l        # count textures
 rdc shader-map | grep "a1b2" | cut -f1      # find EIDs using a shader</code></pre>
 
@@ -91,15 +91,15 @@ rdc shader-map | grep "a1b2" | cut -f1      # find EIDs using a shader</code></p
   </p>
 
   <pre><code>rdc ls /draws/142/shader     # &rarr; vs  ps
-rdc cat /draws/142/shader/ps # &rarr; shader disassembly
+rdc cat /draws/142/shader/ps/disasm # &rarr; shader disassembly
 rdc tree / --depth 2         # &rarr; full structure</code></pre>
 
   <p>
     <strong>Query layer</strong> (draws, resources, pipeline, etc.) &mdash; business logic with filtering:
   </p>
 
-  <pre><code>rdc draws --sort tri_count --limit 10
-rdc resources --type texture --sort size</code></pre>
+  <pre><code>rdc draws --sort triangles --limit 10
+rdc resources --type texture --sort name</code></pre>
 
   <p>
     <strong>Why not FUSE?</strong> FUSE adds kernel module complexity, mount/unmount

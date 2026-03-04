@@ -24,7 +24,7 @@ Type "rdc bindings 5"
 Enter
 Sleep 2s
 
-Type "rdc resources --type texture --sort size"
+Type "rdc resources --type texture --sort name"
 Enter
 Sleep 2s
 
@@ -32,7 +32,7 @@ Type "rdc ls /draws/5/"
 Enter
 Sleep 2s
 
-Type "rdc cat /draws/5/pipeline/shader/vs"
+Type "rdc cat /draws/5/shader/vs/disasm"
 Enter
 Sleep 3s
 

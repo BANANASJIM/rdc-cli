@@ -10,7 +10,7 @@ for id in $(rdc resources --type texture -q); do
 done
 
 # Count triangles per pass
-rdc draws --json | jq 'group_by(.pass) | .[] | {pass: .[0].pass, tris: [.[].tri_count] | add}'`;
+rdc draws --json | jq 'group_by(.pass) | .[] | {pass: .[0].pass, tris: [.[].triangles] | add}'`;
 ---
 
 <Docs title="Examples">
@@ -62,10 +62,10 @@ done</code></pre>
   <h2 id="heaviest-draw">Find the Heaviest Draw Call</h2>
 
   <pre><code>{"# TSV approach"}
-rdc draws --sort tri_count | tail -1
+rdc draws --sort triangles | tail -1
 
 {"# JSON approach"}
-rdc draws --json | jq 'sort_by(.tri_count) | last'</code></pre>
+rdc draws --json | jq 'sort_by(.triangles) | last'</code></pre>
 
   <h2 id="debug-pixel">Debug a Pixel Color</h2>
 
@@ -251,8 +251,8 @@ diff &lt;(rdc --session before draws) &lt;(rdc --session after draws)
 diff &lt;(rdc --session before pipeline 142) &lt;(rdc --session after pipeline 142)
 
 {"# Compare shader disassembly"}
-diff &lt;(rdc --session before cat /draws/142/shader/ps) \
-     &lt;(rdc --session after cat /draws/142/shader/ps)
+diff &lt;(rdc --session before cat /draws/142/shader/ps/disasm) \
+     &lt;(rdc --session after cat /draws/142/shader/ps/disasm)
 
 {"# Clean up both sessions"}
 rdc --session before close
@@ -308,21 +308,14 @@ rdc cat /buffers/55/data > vertex_buffer.bin</code></pre>
 
   <h2 id="rdc-script">Custom Queries with rdc script</h2>
 
-  <pre><code>{"# Inline Python: count unique shader hashes"}
-rdc script -c "
-shaders = set()
-for a in controller.GetRootActions():
-    if a.flags &amp; rd.ActionFlags.Drawcall:
-        controller.SetFrameEvent(a.eventId, True)
-        pipe = controller.GetPipelineState()
-        ps = pipe.GetShader(rd.ShaderStage.Pixel)
-        if int(ps):
-            shaders.add(int(ps))
-print(len(shaders))
-"
+  <pre><code>{"# Run a script file"}
+rdc script analysis.py
 
-{"# Run a script file"}
-rdc script analysis.py -- --verbose</code></pre>
+{"# Pass arguments to the script"}
+rdc script analysis.py --arg verbose=true --arg threshold=0.5
+
+{"# Get structured JSON output"}
+rdc script analysis.py --json</code></pre>
 
   <h2 id="perf-profiling">Performance Profiling</h2>
 
@@ -332,16 +325,16 @@ rdc counters --list
 {"# Profile a specific draw call"}
 rdc counters --eid 142
 
-{"# Profile with specific counter IDs"}
-rdc counters --ids 1,2,5 --eid 142
+{"# Filter by counter name"}
+rdc counters --name "GPU Duration" --eid 142
 
 {"# JSON output for analysis"}
 rdc counters --eid 142 --json</code></pre>
 
   <h2 id="resource-hunting">Resource Hunting</h2>
 
-  <pre><code>{"# Find largest resources"}
-rdc resources --sort size | tail -10
+  <pre><code>{"# List resources sorted by name"}
+rdc resources --sort name
 
 {"# Find all textures"}
 rdc resources --type texture
