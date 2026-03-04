@@ -10,8 +10,36 @@ import json
 import os
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+@dataclass
+class CaptureMetadata:
+    """Dynamically discovered IDs and counts from a capture session."""
+
+    draw_eid: int
+    all_eids: list[int]
+    texture_id: int
+    texture_ids: list[int]
+    buffer_id: int
+    vs_id: int
+    ps_id: int
+    shader_ids: list[int]
+    total_events: int
+    total_draws: int
+    total_resources: int
+    total_shaders: int
+    triangle_count: int
+    pass_name: str
+    pass_count: int
+    fb_width: int
+    fb_height: int
+    pixel_x: int
+    pixel_y: int
+    pixel_rgba: tuple[float, float, float, float]
+
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 VKCUBE = FIXTURES_DIR / "vkcube.rdc"

@@ -1,4 +1,4 @@
-"""Tests for daemon tex_stats handler."""
+"""Tests for daemon tex_stats / tex_export / rt_export / rt_depth handlers."""
 
 from __future__ import annotations
 
@@ -288,3 +288,29 @@ def test_tex_stats_histogram_channel_length_mismatch() -> None:
     # First 4 buckets should have ch1 data
     assert h[0]["g"] == 1
     assert h[3]["g"] == 4
+
+
+# ---------------------------------------------------------------------------
+# Remote mode rejection
+# ---------------------------------------------------------------------------
+
+
+def test_tex_export_remote_rejected() -> None:
+    state = make_daemon_state(is_remote=True, rd=rd)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 1}), state)
+    assert resp["error"]["code"] == -32002
+    assert "not supported in remote mode" in resp["error"]["message"]
+
+
+def test_rt_export_remote_rejected() -> None:
+    state = make_daemon_state(is_remote=True, rd=rd)
+    resp, _ = _handle_request(rpc_request("rt_export", {}), state)
+    assert resp["error"]["code"] == -32002
+    assert "not supported in remote mode" in resp["error"]["message"]
+
+
+def test_rt_depth_remote_rejected() -> None:
+    state = make_daemon_state(is_remote=True, rd=rd)
+    resp, _ = _handle_request(rpc_request("rt_depth", {}), state)
+    assert resp["error"]["code"] == -32002
+    assert "not supported in remote mode" in resp["error"]["message"]

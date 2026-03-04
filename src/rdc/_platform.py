@@ -139,7 +139,10 @@ def secure_dir_permissions(path: Path) -> None:
 def popen_flags() -> dict[str, Any]:
     """Return extra kwargs for subprocess.Popen on this platform."""
     if _WIN:  # pragma: no cover
-        return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
+        # DETACHED_PROCESS (0x8): detach from parent console
+        # CREATE_NEW_PROCESS_GROUP (0x200): isolate signal handling
+        # CREATE_BREAKAWAY_FROM_JOB (0x01000000): escape sshd job object
+        return {"creationflags": 0x00000008 | 0x00000200 | 0x01000000}
     return {}
 
 

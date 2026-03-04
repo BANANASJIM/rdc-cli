@@ -439,6 +439,32 @@ def _handle_draws(
     return _result_response(request_id, {"draws": draws, "summary": summary}), True
 
 
+def _extract_sd_value(child: Any) -> str:
+    """Extract typed value from SDObject based on basetype."""
+    sd_type = getattr(child, "type", None)
+    if sd_type is None:
+        return child.AsString() if hasattr(child, "AsString") else "-"
+    basetype = getattr(sd_type, "basetype", -1)
+    data = getattr(child, "data", None)
+    if data is None:
+        return child.AsString() if hasattr(child, "AsString") else "-"
+    basic = getattr(data, "basic", None)
+    if basetype == 7:  # UnsignedInteger
+        return str(getattr(basic, "u", 0)) if basic else "-"
+    if basetype == 8:  # SignedInteger
+        return str(getattr(basic, "i", 0)) if basic else "-"
+    if basetype == 9:  # Float
+        return str(getattr(basic, "d", 0.0)) if basic else "-"
+    if basetype == 10:  # Boolean
+        return str(bool(getattr(basic, "b", False))) if basic else "-"
+    if basetype == 12:  # Resource
+        return str(int(getattr(basic, "id", 0))) if basic else "-"
+    if basetype in (5, 6):  # String, Enum
+        s = getattr(data, "str", "")
+        return s if s else (child.AsString() if hasattr(child, "AsString") else "-")
+    return child.AsString() if hasattr(child, "AsString") else "-"
+
+
 def _handle_event(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -467,7 +493,7 @@ def _handle_event(
                 if hasattr(chunk, "NumChildren"):
                     for ci in range(chunk.NumChildren()):
                         child = chunk.GetChild(ci)
-                        val = child.AsString() if hasattr(child, "AsString") else "-"
+                        val = _extract_sd_value(child)
                         params_dict[child.name] = val
                 else:
                     for child in chunk.children:

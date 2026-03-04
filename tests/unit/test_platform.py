@@ -245,6 +245,26 @@ class TestPopenFlags:
         assert popen_flags() == {}
 
 
+class TestPopenFlagsWindows:
+    """Daemon survival: Windows popen flags include detach + process group."""
+
+    def test_windows_flags_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DS-01: Windows flags for daemon survival across SSH disconnect."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        result = popen_flags()
+        flags = result["creationflags"]
+        assert flags & 0x00000008  # DETACHED_PROCESS
+        assert flags & 0x00000200  # CREATE_NEW_PROCESS_GROUP
+        assert flags & 0x01000000  # CREATE_BREAKAWAY_FROM_JOB
+
+    def test_windows_no_create_no_window(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DS-02: CREATE_NO_WINDOW must NOT be set (mutually exclusive with DETACHED_PROCESS)."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        result = popen_flags()
+        flags = result["creationflags"]
+        assert not (flags & 0x08000000)  # CREATE_NO_WINDOW must NOT be set
+
+
 # ── Group H: renderdoc_search_paths() ────────────────────────────────
 
 

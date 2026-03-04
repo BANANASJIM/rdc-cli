@@ -141,6 +141,8 @@ def _handle_pick_pixel(
     Returns:
         Tuple of (response dict, keep_running bool).
     """
+    if state.is_remote:
+        return _error_response(request_id, -32002, "not supported in remote mode"), True
     for key in ("x", "y"):
         if key not in params:
             return _error_response(request_id, -32602, f"missing required param: {key}"), True

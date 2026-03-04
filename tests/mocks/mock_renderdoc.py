@@ -1129,13 +1129,24 @@ class ShaderDebugTrace:
 
 
 @dataclass
+class SDType:
+    basetype: int = 0
+
+
+@dataclass
 class SDBasic:
     value: Any = None
+    u: int = 0
+    i: int = 0
+    d: float = 0.0
+    b: bool = False
+    id: int = 0
 
 
 @dataclass
 class SDData:
     basic: SDBasic = field(default_factory=SDBasic)
+    str: str = ""
 
 
 @dataclass
@@ -1143,6 +1154,7 @@ class SDObject:
     name: str = ""
     data: SDData = field(default_factory=SDData)
     children: list[SDObject] = field(default_factory=list)
+    type: SDType | None = None
 
     def NumChildren(self) -> int:
         return len(self.children)

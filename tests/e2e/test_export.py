@@ -10,8 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from conftest import CaptureMetadata
-from e2e_helpers import rdc_fail, rdc_ok
+from e2e_helpers import CaptureMetadata, rdc_fail, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

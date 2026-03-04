@@ -10,8 +10,7 @@ use timeout=60.
 from __future__ import annotations
 
 import pytest
-from conftest import CaptureMetadata
-from e2e_helpers import rdc_fail, rdc_json, rdc_ok
+from e2e_helpers import CaptureMetadata, rdc_fail, rdc_json, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

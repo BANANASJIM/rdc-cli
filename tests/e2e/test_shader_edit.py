@@ -13,8 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
-from conftest import CaptureMetadata
-from e2e_helpers import rdc, rdc_ok
+from e2e_helpers import CaptureMetadata, rdc, rdc_ok
 
 pytestmark = pytest.mark.gpu
 

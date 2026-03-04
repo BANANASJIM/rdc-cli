@@ -197,6 +197,13 @@ def test_pick_pixel_negative_coords() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_pick_pixel_remote_rejected() -> None:
+    state = make_daemon_state(is_remote=True, rd=rd)
+    resp, _ = _handle_request(rpc_request("pick_pixel", {"x": 0, "y": 0}), state)
+    assert resp["error"]["code"] == -32002
+    assert "not supported in remote mode" in resp["error"]["message"]
+
+
 def test_pick_pixel_handler_registered() -> None:
     from rdc.handlers.pixel import HANDLERS
 

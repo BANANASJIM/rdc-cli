@@ -17,6 +17,7 @@ from mock_renderdoc import (
     SDChunk,
     SDData,
     SDObject,
+    SDType,
     ShaderReflection,
     ShaderStage,
     StructuredFile,
@@ -656,3 +657,123 @@ class TestShaderUsedByHandler:
         resp, _ = _handle_request(rpc_request("shader_used_by", {"id": 100}), state)
         assert "error" not in resp
         assert state._shader_cache_built
+
+
+# ---------------------------------------------------------------------------
+# B75: SDObject value extraction by basetype
+# ---------------------------------------------------------------------------
+
+
+def _make_b75_state(children: list[SDObject]) -> DaemonState:
+    """Build state with custom SDObject children for B75 tests."""
+    sf = StructuredFile(chunks=[SDChunk(name="vkCmdDraw", children=children)])
+    action = ActionDescription(
+        eventId=42,
+        flags=ActionFlags.Drawcall,
+        _name="vkCmdDraw",
+        events=[APIEvent(eventId=42, chunkIndex=0)],
+    )
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: [action],
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        GetPipelineState=lambda: SimpleNamespace(),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: sf,
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+    )
+    return make_daemon_state(ctrl=ctrl, version=(1, 41), max_eid=42, structured_file=sf)
+
+
+class TestB75SDValueExtraction:
+    """B75: parameter values must use typed extraction, not AsString()."""
+
+    def test_unsigned_integer(self) -> None:
+        child = SDObject(
+            name="count",
+            type=SDType(basetype=7),
+            data=SDData(basic=SDBasic(u=255)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "255" in resp["result"]["Parameters"]
+
+    def test_signed_integer(self) -> None:
+        child = SDObject(
+            name="offset",
+            type=SDType(basetype=8),
+            data=SDData(basic=SDBasic(i=-42)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "-42" in resp["result"]["Parameters"]
+
+    def test_float(self) -> None:
+        child = SDObject(
+            name="blend",
+            type=SDType(basetype=9),
+            data=SDData(basic=SDBasic(d=3.14)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "3.14" in resp["result"]["Parameters"]
+
+    def test_boolean(self) -> None:
+        child = SDObject(
+            name="enabled",
+            type=SDType(basetype=10),
+            data=SDData(basic=SDBasic(b=True)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "True" in resp["result"]["Parameters"]
+
+    def test_resource(self) -> None:
+        child = SDObject(
+            name="buffer",
+            type=SDType(basetype=12),
+            data=SDData(basic=SDBasic(id=42)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "42" in resp["result"]["Parameters"]
+
+    def test_string(self) -> None:
+        child = SDObject(
+            name="label",
+            type=SDType(basetype=5),
+            data=SDData(str="hello"),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "hello" in resp["result"]["Parameters"]
+
+    def test_enum(self) -> None:
+        child = SDObject(
+            name="format",
+            type=SDType(basetype=6),
+            data=SDData(str="VK_FORMAT_R8G8B8A8_UNORM"),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "VK_FORMAT_R8G8B8A8_UNORM" in resp["result"]["Parameters"]
+
+    def test_legacy_no_type(self) -> None:
+        child = SDObject(
+            name="vertexCount",
+            data=SDData(basic=SDBasic(value=3600)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "3600" in resp["result"]["Parameters"]
+
+    def test_unknown_basetype_fallback(self) -> None:
+        child = SDObject(
+            name="mystery",
+            type=SDType(basetype=99),
+            data=SDData(basic=SDBasic(value=777)),
+        )
+        state = _make_b75_state([child])
+        resp, _ = _handle_request(rpc_request("event", {"eid": 42}), state)
+        assert "777" in resp["result"]["Parameters"]

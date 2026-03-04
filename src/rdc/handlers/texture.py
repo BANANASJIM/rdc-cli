@@ -65,7 +65,10 @@ def _handle_tex_info(
 def _handle_tex_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
+    if state.is_remote:
+        return _error_response(request_id, -32002, "not supported in remote mode"), True
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -94,7 +97,8 @@ def _handle_tex_export(
 def _handle_tex_raw(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -117,6 +121,8 @@ def _handle_tex_raw(
 def _handle_rt_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
+    if state.is_remote:
+        return _error_response(request_id, -32002, "not supported in remote mode"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -147,6 +153,8 @@ def _handle_rt_export(
 def _handle_rt_depth(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
+    if state.is_remote:
+        return _error_response(request_id, -32002, "not supported in remote mode"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -235,7 +243,8 @@ def _handle_rt_overlay(
 def _handle_tex_stats(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    assert state.adapter is not None
+    if state.adapter is None:
+        return _error_response(request_id, -32002, "no replay loaded"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
 
