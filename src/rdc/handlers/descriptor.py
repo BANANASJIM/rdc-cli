@@ -74,7 +74,7 @@ def _handle_usage(
     if resid not in state.res_names:
         return _error_response(request_id, -32001, f"resource {resid} not found"), True
     rid_obj = state.res_rid_map[resid]
-    usage_list = state.adapter.controller.GetUsage(rid_obj)
+    usage_list = state.adapter.controller.GetUsage(rid_obj.resourceId)
     entries = [{"eid": u.eventId, "usage": _enum_name(u.usage)} for u in usage_list]
     result_data: dict[str, Any] = {"id": resid, "entries": entries}
     if params.get("resolve_names", True):
@@ -95,7 +95,7 @@ def _handle_usage_all(
         rid_obj = state.res_rid_map.get(resid)
         if rid_obj is None:
             continue
-        usage_list = state.adapter.controller.GetUsage(rid_obj)
+        usage_list = state.adapter.controller.GetUsage(rid_obj.resourceId)
         for u in usage_list:
             uname = _enum_name(u.usage)
             if usage_filter and uname != usage_filter:

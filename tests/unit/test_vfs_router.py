@@ -207,8 +207,8 @@ def test_shaders_dir() -> None:
     assert resolve_path("/shaders") == PathMatch(kind="dir", handler=None, args={})
 
 
-def test_by_marker_dir() -> None:
-    assert resolve_path("/by-marker") == PathMatch(kind="dir", handler=None, args={})
+def test_by_marker_returns_none() -> None:
+    assert resolve_path("/by-marker") is None
 
 
 def test_textures_dir() -> None:

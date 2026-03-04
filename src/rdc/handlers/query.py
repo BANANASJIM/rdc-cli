@@ -580,7 +580,7 @@ def _handle_pass_deps(
     passes = _build_pass_list(actions, state.structured_file)
     usage_data: dict[int, list[Any]] = {}
     for resid, rid_obj in state.res_rid_map.items():
-        usage_data[resid] = state.adapter.controller.GetUsage(rid_obj)
+        usage_data[resid] = state.adapter.controller.GetUsage(rid_obj.resourceId)
     result = build_pass_deps(passes, usage_data)
     return _result_response(request_id, result), True
 

@@ -25,7 +25,6 @@ _ROOT_CHILDREN = [
     "log",
     "events",
     "draws",
-    "by-marker",
     "passes",
     "resources",
     "textures",
@@ -235,8 +234,7 @@ def build_vfs_skeleton(
         tree.static[f"{prefix}/data"] = VfsNode("data", "leaf_bin")
 
     # Remaining placeholder dirs
-    for name in ("by-marker", "shaders"):
-        tree.static[f"/{name}"] = VfsNode(name, "dir")
+    tree.static["/shaders"] = VfsNode("shaders", "dir")
 
     # /counters
     tree.static["/counters"] = VfsNode("counters", "dir", ["list"])
