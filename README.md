@@ -242,7 +242,9 @@ GPU integration tests require a real renderdoc module:
 
 ```bash
 export RENDERDOC_PYTHON_PATH=/path/to/renderdoc/build/lib
-pixi run test-gpu
+pixi run test-gpu             # unit tests marked @gpu
+pixi run e2e                  # cross-platform smoke test (26 checks)
+pixi run test-e2e             # full e2e suite (self-capture + dynamic discovery)
 ```
 
 ## License
