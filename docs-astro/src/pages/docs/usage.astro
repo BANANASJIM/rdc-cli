@@ -24,8 +24,8 @@ rdc draws | cut -f1
 # Count draw calls
 rdc draws | wc -l
 
-# Sort resources by size
-rdc resources --sort size</code></pre>
+# Sort resources by name
+rdc resources --sort name</code></pre>
 
   <h2>JSON Mode</h2>
   <p>
@@ -35,7 +35,7 @@ rdc resources --sort size</code></pre>
 rdc pipeline 142 --json | jq .
 
 # Extract shader entry point
-rdc pipeline 142 --section shader --json | jq '.ps.entryPoint'
+rdc pipeline 142 vs --json | jq '.entryPoint'
 
 # Filter draws by flag
 rdc draws --json | jq '.[] | select(.flags | contains("Drawcall"))'</code></pre>
@@ -67,7 +67,7 @@ rdc ls /
 rdc ls /draws/142/
 
 # Read shader source directly
-rdc cat /draws/142/pipeline/shader/ps
+rdc cat /draws/142/shader/ps/disasm
 
 # Show full tree (limited depth)
 rdc tree / --depth 2</code></pre>

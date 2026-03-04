@@ -24,7 +24,7 @@ Type "rdc draws"
 Enter
 Sleep 2s
 
-Type "rdc pipeline 5 --section shader --json | jq '.ps.entryPoint'"
+Type "rdc pipeline 5 vs --json | jq '.entryPoint'"
 Enter
 Sleep 2s
 
