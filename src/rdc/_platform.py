@@ -35,7 +35,7 @@ def terminate_process(pid: int) -> bool:
         # GenerateConsoleCtrlEvent requires same console group. Acceptable for now.
         import ctypes
 
-        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined,unused-ignore]
         handle = kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
         if not handle:
             return False
@@ -80,7 +80,7 @@ def is_pid_alive(pid: int, *, tag: str = "rdc") -> bool:
         # TODO(W-next): check process name against tag on Windows
         import ctypes
 
-        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined,unused-ignore]
         handle = kernel32.OpenProcess(0x0400, False, pid)  # PROCESS_QUERY_INFORMATION
         if not handle:
             return False
@@ -124,7 +124,7 @@ def install_shutdown_signal(handler: Callable[[], None] | None = None) -> None:
             sys.exit(0)
 
     if _WIN:  # pragma: no cover
-        signal.signal(signal.SIGBREAK, _handler)  # type: ignore[attr-defined]
+        signal.signal(signal.SIGBREAK, _handler)  # type: ignore[attr-defined,unused-ignore]
     else:
         signal.signal(signal.SIGTERM, _handler)
 
