@@ -36,20 +36,20 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.event.inputs.version && format('v{0}', github.event.inputs.version) || github.ref }}
-
-      - name: Extract version
+      - name: Normalize version
         id: ver
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           if [ -n "${INPUT_VERSION}" ]; then
-            echo "version=${INPUT_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "version=${INPUT_VERSION#v}" >> "$GITHUB_OUTPUT"
           else
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           fi
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.ver.outputs.version && format('refs/tags/v{0}', steps.ver.outputs.version) || github.ref }}
 
       - name: Compute tarball sha256
         id: sha
