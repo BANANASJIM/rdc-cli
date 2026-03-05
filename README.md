@@ -33,7 +33,7 @@ rdc close
 
 ```bash
 uv tool install rdc-cli               # or: pipx install rdc-cli
-python scripts/build_renderdoc.py     # one-time build (needs cmake + ninja)
+bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
 rdc doctor                            # verify everything works
 ```
 
@@ -41,18 +41,13 @@ rdc doctor                            # verify everything works
 
 ```bash
 uv tool install rdc-cli               # or: pipx install rdc-cli
-python scripts/build_renderdoc.py     # needs cmake + Visual Studio Build Tools
-rdc doctor
+rdc doctor                            # prints renderdoc setup instructions
 ```
 
 **PyPI — macOS** (Split client only)
 
 ```bash
 uv tool install rdc-cli               # or: pipx install rdc-cli
-# Local replay on macOS is not supported right now.
-# Use Split mode and run replay on a Linux/Windows daemon:
-#   rdc open /tmp/frame.rdc --listen 0.0.0.0:54321   # on replay host
-#   rdc open --connect host:54321 --token TOKEN       # on macOS client
 rdc doctor
 ```
 

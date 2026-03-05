@@ -3,19 +3,11 @@ import Docs from '../../layouts/Docs.astro';
 ---
 
 <Docs title="Installation">
-  <h2>Pixi (Recommended)</h2>
-  <p>
-    Pixi handles the Python environment and all dependencies automatically.
-    No manual virtualenv or renderdoc module setup needed.
-  </p>
-  <pre><code>curl -fsSL https://pixi.sh/install.sh | bash
-pixi global install rdc-cli</code></pre>
-
-  <h2>PyPI</h2>
-  <pre><code>pipx install rdc-cli</code></pre>
+  <h2>PyPI (Recommended)</h2>
+  <pre><code>uv tool install rdc-cli    # or: pipx install rdc-cli</code></pre>
   <p>
     This installs the <code>rdc</code> command. You still need the renderdoc
-    Python module (see bootstrap commands below).
+    Python module for local replay (see bootstrap commands below).
   </p>
 
   <h2>AUR (Arch Linux)</h2>
@@ -91,12 +83,12 @@ rdc open --connect host:54321 --token TOKEN</code></pre>
 
   <h3>Bootstrap (Recommended)</h3>
   <p>
-    Canonical cross-platform command (run from repo root):
+    One-liner for Linux (no repo clone needed):
   </p>
-  <pre><code>python scripts/build_renderdoc.py .local/renderdoc --build-dir .local/renderdoc-build</code></pre>
+  <pre><code>bash &lt;(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)</code></pre>
 
   <p>
-    If you already use pixi, use the wrapper task:
+    If you are building from source, use the pixi wrapper task:
   </p>
   <pre><code>pixi run setup-renderdoc</code></pre>
 
