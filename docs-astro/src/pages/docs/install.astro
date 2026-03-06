@@ -83,9 +83,15 @@ rdc open --connect host:54321 --token TOKEN</code></pre>
 
   <h3>Bootstrap (Recommended)</h3>
   <p>
-    One-liner for Linux (no repo clone needed):
+    <strong>Linux</strong> one-liner (no repo clone needed):
   </p>
   <pre><code>bash &lt;(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)</code></pre>
+
+  <p>
+    <strong>Windows</strong> (requires git + Visual Studio 2022 Build Tools with C++ workload):
+  </p>
+  <pre><code>git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git %TEMP%\rdc-cli
+uv run %TEMP%\rdc-cli\scripts\build_renderdoc.py</code></pre>
 
   <p>
     If you are building from source, use the pixi wrapper task:
@@ -103,8 +109,9 @@ export RENDERDOC_PYTHON_PATH=$PWD/build/lib</code></pre>
   <p>rdc-cli searches for the renderdoc module in this order:</p>
   <ol>
     <li><code>RENDERDOC_PYTHON_PATH</code> environment variable</li>
-    <li><code>~/.local/renderdoc</code> (where the bootstrap installs)</li>
-    <li><code>/usr/lib/renderdoc</code>, <code>/usr/local/lib/renderdoc</code></li>
+    <li><strong>Linux/macOS:</strong> <code>~/.local/renderdoc</code> (where the bootstrap installs)</li>
+    <li><strong>Windows:</strong> <code>C:\Program Files\RenderDoc</code>, <code>%LOCALAPPDATA%\renderdoc</code>, <code>%LOCALAPPDATA%\rdc\renderdoc</code></li>
+    <li><strong>Linux:</strong> <code>/usr/lib/renderdoc</code>, <code>/usr/local/lib/renderdoc</code></li>
     <li>Sibling directory of <code>renderdoccmd</code> on PATH</li>
   </ol>
 
