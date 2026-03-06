@@ -66,6 +66,9 @@ def default_install_dir() -> Path:
     return Path.home() / ".local" / "renderdoc"
 
 
+_OPTIONAL_ARTIFACTS = frozenset({"renderdoccmd.exe"})
+
+
 def _artifact_names(plat: str) -> list[str]:
     if plat == "windows":
         return ["renderdoc.pyd", "renderdoc.dll", "renderdoccmd.exe"]
@@ -402,8 +405,7 @@ def copy_artifacts(build_dir: Path, install_dir: Path, plat: str) -> None:
         else:
             artifact = src / name
         if not artifact.exists():
-            # renderdoccmd.exe is optional — may not be built in all configurations
-            if name == "renderdoccmd.exe":
+            if name in _OPTIONAL_ARTIFACTS:
                 _log(f"WARNING: {name} not found at {artifact}, skipping")
                 continue
             # macOS may produce .dylib instead of .so for librenderdoc
@@ -462,7 +464,7 @@ def _install_vulkan_layer(install_dir: Path, build_dir: Path) -> None:
 
 
 def _artifacts_present(install_dir: Path, plat: str) -> bool:
-    required = [n for n in _artifact_names(plat) if n != "renderdoccmd.exe"]
+    required = [n for n in _artifact_names(plat) if n not in _OPTIONAL_ARTIFACTS]
     return all((install_dir / n).exists() for n in required)
 
 

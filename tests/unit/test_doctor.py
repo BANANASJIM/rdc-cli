@@ -345,6 +345,7 @@ class TestMakeBuildHint:
         assert "git clone" in hint
         assert "uv run" in hint
         assert "build_renderdoc.py" in hint
+        assert "%TEMP%" not in hint
         assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
 
@@ -622,6 +623,7 @@ class TestMakeBuildHintDarwin:
     def test_darwin_hint_contains_homebrew(self) -> None:
         hint = _make_build_hint("darwin")
         assert "brew install cmake ninja" in hint
+        assert "git clone" in hint
         assert "uv run" in hint
         assert "build_renderdoc.py" in hint
         assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
