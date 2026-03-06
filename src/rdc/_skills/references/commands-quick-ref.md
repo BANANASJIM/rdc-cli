@@ -856,6 +856,24 @@ Launch renderdoccmd remoteserver for remote replay.
 | `--no-exec` | Add 'noexec' to config (replay-only). | flag |  |
 | `--daemon` | Detach after printing PID. | flag |  |
 
+## `rdc setup-renderdoc`
+
+Build and install the renderdoc Python module from source.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `install_dir` | text | no |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--build-dir` | Build cache directory. | text |  |
+| `--version` | RenderDoc tag to build. | text |  |
+| `--jobs` | Parallel build jobs. | integer |  |
+
 ## `rdc shader`
 
 Show shader metadata for a stage at EID.

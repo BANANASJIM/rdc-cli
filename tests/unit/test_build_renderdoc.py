@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import io
 import sys
 import zipfile
@@ -12,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-br = importlib.import_module("build_renderdoc")
+from rdc import _build_renderdoc as br
 
 # ---------------------------------------------------------------------------
 # Platform detection
@@ -40,18 +39,18 @@ def test_platform_windows() -> None:
 
 
 def test_default_install_dir_linux() -> None:
-    with patch("build_renderdoc._platform", return_value="linux"):
+    with patch("rdc._build_renderdoc._platform", return_value="linux"):
         assert br.default_install_dir() == Path.home() / ".local" / "renderdoc"
 
 
 def test_default_install_dir_macos() -> None:
-    with patch("build_renderdoc._platform", return_value="macos"):
+    with patch("rdc._build_renderdoc._platform", return_value="macos"):
         assert br.default_install_dir() == Path.home() / ".local" / "renderdoc"
 
 
 def test_default_install_dir_windows() -> None:
     with (
-        patch("build_renderdoc._platform", return_value="windows"),
+        patch("rdc._build_renderdoc._platform", return_value="windows"),
         patch.dict("os.environ", {"LOCALAPPDATA": r"C:\Users\X\AppData\Local"}),
     ):
         assert br.default_install_dir() == Path(r"C:\Users\X\AppData\Local") / "rdc" / "renderdoc"
@@ -60,9 +59,9 @@ def test_default_install_dir_windows() -> None:
 def test_default_install_dir_windows_no_localappdata() -> None:
     fake_home = Path("/fake/home")
     with (
-        patch("build_renderdoc._platform", return_value="windows"),
+        patch("rdc._build_renderdoc._platform", return_value="windows"),
         patch.dict("os.environ", {}, clear=True),
-        patch("build_renderdoc.Path.home", return_value=fake_home),
+        patch("rdc._build_renderdoc.Path.home", return_value=fake_home),
     ):
         assert br.default_install_dir() == fake_home / "rdc" / "renderdoc"
 
@@ -127,7 +126,7 @@ def test_check_prerequisites_windows_vswhere_empty() -> None:
 def test_check_prerequisites_windows_vswhere_missing() -> None:
     with (
         patch("shutil.which", _which_factory({"cmake", "git", "python3"})),
-        patch("build_renderdoc.Path.exists", return_value=False),
+        patch("rdc._build_renderdoc.Path.exists", return_value=False),
         pytest.raises(SystemExit),
     ):
         br.check_prerequisites("windows")
@@ -181,8 +180,8 @@ def test_download_swig_fresh_ok(tmp_path: Path) -> None:
         return dest, None
 
     with (
-        patch("build_renderdoc.urlretrieve", fake_retrieve),
-        patch("build_renderdoc.SWIG_SHA256", sha),
+        patch("rdc._build_renderdoc.urlretrieve", fake_retrieve),
+        patch("rdc._build_renderdoc.SWIG_SHA256", sha),
     ):
         br.download_swig(tmp_path)
 
@@ -193,7 +192,7 @@ def test_download_swig_fresh_ok(tmp_path: Path) -> None:
 def test_download_swig_idempotent(tmp_path: Path) -> None:
     (tmp_path / "renderdoc-swig").mkdir()
     mock_retrieve = MagicMock()
-    with patch("build_renderdoc.urlretrieve", mock_retrieve):
+    with patch("rdc._build_renderdoc.urlretrieve", mock_retrieve):
         br.download_swig(tmp_path)
     mock_retrieve.assert_not_called()
 
@@ -206,7 +205,7 @@ def test_download_swig_sha256_mismatch(tmp_path: Path) -> None:
         return dest, None
 
     with (
-        patch("build_renderdoc.urlretrieve", fake_retrieve),
+        patch("rdc._build_renderdoc.urlretrieve", fake_retrieve),
         pytest.raises(SystemExit),
     ):
         br.download_swig(tmp_path)
@@ -439,16 +438,16 @@ def test_copy_artifacts_missing_source(tmp_path: Path) -> None:
 
 def test_main_default_install_dir(tmp_path: Path) -> None:
     with (
-        patch("build_renderdoc._platform", return_value="linux"),
-        patch("build_renderdoc._artifacts_present", return_value=False),
-        patch("build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
-        patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
-        patch("build_renderdoc.clone_renderdoc"),
-        patch("build_renderdoc.download_swig"),
-        patch("build_renderdoc.configure_build"),
-        patch("build_renderdoc.run_build"),
-        patch("build_renderdoc.copy_artifacts") as mock_copy,
+        patch("rdc._build_renderdoc._platform", return_value="linux"),
+        patch("rdc._build_renderdoc._artifacts_present", return_value=False),
+        patch("rdc._build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
+        patch("rdc._build_renderdoc.check_prerequisites"),
+        patch("rdc._build_renderdoc.verify_tool_versions"),
+        patch("rdc._build_renderdoc.clone_renderdoc"),
+        patch("rdc._build_renderdoc.download_swig"),
+        patch("rdc._build_renderdoc.configure_build"),
+        patch("rdc._build_renderdoc.run_build"),
+        patch("rdc._build_renderdoc.copy_artifacts") as mock_copy,
     ):
         br.main([])
     assert mock_copy.called
@@ -459,15 +458,15 @@ def test_main_default_install_dir(tmp_path: Path) -> None:
 def test_main_custom_install_dir(tmp_path: Path) -> None:
     custom = tmp_path / "custom"
     with (
-        patch("build_renderdoc._platform", return_value="linux"),
-        patch("build_renderdoc._artifacts_present", return_value=False),
-        patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
-        patch("build_renderdoc.clone_renderdoc"),
-        patch("build_renderdoc.download_swig"),
-        patch("build_renderdoc.configure_build"),
-        patch("build_renderdoc.run_build"),
-        patch("build_renderdoc.copy_artifacts") as mock_copy,
+        patch("rdc._build_renderdoc._platform", return_value="linux"),
+        patch("rdc._build_renderdoc._artifacts_present", return_value=False),
+        patch("rdc._build_renderdoc.check_prerequisites"),
+        patch("rdc._build_renderdoc.verify_tool_versions"),
+        patch("rdc._build_renderdoc.clone_renderdoc"),
+        patch("rdc._build_renderdoc.download_swig"),
+        patch("rdc._build_renderdoc.configure_build"),
+        patch("rdc._build_renderdoc.run_build"),
+        patch("rdc._build_renderdoc.copy_artifacts") as mock_copy,
     ):
         br.main([str(custom)])
     install_dir = mock_copy.call_args[0][1]
@@ -477,15 +476,15 @@ def test_main_custom_install_dir(tmp_path: Path) -> None:
 def test_main_custom_build_dir(tmp_path: Path) -> None:
     bd = tmp_path / "mybuild"
     with (
-        patch("build_renderdoc._platform", return_value="linux"),
-        patch("build_renderdoc._artifacts_present", return_value=False),
-        patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
-        patch("build_renderdoc.clone_renderdoc") as mock_clone,
-        patch("build_renderdoc.download_swig"),
-        patch("build_renderdoc.configure_build"),
-        patch("build_renderdoc.run_build"),
-        patch("build_renderdoc.copy_artifacts"),
+        patch("rdc._build_renderdoc._platform", return_value="linux"),
+        patch("rdc._build_renderdoc._artifacts_present", return_value=False),
+        patch("rdc._build_renderdoc.check_prerequisites"),
+        patch("rdc._build_renderdoc.verify_tool_versions"),
+        patch("rdc._build_renderdoc.clone_renderdoc") as mock_clone,
+        patch("rdc._build_renderdoc.download_swig"),
+        patch("rdc._build_renderdoc.configure_build"),
+        patch("rdc._build_renderdoc.run_build"),
+        patch("rdc._build_renderdoc.copy_artifacts"),
     ):
         br.main(["--build-dir", str(bd)])
     build_dir = mock_clone.call_args[0][0]
@@ -494,9 +493,9 @@ def test_main_custom_build_dir(tmp_path: Path) -> None:
 
 def test_main_idempotent_skip(tmp_path: Path) -> None:
     with (
-        patch("build_renderdoc._artifacts_present", return_value=True),
-        patch("build_renderdoc.default_install_dir", return_value=tmp_path),
-        patch("build_renderdoc.check_prerequisites") as mock_prereq,
+        patch("rdc._build_renderdoc._artifacts_present", return_value=True),
+        patch("rdc._build_renderdoc.default_install_dir", return_value=tmp_path),
+        patch("rdc._build_renderdoc.check_prerequisites") as mock_prereq,
     ):
         br.main([])
     mock_prereq.assert_not_called()
@@ -504,15 +503,17 @@ def test_main_idempotent_skip(tmp_path: Path) -> None:
 
 def test_main_windows_uses_msbuild(tmp_path: Path) -> None:
     with (
-        patch("build_renderdoc._platform", return_value="windows"),
-        patch("build_renderdoc._artifacts_present", return_value=False),
-        patch("build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
-        patch("build_renderdoc.check_prerequisites"),
-        patch("build_renderdoc.verify_tool_versions"),
-        patch("build_renderdoc.clone_renderdoc"),
-        patch("build_renderdoc._prepare_win_python", return_value=Path("C:/prefix")) as mock_prep,
-        patch("build_renderdoc._run_msbuild") as mock_msb,
-        patch("build_renderdoc.copy_artifacts"),
+        patch("rdc._build_renderdoc._platform", return_value="windows"),
+        patch("rdc._build_renderdoc._artifacts_present", return_value=False),
+        patch("rdc._build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
+        patch("rdc._build_renderdoc.check_prerequisites"),
+        patch("rdc._build_renderdoc.verify_tool_versions"),
+        patch("rdc._build_renderdoc.clone_renderdoc"),
+        patch(
+            "rdc._build_renderdoc._prepare_win_python", return_value=Path("C:/prefix")
+        ) as mock_prep,
+        patch("rdc._build_renderdoc._run_msbuild") as mock_msb,
+        patch("rdc._build_renderdoc.copy_artifacts"),
     ):
         br.main([])
     mock_prep.assert_called_once()
@@ -528,14 +529,14 @@ def test_find_msbuild_ok(tmp_path: Path) -> None:
     msbuild = tmp_path / "MSBuild" / "Current" / "Bin" / "MSBuild.exe"
     msbuild.parent.mkdir(parents=True)
     msbuild.write_text("fake")
-    with patch("build_renderdoc._vs_install_path", return_value=str(tmp_path)):
+    with patch("rdc._build_renderdoc._vs_install_path", return_value=str(tmp_path)):
         result = br._find_msbuild()
     assert result == str(msbuild)
 
 
 def test_find_msbuild_missing(tmp_path: Path) -> None:
     with (
-        patch("build_renderdoc._vs_install_path", return_value=str(tmp_path)),
+        patch("rdc._build_renderdoc._vs_install_path", return_value=str(tmp_path)),
         pytest.raises(SystemExit),
     ):
         br._find_msbuild()
@@ -548,7 +549,7 @@ def test_run_msbuild_args(tmp_path: Path) -> None:
     mock_run = MagicMock()
     prefix = Path("C:/python")
     with (
-        patch("build_renderdoc._find_msbuild", return_value="MSBuild.exe"),
+        patch("rdc._build_renderdoc._find_msbuild", return_value="MSBuild.exe"),
         patch("subprocess.run", mock_run),
     ):
         br._run_msbuild(tmp_path, prefix, jobs=6)
@@ -570,7 +571,7 @@ def test_run_msbuild_default_jobs(tmp_path: Path) -> None:
     sln.write_text("fake")
     mock_run = MagicMock()
     with (
-        patch("build_renderdoc._find_msbuild", return_value="MSBuild.exe"),
+        patch("rdc._build_renderdoc._find_msbuild", return_value="MSBuild.exe"),
         patch("subprocess.run", mock_run),
         patch("os.cpu_count", return_value=12),
     ):
@@ -595,7 +596,7 @@ def test_prepare_win_python_creates_dummy_zip(tmp_path: Path) -> None:
     src_dir.mkdir()
 
     with (
-        patch("build_renderdoc.sys") as mock_sys,
+        patch("rdc._build_renderdoc.sys") as mock_sys,
     ):
         mock_sys.prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
@@ -627,7 +628,7 @@ def test_prepare_win_python_patches_props(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    with patch("build_renderdoc.sys") as mock_sys:
+    with patch("rdc._build_renderdoc.sys") as mock_sys:
         mock_sys.prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
@@ -645,7 +646,7 @@ def test_prepare_win_python_missing_lib(tmp_path: Path) -> None:
     (prefix / "libs").mkdir()
 
     with (
-        patch("build_renderdoc.sys") as mock_sys,
+        patch("rdc._build_renderdoc.sys") as mock_sys,
         pytest.raises(SystemExit),
     ):
         mock_sys.prefix = str(prefix)
@@ -663,7 +664,7 @@ def test_prepare_win_python_skips_existing_zip(tmp_path: Path) -> None:
     existing_zip = prefix / "python314.zip"
     existing_zip.write_text("already here")
 
-    with patch("build_renderdoc.sys") as mock_sys:
+    with patch("rdc._build_renderdoc.sys") as mock_sys:
         mock_sys.prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
@@ -678,7 +679,7 @@ def test_prepare_win_python_missing_python_h(tmp_path: Path) -> None:
     (prefix / "libs" / "python314.lib").write_text("fake")
 
     with (
-        patch("build_renderdoc.sys") as mock_sys,
+        patch("rdc._build_renderdoc.sys") as mock_sys,
         pytest.raises(SystemExit),
     ):
         mock_sys.prefix = str(prefix)
@@ -705,7 +706,7 @@ def test_prepare_win_python_props_already_patched(tmp_path: Path) -> None:
     )
     props_file.write_text(original, encoding="utf-8")
 
-    with patch("build_renderdoc.sys") as mock_sys:
+    with patch("rdc._build_renderdoc.sys") as mock_sys:
         mock_sys.prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout

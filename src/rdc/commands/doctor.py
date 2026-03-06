@@ -42,27 +42,20 @@ def _make_build_hint(platform: str) -> str:
     if platform == "win32":
         return (
             "  renderdoc is not available on PyPI and must be built from source.\n"
-            "  Quick setup (requires git, uv, Visual Studio Build Tools):\n"
-            "    git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git rdc-cli\n"
-            "    uv run rdc-cli\\scripts\\build_renderdoc.py\n"
+            "  Run: rdc setup-renderdoc\n"
             "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
             "  Then re-run: rdc doctor"
         )
     if platform == "darwin":
         return (
             "  renderdoc is not available on PyPI and must be built from source.\n"
-            "  Build prerequisites: brew install cmake ninja\n"
-            "  Quick setup (requires git, uv):\n"
-            "    git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git rdc-cli\n"
-            "    uv run rdc-cli/scripts/build_renderdoc.py\n"
+            "  Run: rdc setup-renderdoc\n"
             "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
             "  Then re-run: rdc doctor"
         )
     return (
         "  renderdoc is not available on PyPI and must be built from source.\n"
-        "  Quick build script (no pixi required):\n"
-        "    bash <(curl -fsSL"
-        " https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)\n"
+        "  Run: rdc setup-renderdoc\n"
         "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
         "  Then re-run: rdc doctor"
     )
