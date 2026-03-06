@@ -42,16 +42,18 @@ def _make_build_hint(platform: str) -> str:
     if platform == "win32":
         return (
             "  renderdoc is not available on PyPI and must be built from source.\n"
-            "  Build script: python scripts/build_renderdoc.py\n"
-            "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+            "  Quick setup (requires git + Visual Studio Build Tools):\n"
+            "    git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git %TEMP%\\rdc-cli\n"
+            "    uv run %TEMP%\\rdc-cli\\scripts\\build_renderdoc.py\n"
+            "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
             "  Then re-run: rdc doctor"
         )
     if platform == "darwin":
         return (
             "  renderdoc is not available on PyPI and must be built from source.\n"
             "  Build prerequisites: brew install cmake ninja\n"
-            "  Build script: python scripts/build_renderdoc.py\n"
-            "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+            "  Build script: uv run scripts/build_renderdoc.py\n"
+            "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
             "  Then re-run: rdc doctor"
         )
     return (
@@ -59,7 +61,7 @@ def _make_build_hint(platform: str) -> str:
         "  Quick build script (no pixi required):\n"
         "    bash <(curl -fsSL"
         " https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)\n"
-        "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+        "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
         "  Then re-run: rdc doctor"
     )
 
@@ -225,17 +227,16 @@ def _check_win_renderdoc_install() -> CheckResult:
     if sys.platform != "win32":
         return CheckResult("win-renderdoc-install", True, "n/a")
 
-    candidates: list[Path] = [
-        Path(r"C:\Program Files\RenderDoc\renderdoc.dll"),
-    ]
-    localappdata = os.environ.get("LOCALAPPDATA", "")
-    if localappdata:
-        candidates.append(Path(localappdata) / "renderdoc" / "renderdoc.dll")
-        candidates.append(Path(localappdata) / "RenderDoc" / "renderdoc.dll")
+    from rdc import _platform
+
+    candidates: list[Path] = []
 
     env_path = os.environ.get("RENDERDOC_PYTHON_PATH")
     if env_path:
-        candidates.insert(0, Path(env_path) / "renderdoc.dll")
+        candidates.append(Path(env_path) / "renderdoc.dll")
+
+    for search_dir in _platform.renderdoc_search_paths():
+        candidates.append(Path(search_dir) / "renderdoc.dll")
 
     for p in candidates:
         if p.exists():

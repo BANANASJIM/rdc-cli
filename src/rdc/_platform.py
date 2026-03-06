@@ -213,6 +213,9 @@ def renderdoccmd_search_paths() -> list[Path]:
     """Return candidate paths for the renderdoccmd binary."""
     if _WIN:  # pragma: no cover
         paths = [Path(r"C:\Program Files\RenderDoc\renderdoccmd.exe")]
+        localappdata = os.environ.get("LOCALAPPDATA", "")
+        if localappdata:
+            paths.append(Path(localappdata) / "rdc" / "renderdoc" / "renderdoccmd.exe")
         userprofile = os.environ.get("USERPROFILE", "")
         if userprofile:
             paths.append(
