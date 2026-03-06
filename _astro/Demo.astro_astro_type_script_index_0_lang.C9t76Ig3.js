@@ -1,0 +1,1 @@
+import{g as o,S as t}from"./ScrollTrigger.C0eCJjti.js";o.registerPlugin(t);const r=o.timeline({scrollTrigger:{trigger:".demo-container",start:"top 80%"}});r.fromTo(".demo-container",{opacity:0,y:40},{opacity:1,y:0,duration:.8,ease:"power3.out"});r.fromTo(".demo-line",{opacity:0,x:-15},{opacity:1,x:0,duration:.4,stagger:.15,ease:"power2.out"},"-=0.3");
