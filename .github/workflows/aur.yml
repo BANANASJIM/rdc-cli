@@ -30,6 +30,7 @@ jobs:
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update PKGBUILD"
+          post_process: git checkout -B master
 
   aur-stable:
     name: Publish rdc-cli (stable)
@@ -75,3 +76,4 @@ jobs:
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update rdc-cli to v${{ steps.ver.outputs.version }}"
+          post_process: git checkout -B master
