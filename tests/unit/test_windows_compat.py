@@ -150,3 +150,41 @@ class TestNoShellTrue:
         if violations:
             lines = [f"  {f}:{line}" for f, line in violations]
             pytest.fail("shell=True found in subprocess calls:\n" + "\n".join(lines))
+
+
+class TestUnicodePathSafety:
+    """B77: click.echo must not crash on non-cp1252 characters in paths."""
+
+    def test_fix_win_encoding_reconfigures_on_win32(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Regression: _fix_win_encoding must set errors='replace' on Windows."""
+        import io
+        import sys as real_sys
+
+        from rdc.cli import _fix_win_encoding
+
+        out = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
+        err = io.TextIOWrapper(io.BytesIO(), encoding="cp1252", errors="strict")
+        monkeypatch.setattr(real_sys, "platform", "win32")
+        monkeypatch.setattr(real_sys, "stdout", out)
+        monkeypatch.setattr(real_sys, "stderr", err)
+
+        _fix_win_encoding()
+
+        assert out.errors == "replace"
+        assert err.errors == "replace"
+
+    def test_fix_win_encoding_noop_on_linux(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_fix_win_encoding must not touch streams on non-Windows."""
+        import io
+        import sys as real_sys
+
+        from rdc.cli import _fix_win_encoding
+
+        buf = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", errors="strict")
+        monkeypatch.setattr(real_sys, "platform", "linux")
+        monkeypatch.setattr(real_sys, "stdout", buf)
+        monkeypatch.setattr(real_sys, "stderr", buf)
+
+        _fix_win_encoding()
+
+        assert buf.errors == "strict"
