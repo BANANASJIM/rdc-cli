@@ -45,6 +45,7 @@ from rdc.commands.script import script_cmd
 from rdc.commands.search import search_cmd
 from rdc.commands.serve import serve_cmd
 from rdc.commands.session import close_cmd, goto_cmd, open_cmd, status_cmd
+from rdc.commands.setup_renderdoc import setup_renderdoc_cmd
 from rdc.commands.shader_edit import (
     shader_build_cmd,
     shader_encodings_cmd,
@@ -152,6 +153,7 @@ main.add_command(capture_copy_cmd, name="capture-copy")
 main.add_command(remote_group, name="remote")
 main.add_command(serve_cmd, name="serve")
 main.add_command(callstacks_cmd, name="callstacks")
+main.add_command(setup_renderdoc_cmd, name="setup-renderdoc")
 
 
 if __name__ == "__main__":

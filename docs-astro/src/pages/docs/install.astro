@@ -83,20 +83,9 @@ rdc open --connect host:54321 --token TOKEN</code></pre>
 
   <h3>Bootstrap (Recommended)</h3>
   <p>
-    <strong>Linux</strong> one-liner (no repo clone needed):
+    After installing rdc-cli, build the renderdoc Python module:
   </p>
-  <pre><code>bash &lt;(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)</code></pre>
-
-  <p>
-    <strong>Windows</strong> (requires git, uv, Visual Studio 2022 Build Tools with C++ workload):
-  </p>
-  <pre><code>git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git rdc-cli
-uv run rdc-cli\scripts\build_renderdoc.py</code></pre>
-
-  <p>
-    If you are building from source, use the pixi wrapper task:
-  </p>
-  <pre><code>pixi run setup-renderdoc</code></pre>
+  <pre><code>rdc setup-renderdoc</code></pre>
 
   <h3>Building Manually</h3>
   <pre><code>git clone --depth 1 https://github.com/baldurk/renderdoc.git

@@ -71,7 +71,7 @@ CATEGORIES: list[tuple[str, str, str | None, list[str]]] = [
         ["serve", "remote connect", "remote list", "remote capture"],
     ),
     ("Utilities", "utilities", None, [
-        "count", "completion", "script", "install-skill",
+        "count", "completion", "script", "install-skill", "setup-renderdoc",
     ]),
 ]
 

@@ -76,9 +76,7 @@ def test_doctor_shows_build_hint_when_renderdoc_missing(monkeypatch: pytest.Monk
     monkeypatch.setattr(
         "rdc.commands.doctor._RENDERDOC_BUILD_HINT",
         "  renderdoc is not available on PyPI and must be built from source.\n"
-        "  Quick build script (no pixi required):\n"
-        "    bash <(curl -fsSL"
-        " https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)\n"
+        "  Run: rdc setup-renderdoc\n"
         "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
         "  Then re-run: rdc doctor",
     )
@@ -333,19 +331,16 @@ class TestWinRenderdocInstall:
 class TestMakeBuildHint:
     """TP-W3-015 and TP-W3-016."""
 
-    def test_linux_hint_contains_bash_script(self) -> None:
-        """TP-W3-015: Linux hint has bash script URL."""
+    def test_linux_hint_contains_setup_renderdoc(self) -> None:
+        """TP-W3-015: Linux hint has rdc setup-renderdoc."""
         hint = _make_build_hint("linux")
-        assert "build-renderdoc.sh" in hint
+        assert "rdc setup-renderdoc" in hint
         assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
-    def test_windows_hint_contains_actionable_commands(self) -> None:
-        """TP-W3-016: Windows hint has actionable git clone + uv run commands."""
+    def test_windows_hint_contains_setup_renderdoc(self) -> None:
+        """TP-W3-016: Windows hint has rdc setup-renderdoc."""
         hint = _make_build_hint("win32")
-        assert "git clone" in hint
-        assert "uv run" in hint
-        assert "build_renderdoc.py" in hint
-        assert "%TEMP%" not in hint
+        assert "rdc setup-renderdoc" in hint
         assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
 
@@ -620,12 +615,9 @@ class TestMacRenderdocDylib:
 class TestMakeBuildHintDarwin:
     """M2-07: _make_build_hint("darwin") contains Homebrew instructions."""
 
-    def test_darwin_hint_contains_homebrew(self) -> None:
+    def test_darwin_hint_contains_setup_renderdoc(self) -> None:
         hint = _make_build_hint("darwin")
-        assert "brew install cmake ninja" in hint
-        assert "git clone" in hint
-        assert "uv run" in hint
-        assert "build_renderdoc.py" in hint
+        assert "rdc setup-renderdoc" in hint
         assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
 

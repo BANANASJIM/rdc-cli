@@ -497,6 +497,12 @@
           "id": "install-skill",
           "help": "Install rdc-cli skill files to ~/.claude/skills/rdc-cli/.",
           "usage": "rdc install-skill [--check] [--remove]"
+        },
+        {
+          "name": "setup-renderdoc",
+          "id": "setup-renderdoc",
+          "help": "Build and install the renderdoc Python module from source.",
+          "usage": "rdc setup-renderdoc [INSTALL-DIR] [--build-dir TEXT] [--version TEXT] [--jobs INTEGER]"
         }
       ]
     }

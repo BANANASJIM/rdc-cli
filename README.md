@@ -33,7 +33,7 @@ rdc close
 
 ```bash
 uv tool install rdc-cli               # or: pipx install rdc-cli
-bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
+rdc setup-renderdoc                   # build renderdoc Python module from source
 rdc doctor                            # verify everything works
 ```
 
@@ -41,8 +41,7 @@ rdc doctor                            # verify everything works
 
 ```bash
 uv tool install rdc-cli               # or: pipx install rdc-cli
-git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git rdc-cli
-uv run rdc-cli\scripts\build_renderdoc.py
+rdc setup-renderdoc                   # build renderdoc Python module from source
 rdc doctor                            # verify everything works
 ```
 
@@ -81,17 +80,10 @@ pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain
 
 ### RenderDoc bootstrap
 
-**Linux** (one-liner, no repo clone needed):
+After installing rdc-cli, build the renderdoc Python module:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)
-```
-
-**Windows** (requires git, uv, Visual Studio 2022 Build Tools with C++ workload):
-
-```bash
-git clone --depth 1 https://github.com/BANANASJIM/rdc-cli.git rdc-cli
-uv run rdc-cli\scripts\build_renderdoc.py
+rdc setup-renderdoc
 ```
 
 If building from source, use the pixi wrapper instead: `pixi run setup-renderdoc`
