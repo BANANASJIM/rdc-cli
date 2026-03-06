@@ -37,22 +37,8 @@ def _check_platform() -> CheckResult:
     return CheckResult("platform", False, f"unsupported platform: {sys.platform}")
 
 
-def _make_build_hint(platform: str) -> str:
-    """Return platform-specific build instructions for renderdoc."""
-    if platform == "win32":
-        return (
-            "  renderdoc is not available on PyPI and must be built from source.\n"
-            "  Run: rdc setup-renderdoc\n"
-            "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
-            "  Then re-run: rdc doctor"
-        )
-    if platform == "darwin":
-        return (
-            "  renderdoc is not available on PyPI and must be built from source.\n"
-            "  Run: rdc setup-renderdoc\n"
-            "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
-            "  Then re-run: rdc doctor"
-        )
+def _make_build_hint(platform: str) -> str:  # noqa: ARG001
+    """Return build instructions for renderdoc."""
     return (
         "  renderdoc is not available on PyPI and must be built from source.\n"
         "  Run: rdc setup-renderdoc\n"
