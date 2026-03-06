@@ -172,6 +172,8 @@ class TestUnicodePathSafety:
 
         assert out.errors == "replace"
         assert err.errors == "replace"
+        # Must not raise UnicodeEncodeError on CJK characters
+        out.write("测试路径")
 
     def test_fix_win_encoding_noop_on_linux(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_fix_win_encoding must not touch streams on non-Windows."""
