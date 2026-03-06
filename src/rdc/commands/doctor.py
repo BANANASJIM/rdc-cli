@@ -103,7 +103,10 @@ def _check_win_python_version() -> CheckResult:
 
     from rdc import _platform
 
-    search_paths = _platform.renderdoc_search_paths()
+    search_paths = list(_platform.renderdoc_search_paths())
+    env_path = os.environ.get("RENDERDOC_PYTHON_PATH")
+    if env_path and env_path not in search_paths:
+        search_paths.insert(0, env_path)
 
     # Try cpython-tagged .pyd first (setuptools output)
     pyds = [f for p in search_paths for f in glob.glob(str(Path(p) / "renderdoc.cpython-3*.pyd"))]
@@ -236,9 +239,9 @@ def _check_win_vulkan_layer() -> CheckResult:
 
     import winreg  # noqa: PLC0415
 
-    # 1. Check registry for implicit layer entry
+    # 1. Collect all renderdoc layer entries from registry
     reg_path = r"SOFTWARE\Khronos\Vulkan\ImplicitLayers"
-    layer_json_path: Path | None = None
+    candidates: list[Path] = []
     for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
         try:
             with winreg.OpenKey(hive, reg_path) as key:
@@ -247,17 +250,14 @@ def _check_win_vulkan_layer() -> CheckResult:
                     try:
                         name, _val, _typ = winreg.EnumValue(key, i)
                         if "renderdoc" in name.lower():
-                            layer_json_path = Path(name)
-                            break
+                            candidates.append(Path(name))
                     except OSError:
                         break
                     i += 1
         except OSError:
             continue
-        if layer_json_path:
-            break
 
-    if layer_json_path is None:
+    if not candidates:
         return CheckResult(
             "win-vulkan-layer",
             False,
@@ -265,12 +265,13 @@ def _check_win_vulkan_layer() -> CheckResult:
             " -- register renderdoc.json in HKCU\\SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers",
         )
 
-    # 2. Check that the JSON file exists
-    if not layer_json_path.is_file():
+    # 2. Find first candidate whose JSON file exists
+    layer_json_path = next((p for p in candidates if p.is_file()), None)
+    if layer_json_path is None:
         return CheckResult(
             "win-vulkan-layer",
             False,
-            f"registry points to {layer_json_path} but file not found",
+            f"registry points to {candidates[0]} but file not found",
         )
 
     # 3. Validate layer JSON references renderdoc.dll that exists
