@@ -582,6 +582,32 @@ def test_run_msbuild_default_jobs(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------------------
 # _prepare_win_python
+
+
+def test_prepare_win_python_uses_base_prefix_not_prefix(tmp_path: Path) -> None:
+    """Regression: inside a venv, base_prefix (not prefix) must be used."""
+    base_prefix = tmp_path / "base"
+    (base_prefix / "include").mkdir(parents=True)
+    (base_prefix / "include" / "Python.h").write_text("fake")
+    (base_prefix / "libs").mkdir()
+    (base_prefix / "libs" / "python314.lib").write_text("fake")
+
+    venv_prefix = tmp_path / "venv"
+    venv_prefix.mkdir()
+
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+
+    with patch("rdc._build_renderdoc.sys") as mock_sys:
+        mock_sys.prefix = str(venv_prefix)
+        mock_sys.base_prefix = str(base_prefix)
+        mock_sys.version_info = (3, 14, 3)
+        mock_sys.stdout = sys.stdout
+        result = br._prepare_win_python(src_dir)
+
+    assert result == base_prefix
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -598,7 +624,7 @@ def test_prepare_win_python_creates_dummy_zip(tmp_path: Path) -> None:
     with (
         patch("rdc._build_renderdoc.sys") as mock_sys,
     ):
-        mock_sys.prefix = str(prefix)
+        mock_sys.base_prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
         result = br._prepare_win_python(src_dir)
@@ -629,7 +655,7 @@ def test_prepare_win_python_patches_props(tmp_path: Path) -> None:
     )
 
     with patch("rdc._build_renderdoc.sys") as mock_sys:
-        mock_sys.prefix = str(prefix)
+        mock_sys.base_prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
         br._prepare_win_python(src_dir)
@@ -649,7 +675,7 @@ def test_prepare_win_python_missing_lib(tmp_path: Path) -> None:
         patch("rdc._build_renderdoc.sys") as mock_sys,
         pytest.raises(SystemExit),
     ):
-        mock_sys.prefix = str(prefix)
+        mock_sys.base_prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
         br._prepare_win_python(tmp_path / "src")
@@ -665,7 +691,7 @@ def test_prepare_win_python_skips_existing_zip(tmp_path: Path) -> None:
     existing_zip.write_text("already here")
 
     with patch("rdc._build_renderdoc.sys") as mock_sys:
-        mock_sys.prefix = str(prefix)
+        mock_sys.base_prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
         br._prepare_win_python(tmp_path / "src")
@@ -682,7 +708,7 @@ def test_prepare_win_python_missing_python_h(tmp_path: Path) -> None:
         patch("rdc._build_renderdoc.sys") as mock_sys,
         pytest.raises(SystemExit),
     ):
-        mock_sys.prefix = str(prefix)
+        mock_sys.base_prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
         br._prepare_win_python(tmp_path / "src")
@@ -707,7 +733,7 @@ def test_prepare_win_python_props_already_patched(tmp_path: Path) -> None:
     props_file.write_text(original, encoding="utf-8")
 
     with patch("rdc._build_renderdoc.sys") as mock_sys:
-        mock_sys.prefix = str(prefix)
+        mock_sys.base_prefix = str(prefix)
         mock_sys.version_info = (3, 14, 3)
         mock_sys.stdout = sys.stdout
         br._prepare_win_python(src_dir)

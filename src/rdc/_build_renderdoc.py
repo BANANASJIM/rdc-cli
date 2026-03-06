@@ -194,7 +194,8 @@ def _prepare_win_python(src_dir: Path) -> Path:
 
     Also patches python.props to add current Python version entry if missing.
     """
-    prefix = Path(sys.prefix)
+    # Use base_prefix to find headers/libs (sys.prefix is a venv for uv tool installs)
+    prefix = Path(sys.base_prefix)
     ver = f"{sys.version_info[0]}{sys.version_info[1]}"
 
     # Create dummy python{ver}.zip if missing
