@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-rdc = "rdc.cli:main"
+rdc = "rdc.cli:entry"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

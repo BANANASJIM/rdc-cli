@@ -96,7 +96,12 @@ def _fix_win_encoding() -> None:
 )
 def main() -> None:
     """rdc: Unix-friendly CLI for RenderDoc captures."""
+
+
+def entry() -> None:
+    """Console script entry point — reconfigure encoding before Click parses argv."""
     _fix_win_encoding()
+    main()
 
 
 main.add_command(doctor_cmd, name="doctor")
@@ -167,4 +172,4 @@ main.add_command(setup_renderdoc_cmd, name="setup-renderdoc")
 
 
 if __name__ == "__main__":
-    main()
+    entry()
