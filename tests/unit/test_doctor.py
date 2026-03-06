@@ -79,7 +79,7 @@ def test_doctor_shows_build_hint_when_renderdoc_missing(monkeypatch: pytest.Monk
         "  Quick build script (no pixi required):\n"
         "    bash <(curl -fsSL"
         " https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh)\n"
-        "  Full instructions: https://bananasjim.github.io/rdc-cli/\n"
+        "  Full instructions: https://bananasjim.github.io/rdc-cli/docs/install/\n"
         "  Then re-run: rdc doctor",
     )
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: None)
@@ -95,7 +95,7 @@ def test_doctor_shows_build_hint_when_renderdoc_missing(monkeypatch: pytest.Monk
 def test_doctor_hint_contains_docs_url() -> None:
     from rdc.commands.doctor import _RENDERDOC_BUILD_HINT
 
-    assert "https://bananasjim.github.io/rdc-cli/" in _RENDERDOC_BUILD_HINT
+    assert "https://bananasjim.github.io/rdc-cli/docs/install/" in _RENDERDOC_BUILD_HINT
 
 
 # ── Group W: _check_win_python_version() ─────────────────────────────
@@ -273,8 +273,11 @@ class TestWinRenderdocInstall:
     def test_found_at_program_files(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """TP-W3-012: renderdoc.dll found at Program Files."""
         monkeypatch.setattr("rdc.commands.doctor.sys.platform", "win32")
-        env = {"LOCALAPPDATA": r"C:\Users\test\AppData\Local"}
-        monkeypatch.setattr("rdc.commands.doctor.os.environ", env)
+        monkeypatch.setattr("rdc.commands.doctor.os.environ", {})
+        monkeypatch.setattr(
+            "rdc._platform.renderdoc_search_paths",
+            lambda: [r"C:\Program Files\RenderDoc"],
+        )
 
         original_exists = Path.exists
 
@@ -292,17 +295,32 @@ class TestWinRenderdocInstall:
         """TP-W3-013: renderdoc.dll found via RENDERDOC_PYTHON_PATH."""
         monkeypatch.setattr("rdc.commands.doctor.sys.platform", "win32")
         (tmp_path / "renderdoc.dll").write_text("fake")
-        env = {"RENDERDOC_PYTHON_PATH": str(tmp_path), "LOCALAPPDATA": ""}
+        env = {"RENDERDOC_PYTHON_PATH": str(tmp_path)}
         monkeypatch.setattr("rdc.commands.doctor.os.environ", env)
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [])
         r = _check_win_renderdoc_install()
         assert r.ok is True
         assert str(tmp_path) in r.detail
 
+    def test_found_at_localappdata_rdc(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """renderdoc.dll found at %LOCALAPPDATA%\\rdc\\renderdoc via search paths."""
+        monkeypatch.setattr("rdc.commands.doctor.sys.platform", "win32")
+        rdc_dir = tmp_path / "rdc" / "renderdoc"
+        rdc_dir.mkdir(parents=True)
+        (rdc_dir / "renderdoc.dll").write_text("fake")
+        monkeypatch.setattr("rdc.commands.doctor.os.environ", {})
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [str(rdc_dir)])
+        r = _check_win_renderdoc_install()
+        assert r.ok is True
+        assert "renderdoc.dll" in r.detail
+
     def test_not_found_anywhere(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """TP-W3-014: renderdoc.dll not found anywhere."""
         monkeypatch.setattr("rdc.commands.doctor.sys.platform", "win32")
-        env: dict[str, str] = {"LOCALAPPDATA": ""}
-        monkeypatch.setattr("rdc.commands.doctor.os.environ", env)
+        monkeypatch.setattr("rdc.commands.doctor.os.environ", {})
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [])
         monkeypatch.setattr("rdc.commands.doctor.Path.exists", lambda _self: False)
         r = _check_win_renderdoc_install()
         assert r.ok is False
@@ -319,13 +337,16 @@ class TestMakeBuildHint:
         """TP-W3-015: Linux hint has bash script URL."""
         hint = _make_build_hint("linux")
         assert "build-renderdoc.sh" in hint
-        assert "https://bananasjim.github.io/rdc-cli/" in hint
+        assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
-    def test_windows_hint_contains_py_script(self) -> None:
-        """TP-W3-016: Windows hint has Python build script."""
+    def test_windows_hint_contains_actionable_commands(self) -> None:
+        """TP-W3-016: Windows hint has actionable git clone + uv run commands."""
         hint = _make_build_hint("win32")
+        assert "git clone" in hint
+        assert "uv run" in hint
         assert "build_renderdoc.py" in hint
-        assert "https://bananasjim.github.io/rdc-cli/" in hint
+        assert "%TEMP%" not in hint
+        assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
 
 # ── TP-W3-017: run_doctor() result count ─────────────────────────────
@@ -602,8 +623,10 @@ class TestMakeBuildHintDarwin:
     def test_darwin_hint_contains_homebrew(self) -> None:
         hint = _make_build_hint("darwin")
         assert "brew install cmake ninja" in hint
+        assert "git clone" in hint
+        assert "uv run" in hint
         assert "build_renderdoc.py" in hint
-        assert "https://bananasjim.github.io/rdc-cli/" in hint
+        assert "https://bananasjim.github.io/rdc-cli/docs/install/" in hint
 
 
 class TestImportRenderdocDiagnostics:

@@ -405,6 +405,23 @@ def test_copy_artifacts_windows(tmp_path: Path) -> None:
     br.copy_artifacts(build_dir, out, "windows")
     assert (out / "renderdoc.pyd").exists()
     assert (out / "renderdoc.dll").exists()
+    assert not (out / "renderdoccmd.exe").exists()
+
+
+def test_copy_artifacts_windows_with_renderdoccmd(tmp_path: Path) -> None:
+    build_dir = tmp_path / "build"
+    release = build_dir / "renderdoc" / "x64" / "Release"
+    pymodules = release / "pymodules"
+    pymodules.mkdir(parents=True)
+    (pymodules / "renderdoc.pyd").write_text("fake")
+    (release / "renderdoc.dll").write_text("fake")
+    (release / "renderdoccmd.exe").write_text("fake")
+
+    out = tmp_path / "install"
+    br.copy_artifacts(build_dir, out, "windows")
+    assert (out / "renderdoc.pyd").exists()
+    assert (out / "renderdoc.dll").exists()
+    assert (out / "renderdoccmd.exe").exists()
 
 
 def test_copy_artifacts_missing_source(tmp_path: Path) -> None:
