@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-_WIN: bool = sys.platform == "win32"
+_WIN: bool = sys.platform in ("win32", "windows")
 _MAC: bool = sys.platform == "darwin"
 
 

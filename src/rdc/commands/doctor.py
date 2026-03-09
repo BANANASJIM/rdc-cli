@@ -32,7 +32,7 @@ def _check_platform() -> CheckResult:
         return CheckResult("platform", True, "linux")
     if sys.platform == "darwin":
         return CheckResult("platform", True, "darwin (dev-host only for replay)")
-    if sys.platform == "win32":
+    if sys.platform in ("win32", "windows"):
         return CheckResult("platform", True, "windows")
     return CheckResult("platform", False, f"unsupported platform: {sys.platform}")
 
