@@ -77,6 +77,7 @@ pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain
 | Linux | ✅ | ✅ |
 | macOS | ❌ (not supported yet) | ✅ (recommended) |
 | Windows | ✅ | ✅ |
+| Android | planned | planned |
 
 ### RenderDoc bootstrap
 
@@ -241,6 +242,10 @@ pixi run test-gpu             # unit tests marked @gpu
 pixi run e2e                  # cross-platform smoke test (26 checks)
 pixi run test-e2e             # full e2e suite (self-capture + dynamic discovery)
 ```
+
+## Contributing
+
+Bug reports, feature requests, and pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
