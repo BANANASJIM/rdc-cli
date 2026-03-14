@@ -466,6 +466,18 @@
           "id": "remote-capture",
           "help": "Capture on a remote host and transfer to local.",
           "usage": "rdc remote capture <APP> -o <PATH> [--url TEXT] [--args TEXT] [--workdir TEXT] [--frame INTEGER] [--timeout FLOAT] [--api-validation] [--callstacks] [--hook-children] [--ref-all-resources] [--soft-memory-limit INTEGER] [--keep-remote] [--json]"
+        },
+        {
+          "name": "android setup",
+          "id": "android-setup",
+          "help": "Start RenderDoc remote server on an Android device.",
+          "usage": "rdc android setup [--serial TEXT] [--json]"
+        },
+        {
+          "name": "android stop",
+          "id": "android-stop",
+          "help": "Stop RenderDoc remote server on an Android device.",
+          "usage": "rdc android stop [--serial TEXT] [--json]"
         }
       ]
     },
