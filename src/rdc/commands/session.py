@@ -21,8 +21,44 @@ from rdc.services.session_service import (
 from rdc.session_state import session_path
 
 
+def _is_android_state(state: RemoteServerState) -> bool:
+    """Check if a RemoteServerState is from an Android device."""
+    if state.host.startswith("adb://"):
+        return True
+    # Bare serial from adb fallback: port=0 and no colon (not host:port)
+    return state.port == 0 and ":" not in state.host and "." not in state.host
+
+
+def _android_serial(state: RemoteServerState) -> str:
+    """Extract bare serial from state host."""
+    return state.host.removeprefix("adb://")
+
+
+def _adb_forwarded_port(serial: str) -> int | None:
+    """Look up the adb-forwarded TCP port for a device serial."""
+    import subprocess  # noqa: PLC0415
+
+    try:
+        proc = subprocess.run(
+            ["adb", "forward", "--list"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    for line in proc.stdout.strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and serial in parts[0] and parts[1].startswith("tcp:"):
+            try:
+                return int(parts[1].removeprefix("tcp:"))
+            except ValueError:
+                continue
+    return None
+
+
 def _resolve_android_url(serial: str | None) -> str:
-    """Resolve an adb:// URL from saved RemoteServerState files."""
+    """Resolve a proxy URL for an Android device from saved state + adb forward."""
     remote_dir = _platform.data_dir() / "remote"
     if not remote_dir.is_dir():
         raise click.UsageError("no saved Android device state; run: rdc android setup")
@@ -38,21 +74,29 @@ def _resolve_android_url(serial: str | None) -> str:
             )
         except (json.JSONDecodeError, KeyError, ValueError, TypeError):
             continue
-        if not state.host.startswith("adb://"):
+        if not _is_android_state(state):
             continue
         if serial is not None:
-            if state.host == f"adb://{serial}":
-                return state.host
+            if _android_serial(state) == serial:
+                best = state
+                break
         elif best is None or state.connected_at > best.connected_at:
             best = state
 
-    if serial is not None:
-        raise click.UsageError(
-            f"no saved state for device {serial}; run: rdc android setup --serial {serial}"
-        )
     if best is None:
+        if serial is not None:
+            raise click.UsageError(
+                f"no saved state for device {serial}; run: rdc android setup --serial {serial}"
+            )
         raise click.UsageError("no saved Android device state; run: rdc android setup")
-    return best.host
+
+    # Resolve to localhost:PORT via adb forward (adb:// URLs crash RenderDoc daemon)
+    dev_serial = _android_serial(best)
+    port = _adb_forwarded_port(dev_serial)
+    if port is not None:
+        return f"localhost:{port}"
+    # Fallback to adb:// URL if no forward found
+    return f"adb://{dev_serial}"
 
 
 def _complete_capture_path(
