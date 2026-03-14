@@ -48,8 +48,12 @@ libvulkan-loader = ">=1.3"
 libvulkan-headers = ">=1.3"
 libvulkan-loader = ">=1.3"
 
+[feature.android.activation.env]
+PATH = ".local/android-platform-tools/platform-tools:${PATH}"
+
 [environments]
 vulkan = { features = ["vulkan"], solve-group = "default" }
+android = { features = ["android"], solve-group = "default" }
 
 [activation.env]
 RENDERDOC_PYTHON_PATH = ".local/renderdoc"
@@ -76,6 +80,7 @@ e2e = "python scripts/e2e_test.py"
 test-e2e = "uv run pytest tests/e2e -v -m gpu --no-header"
 test-e2e-full = "uv run pytest tests/e2e -v -m 'gpu or vulkan_samples' --no-header"
 setup-vulkan-samples = "python scripts/setup_vulkan_samples.py"
+setup-android = "python scripts/setup_android_tools.py"
 docs-install = "npm --prefix docs-astro ci"
 docs-build = "npm --prefix docs-astro run build"
 docs-test = "npm --prefix docs-astro test"
