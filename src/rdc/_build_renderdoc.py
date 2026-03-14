@@ -24,6 +24,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 from urllib.request import urlretrieve
@@ -462,6 +463,103 @@ def _install_vulkan_layer(install_dir: Path, build_dir: Path) -> None:
         _log(f"Vulkan implicit layer registered in HKCU\\{key_path}")
     except OSError as exc:
         _log(f"WARNING: failed to register Vulkan layer in registry: {exc}")
+
+
+def _android_apk_dir(lib_dir: Path) -> Path:
+    """Resolve the Android APK destination relative to *lib_dir*."""
+    return (lib_dir / ".." / "share" / "renderdoc" / "plugins" / "android").resolve()
+
+
+def download_android_apks(version: str, lib_dir: Path) -> None:
+    """Download official RenderDoc tarball and extract Android APKs.
+
+    Args:
+        version: RenderDoc version string (with or without ``v`` prefix).
+        lib_dir: The renderdoc Python module directory.
+    """
+    version = version.lstrip("v")
+    url = f"https://renderdoc.org/stable/{version}/renderdoc_{version}.tar.gz"
+    dest = _android_apk_dir(lib_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    import tempfile
+
+    tmp = Path(tempfile.mktemp(suffix=".tar.gz"))
+    try:
+        _log(f"downloading {url}")
+        urlretrieve(url, str(tmp))
+        count = 0
+        with tarfile.open(str(tmp), "r:gz") as tf:
+            for member in tf.getmembers():
+                if not member.name.endswith(".apk"):
+                    continue
+                # Path traversal guard
+                resolved = (dest / Path(member.name).name).resolve()
+                if not resolved.is_relative_to(dest):
+                    continue
+                # Use data_filter if available (Python 3.12+)
+                if hasattr(tarfile, "data_filter"):
+                    member.name = Path(member.name).name
+                    tf.extract(member, dest, filter="data")
+                else:
+                    src_io = tf.extractfile(member)
+                    if src_io is None:
+                        continue
+                    (dest / Path(member.name).name).write_bytes(src_io.read())
+                count += 1
+        if count == 0:
+            sys.stderr.write("ERROR: no APK files found in tarball\n")
+            raise SystemExit(1)
+        _log(f"extracted {count} APK(s) to {dest}")
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def install_arm_studio(arm_path: Path, lib_dir: Path) -> None:
+    """Install ARM Performance Studio RenderDoc into the local lib directory.
+
+    Args:
+        arm_path: Root of ARM Performance Studio installation.
+        lib_dir: The renderdoc Python module directory.
+    """
+    rdoc_dir = arm_path / "renderdoc"
+    module_so = rdoc_dir / "lib" / "renderdoc.so"
+    librdoc_so = rdoc_dir / "lib" / "librenderdoc.so"
+    if not module_so.exists():
+        sys.stderr.write(f"ERROR: {module_so} not found\n")
+        raise SystemExit(1)
+    if not librdoc_so.exists():
+        sys.stderr.write(f"ERROR: {librdoc_so} not found\n")
+        raise SystemExit(1)
+
+    lib_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(module_so, lib_dir / "renderdoc.so")
+    shutil.copy2(librdoc_so, lib_dir / "librenderdoc.so")
+    _log(f"copied renderdoc.so + librenderdoc.so to {lib_dir}")
+
+    # Copy APKs
+    arm_apk_dir = rdoc_dir / "share" / "renderdoc" / "plugins" / "android"
+    apks = list(arm_apk_dir.glob("*.apk")) if arm_apk_dir.is_dir() else []
+    if not apks:
+        sys.stderr.write(f"ERROR: no APKs found in {arm_apk_dir}\n")
+        raise SystemExit(1)
+    dest = _android_apk_dir(lib_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+    for apk in apks:
+        shutil.copy2(apk, dest / apk.name)
+    _log(f"copied {len(apks)} APK(s) to {dest}")
+
+    # Symlink renderdoccmd
+    cmd_src = rdoc_dir / "bin" / "renderdoccmd"
+    if not cmd_src.exists():
+        sys.stderr.write(f"ERROR: {cmd_src} not found\n")
+        raise SystemExit(1)
+    bin_dir = (lib_dir / ".." / "bin").resolve()
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    link = bin_dir / "renderdoccmd"
+    link.unlink(missing_ok=True)
+    link.symlink_to(cmd_src.resolve())
+    _log(f"symlinked renderdoccmd -> {cmd_src}")
 
 
 def _artifacts_present(install_dir: Path, plat: str) -> bool:

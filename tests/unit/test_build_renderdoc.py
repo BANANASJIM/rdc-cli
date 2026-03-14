@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -788,3 +789,168 @@ def test_install_vulkan_layer_skips_when_no_json(tmp_path: Path) -> None:
 
     # Should not raise
     br._install_vulkan_layer(install_dir, build_dir)
+
+
+# ---------------------------------------------------------------------------
+# download_android_apks
+# ---------------------------------------------------------------------------
+
+
+def _make_apk_tar(apk_name: str = "org.renderdoc.renderdoccmd.arm64.apk") -> bytes:
+    """Create a minimal tar.gz with one APK inside the expected path."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        data = b"fake-apk-content"
+        info = tarfile.TarInfo(name=f"renderdoc_1.41/share/renderdoc/plugins/android/{apk_name}")
+        info.size = len(data)
+        tf.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def test_download_android_apks_happy_path(tmp_path: Path) -> None:
+    content = _make_apk_tar()
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    def fake_retrieve(url: str, dest: str) -> tuple[str, None]:
+        Path(dest).write_bytes(content)
+        return dest, None
+
+    with patch("rdc._build_renderdoc.urlretrieve", fake_retrieve):
+        br.download_android_apks("1.41", lib_dir)
+
+    apk_dir = br._android_apk_dir(lib_dir)
+    apks = list(apk_dir.glob("*.apk"))
+    assert len(apks) == 1
+    assert apks[0].name == "org.renderdoc.renderdoccmd.arm64.apk"
+
+
+def test_download_android_apks_url_format(tmp_path: Path) -> None:
+    content = _make_apk_tar()
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    captured_url: list[str] = []
+
+    def fake_retrieve(url: str, dest: str) -> tuple[str, None]:
+        captured_url.append(url)
+        Path(dest).write_bytes(content)
+        return dest, None
+
+    with patch("rdc._build_renderdoc.urlretrieve", fake_retrieve):
+        br.download_android_apks("1.41", lib_dir)
+
+    assert "renderdoc.org/stable/1.41/" in captured_url[0]
+
+
+def test_download_android_apks_strips_v_prefix(tmp_path: Path) -> None:
+    content = _make_apk_tar()
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+    captured_url: list[str] = []
+
+    def fake_retrieve(url: str, dest: str) -> tuple[str, None]:
+        captured_url.append(url)
+        Path(dest).write_bytes(content)
+        return dest, None
+
+    with patch("rdc._build_renderdoc.urlretrieve", fake_retrieve):
+        br.download_android_apks("v1.41", lib_dir)
+
+    assert "1.41" in captured_url[0]
+    assert "v1.41" not in captured_url[0]
+
+
+def test_download_android_apks_network_error(tmp_path: Path) -> None:
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    with (
+        patch("rdc._build_renderdoc.urlretrieve", side_effect=OSError("network")),
+        pytest.raises(OSError),
+    ):
+        br.download_android_apks("1.41", lib_dir)
+
+
+def test_download_android_apks_no_apks_in_tarball(tmp_path: Path) -> None:
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
+        data = b"not-an-apk"
+        info = tarfile.TarInfo(name="renderdoc_1.41/README.txt")
+        info.size = len(data)
+        tf.addfile(info, io.BytesIO(data))
+    content = buf.getvalue()
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    def fake_retrieve(url: str, dest: str) -> tuple[str, None]:
+        Path(dest).write_bytes(content)
+        return dest, None
+
+    with (
+        patch("rdc._build_renderdoc.urlretrieve", fake_retrieve),
+        pytest.raises(SystemExit),
+    ):
+        br.download_android_apks("1.41", lib_dir)
+
+
+# ---------------------------------------------------------------------------
+# install_arm_studio
+# ---------------------------------------------------------------------------
+
+
+def _make_arm_dir(tmp_path: Path) -> Path:
+    """Create a fake ARM Performance Studio directory structure."""
+    arm = tmp_path / "arm-ps"
+    rdoc = arm / "renderdoc"
+    (rdoc / "lib").mkdir(parents=True)
+    (rdoc / "lib" / "renderdoc.so").write_bytes(b"fake-module")
+    (rdoc / "lib" / "librenderdoc.so").write_bytes(b"fake-lib")
+    apk_dir = rdoc / "share" / "renderdoc" / "plugins" / "android"
+    apk_dir.mkdir(parents=True)
+    (apk_dir / "org.renderdoc.renderdoccmd.arm64.apk").write_bytes(b"fake-apk")
+    (rdoc / "bin").mkdir(parents=True)
+    cmd = rdoc / "bin" / "renderdoccmd"
+    cmd.write_bytes(b"fake-cmd")
+    cmd.chmod(0o755)
+    return arm
+
+
+def test_install_arm_studio_happy_path(tmp_path: Path) -> None:
+    arm = _make_arm_dir(tmp_path)
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    br.install_arm_studio(arm, lib_dir)
+
+    assert (lib_dir / "renderdoc.so").exists()
+    assert (lib_dir / "librenderdoc.so").exists()
+    apk_dir = br._android_apk_dir(lib_dir)
+    assert list(apk_dir.glob("*.apk"))
+    bin_dir = (lib_dir / ".." / "bin").resolve()
+    assert (bin_dir / "renderdoccmd").is_symlink()
+
+
+def test_install_arm_studio_missing_module(tmp_path: Path) -> None:
+    arm = tmp_path / "arm-ps"
+    rdoc = arm / "renderdoc" / "lib"
+    rdoc.mkdir(parents=True)
+    (rdoc / "librenderdoc.so").write_bytes(b"fake")
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    with pytest.raises(SystemExit):
+        br.install_arm_studio(arm, lib_dir)
+
+
+def test_install_arm_studio_missing_apks(tmp_path: Path) -> None:
+    arm = tmp_path / "arm-ps"
+    rdoc = arm / "renderdoc"
+    (rdoc / "lib").mkdir(parents=True)
+    (rdoc / "lib" / "renderdoc.so").write_bytes(b"fake")
+    (rdoc / "lib" / "librenderdoc.so").write_bytes(b"fake")
+    # No APK directory
+    lib_dir = tmp_path / "lib"
+    lib_dir.mkdir()
+
+    with pytest.raises(SystemExit):
+        br.install_arm_studio(arm, lib_dir)
