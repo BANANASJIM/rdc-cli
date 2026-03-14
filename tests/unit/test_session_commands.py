@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
+import click
 import pytest
 from click.testing import CliRunner
 
 from rdc.cli import main
+from rdc.commands.session import _resolve_android_url
+from rdc.remote_state import RemoteServerState, save_remote_state
 
 _CURRENT_EID: dict[str, int] = {}
 
@@ -186,3 +190,194 @@ def test_open_no_replay_mode_warning(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert result.exit_code == 0
     assert "no-replay mode" in result.output
     assert "warning" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# T4: Unit tests for _resolve_android_url
+# ---------------------------------------------------------------------------
+
+
+def _setup_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Point data_dir to tmp_path/.rdc and return the path."""
+    data = tmp_path / ".rdc"
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: data)
+    return data
+
+
+def test_resolve_android_url_with_serial(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    save_remote_state(RemoteServerState(host="adb://DEV1", port=0, connected_at=1000.0))
+
+    result = _resolve_android_url(serial="DEV1")
+    assert result == "adb://DEV1"
+
+
+def test_resolve_android_url_no_serial_uses_latest(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    save_remote_state(RemoteServerState(host="adb://OLD", port=0, connected_at=500.0))
+    save_remote_state(RemoteServerState(host="adb://NEW", port=0, connected_at=2000.0))
+
+    result = _resolve_android_url(serial=None)
+    assert result == "adb://NEW"
+
+
+def test_resolve_android_url_serial_not_found(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    save_remote_state(RemoteServerState(host="adb://AAA", port=0, connected_at=1000.0))
+
+    with pytest.raises(click.UsageError, match="ZZZ"):
+        _resolve_android_url(serial="ZZZ")
+
+
+def test_resolve_android_url_no_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    data = _setup_data_dir(monkeypatch, tmp_path)
+    (data / "remote").mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(click.UsageError):
+        _resolve_android_url(serial=None)
+
+
+def test_resolve_android_url_ignores_non_adb(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    save_remote_state(RemoteServerState(host="192.168.1.10", port=8888, connected_at=9999.0))
+    save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
+
+    result = _resolve_android_url(serial=None)
+    assert result == "adb://ABC123"
+
+
+# ---------------------------------------------------------------------------
+# T5: Unit tests for --android / --serial CLI options
+# ---------------------------------------------------------------------------
+
+
+def _mock_daemon_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Like _mock_daemon but records start_daemon kwargs."""
+    recorded: dict[str, Any] = {"calls": []}
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+
+    def _fake_start(*args: Any, **kwargs: Any) -> MagicMock:
+        recorded["calls"].append({"args": args, "kwargs": kwargs})
+        return mock_proc
+
+    monkeypatch.setattr("rdc.services.session_service.start_daemon", _fake_start)
+    monkeypatch.setattr(
+        "rdc.services.session_service.wait_for_ping",
+        lambda *a, **kw: (True, ""),
+    )
+    monkeypatch.setattr(
+        "rdc.services.session_service.is_pid_alive",
+        lambda pid: True,
+    )
+
+    def _fake_send(host: str, port: int, payload: dict[str, Any], **kw: object) -> dict[str, Any]:
+        method = payload.get("method", "")
+        if method == "ping":
+            return {"result": {"ok": True}}
+        if method == "status":
+            return {"result": {"current_eid": 0}}
+        if method == "shutdown":
+            return {"result": {"ok": True}}
+        return {"result": {}}
+
+    monkeypatch.setattr("rdc.services.session_service.send_request", _fake_send)
+    return recorded
+
+
+def test_open_android_resolves_adb_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
+    recorded = _mock_daemon_capture(monkeypatch)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(main, ["open", str(capture_file), "--android"])
+    assert result.exit_code == 0, result.output + (result.stderr or "")
+    assert len(recorded["calls"]) == 1
+    assert recorded["calls"][0]["kwargs"]["remote_url"] == "adb://ABC123"
+
+
+def test_open_android_with_serial(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    save_remote_state(RemoteServerState(host="adb://AAA", port=0, connected_at=2000.0))
+    save_remote_state(RemoteServerState(host="adb://BBB", port=0, connected_at=1000.0))
+    recorded = _mock_daemon_capture(monkeypatch)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(main, ["open", str(capture_file), "--android", "--serial", "BBB"])
+    assert result.exit_code == 0, result.output + (result.stderr or "")
+    assert recorded["calls"][0]["kwargs"]["remote_url"] == "adb://BBB"
+
+
+def test_open_android_no_state_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    data = _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    (data / "remote").mkdir(parents=True, exist_ok=True)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(main, ["open", str(capture_file), "--android"])
+    assert result.exit_code != 0
+
+
+def test_open_android_mutual_exclusion_proxy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(
+        main, ["open", str(capture_file), "--android", "--proxy", "localhost:1234"]
+    )
+    assert result.exit_code != 0
+
+
+def test_open_android_mutual_exclusion_connect(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+
+    result = CliRunner().invoke(
+        main,
+        ["open", "--android", "--connect", "host:1234", "--token", "tok"],
+    )
+    assert result.exit_code != 0
+
+
+def test_open_android_mutual_exclusion_listen(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(main, ["open", str(capture_file), "--android", "--listen", ":0"])
+    assert result.exit_code != 0
+
+
+def test_open_serial_without_android_warns(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
+    _mock_daemon(monkeypatch)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(main, ["open", str(capture_file), "--serial", "ABC123"])
+    assert result.exit_code == 0
+    assert "warning" in result.stderr.lower() or "ignored" in result.stderr.lower()
