@@ -615,7 +615,9 @@ Create local default session and start daemon skeleton.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--preload` | Preload shader cache after open. | flag |  |
-| `--proxy` | Proxy host[:port] for remote replay. | text |  |
+| `--proxy` | Proxy host[:port] or adb://SERIAL for remote replay. | text |  |
+| `--android` | Use saved Android device for remote replay. | flag |  |
+| `--serial` | Android device serial (with --android). | text |  |
 | `--remote` |  | text |  |
 | `--listen` | Listen on [ADDR]:PORT. Use :0 for auto-port on all interfaces. | text |  |
 | `--connect` | Connect to an already-running external daemon. | text |  |

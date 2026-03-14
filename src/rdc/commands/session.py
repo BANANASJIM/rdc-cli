@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 import click
 from click.shell_completion import CompletionItem
 
+from rdc import _platform
 from rdc.commands._helpers import complete_eid
+from rdc.remote_state import RemoteServerState
 from rdc.services.session_service import (
     close_session,
     connect_session,
@@ -16,6 +19,84 @@ from rdc.services.session_service import (
     status_session,
 )
 from rdc.session_state import session_path
+
+
+def _is_android_state(state: RemoteServerState) -> bool:
+    """Check if a RemoteServerState is from an Android device."""
+    if state.host.startswith("adb://"):
+        return True
+    # Bare serial from adb fallback: port=0 and no colon (not host:port)
+    return state.port == 0 and ":" not in state.host and "." not in state.host
+
+
+def _android_serial(state: RemoteServerState) -> str:
+    """Extract bare serial from state host."""
+    return state.host.removeprefix("adb://")
+
+
+def _adb_forwarded_port(serial: str) -> int | None:
+    """Look up the adb-forwarded TCP port for a device serial."""
+    import subprocess  # noqa: PLC0415
+
+    try:
+        proc = subprocess.run(
+            ["adb", "forward", "--list"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    for line in proc.stdout.strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == serial and parts[1].startswith("tcp:"):
+            try:
+                return int(parts[1].removeprefix("tcp:"))
+            except ValueError:
+                continue
+    return None
+
+
+def _resolve_android_url(serial: str | None) -> str:
+    """Resolve a proxy URL for an Android device from saved state + adb forward."""
+    remote_dir = _platform.data_dir() / "remote"
+    if not remote_dir.is_dir():
+        raise click.UsageError("no saved Android device state; run: rdc android setup")
+
+    best: RemoteServerState | None = None
+    for f in remote_dir.glob("*.json"):
+        try:
+            data = json.loads(f.read_text())
+            state = RemoteServerState(
+                host=data["host"],
+                port=int(data["port"]),
+                connected_at=float(data["connected_at"]),
+            )
+        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+            continue
+        if not _is_android_state(state):
+            continue
+        if serial is not None:
+            if _android_serial(state) == serial:
+                best = state
+                break
+        elif best is None or state.connected_at > best.connected_at:
+            best = state
+
+    if best is None:
+        if serial is not None:
+            raise click.UsageError(
+                f"no saved state for device {serial}; run: rdc android setup --serial {serial}"
+            )
+        raise click.UsageError("no saved Android device state; run: rdc android setup")
+
+    # Resolve to localhost:PORT via adb forward (adb:// URLs crash RenderDoc daemon)
+    dev_serial = _android_serial(best)
+    port = _adb_forwarded_port(dev_serial)
+    if port is not None:
+        return f"localhost:{port}"
+    # Fallback to adb:// URL if no forward found
+    return f"adb://{dev_serial}"
 
 
 def _complete_capture_path(
@@ -64,9 +145,16 @@ def _complete_capture_path(
     "--proxy",
     "proxy_url",
     default=None,
-    metavar="HOST[:PORT]",
-    help="Proxy host[:port] for remote replay.",
+    metavar="HOST[:PORT]|adb://SERIAL",
+    help="Proxy host[:port] or adb://SERIAL for remote replay.",
 )
+@click.option(
+    "--android",
+    is_flag=True,
+    default=False,
+    help="Use saved Android device for remote replay.",
+)
+@click.option("--serial", default=None, type=str, help="Android device serial (with --android).")
 @click.option(
     "--remote",
     "remote_url_deprecated",
@@ -96,6 +184,8 @@ def open_cmd(
     capture: str | None,
     preload: bool,
     proxy_url: str | None,
+    android: bool,
+    serial: str | None,
     remote_url_deprecated: str | None,
     listen: str | None,
     connect: str | None,
@@ -107,6 +197,20 @@ def open_cmd(
         click.echo("warning: --remote is deprecated, use --proxy", err=True)
         if proxy_url is None:
             proxy_url = remote_url_deprecated
+
+    # --serial without --android is meaningless
+    if serial is not None and not android:
+        click.echo("warning: --serial is ignored without --android", err=True)
+
+    # --android mutual exclusion
+    if android:
+        if proxy_url is not None:
+            raise click.UsageError("--android is mutually exclusive with --proxy")
+        if connect is not None:
+            raise click.UsageError("--android is mutually exclusive with --connect")
+        if listen is not None:
+            raise click.UsageError("--android is mutually exclusive with --listen")
+        proxy_url = _resolve_android_url(serial)
 
     # Validation: --connect is mutually exclusive with capture/--proxy/--listen
     if connect is not None:
