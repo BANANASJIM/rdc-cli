@@ -49,7 +49,7 @@ def _adb_forwarded_port(serial: str) -> int | None:
         return None
     for line in proc.stdout.strip().splitlines():
         parts = line.split()
-        if len(parts) >= 3 and serial in parts[0] and parts[1].startswith("tcp:"):
+        if len(parts) >= 3 and parts[0] == serial and parts[1].startswith("tcp:"):
             try:
                 return int(parts[1].removeprefix("tcp:"))
             except ValueError:
