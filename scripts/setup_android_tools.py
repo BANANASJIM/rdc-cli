@@ -61,8 +61,14 @@ def main() -> None:
             tmp_zip = Path(f.name)
         urllib.request.urlretrieve(url, tmp_zip)
         _log("Extracting...")
+        dest_resolved = TARGET.resolve()
         with zipfile.ZipFile(tmp_zip) as zf:
-            zf.extractall(TARGET)
+            for member in zf.infolist():
+                target = (TARGET / member.filename).resolve()
+                if not target.is_relative_to(dest_resolved):
+                    sys.stderr.write(f"ERROR: zip-slip: {member.filename}\n")
+                    raise SystemExit(1)
+                zf.extract(member, TARGET)
     finally:
         if tmp_zip and tmp_zip.exists():
             tmp_zip.unlink()

@@ -317,7 +317,7 @@ def _check_android_apk(rd_module: ModuleType | None) -> CheckResult:
 def _check_renderdoc_variant(rd_module: ModuleType | None) -> CheckResult:
     if rd_module is None:
         return CheckResult("renderdoc-variant", True, "skipped")
-    version = rd_module.GetVersionString()
+    version = getattr(rd_module, "GetVersionString", lambda: "unknown")()
     if re.match(r"^\d{4}\.", version):
         detail = f"arm-performance-studio ({version})"
     else:

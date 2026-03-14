@@ -484,7 +484,8 @@ def download_android_apks(version: str, lib_dir: Path) -> None:
 
     import tempfile
 
-    tmp = Path(tempfile.mktemp(suffix=".tar.gz"))
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as f:
+        tmp = Path(f.name)
     try:
         _log(f"downloading {url}")
         urlretrieve(url, str(tmp))
