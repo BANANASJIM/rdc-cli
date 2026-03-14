@@ -461,7 +461,7 @@ def android_capture_cmd(
     local_port = _forward_target_control(device_serial, port)
 
     # Connect via target control
-    tc = rd.CreateTargetControl(f"localhost:{local_port}", 0, "rdc-cli", True)
+    tc = rd.CreateTargetControl("localhost", local_port, "rdc-cli", True)
     if tc is None:
         click.echo("error: failed to connect to target control", err=True)
         _clear_gpu_debug_layers(device_serial)
