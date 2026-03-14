@@ -21,6 +21,7 @@ from rdc.remote_core import (
     build_conn_url,
     connect_remote_server,
     enumerate_remote_targets,
+    is_protocol_url,
     parse_url,
     remote_capture,
     warn_if_public,
@@ -35,6 +36,8 @@ from rdc.remote_state import (
 def _resolve_url(url: str | None) -> tuple[str, int]:
     """Resolve host/port from --url flag or saved state."""
     if url:
+        if is_protocol_url(url):
+            return url, 0
         try:
             return parse_url(url)
         except ValueError as exc:
@@ -61,7 +64,7 @@ def _ensure_remote_reachable(host: str, port: int) -> None:
         return
 
     rd = require_renderdoc()
-    conn_url = build_conn_url(host, port)
+    conn_url = host if is_protocol_url(host) else build_conn_url(host, port)
     try:
         remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:
@@ -122,8 +125,9 @@ def remote_connect_cmd(url: str, use_json: bool) -> None:
 def remote_list_cmd(url: str | None, use_json: bool) -> None:
     """List capturable applications on a remote host."""
     host, port = _resolve_url(url)
-    _check_public_ip(host)
-    conn_url = build_conn_url(host, port)
+    if not is_protocol_url(host):
+        _check_public_ip(host)
+    conn_url = host if is_protocol_url(host) else build_conn_url(host, port)
 
     if split_session_active():
         _ensure_remote_reachable(host, port)
@@ -200,7 +204,8 @@ def remote_capture_cmd(
 ) -> None:
     """Capture on a remote host and transfer to local."""
     host, port = _resolve_url(url)
-    _check_public_ip(host)
+    if not is_protocol_url(host):
+        _check_public_ip(host)
 
     opts: dict[str, Any] = {}
     if api_validation:
@@ -233,7 +238,7 @@ def remote_capture_cmd(
             result = _download_split_remote_capture(result, output)
     else:
         rd = require_renderdoc()
-        conn_url = build_conn_url(host, port)
+        conn_url = host if is_protocol_url(host) else build_conn_url(host, port)
         try:
             remote = connect_remote_server(rd, conn_url)
         except RuntimeError as exc:
@@ -269,8 +274,8 @@ def remote_capture_cmd(
 
     if result.remote_path:
         click.echo(result.remote_path)
-        conn_url = build_conn_url(host, port)
-        click.echo(f"next: rdc open --remote {conn_url} {result.remote_path}", err=True)
+        rmt = host if is_protocol_url(host) else build_conn_url(host, port)
+        click.echo(f"next: rdc open --remote {rmt} {result.remote_path}", err=True)
     else:
         click.echo(result.path)
         click.echo(f"next: rdc open {result.path}", err=True)

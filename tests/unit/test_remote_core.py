@@ -12,6 +12,7 @@ from rdc.remote_core import (
     build_conn_url,
     connect_remote_server,
     enumerate_remote_targets,
+    is_protocol_url,
     parse_url,
     remote_capture,
     warn_if_public,
@@ -103,6 +104,20 @@ class TestWarnIfPublic:
         result = warn_if_public(host)
         assert result is not None
         assert "not a private IP" in result
+
+
+class TestIsProtocolUrl:
+    def test_adb_url(self) -> None:
+        assert is_protocol_url("adb://ABC123") is True
+
+    def test_ipv4(self) -> None:
+        assert is_protocol_url("192.168.1.1") is False
+
+    def test_localhost(self) -> None:
+        assert is_protocol_url("localhost") is False
+
+    def test_host_port(self) -> None:
+        assert is_protocol_url("host:39920") is False
 
 
 class TestConnectRemoteServer:

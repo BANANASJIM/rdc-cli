@@ -19,6 +19,7 @@ from rdc.remote_core import (
     build_conn_url,
     connect_remote_server,
     enumerate_remote_targets,
+    is_protocol_url,
     remote_capture,
 )
 
@@ -92,7 +93,7 @@ def _handle_remote_connect(
         return _error_response(request_id, -32602, "missing host"), True
     if not isinstance(port, int):
         return _error_response(request_id, -32602, "missing port"), True
-    conn_url = build_conn_url(host, port)
+    conn_url = host if is_protocol_url(host) else build_conn_url(host, port)
     try:
         remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:  # noqa: BLE001
@@ -118,7 +119,7 @@ def _handle_remote_list(
         return _error_response(request_id, -32602, "missing host"), True
     if not isinstance(port, int):
         return _error_response(request_id, -32602, "missing port"), True
-    conn_url = build_conn_url(host, port)
+    conn_url = host if is_protocol_url(host) else build_conn_url(host, port)
     targets: list[dict[str, Any]] = []
     for ident in enumerate_remote_targets(rd, conn_url):
         tc = rd.CreateTargetControl(conn_url, ident, "rdc-cli", False)
@@ -158,7 +159,7 @@ def _handle_remote_capture(
     if not output:
         return _error_response(request_id, -32602, "missing output parameter"), True
 
-    conn_url = build_conn_url(host, port)
+    conn_url = host if is_protocol_url(host) else build_conn_url(host, port)
     try:
         remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:  # noqa: BLE001

@@ -1,5 +1,27 @@
 # rdc-cli Command Quick Reference
 
+## `rdc android setup`
+
+Start RenderDoc remote server on an Android device.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--serial` | Target device serial. | text |  |
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc android stop`
+
+Stop RenderDoc remote server on an Android device.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--serial` | Target device serial. | text |  |
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc assert-clean`
 
 Assert capture log has no messages at or above given severity.

@@ -24,6 +24,11 @@ _PRIVATE_NETS = (
 DEFAULT_PORT = 39920
 
 
+def is_protocol_url(url: str) -> bool:
+    """Return True if url is a device protocol URL (e.g. adb://SERIAL)."""
+    return "://" in url
+
+
 def build_conn_url(host: str, port: int) -> str:
     """Build connection URL, re-bracketing IPv6 addresses."""
     if ":" in host:

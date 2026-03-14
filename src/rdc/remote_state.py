@@ -21,7 +21,7 @@ class RemoteServerState:
 
 def _sanitize_host(host: str) -> str:
     """Make host string safe for use in filenames (strips brackets, replaces colons)."""
-    return host.replace(":", "-").replace("[", "").replace("]", "")
+    return host.replace(":", "-").replace("/", "_").replace("[", "").replace("]", "")
 
 
 def _state_path(host: str, port: int) -> Path:

@@ -6,6 +6,7 @@ import sys
 import click
 
 from rdc import __version__
+from rdc.commands.android import android_group
 from rdc.commands.assert_ci import (
     assert_clean_cmd,
     assert_count_cmd,
@@ -166,6 +167,7 @@ main.add_command(capture_trigger_cmd, name="capture-trigger")
 main.add_command(capture_list_cmd, name="capture-list")
 main.add_command(capture_copy_cmd, name="capture-copy")
 main.add_command(remote_group, name="remote")
+main.add_command(android_group, name="android")
 main.add_command(serve_cmd, name="serve")
 main.add_command(callstacks_cmd, name="callstacks")
 main.add_command(setup_renderdoc_cmd, name="setup-renderdoc")

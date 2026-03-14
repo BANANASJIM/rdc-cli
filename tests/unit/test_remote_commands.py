@@ -13,6 +13,7 @@ from click.testing import CliRunner
 
 from rdc.capture_core import CaptureResult
 from rdc.commands.remote import (
+    _resolve_url,
     remote_capture_cmd,
     remote_connect_cmd,
     remote_group,
@@ -537,3 +538,31 @@ class TestCliRegistration:
     def test_remote_capture_help(self) -> None:
         result = CliRunner().invoke(remote_capture_cmd, ["--help"])
         assert result.exit_code == 0
+
+
+# --- Protocol URL bypass ---
+
+
+class TestProtocolUrl:
+    def test_resolve_url_protocol(self) -> None:
+        assert _resolve_url("adb://ABC123") == ("adb://ABC123", 0)
+
+    def test_resolve_url_protocol_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
+        assert _resolve_url(None) == ("adb://ABC123", 0)
+
+    def test_remote_list_protocol_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
+        _mock_rd(monkeypatch)
+        captured_urls: list[str] = []
+
+        def fake_connect(rd: Any, url: str) -> MagicMock:
+            captured_urls.append(url)
+            return MagicMock()
+
+        monkeypatch.setattr("rdc.commands.remote.connect_remote_server", fake_connect)
+        monkeypatch.setattr("rdc.commands.remote.enumerate_remote_targets", lambda rd, url: [])
+
+        result = CliRunner().invoke(remote_list_cmd, [])
+        assert result.exit_code == 0
+        assert captured_urls[0] == "adb://ABC123"
