@@ -1664,6 +1664,7 @@ class MockTargetControl:
         self._target = target
         self._pid = pid
         self._api = api
+        self._triggered = False
         self.shutdown_count: int = 0
 
     def Connected(self) -> bool:
@@ -1679,10 +1680,10 @@ class MockTargetControl:
         return self._api
 
     def TriggerCapture(self, numFrames: int = 1) -> None:
-        pass
+        self._triggered = True
 
     def QueueCapture(self, frameNumber: int, numFrames: int = 1) -> None:
-        pass
+        self._triggered = True
 
     def CopyCapture(self, captureId: int, localpath: str) -> str:
         return self._copy_result or localpath
@@ -1691,7 +1692,7 @@ class MockTargetControl:
         pass
 
     def ReceiveMessage(self, progress: Any = None) -> TargetControlMessage:
-        if self._msg_idx < len(self._messages):
+        if self._triggered and self._msg_idx < len(self._messages):
             msg = self._messages[self._msg_idx]
             self._msg_idx += 1
             return msg

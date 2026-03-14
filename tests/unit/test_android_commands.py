@@ -76,6 +76,7 @@ def _mock_rd_android(
 class TestAndroidSetup:
     def test_single_device(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rd, ctrl = _mock_rd_android(monkeypatch, devices=["adb://ABC123"], friendly_name="Pixel 7")
+        monkeypatch.setattr("rdc.commands.android._get_forwarded_port", lambda s, u: None)
         result = CliRunner().invoke(android_setup_cmd, [])
         assert result.exit_code == 0
         assert "Pixel 7" in result.output
@@ -274,7 +275,7 @@ class TestCliRegistration:
 class TestGetForwardedPort:
     def test_parses_forward_list(self) -> None:
         mock_proc = MagicMock()
-        mock_proc.stdout = "ABC123 tcp:12345 tcp:39920\n"
+        mock_proc.stdout = "ABC123 tcp:12345 localabstract:renderdoc_39920\n"
         with (
             patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
             patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
@@ -299,7 +300,7 @@ class TestGetForwardedPort:
 
     def test_uses_serial(self) -> None:
         mock_proc = MagicMock()
-        mock_proc.stdout = "XYZ tcp:54321 tcp:39920\n"
+        mock_proc.stdout = "XYZ tcp:54321 localabstract:renderdoc_39920\n"
         with (
             patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
             patch("rdc.commands.android.subprocess.run", return_value=mock_proc) as m,

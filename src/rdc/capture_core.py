@@ -188,6 +188,21 @@ def execute_and_capture(
         tc.Shutdown()
 
 
+def _drain_pending_messages(tc: Any) -> None:
+    """Drain initial target control messages (RegisterAPI, CapturableWindowCount).
+
+    RenderDoc sends RegisterAPI (type 6) and CapturableWindowCount (type 9)
+    asynchronously after connection. These must be consumed before triggering
+    capture, otherwise the NewCapture response can be lost.
+    """
+    for _ in range(20):
+        msg = tc.ReceiveMessage(None)
+        msg_type = int(msg.type)
+        if msg_type == 3:  # Noop — no more pending messages
+            break
+        log.debug("drained pending message: type=%d", msg_type)
+
+
 def run_target_control_loop(
     tc: Any,
     *,
@@ -195,6 +210,8 @@ def run_target_control_loop(
     timeout: float = 60.0,
 ) -> CaptureResult:
     """Inner message loop for target control."""
+    _drain_pending_messages(tc)
+
     if frame is not None:
         tc.QueueCapture(frame, 1)
     else:

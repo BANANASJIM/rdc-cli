@@ -29,7 +29,7 @@ _MALI_PLATFORMS = {"kirin", "exynos", "orlando", "hi36", "mt6", "mt8"}
 _RENDERDOC_REMOTE_PORT = 39920
 _TARGET_CONTROL_PORT = 38920
 _RENDERDOC_LAYER_VK = "VK_LAYER_RENDERDOC_Capture"
-_RENDERDOC_LAYER_GLES = "libVkLayer_GLES_RenderDoc"
+_RENDERDOC_LAYER_GLES = "libVkLayer_GLES_RenderDoc.so"
 _RENDERDOC_CMD_PKG = "org.renderdoc.renderdoccmd.arm64"
 _GPU_DEBUG_SETTINGS = (
     ("enable_gpu_debug_layers", "1"),
@@ -67,8 +67,7 @@ def _get_forwarded_port(serial: str | None, url: str) -> int | None:
         return None
     for line in proc.stdout.strip().splitlines():
         parts = line.split()
-        if len(parts) >= 3 and parts[2] == f"tcp:{_RENDERDOC_REMOTE_PORT}":
-            # parts[1] is "tcp:LOCAL_PORT"
+        if len(parts) >= 3 and parts[2] == f"localabstract:renderdoc_{_RENDERDOC_REMOTE_PORT}":
             local = parts[1].removeprefix("tcp:")
             try:
                 return int(local)
@@ -198,9 +197,10 @@ def _wait_for_renderdoc_init(serial: str, pid: int, timeout: float = 15.0) -> bo
         True if RenderDoc initialization was detected.
     """
     deadline = time.monotonic() + timeout
+    markers = ("Listening for target control", "Adding OpenGLES frame capturer")
     while time.monotonic() < deadline:
         proc = _adb(serial, "logcat", "-d", "--pid", str(pid), timeout=5)
-        if "Listening for target control" in proc.stdout:
+        if any(m in proc.stdout for m in markers):
             return True
         time.sleep(1.0)
     return False
