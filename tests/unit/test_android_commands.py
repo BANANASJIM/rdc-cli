@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -172,6 +172,64 @@ class TestAndroidStop:
         _mock_rd_android(monkeypatch, devices=[])
         result = CliRunner().invoke(android_stop_cmd, [])
         assert result.exit_code == 1
+
+
+# --- Mali GPU detection ---
+
+
+class TestMaliDetection:
+    def test_mali_friendly_name_upstream_warns(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rd, _ = _mock_rd_android(
+            monkeypatch,
+            devices=["adb://ABC123"],
+            friendly_name="Mali-G78 Device",
+        )
+        rd.GetVersionString.return_value = "1.41"
+        result = CliRunner().invoke(android_setup_cmd, [])
+        assert result.exit_code == 0
+        assert "ARM Performance Studio" in result.output
+
+    def test_mali_platform_prop_upstream_warns(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rd, _ = _mock_rd_android(
+            monkeypatch,
+            devices=["adb://ABC123"],
+            friendly_name="Unknown Device",
+        )
+        rd.GetVersionString.return_value = "1.41"
+
+        mock_proc = MagicMock()
+        mock_proc.stdout = "orlando\n"
+
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
+        ):
+            result = CliRunner().invoke(android_setup_cmd, [])
+
+        assert result.exit_code == 0
+        assert "ARM Performance Studio" in result.output
+
+    def test_mali_arm_fork_no_warn(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rd, _ = _mock_rd_android(
+            monkeypatch,
+            devices=["adb://ABC123"],
+            friendly_name="Mali-G78 Device",
+        )
+        rd.GetVersionString.return_value = "2025.4"
+        result = CliRunner().invoke(android_setup_cmd, [])
+        assert result.exit_code == 0
+        assert "ARM Performance Studio" not in result.output
+
+    def test_adreno_no_warn(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rd, _ = _mock_rd_android(
+            monkeypatch,
+            devices=["adb://ABC123"],
+            friendly_name="Adreno 740",
+        )
+        rd.GetVersionString.return_value = "1.41"
+        result = CliRunner().invoke(android_setup_cmd, [])
+        assert result.exit_code == 0
+        assert "ARM Performance Studio" not in result.output
 
 
 # --- CLI registration ---

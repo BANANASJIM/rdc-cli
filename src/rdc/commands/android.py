@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 import time
 from typing import Any
 
@@ -15,6 +18,36 @@ from rdc.remote_state import (
     delete_remote_state,
     save_remote_state,
 )
+
+_MALI_PLATFORMS = {"kirin", "exynos", "orlando", "hi36", "mt6", "mt8"}
+
+
+def _is_mali_device(ctrl: Any, url: str, serial: str | None) -> bool:
+    """Return True if the device likely has a Mali GPU."""
+    try:
+        if "mali" in ctrl.GetFriendlyName(url).lower():
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if shutil.which("adb") is None:
+            return False
+        s = serial or url.removeprefix("adb://")
+        proc = subprocess.run(
+            ["adb", "-s", s, "shell", "getprop", "ro.board.platform"],
+            timeout=3,
+            capture_output=True,
+            text=True,
+        )
+        prop = proc.stdout.strip().lower()
+        return any(prop.startswith(p) for p in _MALI_PLATFORMS)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _is_arm_renderdoc(rd: Any) -> bool:
+    """Return True if rd is the ARM Performance Studio fork (version like 2025.x)."""
+    return bool(re.match(r"^\d{4}\.", rd.GetVersionString()))
 
 
 def _resolve_device(ctrl: Any, devices: list[str], serial: str | None) -> str:
@@ -75,6 +108,14 @@ def android_setup_cmd(serial: str | None, use_json: bool) -> None:
     if not ctrl.IsSupported(url):
         click.echo(f"error: device {url} is not supported", err=True)
         raise SystemExit(1)
+
+    if _is_mali_device(ctrl, url, serial) and not _is_arm_renderdoc(rd):
+        click.echo(
+            "hint: Mali GPU detected with upstream RenderDoc. "
+            "For better compatibility, use ARM Performance Studio version: "
+            "rdc setup-renderdoc --android --arm-studio <path>",
+            err=True,
+        )
 
     result = ctrl.StartRemoteServer(url)
     if not result.OK():
