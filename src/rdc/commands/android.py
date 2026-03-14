@@ -476,9 +476,13 @@ def android_capture_cmd(
     # Copy capture from device if needed
     if result.success and not result.local and result.path:
         try:
-            _adb(device_serial, "pull", result.path, str(output), timeout=60)
-            result.path = str(output)
-            result.local = True
+            proc = _adb(device_serial, "pull", result.path, str(output), timeout=60)
+            if proc.returncode != 0:
+                result.success = False
+                result.error = f"adb pull failed: {proc.stderr.strip() or 'unknown error'}"
+            else:
+                result.path = str(output)
+                result.local = True
         except RuntimeError as exc:
             result.success = False
             result.error = f"capture succeeded but transfer failed: {exc}"

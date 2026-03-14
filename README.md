@@ -72,12 +72,12 @@ pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain
 
 ### Platform Support Matrix
 
-| Platform | Local capture/replay | Split client |
-|----------|----------------------|--------------|
-| Linux | ✅ | ✅ |
-| macOS | ❌ (not supported yet) | ✅ (recommended) |
-| Windows | ✅ | ✅ |
-| Android | planned | planned |
+| Platform | Local capture/replay | Split client | Remote capture |
+|----------|----------------------|--------------|----------------|
+| Linux | ✅ | ✅ | ✅ |
+| macOS | ❌ (not supported yet) | ✅ (recommended) | — |
+| Windows | ✅ | ✅ | ✅ |
+| Android | — | — | experimental |
 
 ### RenderDoc bootstrap
 
@@ -163,6 +163,21 @@ rdc close
 
 Split mode is recommended for cross-platform use. All commands work transparently regardless of mode.
 
+**Android capture** (experimental)
+
+```bash
+rdc setup-renderdoc --android            # download RenderDoc APKs for Android
+rdc android setup                        # start remote server on connected device
+rdc android capture com.app/.MainActivity -o frame.rdc   # capture via GPU debug layers
+rdc android stop                         # stop remote server
+```
+
+Android capture uses GPU debug layers (Android 10+). Tested on Adreno and Mali (EMUI) devices. For Mali GPUs, ARM Performance Studio is recommended:
+
+```bash
+rdc setup-renderdoc --android --arm-studio /path/to/arm-performance-studio
+```
+
 ## Why rdc-cli?
 
 RenderDoc is excellent at capturing GPU frames and replaying them interactively. But its GUI doesn't compose — you can't pipe a draw call list into `sort`, diff two captures in CI, or let an AI agent inspect shader state.
@@ -194,9 +209,10 @@ Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See 
 | Diff | `diff` (with `--draws`, `--stats`, `--framebuffer`, `--pipeline`, etc.) |
 | VFS | `ls`, `cat`, `tree` |
 | Remote | `remote connect`, `remote list`, `remote capture` |
+| Android | `android setup`, `android stop`, `android capture` |
 | Target control | `attach`, `capture-trigger`, `capture-list`, `capture-copy` |
 | Capture file | `sections`, `section`, `callstacks`, `gpus`, `thumbnail` |
-| Utility | `doctor`, `completion`, `capture`, `count`, `script`, `serve`, `install-skill` |
+| Utility | `doctor`, `completion`, `capture`, `count`, `script`, `serve`, `setup-renderdoc`, `install-skill` |
 
 All list commands output TSV. All commands support `--json`. Footer/summary goes to stderr — stdout is always clean data.
 

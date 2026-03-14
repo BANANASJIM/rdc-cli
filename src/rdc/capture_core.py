@@ -200,6 +200,9 @@ def _drain_pending_messages(tc: Any) -> None:
         msg_type = int(msg.type)
         if msg_type == 3:  # Noop — no more pending messages
             break
+        if msg_type == 1:  # Disconnected
+            log.debug("target disconnected during drain")
+            break
         log.debug("drained pending message: type=%d", msg_type)
 
 
