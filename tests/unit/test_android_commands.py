@@ -9,9 +9,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
+from rdc.capture_core import CaptureResult
 from rdc.cli import main
 from rdc.commands.android import (
+    _adb,
+    _cleanup_device,
+    _clear_gpu_debug_layers,
+    _get_app_pid,
     _get_forwarded_port,
+    _resolve_serial,
+    _set_gpu_debug_layers,
+    _wait_for_renderdoc_init,
+    android_capture_cmd,
     android_group,
     android_setup_cmd,
     android_stop_cmd,
@@ -329,3 +338,331 @@ class TestGetForwardedPort:
         )
         CliRunner().invoke(android_setup_cmd, [])
         rd.CreateRemoteServerConnection.assert_called_once_with("adb://ABC123")
+
+
+# --- _adb helper ---
+
+
+class TestAdb:
+    def test_runs_command(self) -> None:
+        mock_proc = MagicMock(stdout="ok\n", stderr="", returncode=0)
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc) as m,
+        ):
+            result = _adb("ABC123", "shell", "echo", "hello")
+        assert result is mock_proc
+        m.assert_called_once()
+        cmd = m.call_args[0][0]
+        assert cmd == ["adb", "-s", "ABC123", "shell", "echo", "hello"]
+
+    def test_no_adb_raises(self) -> None:
+        with (
+            patch("rdc.commands.android.shutil.which", return_value=None),
+            pytest.raises(RuntimeError, match="adb not found"),
+        ):
+            _adb("ABC123", "shell", "ls")
+
+    def test_timeout_raises(self) -> None:
+        import subprocess
+
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch(
+                "rdc.commands.android.subprocess.run",
+                side_effect=subprocess.TimeoutExpired("adb", 10),
+            ),
+            pytest.raises(RuntimeError, match="timed out"),
+        ):
+            _adb("ABC123", "shell", "ls")
+
+
+# --- _resolve_serial ---
+
+
+class TestResolveSerial:
+    def test_returns_given_serial(self) -> None:
+        assert _resolve_serial("ABC123") == "ABC123"
+
+    def test_auto_single_device(self) -> None:
+        mock_proc = MagicMock(stdout="List of devices attached\nABC123\tdevice\n")
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
+        ):
+            assert _resolve_serial(None) == "ABC123"
+
+    def test_no_adb(self) -> None:
+        with (
+            patch("rdc.commands.android.shutil.which", return_value=None),
+            pytest.raises(SystemExit),
+        ):
+            _resolve_serial(None)
+
+    def test_no_devices(self) -> None:
+        mock_proc = MagicMock(stdout="List of devices attached\n\n")
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
+            pytest.raises(SystemExit),
+        ):
+            _resolve_serial(None)
+
+    def test_multiple_devices(self) -> None:
+        mock_proc = MagicMock(
+            stdout="List of devices attached\nAAA\tdevice\nBBB\tdevice\n",
+        )
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
+            pytest.raises(SystemExit),
+        ):
+            _resolve_serial(None)
+
+
+# --- GPU debug layer helpers ---
+
+
+class TestGpuDebugLayers:
+    def test_set_gpu_debug_layers(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_adb(serial: str, *args: str, timeout: int = 10) -> MagicMock:
+            calls.append([serial, *args])
+            return MagicMock(stdout="", returncode=0)
+
+        with patch("rdc.commands.android._adb", side_effect=fake_adb):
+            _set_gpu_debug_layers("ABC123", "com.example.app")
+
+        # Should set gpu_debug_app first, then the 4 layer settings
+        assert len(calls) == 5
+        assert calls[0][2] == "settings"
+        assert "gpu_debug_app" in calls[0]
+        assert "com.example.app" in calls[0]
+
+    def test_clear_gpu_debug_layers(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_adb(serial: str, *args: str, timeout: int = 10) -> MagicMock:
+            calls.append([serial, *args])
+            return MagicMock(stdout="", returncode=0)
+
+        with patch("rdc.commands.android._adb", side_effect=fake_adb):
+            _clear_gpu_debug_layers("ABC123")
+
+        # 4 layer settings + gpu_debug_app
+        assert len(calls) == 5
+        assert all("delete" in c for c in calls)
+
+
+class TestCleanupDevice:
+    def test_kills_and_removes_forwards(self) -> None:
+        calls: list[list[str]] = []
+
+        def fake_adb(serial: str, *args: str, timeout: int = 10) -> MagicMock:
+            calls.append([serial, *args])
+            return MagicMock(stdout="", returncode=0)
+
+        with patch("rdc.commands.android._adb", side_effect=fake_adb):
+            _cleanup_device("ABC123")
+
+        assert len(calls) == 2
+        assert "pkill" in calls[0]
+        assert "forward" in calls[1] and "--remove-all" in calls[1]
+
+
+class TestGetAppPid:
+    def test_returns_pid(self) -> None:
+        mock_proc = MagicMock(stdout="12345\n")
+        with patch("rdc.commands.android._adb", return_value=mock_proc):
+            pid = _get_app_pid("ABC123", "com.example.app", timeout=0.1)
+        assert pid == 12345
+
+    def test_returns_zero_on_timeout(self) -> None:
+        mock_proc = MagicMock(stdout="")
+        with patch("rdc.commands.android._adb", return_value=mock_proc):
+            pid = _get_app_pid("ABC123", "com.example.app", timeout=0.1)
+        assert pid == 0
+
+
+class TestWaitForRenderdocInit:
+    def test_detects_init(self) -> None:
+        mock_proc = MagicMock(stdout="RenderDoc: Listening for target control on port 38920\n")
+        with patch("rdc.commands.android._adb", return_value=mock_proc):
+            assert _wait_for_renderdoc_init("ABC123", 12345, timeout=0.1) is True
+
+    def test_timeout_returns_false(self) -> None:
+        mock_proc = MagicMock(stdout="no relevant logs\n")
+        with patch("rdc.commands.android._adb", return_value=mock_proc):
+            assert _wait_for_renderdoc_init("ABC123", 12345, timeout=0.1) is False
+
+
+# --- android capture ---
+
+
+class TestAndroidCapture:
+    def _setup_capture_mocks(self, monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+        """Set up mocks for the android capture command."""
+        mock_rd = MagicMock()
+        monkeypatch.setattr("rdc.commands.android.find_renderdoc", lambda: mock_rd)
+        monkeypatch.setattr(
+            "rdc.commands.android._resolve_serial",
+            lambda s: "ABC123",
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._cleanup_device",
+            lambda s: None,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._set_gpu_debug_layers",
+            lambda s, p: None,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._clear_gpu_debug_layers",
+            lambda s: None,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._adb",
+            lambda s, *a, timeout=10: MagicMock(stdout="", returncode=0),
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._get_app_pid",
+            lambda s, p, timeout=10.0: 12345,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._wait_for_renderdoc_init",
+            lambda s, pid, timeout=15.0: True,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._forward_target_control",
+            lambda s, port=38920: port,
+        )
+
+        mock_tc = MagicMock()
+        mock_rd.CreateTargetControl.return_value = mock_tc
+
+        monkeypatch.setattr(
+            "rdc.commands.android.run_target_control_loop",
+            lambda tc, timeout=60.0: CaptureResult(
+                success=True,
+                path="/tmp/test.rdc",
+                local=True,
+            ),
+        )
+        return mock_rd
+
+    def test_happy_path(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        out = tmp_path / "out.rdc"
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity", "-o", str(out)],
+        )
+        assert result.exit_code == 0
+
+    def test_json_output(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        out = tmp_path / "out.rdc"
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity", "-o", str(out), "--json"],
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["success"] is True
+
+    def test_default_output_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity"],
+        )
+        assert result.exit_code == 0
+
+    def test_no_renderdoc(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.android.find_renderdoc", lambda: None)
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity"],
+        )
+        assert result.exit_code == 1
+
+    def test_app_not_started(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        monkeypatch.setattr(
+            "rdc.commands.android._get_app_pid",
+            lambda s, p, timeout=10.0: 0,
+        )
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity"],
+        )
+        assert result.exit_code == 1
+        assert "did not start" in result.output
+
+    def test_renderdoc_init_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        monkeypatch.setattr(
+            "rdc.commands.android._wait_for_renderdoc_init",
+            lambda s, pid, timeout=15.0: False,
+        )
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity"],
+        )
+        assert result.exit_code == 1
+        assert "did not initialize" in result.output
+
+    def test_target_control_connect_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        mock_rd = self._setup_capture_mocks(monkeypatch)
+        mock_rd.CreateTargetControl.return_value = None
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity"],
+        )
+        assert result.exit_code == 1
+        assert "target control" in result.output
+
+    def test_capture_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        monkeypatch.setattr(
+            "rdc.commands.android.run_target_control_loop",
+            lambda tc, timeout=60.0: CaptureResult(
+                success=False,
+                error="timeout waiting for capture",
+            ),
+        )
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity"],
+        )
+        assert result.exit_code == 1
+        assert "timeout" in result.output
+
+    def test_remote_capture_pulled(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        self._setup_capture_mocks(monkeypatch)
+        monkeypatch.setattr(
+            "rdc.commands.android.run_target_control_loop",
+            lambda tc, timeout=60.0: CaptureResult(
+                success=True,
+                path="/sdcard/capture.rdc",
+                local=False,
+            ),
+        )
+        out = tmp_path / "out.rdc"
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity", "-o", str(out)],
+        )
+        assert result.exit_code == 0
+
+    def test_cli_registration(self) -> None:
+        result = CliRunner().invoke(android_group, ["--help"])
+        assert "capture" in result.output
+
+    def test_main_help(self) -> None:
+        result = CliRunner().invoke(main, ["android", "capture", "--help"])
+        assert result.exit_code == 0
+        assert "--serial" in result.output
+        assert "--timeout" in result.output
+        assert "--port" in result.output

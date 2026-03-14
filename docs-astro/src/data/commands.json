@@ -478,6 +478,12 @@
           "id": "android-stop",
           "help": "Stop RenderDoc remote server on an Android device.",
           "usage": "rdc android stop [--serial TEXT] [--json]"
+        },
+        {
+          "name": "android capture",
+          "id": "android-capture",
+          "help": "Capture a frame from an Android app using GPU debug layers.",
+          "usage": "rdc android capture <ACTIVITY> [--serial TEXT] [-o PATH] [--timeout FLOAT] [--port INTEGER] [--json]"
         }
       ]
     },
@@ -514,7 +520,7 @@
           "name": "setup-renderdoc",
           "id": "setup-renderdoc",
           "help": "Build and install the renderdoc Python module from source.",
-          "usage": "rdc setup-renderdoc [INSTALL-DIR] [--build-dir TEXT] [--version TEXT] [--jobs INTEGER]"
+          "usage": "rdc setup-renderdoc [INSTALL-DIR] [--build-dir TEXT] [--version TEXT] [--jobs INTEGER] [--android] [--arm] [--arm-studio DIRECTORY]"
         }
       ]
     }

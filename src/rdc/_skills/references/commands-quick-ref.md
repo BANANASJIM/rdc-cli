@@ -1,5 +1,25 @@
 # rdc-cli Command Quick Reference
 
+## `rdc android capture`
+
+Capture a frame from an Android app using GPU debug layers.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `activity` | text | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--serial` | Target device serial. | text |  |
+| `-o, --output` | Local output path (default: <package>.rdc). | path |  |
+| `--timeout` | Capture timeout in seconds. | float | 30.0 |
+| `--port` | Target control port. | integer | 38920 |
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc android setup`
 
 Start RenderDoc remote server on an Android device.

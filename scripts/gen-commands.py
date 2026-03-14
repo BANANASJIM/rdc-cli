@@ -69,7 +69,7 @@ CATEGORIES: list[tuple[str, str, str | None, list[str]]] = [
         "Remote", "remote",
         "Connect to a remote RenderDoc server for remote capture and replay.",
         ["serve", "remote connect", "remote list", "remote capture",
-         "android setup", "android stop"],
+         "android setup", "android stop", "android capture"],
     ),
     ("Utilities", "utilities", None, [
         "count", "completion", "script", "install-skill", "setup-renderdoc",
