@@ -12,6 +12,7 @@ from rdc.discover import (
     ProbeOutcome,
     ProbeResult,
     _get_diagnostic,
+    _is_arm_studio_dir,
     _probe_candidate,
     _try_import_from,
     find_renderdoc,
@@ -232,3 +233,23 @@ class TestFindRenderdocFallback:
         assert diag is not None
         assert diag.result == ProbeResult.CRASH_PRONE
         assert diag.candidate_path == str(crash_dir)
+
+
+class TestArmStudioDir:
+    """_is_arm_studio_dir detects ARM PS directory layout."""
+
+    def test_both_files_present(self, tmp_path: Path) -> None:
+        (tmp_path / "librenderdoc.so").write_text("fake")
+        (tmp_path / "renderdoc.so").write_text("fake")
+        assert _is_arm_studio_dir(str(tmp_path)) is True
+
+    def test_missing_librenderdoc(self, tmp_path: Path) -> None:
+        (tmp_path / "renderdoc.so").write_text("fake")
+        assert _is_arm_studio_dir(str(tmp_path)) is False
+
+    def test_missing_renderdoc_so(self, tmp_path: Path) -> None:
+        (tmp_path / "librenderdoc.so").write_text("fake")
+        assert _is_arm_studio_dir(str(tmp_path)) is False
+
+    def test_empty_dir(self, tmp_path: Path) -> None:
+        assert _is_arm_studio_dir(str(tmp_path)) is False

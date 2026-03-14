@@ -6,6 +6,7 @@ and returns the imported module if found and ABI-compatible.
 
 from __future__ import annotations
 
+import ctypes
 import importlib
 import logging
 import os
@@ -46,16 +47,49 @@ def _get_diagnostic() -> ProbeOutcome | None:
     return _diagnostic
 
 
+def _is_arm_studio_dir(directory: str) -> bool:
+    """Return True if directory contains ARM PS patched renderdoc.so + librenderdoc.so."""
+    d = Path(directory)
+    return (d / "librenderdoc.so").is_file() and (d / "renderdoc.so").is_file()
+
+
+def _preload_librenderdoc(directory: str) -> None:
+    """Preload librenderdoc.so with RTLD_GLOBAL for ARM PS patched module.
+
+    ARM Performance Studio's renderdoc.so is a patched PIE executable that
+    needs librenderdoc.so symbols available globally before import.
+    """
+    lib = Path(directory) / "librenderdoc.so"
+    if not lib.is_file():
+        return
+    rtld_lazy = getattr(os, "RTLD_LAZY", 1)
+    rtld_global = 0x100  # RTLD_GLOBAL
+    try:
+        ctypes.CDLL(str(lib), mode=rtld_lazy | rtld_global)
+        log.debug("preloaded librenderdoc.so from %s", directory)
+    except OSError as exc:
+        log.debug("failed to preload librenderdoc.so: %s", exc)
+
+
 def _probe_candidate(directory: str, timeout: float = 5.0) -> ProbeOutcome:
     """Probe a candidate directory using a subprocess to safely test import.
 
     Returns:
         ProbeOutcome with classification and version if available.
     """
+    arm_preload = ""
+    if _is_arm_studio_dir(directory):
+        arm_preload = f"""
+import ctypes, os
+try:
+    ctypes.CDLL({str(Path(directory) / "librenderdoc.so")!r}, mode=os.RTLD_LAZY | 0x100)
+except OSError:
+    pass
+"""
     probe_code = f"""
 import sys
 sys.path.insert(0, {directory!r})
-try:
+{arm_preload}try:
     import renderdoc
     ver = getattr(renderdoc, 'GetVersionString', lambda: None)()
     print(ver if ver else '')
@@ -201,6 +235,10 @@ def _try_import_from(directory: str) -> ModuleType | None:
             dll_dir_handle = os.add_dll_directory(directory)
         except OSError:
             pass
+
+    # ARM PS patched module needs librenderdoc.so preloaded with RTLD_GLOBAL
+    if _is_arm_studio_dir(directory):
+        _preload_librenderdoc(directory)
 
     sys.path.insert(0, directory)
     try:

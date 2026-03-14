@@ -20,6 +20,45 @@ from rdc.remote_state import (
 )
 
 _MALI_PLATFORMS = {"kirin", "exynos", "orlando", "hi36", "mt6", "mt8"}
+_RENDERDOC_REMOTE_PORT = 39920
+
+
+def _get_forwarded_port(serial: str | None, url: str) -> int | None:
+    """Query adb forward list for the RenderDoc remote server port.
+
+    After StartRemoteServer sets up adb port forwarding, this parses
+    ``adb forward --list`` to find the local TCP port mapped to the
+    device's remoteserver port.
+
+    Args:
+        serial: Device serial or None.
+        url: The adb:// URL for the device.
+
+    Returns:
+        Local TCP port number, or None if not found.
+    """
+    if shutil.which("adb") is None:
+        return None
+    s = serial or url.removeprefix("adb://")
+    try:
+        proc = subprocess.run(
+            ["adb", "-s", s, "forward", "--list"],
+            timeout=3,
+            capture_output=True,
+            text=True,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    for line in proc.stdout.strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2] == f"tcp:{_RENDERDOC_REMOTE_PORT}":
+            # parts[1] is "tcp:LOCAL_PORT"
+            local = parts[1].removeprefix("tcp:")
+            try:
+                return int(local)
+            except ValueError:
+                continue
+    return None
 
 
 def _is_mali_device(ctrl: Any, url: str, serial: str | None) -> bool:
@@ -122,8 +161,15 @@ def android_setup_cmd(serial: str | None, use_json: bool) -> None:
         click.echo(f"error: failed to start server: {result.Message()}", err=True)
         raise SystemExit(1)
 
+    # Determine the actual connection URL: prefer forwarded TCP port over adb:// URL
+    # because adb:// internal port mapping may not match the actual forwarded port.
+    conn_url = url
+    forwarded_port = _get_forwarded_port(serial, url)
+    if forwarded_port is not None:
+        conn_url = f"localhost:{forwarded_port}"
+
     try:
-        remote = connect_remote_server(rd, url)
+        remote = connect_remote_server(rd, conn_url)
     except RuntimeError as exc:
         click.echo(f"error: {exc}", err=True)
         raise SystemExit(1) from None

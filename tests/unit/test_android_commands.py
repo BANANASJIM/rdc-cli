@@ -10,7 +10,12 @@ import pytest
 from click.testing import CliRunner
 
 from rdc.cli import main
-from rdc.commands.android import android_group, android_setup_cmd, android_stop_cmd
+from rdc.commands.android import (
+    _get_forwarded_port,
+    android_group,
+    android_setup_cmd,
+    android_stop_cmd,
+)
 from rdc.remote_state import (
     RemoteServerState,
     load_latest_remote_state,
@@ -252,3 +257,75 @@ class TestCliRegistration:
         assert result.exit_code == 0
         assert "setup" in result.output
         assert "stop" in result.output
+
+
+# --- forwarded port detection ---
+
+
+class TestGetForwardedPort:
+    def test_parses_forward_list(self) -> None:
+        mock_proc = MagicMock()
+        mock_proc.stdout = "ABC123 tcp:12345 tcp:39920\n"
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
+        ):
+            port = _get_forwarded_port(None, "adb://ABC123")
+        assert port == 12345
+
+    def test_no_match(self) -> None:
+        mock_proc = MagicMock()
+        mock_proc.stdout = "ABC123 tcp:12345 tcp:9999\n"
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc),
+        ):
+            port = _get_forwarded_port(None, "adb://ABC123")
+        assert port is None
+
+    def test_no_adb(self) -> None:
+        with patch("rdc.commands.android.shutil.which", return_value=None):
+            port = _get_forwarded_port(None, "adb://ABC123")
+        assert port is None
+
+    def test_uses_serial(self) -> None:
+        mock_proc = MagicMock()
+        mock_proc.stdout = "XYZ tcp:54321 tcp:39920\n"
+        with (
+            patch("rdc.commands.android.shutil.which", return_value="/usr/bin/adb"),
+            patch("rdc.commands.android.subprocess.run", return_value=mock_proc) as m,
+        ):
+            port = _get_forwarded_port("XYZ", "adb://XYZ")
+        assert port == 54321
+        args = m.call_args[0][0]
+        assert "-s" in args
+        assert "XYZ" in args
+
+    def test_setup_uses_forwarded_port(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rd, _ = _mock_rd_android(
+            monkeypatch,
+            devices=["adb://ABC123"],
+            friendly_name="Pixel 7",
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._get_forwarded_port",
+            lambda s, u: 12345,
+        )
+        CliRunner().invoke(android_setup_cmd, [])
+        rd.CreateRemoteServerConnection.assert_called_once_with("localhost:12345")
+
+    def test_setup_falls_back_to_adb_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        rd, _ = _mock_rd_android(
+            monkeypatch,
+            devices=["adb://ABC123"],
+            friendly_name="Pixel 7",
+        )
+        monkeypatch.setattr(
+            "rdc.commands.android._get_forwarded_port",
+            lambda s, u: None,
+        )
+        CliRunner().invoke(android_setup_cmd, [])
+        rd.CreateRemoteServerConnection.assert_called_once_with("adb://ABC123")

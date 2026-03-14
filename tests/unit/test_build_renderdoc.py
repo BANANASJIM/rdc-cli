@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import struct
 import sys
 import tarfile
 import zipfile
@@ -898,6 +899,59 @@ def test_download_android_apks_no_apks_in_tarball(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _make_fake_elf64() -> bytes:
+    """Build a minimal 64-bit ELF with PT_INTERP and DT_FLAGS_1 (DF_1_PIE)."""
+    # ELF header (64 bytes)
+    e_ident = b"\x7fELF" + b"\x02\x01\x01" + b"\x00" * 9  # 16 bytes
+    e_phoff = 64  # program headers start right after ehdr
+    e_phentsize = 56  # Elf64_Phdr size
+    e_phnum = 2  # PT_INTERP + PT_DYNAMIC
+    ehdr = e_ident + struct.pack(
+        "<HHIQQQIHHHHHH",
+        2,  # e_type = ET_EXEC
+        0x3E,  # e_machine = EM_X86_64
+        1,  # e_version
+        0,  # e_entry
+        e_phoff,  # e_phoff
+        0,  # e_shoff
+        0,  # e_flags
+        64,  # e_ehsize
+        e_phentsize,  # e_phentsize
+        e_phnum,  # e_phnum
+        0,  # e_shentsize
+        0,  # e_shnum
+        0,  # e_shstrndx
+    )
+
+    # Dynamic section at offset 256
+    dyn_off = 256
+    # DT_FLAGS_1 with DF_1_PIE set, then DT_NULL
+    dyn_data = struct.pack("<qQ", 0x6FFFFFFB, 0x08000000)  # DT_FLAGS_1
+    dyn_data += struct.pack("<qQ", 0, 0)  # DT_NULL
+
+    # PT_INTERP (type=3)
+    phdr_interp = struct.pack("<IIQQQQQQ", 3, 0, 200, 0, 0, 16, 16, 0)
+    # PT_DYNAMIC (type=2), pointing to dyn_off
+    phdr_dynamic = struct.pack(
+        "<IIQQQQQQ",
+        2,
+        0,
+        dyn_off,
+        0,
+        0,
+        len(dyn_data),
+        len(dyn_data),
+        0,
+    )
+
+    buf = bytearray(512)
+    buf[: len(ehdr)] = ehdr
+    buf[e_phoff : e_phoff + len(phdr_interp)] = phdr_interp
+    buf[e_phoff + e_phentsize : e_phoff + e_phentsize + len(phdr_dynamic)] = phdr_dynamic
+    buf[dyn_off : dyn_off + len(dyn_data)] = dyn_data
+    return bytes(buf)
+
+
 def _make_arm_dir(tmp_path: Path) -> Path:
     """Create a fake ARM Performance Studio directory structure."""
     arm = tmp_path / "arm-ps"
@@ -905,6 +959,9 @@ def _make_arm_dir(tmp_path: Path) -> Path:
     apk_dir = rdoc / "share" / "renderdoc" / "plugins" / "android"
     apk_dir.mkdir(parents=True)
     (apk_dir / "org.renderdoc.renderdoccmd.arm64.apk").write_bytes(b"fake-apk")
+    lib_dir = rdoc / "lib"
+    lib_dir.mkdir(parents=True)
+    (lib_dir / "qrenderdoc").write_bytes(_make_fake_elf64())
     return arm
 
 
@@ -917,6 +974,9 @@ def test_install_arm_studio_happy_path(tmp_path: Path) -> None:
 
     apk_dir = br._android_apk_dir(lib_dir)
     assert list(apk_dir.glob("*.apk"))
+    # Verify ELF was patched
+    patched = arm / "renderdoc_for_arm_gpus" / "lib" / "renderdoc.so"
+    assert patched.exists()
 
 
 def test_install_arm_studio_no_renderdoc_dir(tmp_path: Path) -> None:
@@ -939,3 +999,61 @@ def test_install_arm_studio_missing_apks(tmp_path: Path) -> None:
 
     with pytest.raises(SystemExit):
         br.install_arm_studio(arm, lib_dir)
+
+
+# ---------------------------------------------------------------------------
+# patch_arm_studio_elf
+# ---------------------------------------------------------------------------
+
+
+def test_patch_arm_studio_elf_happy_path(tmp_path: Path) -> None:
+    arm = tmp_path / "arm-ps"
+    lib = arm / "renderdoc_for_arm_gpus" / "lib"
+    lib.mkdir(parents=True)
+    elf_data = _make_fake_elf64()
+    (lib / "qrenderdoc").write_bytes(elf_data)
+
+    result = br.patch_arm_studio_elf(arm)
+
+    assert result == lib / "renderdoc.so"
+    assert result.exists()
+    patched = bytearray(result.read_bytes())
+    # PT_INTERP (offset 64, first phdr) should now be PT_NULL (0)
+    p_type = struct.unpack_from("<I", patched, 64)[0]
+    assert p_type == 0
+    # DT_FLAGS_1 value should have DF_1_PIE cleared
+    dyn_off = 256
+    _, d_val = struct.unpack_from("<qQ", patched, dyn_off)
+    assert d_val & 0x08000000 == 0
+
+
+def test_patch_arm_studio_elf_idempotent(tmp_path: Path) -> None:
+    arm = tmp_path / "arm-ps"
+    lib = arm / "renderdoc_for_arm_gpus" / "lib"
+    lib.mkdir(parents=True)
+    elf_data = _make_fake_elf64()
+    (lib / "qrenderdoc").write_bytes(elf_data)
+    # Pre-create renderdoc.so with same size
+    (lib / "renderdoc.so").write_bytes(elf_data)
+
+    result = br.patch_arm_studio_elf(arm)
+    assert result == lib / "renderdoc.so"
+
+
+def test_patch_arm_studio_elf_missing_qrenderdoc(tmp_path: Path) -> None:
+    arm = tmp_path / "arm-ps"
+    lib = arm / "renderdoc_for_arm_gpus" / "lib"
+    lib.mkdir(parents=True)
+
+    with pytest.raises(SystemExit):
+        br.patch_arm_studio_elf(arm)
+
+
+def test_patch_arm_studio_elf_not_elf(tmp_path: Path) -> None:
+    arm = tmp_path / "arm-ps"
+    lib = arm / "renderdoc_for_arm_gpus" / "lib"
+    lib.mkdir(parents=True)
+    (lib / "qrenderdoc").write_bytes(b"not-an-elf-file")
+
+    with pytest.raises(SystemExit):
+        br.patch_arm_studio_elf(arm)
