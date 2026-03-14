@@ -10,9 +10,12 @@ from click.testing import CliRunner
 
 from rdc.commands.doctor import (
     CheckResult,
+    _check_adb,
+    _check_android_apk,
     _check_mac_homebrew,
     _check_mac_renderdoc_dylib,
     _check_mac_xcode_cli,
+    _check_renderdoc_variant,
     _check_renderdoccmd,
     _check_win_python_version,
     _check_win_renderdoc_install,
@@ -26,9 +29,11 @@ from rdc.commands.doctor import (
 from rdc.discover import ProbeOutcome, ProbeResult
 
 
-def _fake_renderdoc(*, with_replay: bool = True) -> SimpleNamespace:
+def _fake_renderdoc(
+    *, with_replay: bool = True, file: str = "/fake/lib/renderdoc.so"
+) -> SimpleNamespace:
     """Create a fake renderdoc module for testing."""
-    attrs = {"GetVersionString": lambda: "1.33"}
+    attrs = {"GetVersionString": lambda: "1.33", "__file__": file}
     if with_replay:
         attrs.update(
             InitialiseReplay=lambda *args, **kwargs: 0,
@@ -348,7 +353,7 @@ class TestMakeBuildHint:
 
 
 def test_run_doctor_linux_returns_5_results(monkeypatch: pytest.MonkeyPatch) -> None:
-    """TP-W3-017a: Linux run_doctor returns 5 results."""
+    """TP-W3-017a: Linux run_doctor returns 8 results (5 core + 3 android)."""
     monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
     monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: _fake_renderdoc())
     monkeypatch.setattr(
@@ -359,7 +364,7 @@ def test_run_doctor_linux_returns_5_results(monkeypatch: pytest.MonkeyPatch) -> 
         lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=0, stdout="v1.33"),
     )
     results = run_doctor()
-    assert len(results) == 5
+    assert len(results) == 8
     win_names = {"win-python-version", "win-vs-build-tools", "win-renderdoc-install"}
     assert all(r.name not in win_names for r in results)
 
@@ -396,6 +401,7 @@ def test_run_doctor_windows_has_3_more_checks(monkeypatch: pytest.MonkeyPatch) -
         "rdc.commands.doctor._check_win_vulkan_layer",
         lambda: CheckResult("win-vulkan-layer", True, "ok"),
     )
+    monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda _n: None)
     win_count = len(run_doctor())
 
     assert win_count - linux_count == 4
@@ -677,6 +683,90 @@ class TestImportRenderdocDiagnostics:
         assert result.ok is True
         assert module is fake_mod
         assert "1.41" in result.detail
+
+
+# ── Vulkan layer check ───────────────────────────────────────────────
+
+
+# ── Android checks ───────────────────────────────────────────────────
+
+
+class TestCheckAdb:
+    def test_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda _n: "/usr/bin/adb")
+        r = _check_adb()
+        assert r.ok is True
+        assert "/usr/bin/adb" in r.detail
+
+    def test_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc.commands.doctor.shutil.which", lambda _n: None)
+        r = _check_adb()
+        assert r.ok is True
+        assert "pixi run setup-android" in r.detail
+
+
+class TestCheckAndroidApk:
+    def test_apk_exists(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        lib_dir = tmp_path / "lib"
+        lib_dir.mkdir()
+        apk_dir = tmp_path / "share" / "renderdoc" / "plugins" / "android"
+        apk_dir.mkdir(parents=True)
+        (apk_dir / "renderdoc.apk").write_bytes(b"fake")
+        fake_mod = SimpleNamespace(__file__=str(lib_dir / "renderdoc.so"))
+        r = _check_android_apk(fake_mod)
+        assert r.ok is True
+        assert "1" in r.detail
+
+    def test_apk_missing(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        lib_dir = tmp_path / "lib"
+        lib_dir.mkdir()
+        apk_dir = tmp_path / "share" / "renderdoc" / "plugins" / "android"
+        apk_dir.mkdir(parents=True)
+        fake_mod = SimpleNamespace(__file__=str(lib_dir / "renderdoc.so"))
+        r = _check_android_apk(fake_mod)
+        assert r.ok is True
+        assert "--android" in r.detail
+
+    def test_no_module(self) -> None:
+        r = _check_android_apk(None)
+        assert r.ok is True
+        assert "skipped" in r.detail
+
+
+class TestCheckRenderdocVariant:
+    def test_upstream(self) -> None:
+        fake_mod = SimpleNamespace(GetVersionString=lambda: "1.41")
+        r = _check_renderdoc_variant(fake_mod)
+        assert r.ok is True
+        assert "upstream" in r.detail
+
+    def test_arm(self) -> None:
+        fake_mod = SimpleNamespace(GetVersionString=lambda: "2025.4")
+        r = _check_renderdoc_variant(fake_mod)
+        assert r.ok is True
+        assert "arm" in r.detail
+
+    def test_no_module(self) -> None:
+        r = _check_renderdoc_variant(None)
+        assert r.ok is True
+        assert "skipped" in r.detail
+
+
+def test_run_doctor_includes_android_checks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("rdc.commands.doctor.sys.platform", "linux")
+    monkeypatch.setattr("rdc.commands.doctor.find_renderdoc", lambda: _fake_renderdoc())
+    monkeypatch.setattr(
+        "rdc.commands.doctor.find_renderdoccmd", lambda: Path("/usr/bin/renderdoccmd")
+    )
+    monkeypatch.setattr(
+        "rdc.commands.doctor.subprocess.run",
+        lambda *a, **kw: subprocess.CompletedProcess(args=[], returncode=0, stdout="v1.33"),
+    )
+    results = run_doctor()
+    names = {r.name for r in results}
+    assert "adb" in names
+    assert "android-apk" in names
+    assert "renderdoc-variant" in names
 
 
 # ── Vulkan layer check ───────────────────────────────────────────────

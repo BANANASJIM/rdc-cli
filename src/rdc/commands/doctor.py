@@ -9,6 +9,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import click
@@ -292,6 +293,38 @@ def _check_win_vulkan_layer() -> CheckResult:
     return CheckResult("win-vulkan-layer", True, f"registered at {layer_json_path}")
 
 
+# -- Android checks --------------------------------------------------------
+
+
+def _check_adb() -> CheckResult:
+    path = shutil.which("adb")
+    if path:
+        return CheckResult("adb", True, f"found: {path}")
+    return CheckResult("adb", True, "not found (run: pixi run setup-android)")
+
+
+def _check_android_apk(rd_module: ModuleType | None) -> CheckResult:
+    if rd_module is None or rd_module.__file__ is None:
+        return CheckResult("android-apk", True, "skipped (renderdoc not installed)")
+    lib_dir = Path(rd_module.__file__).resolve().parent
+    apk_dir = (lib_dir / ".." / "share" / "renderdoc" / "plugins" / "android").resolve()
+    apks = list(apk_dir.glob("*.apk"))
+    if apks:
+        return CheckResult("android-apk", True, f"{len(apks)} APK(s) at {apk_dir}")
+    return CheckResult("android-apk", True, "not found (run: rdc setup-renderdoc --android)")
+
+
+def _check_renderdoc_variant(rd_module: ModuleType | None) -> CheckResult:
+    if rd_module is None:
+        return CheckResult("renderdoc-variant", True, "skipped")
+    version = rd_module.GetVersionString()
+    if re.match(r"^\d{4}\.", version):
+        detail = f"arm-performance-studio ({version})"
+    else:
+        detail = f"upstream ({version})"
+    return CheckResult("renderdoc-variant", True, detail)
+
+
 # -- macOS-specific checks -------------------------------------------------
 
 
@@ -373,6 +406,11 @@ def run_doctor() -> list[CheckResult]:
             _check_mac_homebrew(),
             _check_mac_renderdoc_dylib(),
         ]
+    results += [
+        _check_adb(),
+        _check_android_apk(module),
+        _check_renderdoc_variant(module),
+    ]
     return results
 
 
