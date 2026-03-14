@@ -198,6 +198,10 @@ def renderdoc_search_paths() -> list[str]:
             paths.append(str(Path(localappdata) / "renderdoc"))
             paths.append(str(Path(localappdata) / "rdc" / "renderdoc"))
         return paths
+    _arm_ps = [
+        "/opt/arm/arm-performance-studio/renderdoc/lib",
+        str(Path.home() / "arm-performance-studio" / "renderdoc" / "lib"),
+    ]
     if _MAC:
         return [
             "/opt/homebrew/opt/renderdoc/lib",
@@ -205,8 +209,14 @@ def renderdoc_search_paths() -> list[str]:
             str(Path.home() / ".local" / "renderdoc"),
             "/usr/lib/renderdoc",
             "/usr/local/lib/renderdoc",
+            *_arm_ps,
         ]
-    return ["/usr/lib/renderdoc", "/usr/local/lib/renderdoc"]
+    return [
+        "/usr/lib/renderdoc",
+        "/usr/local/lib/renderdoc",
+        str(Path.home() / ".local" / "renderdoc"),
+        *_arm_ps,
+    ]
 
 
 def renderdoccmd_search_paths() -> list[Path]:
@@ -222,15 +232,18 @@ def renderdoccmd_search_paths() -> list[Path]:
                 Path(userprofile) / "scoop" / "apps" / "renderdoc" / "current" / "renderdoccmd.exe"
             )
         return paths
+    _arm_cmd = Path("/opt/arm/arm-performance-studio/renderdoc/bin/renderdoccmd")
     if _MAC:
         return [
             Path("/opt/homebrew/bin/renderdoccmd"),
             Path("/opt/renderdoc/bin/renderdoccmd"),
             Path("/usr/local/bin/renderdoccmd"),
             Path.home() / ".local" / "renderdoc" / "renderdoccmd",
+            _arm_cmd,
         ]
     return [
         Path("/opt/renderdoc/bin/renderdoccmd"),
         Path("/usr/local/bin/renderdoccmd"),
         Path.home() / ".local" / "renderdoc" / "renderdoccmd",
+        _arm_cmd,
     ]

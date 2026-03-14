@@ -486,6 +486,54 @@ class TestIsPidAliveDarwin:
         assert is_pid_alive(pid) is True
 
 
+# ── Group H-arm: ARM Performance Studio paths ────────────────────────
+
+
+class TestRenderdocSearchPathsARM:
+    """7D.1: ARM Performance Studio search paths."""
+
+    def test_linux_arm_ps_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """7D1-A3-01: Linux includes arm-performance-studio paths."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        result = renderdoc_search_paths()
+        assert any("arm-performance-studio" in p for p in result)
+
+    def test_linux_local_renderdoc(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """7D1-A3-02: Linux includes ~/.local/renderdoc."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        result = renderdoc_search_paths()
+        assert any(".local/renderdoc" in p for p in result)
+
+    def test_macos_arm_ps_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """7D1-A3-03: macOS includes arm-performance-studio paths."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform._MAC", True)
+        result = renderdoc_search_paths()
+        assert any("arm-performance-studio" in p for p in result)
+
+    def test_windows_no_arm_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """7D1-A3-04: Windows does NOT include any arm paths."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        result = renderdoc_search_paths()
+        assert not any("arm" in p.lower() for p in result)
+
+
+class TestRenderdoccmdSearchPathsARM:
+    """7D.1: ARM Performance Studio renderdoccmd path."""
+
+    def test_renderdoccmd_arm_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """7D1-A3-05: Linux renderdoccmd includes arm-performance-studio/renderdoccmd."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        monkeypatch.setattr("rdc._platform._MAC", False)
+        result = renderdoccmd_search_paths()
+        arm_paths = [p for p in result if "arm-performance-studio" in str(p)]
+        assert arm_paths
+        assert all(str(p).endswith("renderdoccmd") for p in arm_paths)
+
+
 # ── Group J: backward compat ─────────────────────────────────────────
 
 
