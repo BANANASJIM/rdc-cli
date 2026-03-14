@@ -11,11 +11,12 @@ import click
 @click.option("--version", "rdoc_version", default=None, help="RenderDoc tag to build.")
 @click.option("--jobs", type=int, default=None, help="Parallel build jobs.")
 @click.option("--android", is_flag=True, default=False, help="Download Android APKs.")
+@click.option("--arm", is_flag=True, default=False, help="Download ARM Performance Studio (Mali).")
 @click.option(
     "--arm-studio",
     default=None,
     type=click.Path(exists=True, file_okay=False),
-    help="ARM Performance Studio install path.",
+    help="ARM Performance Studio local install path.",
 )
 def setup_renderdoc_cmd(
     install_dir: str | None,
@@ -23,14 +24,15 @@ def setup_renderdoc_cmd(
     rdoc_version: str | None,
     jobs: int | None,
     android: bool,
+    arm: bool,
     arm_studio: str | None,
 ) -> None:
     """Build and install the renderdoc Python module from source."""
-    if arm_studio and not android:
-        raise click.UsageError("--arm-studio requires --android")
+    if (arm_studio or arm) and not android:
+        raise click.UsageError("--arm / --arm-studio requires --android")
 
     if android:
-        _handle_android(arm_studio)
+        _handle_android(arm_studio, arm)
         return
 
     argv: list[str] = []
@@ -59,16 +61,24 @@ def _resolve_lib_dir() -> Path:
     return default_install_dir()
 
 
-def _handle_android(arm_studio: str | None) -> None:
+def _handle_android(arm_studio: str | None, arm: bool = False) -> None:
     """Handle --android flag logic."""
     from rdc._build_renderdoc import (
         RDOC_TAG,
         _android_apk_dir,
         download_android_apks,
+        download_arm_studio,
         install_arm_studio,
     )
 
     lib_dir = _resolve_lib_dir()
+
+    # --arm: auto-download ARM PS then install from it
+    if arm:
+        arm_path = download_arm_studio(Path(".local/arm-performance-studio"))
+        install_arm_studio(arm_path, lib_dir)
+        click.echo("ARM Performance Studio renderdoc + APKs installed.")
+        return
 
     if arm_studio:
         install_arm_studio(Path(arm_studio), lib_dir)

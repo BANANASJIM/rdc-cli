@@ -563,6 +563,69 @@ def install_arm_studio(arm_path: Path, lib_dir: Path) -> None:
     _log(f"symlinked renderdoccmd -> {cmd_src}")
 
 
+_ARM_PS_URLS = {
+    "linux": "https://artifacts.tools.arm.com/arm-performance-studio/{v}/Arm_Performance_Studio_{v}_linux_x86-64.tgz",
+    "darwin": "https://artifacts.tools.arm.com/arm-performance-studio/{v}/Arm_Performance_Studio_{v}_macos_arm64.dmg",
+}
+_ARM_PS_VERSION = "2025.7"
+
+
+def download_arm_studio(dest: Path) -> Path:
+    """Download ARM Performance Studio and extract to *dest*.
+
+    Returns the root directory of the extracted ARM PS installation.
+    Idempotent: skips if ``dest/renderdoc/lib/renderdoc.so`` exists.
+    Only supports Linux and macOS (.tgz). Windows is not supported.
+
+    Args:
+        dest: Target directory (e.g. ``.local/arm-performance-studio``).
+    """
+    marker = dest / "renderdoc" / "lib" / "renderdoc.so"
+    if marker.exists():
+        _log(f"ARM Performance Studio already present at {dest}")
+        return dest
+
+    if sys.platform == "win32":
+        sys.stderr.write("ERROR: ARM Performance Studio download not supported on Windows\n")
+        raise SystemExit(1)
+
+    key = sys.platform if sys.platform in _ARM_PS_URLS else "linux"
+    url = _ARM_PS_URLS[key].format(v=_ARM_PS_VERSION)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".tgz", delete=False) as f:
+        tmp = Path(f.name)
+    try:
+        _log(f"downloading ARM Performance Studio from {url}")
+        urlretrieve(url, str(tmp))
+        _log("extracting...")
+        with tarfile.open(str(tmp), "r:gz") as tf:
+            # Strip top-level directory to extract directly into dest
+            for member in tf.getmembers():
+                # Path traversal guard
+                parts = Path(member.name).parts
+                if len(parts) <= 1:
+                    continue
+                rel = str(Path(*parts[1:]))
+                resolved = (dest / rel).resolve()
+                if not resolved.is_relative_to(dest.resolve()):
+                    continue
+                member.name = rel
+                if hasattr(tarfile, "data_filter"):
+                    tf.extract(member, dest, filter="data")
+                else:
+                    tf.extract(member, dest)
+        if not marker.exists():
+            sys.stderr.write(f"ERROR: {marker} not found after extraction\n")
+            raise SystemExit(1)
+        _log(f"ARM Performance Studio extracted to {dest}")
+    finally:
+        tmp.unlink(missing_ok=True)
+    return dest
+
+
 def _artifacts_present(install_dir: Path, plat: str) -> bool:
     required = [n for n in _artifact_names(plat) if n not in _OPTIONAL_ARTIFACTS]
     return all((install_dir / n).exists() for n in required)

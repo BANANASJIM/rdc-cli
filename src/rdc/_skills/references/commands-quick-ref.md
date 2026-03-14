@@ -896,7 +896,8 @@ Build and install the renderdoc Python module from source.
 | `--version` | RenderDoc tag to build. | text |  |
 | `--jobs` | Parallel build jobs. | integer |  |
 | `--android` | Download Android APKs. | flag |  |
-| `--arm-studio` | ARM Performance Studio install path. | directory |  |
+| `--arm` | Download ARM Performance Studio (Mali). | flag |  |
+| `--arm-studio` | ARM Performance Studio local install path. | directory |  |
 
 ## `rdc shader`
 
