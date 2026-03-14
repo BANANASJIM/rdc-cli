@@ -901,17 +901,10 @@ def test_download_android_apks_no_apks_in_tarball(tmp_path: Path) -> None:
 def _make_arm_dir(tmp_path: Path) -> Path:
     """Create a fake ARM Performance Studio directory structure."""
     arm = tmp_path / "arm-ps"
-    rdoc = arm / "renderdoc"
-    (rdoc / "lib").mkdir(parents=True)
-    (rdoc / "lib" / "renderdoc.so").write_bytes(b"fake-module")
-    (rdoc / "lib" / "librenderdoc.so").write_bytes(b"fake-lib")
+    rdoc = arm / "renderdoc_for_arm_gpus"
     apk_dir = rdoc / "share" / "renderdoc" / "plugins" / "android"
     apk_dir.mkdir(parents=True)
     (apk_dir / "org.renderdoc.renderdoccmd.arm64.apk").write_bytes(b"fake-apk")
-    (rdoc / "bin").mkdir(parents=True)
-    cmd = rdoc / "bin" / "renderdoccmd"
-    cmd.write_bytes(b"fake-cmd")
-    cmd.chmod(0o755)
     return arm
 
 
@@ -922,19 +915,13 @@ def test_install_arm_studio_happy_path(tmp_path: Path) -> None:
 
     br.install_arm_studio(arm, lib_dir)
 
-    assert (lib_dir / "renderdoc.so").exists()
-    assert (lib_dir / "librenderdoc.so").exists()
     apk_dir = br._android_apk_dir(lib_dir)
     assert list(apk_dir.glob("*.apk"))
-    bin_dir = (lib_dir / ".." / "bin").resolve()
-    assert (bin_dir / "renderdoccmd").is_symlink()
 
 
-def test_install_arm_studio_missing_module(tmp_path: Path) -> None:
+def test_install_arm_studio_no_renderdoc_dir(tmp_path: Path) -> None:
     arm = tmp_path / "arm-ps"
-    rdoc = arm / "renderdoc" / "lib"
-    rdoc.mkdir(parents=True)
-    (rdoc / "librenderdoc.so").write_bytes(b"fake")
+    arm.mkdir()
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
 
@@ -944,11 +931,9 @@ def test_install_arm_studio_missing_module(tmp_path: Path) -> None:
 
 def test_install_arm_studio_missing_apks(tmp_path: Path) -> None:
     arm = tmp_path / "arm-ps"
-    rdoc = arm / "renderdoc"
-    (rdoc / "lib").mkdir(parents=True)
-    (rdoc / "lib" / "renderdoc.so").write_bytes(b"fake")
-    (rdoc / "lib" / "librenderdoc.so").write_bytes(b"fake")
-    # No APK directory
+    rdoc = arm / "renderdoc_for_arm_gpus"
+    (rdoc / "share" / "renderdoc" / "plugins" / "android").mkdir(parents=True)
+    # No APK files
     lib_dir = tmp_path / "lib"
     lib_dir.mkdir()
 

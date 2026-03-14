@@ -517,50 +517,35 @@ def download_android_apks(version: str, lib_dir: Path) -> None:
 
 
 def install_arm_studio(arm_path: Path, lib_dir: Path) -> None:
-    """Install ARM Performance Studio RenderDoc into the local lib directory.
+    """Copy ARM Performance Studio Android APKs into the local install.
+
+    Only APKs are copied — the host-side renderdoc module stays upstream
+    (ARM PS bundles Python 3.10 which is ABI-incompatible). The ARM APKs
+    contain Mali-optimized remoteserver that runs on the device.
 
     Args:
         arm_path: Root of ARM Performance Studio installation.
         lib_dir: The renderdoc Python module directory.
     """
-    rdoc_dir = arm_path / "renderdoc"
-    module_so = rdoc_dir / "lib" / "renderdoc.so"
-    librdoc_so = rdoc_dir / "lib" / "librenderdoc.so"
-    if not module_so.exists():
-        sys.stderr.write(f"ERROR: {module_so} not found\n")
-        raise SystemExit(1)
-    if not librdoc_so.exists():
-        sys.stderr.write(f"ERROR: {librdoc_so} not found\n")
+    # ARM PS uses "renderdoc_for_arm_gpus" (not "renderdoc")
+    for subdir in ("renderdoc_for_arm_gpus", "renderdoc"):
+        arm_apk_dir = arm_path / subdir / "share" / "renderdoc" / "plugins" / "android"
+        if arm_apk_dir.is_dir():
+            break
+    else:
+        sys.stderr.write(f"ERROR: no renderdoc directory found in {arm_path}\n")
         raise SystemExit(1)
 
-    lib_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(module_so, lib_dir / "renderdoc.so")
-    shutil.copy2(librdoc_so, lib_dir / "librenderdoc.so")
-    _log(f"copied renderdoc.so + librenderdoc.so to {lib_dir}")
-
-    # Copy APKs
-    arm_apk_dir = rdoc_dir / "share" / "renderdoc" / "plugins" / "android"
-    apks = list(arm_apk_dir.glob("*.apk")) if arm_apk_dir.is_dir() else []
+    apks = list(arm_apk_dir.glob("*.apk"))
     if not apks:
         sys.stderr.write(f"ERROR: no APKs found in {arm_apk_dir}\n")
         raise SystemExit(1)
+
     dest = _android_apk_dir(lib_dir)
     dest.mkdir(parents=True, exist_ok=True)
     for apk in apks:
         shutil.copy2(apk, dest / apk.name)
-    _log(f"copied {len(apks)} APK(s) to {dest}")
-
-    # Symlink renderdoccmd
-    cmd_src = rdoc_dir / "bin" / "renderdoccmd"
-    if not cmd_src.exists():
-        sys.stderr.write(f"ERROR: {cmd_src} not found\n")
-        raise SystemExit(1)
-    bin_dir = (lib_dir / ".." / "bin").resolve()
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    link = bin_dir / "renderdoccmd"
-    link.unlink(missing_ok=True)
-    link.symlink_to(cmd_src.resolve())
-    _log(f"symlinked renderdoccmd -> {cmd_src}")
+    _log(f"copied {len(apks)} ARM APK(s) to {dest}")
 
 
 _ARM_PS_URLS = {
@@ -574,14 +559,15 @@ def download_arm_studio(dest: Path) -> Path:
     """Download ARM Performance Studio and extract to *dest*.
 
     Returns the root directory of the extracted ARM PS installation.
-    Idempotent: skips if ``dest/renderdoc/lib/renderdoc.so`` exists.
-    Only supports Linux and macOS (.tgz). Windows is not supported.
+    The actual renderdoc directory inside is ``renderdoc_for_arm_gpus/``.
+    Idempotent: skips if the APK marker exists.
+    Only supports Linux (.tgz). Windows is not supported.
 
     Args:
         dest: Target directory (e.g. ``.local/arm-performance-studio``).
     """
-    marker = dest / "renderdoc" / "lib" / "renderdoc.so"
-    if marker.exists():
+    marker = dest / "renderdoc_for_arm_gpus" / "share" / "renderdoc" / "plugins" / "android"
+    if marker.is_dir() and list(marker.glob("*.apk")):
         _log(f"ARM Performance Studio already present at {dest}")
         return dest
 
@@ -617,8 +603,8 @@ def download_arm_studio(dest: Path) -> Path:
                     tf.extract(member, dest, filter="data")
                 else:
                     tf.extract(member, dest)
-        if not marker.exists():
-            sys.stderr.write(f"ERROR: {marker} not found after extraction\n")
+        if not marker.is_dir() or not list(marker.glob("*.apk")):
+            sys.stderr.write(f"ERROR: no APKs found at {marker} after extraction\n")
             raise SystemExit(1)
         _log(f"ARM Performance Studio extracted to {dest}")
     finally:
