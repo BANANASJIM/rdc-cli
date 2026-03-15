@@ -77,7 +77,7 @@ pixi run setup-renderdoc              # build renderdoc (pixi installs toolchain
 | Linux | ✅ | ✅ | ✅ |
 | macOS | ❌ (not supported yet) | ✅ (recommended) | — |
 | Windows | ✅ | ✅ | ✅ |
-| Android | — | — | experimental |
+| Android | — | — | ✅ capture + remote replay |
 
 ### RenderDoc bootstrap
 
@@ -163,16 +163,23 @@ rdc close
 
 Split mode is recommended for cross-platform use. All commands work transparently regardless of mode.
 
-**Android capture** (experimental)
+**Android capture and remote replay**
 
 ```bash
 rdc setup-renderdoc --android            # download RenderDoc APKs for Android
 rdc android setup                        # start remote server on connected device
 rdc android capture com.app/.MainActivity -o frame.rdc   # capture via GPU debug layers
+
+# Remote replay on the device GPU
+rdc open frame.rdc --android             # auto-resolves device from saved state
+rdc draws                                # all commands work transparently
+rdc pick-pixel 540 1170 --json           # pixel queries work in remote mode
+rdc close
+
 rdc android stop                         # stop remote server
 ```
 
-Android capture uses GPU debug layers (Android 10+). Tested on Adreno and Mali (EMUI) devices. For Mali GPUs, ARM Performance Studio is recommended:
+Android capture uses GPU debug layers (Android 10+). Remote replay uploads the capture back to the device for replay on the original GPU. Tested on Adreno and Mali (EMUI) devices. For Mali GPUs, ARM Performance Studio is recommended:
 
 ```bash
 rdc setup-renderdoc --android --arm-studio /path/to/arm-performance-studio
