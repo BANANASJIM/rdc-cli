@@ -1,0 +1,65 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill in as much detail as you can.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        Steps to reproduce:
+        1. Run `rdc open capture.rdc`
+        2. Run `rdc draws`
+        3. ...
+
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor-output
+    attributes:
+      label: "`rdc doctor` output"
+      description: Paste the output of `rdc doctor` (helps us understand your environment).
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / Platform
+      placeholder: "e.g. Ubuntu 24.04, Windows 11, macOS 15, Android 12 (EMUI)"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.12.3"
+    validations:
+      required: false
+
+  - type: input
+    id: rdc-version
+    attributes:
+      label: rdc-cli version
+      placeholder: "e.g. 0.4.4 (from `rdc --version`)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: capture
+    attributes:
+      label: Capture file
+      description: If possible, attach a minimal `.rdc` file that reproduces the issue, or describe the GPU API / hardware involved.
+    validations:
+      required: false
