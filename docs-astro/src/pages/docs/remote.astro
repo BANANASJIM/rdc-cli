@@ -258,6 +258,54 @@ rdc pipeline   # pipeline state via remote controller</code></pre>
 
   <hr />
 
+  <h2>Android Remote Replay</h2>
+
+  <p>
+    Android captures can only be replayed on the original device GPU (desktop GPUs
+    are incompatible with mobile GLES/Vulkan captures). The <code>--android</code>
+    flag on <code>rdc open</code> automates this: it resolves the device's
+    adb-forwarded port from saved state and opens a proxy replay session.
+  </p>
+
+  <h3>Workflow</h3>
+  <pre><code># 1. Setup: start RenderDoc remote server on the device
+rdc android setup
+
+# 2. Capture a frame
+rdc android capture com.example.app/.MainActivity -o frame.rdc
+
+# 3. Remote replay on the device GPU
+rdc open frame.rdc --android              # auto-resolves device
+rdc open frame.rdc --android --serial XYZ # explicit device selection
+
+# 4. All commands work transparently
+rdc info          # shows "API: OpenGL, machine_ident: Android ARM 64-bit"
+rdc draws         # draw call list
+rdc pick-pixel 540 1170 --json   # pixel queries
+rdc snapshot 11 -o ./snap/      # pipeline + shader export
+rdc close
+
+# 5. Cleanup
+rdc android stop</code></pre>
+
+  <h3>How it works</h3>
+  <p>
+    <code>--android</code> reads the <code>RemoteServerState</code> saved by
+    <code>rdc android setup</code>, finds the adb-forwarded TCP port via
+    <code>adb forward --list</code>, and passes <code>localhost:PORT</code>
+    as the proxy URL. The daemon then uploads the capture to the device via
+    <code>CopyCaptureToRemote</code> and opens it for replay on the device GPU.
+  </p>
+
+  <h3>Prerequisites</h3>
+  <ul>
+    <li><code>rdc android setup</code> must be run first (starts the remote server)</li>
+    <li>Device must be connected via USB with <code>adb</code> access</li>
+    <li>Android 10+ for GPU debug layer capture</li>
+  </ul>
+
+  <hr />
+
   <h2>Remote Capture Commands</h2>
 
   <p>
@@ -404,7 +452,10 @@ rdc pipeline</code></pre>
 rdc open capture.rdc
 
 # Proxy mode
-rdc open capture.rdc --proxy HOST[:PORT]
+rdc open capture.rdc --proxy HOST[:PORT]|adb://SERIAL
+
+# Android remote replay
+rdc open capture.rdc --android [--serial SERIAL]
 
 # Split server
 rdc open capture.rdc --listen [ADDR]:PORT    # :0 for auto-port
@@ -420,7 +471,8 @@ rdc remote capture APP [-o OUTPUT]</code></pre>
 
   <h2>Notes</h2>
   <ul>
-    <li><code>--connect</code> is mutually exclusive with <code>CAPTURE</code>, <code>--proxy</code>, and <code>--listen</code>.</li>
+    <li><code>--connect</code> is mutually exclusive with <code>CAPTURE</code>, <code>--proxy</code>, <code>--android</code>, and <code>--listen</code>.</li>
+    <li><code>--android</code> is mutually exclusive with <code>--proxy</code>, <code>--connect</code>, and <code>--listen</code>.</li>
     <li><code>--listen</code> can be combined with <code>--proxy</code> for Split+Proxy setups.</li>
     <li>For <code>rdc open</code>, <code>--remote</code> is a deprecated alias for <code>--proxy</code> (hidden, shows deprecation warning).</li>
     <li>The daemon has a 30-minute idle timeout by default. Any command resets the timer.</li>
