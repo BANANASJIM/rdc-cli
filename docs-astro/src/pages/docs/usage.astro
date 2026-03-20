@@ -1,5 +1,23 @@
 ---
 import Docs from '../../layouts/Docs.astro';
+
+const tbrUsage = `# Compact AI/automation-friendly summary
+rdc tbr
+
+# Equivalent explicit form
+rdc tbr --json
+
+# Full intermediate analysis
+rdc tbr --debug
+
+# Inspect just the candidate kinds
+rdc tbr | jq '.optimization_candidates[]?.kind'
+
+# Review RT switch reasons and segment boundaries
+rdc tbr --debug | jq '.rt_switches[] | {at_eid, reasons}'
+
+# Check recursively removable terminal outputs
+rdc tbr | jq '.prune_analysis'`;
 ---
 
 <Docs title="Usage Patterns">
@@ -95,4 +113,14 @@ rdc usage 5
 
 # Show all resource usage
 rdc usage --all</code></pre>
+
+  <h2>TBR Analysis</h2>
+  <p>
+    Use <code>rdc tbr</code> when you want a conservative, event-level view of
+    render-target switching and resource reuse patterns that are likely to hurt
+    tile-based GPUs. The command always emits JSON. Default output is compact
+    and focuses on actionable candidates; <code>--debug</code> adds segment,
+    switch, and resource-flow details.
+  </p>
+  <pre><code set:text={tbrUsage}></code></pre>
 </Docs>

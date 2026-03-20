@@ -175,6 +175,12 @@
           "id": "pass",
           "help": "Show detail for a single render pass by 0-based index or name.",
           "usage": "rdc pass <IDENTIFIER> [--json]"
+        },
+        {
+          "name": "tbr",
+          "id": "tbr",
+          "help": "Analyze event-level render-target switching for TBR optimization.",
+          "usage": "rdc tbr [--json] [--debug]"
         }
       ]
     },

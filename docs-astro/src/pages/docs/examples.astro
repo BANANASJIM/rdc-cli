@@ -11,6 +11,27 @@ done
 
 # Count triangles per pass
 rdc draws --json | jq 'group_by(.pass) | .[] | {pass: .[0].pass, tris: [.[].triangles] | add}'`;
+
+const tbrExamples = `# Start from the compact summary
+rdc tbr
+
+# Pull out the headline counts
+rdc tbr | jq '.summary'
+
+# List candidate types and the resources they refer to
+rdc tbr | jq '.optimization_candidates[] | {kind, resource_id, producer_segment, consumer_count}'
+
+# Expand into segment/switch detail when a capture looks suspicious
+rdc tbr --debug | jq '.segments[] | {segment_id, begin_eid, end_eid, pass_name, produced_resources}'
+
+# Investigate RT switches that imply flush risk
+rdc tbr --debug | jq '.rt_switches[] | select(.reasons | length > 0)'
+
+# Find terminal outputs that look removable
+rdc tbr | jq '.prune_analysis.unused_terminal_resources'
+
+# Review recursive prune waves before planning cleanup
+rdc tbr | jq '.prune_analysis.recursive_prune_groups'`;
 ---
 
 <Docs title="Examples">
@@ -271,6 +292,10 @@ rdc draws --pass GBuffer
 
 {"# Find passes with many draws"}
 rdc passes --json | jq '.[] | select(.draw_count > 50)'</code></pre>
+
+  <h2 id="tbr-optimization">TBR Optimization Triage</h2>
+
+  <pre><code set:text={tbrExamples}></code></pre>
 
   <h2 id="pixel-ladder">Pixel Investigation Ladder</h2>
 

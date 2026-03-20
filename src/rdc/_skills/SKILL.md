@@ -115,6 +115,24 @@ rdc goto 200 && rdc pipeline --json > after.json
 diff before.json after.json
 ```
 
+### Triage TBR risks and dead intermediate outputs
+
+```bash
+rdc tbr
+rdc tbr --debug
+rdc tbr | jq '.summary'
+rdc tbr | jq '.optimization_candidates[] | {kind, resource_id, producer_segment}'
+rdc tbr --debug | jq '.rt_switches[] | {at_eid, reasons}'
+```
+
+Use `rdc tbr` when the goal is not "what RenderDoc thinks a pass is", but "where event-level RT changes, resource reuse, and terminal outputs suggest bandwidth-heavy TBR behavior". The command is conservative by design:
+
+- Default output is compact JSON with `summary`, `optimization_candidates`, and `prune_analysis`.
+- `--debug` adds `segments`, `rt_switches`, and `resource_flows` so you can inspect why candidates were emitted.
+- Segment boundaries are driven by attachment/state signature changes and draw-vs-dispatch transitions, not only by RenderDoc pass boundaries.
+- Candidate kinds are heuristics for follow-up investigation, not proof that a tile flush or store/load definitely happened.
+- `prune_analysis` highlights unused terminal resources and recursive prune waves that may reveal removable intermediate RT chains.
+
 ## CI Assertions
 
 rdc-cli provides assertion commands that exit non-zero on failure, designed for automated testing pipelines:
