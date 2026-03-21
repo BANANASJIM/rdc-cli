@@ -32,7 +32,7 @@ CATEGORIES: list[tuple[str, str, str | None, list[str]]] = [
     ]),
     ("Resources", "resources-section", None, [
         "resources", "resource", "usage", "shader", "shaders", "shader-map",
-        "search", "passes", "pass",
+        "search", "passes", "pass", "unused-targets",
     ]),
     ("Export", "export", None, [
         "texture", "buffer", "rt", "mesh", "snapshot",
