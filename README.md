@@ -13,6 +13,7 @@
 [![Commands](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/commands.json)](https://bananasjim.github.io/rdc-cli/)
 [![Tests](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/tests.json)](https://bananasjim.github.io/rdc-cli/)
 [![Coverage](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/coverage.json)](https://bananasjim.github.io/rdc-cli/)
+[![Discord](https://img.shields.io/discord/1485003415687008296?logo=discord&label=Discord)](https://discord.gg/h3zwUadp4k)
 
 **Turn RenderDoc captures into Unix text streams.** rdc-cli does not replace RenderDoc — it makes `.rdc` file contents accessible to `grep`, `awk`, `sort`, `diff`, `jq`, and AI agents.
 
