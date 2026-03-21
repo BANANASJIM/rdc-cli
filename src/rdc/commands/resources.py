@@ -173,6 +173,12 @@ def resource_cmd(resid: int, use_json: bool) -> None:
     default=False,
     help="Per-pass I/O table (requires --deps).",
 )
+@click.option(
+    "--switches",
+    is_flag=True,
+    default=False,
+    help="Show RT switch count per pass (TBR flush risk).",
+)
 @list_output_options
 def passes_cmd(  # noqa: PLR0913
     use_json: bool,
@@ -180,6 +186,7 @@ def passes_cmd(  # noqa: PLR0913
     dot: bool,
     graph: bool,
     table: bool,
+    switches: bool,
     no_header: bool,
     use_jsonl: bool,
     quiet: bool,
@@ -197,7 +204,10 @@ def passes_cmd(  # noqa: PLR0913
         _passes_deps(use_json, dot, graph, table)
         return
 
-    result = call("passes", {})
+    params: dict[str, Any] = {}
+    if switches:
+        params["switches"] = True
+    result = call("passes", params)
     tree: dict[str, Any] = result.get("tree", {})
     if use_json:
         write_json(tree)
@@ -210,6 +220,9 @@ def passes_cmd(  # noqa: PLR0913
         for p in passes:
             sys.stdout.write(str(p.get("name", "")) + "\n")
     else:
+        header = ["NAME", "DRAWS", "DISPATCHES", "TRIANGLES", "BEGIN_EID", "END_EID"]
+        if switches:
+            header.append("RT_SWITCHES")
         tsv_rows = [
             [
                 p.get("name", "-"),
@@ -219,13 +232,10 @@ def passes_cmd(  # noqa: PLR0913
                 p.get("begin_eid", "-"),
                 p.get("end_eid", "-"),
             ]
+            + ([p.get("rt_switches", {}).get("count", 0)] if switches else [])
             for p in passes
         ]
-        write_tsv(
-            tsv_rows,
-            header=["NAME", "DRAWS", "DISPATCHES", "TRIANGLES", "BEGIN_EID", "END_EID"],
-            no_header=no_header,
-        )
+        write_tsv(tsv_rows, header=header, no_header=no_header)
 
 
 def _passes_deps(use_json: bool, dot: bool, graph: bool, table: bool) -> None:

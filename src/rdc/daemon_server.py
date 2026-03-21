@@ -43,6 +43,7 @@ from rdc.handlers.script import HANDLERS as _SCRIPT_HANDLERS
 from rdc.handlers.shader import HANDLERS as _SHADER_HANDLERS
 from rdc.handlers.shader_edit import HANDLERS as _SHADER_EDIT_HANDLERS
 from rdc.handlers.texture import HANDLERS as _TEXTURE_HANDLERS
+from rdc.handlers.unused import HANDLERS as _UNUSED_HANDLERS
 from rdc.handlers.vfs import HANDLERS as _VFS_HANDLERS
 
 if TYPE_CHECKING:
@@ -90,6 +91,7 @@ _DISPATCH: dict[str, Handler] = {
     **_SHADER_EDIT_HANDLERS,
     **_CAPTURE_HANDLERS,
     **_CAPTUREFILE_HANDLERS,
+    **_UNUSED_HANDLERS,
 }
 
 _NO_REPLAY_METHODS: frozenset[str] = frozenset(

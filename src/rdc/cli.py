@@ -58,6 +58,7 @@ from rdc.commands.shader_edit import (
 from rdc.commands.snapshot import snapshot_cmd
 from rdc.commands.tex_stats import tex_stats_cmd
 from rdc.commands.unix_helpers import count_cmd, shader_map_cmd
+from rdc.commands.unused_targets import unused_targets_cmd
 from rdc.commands.usage import usage_cmd
 from rdc.commands.vfs import cat_cmd, complete_cmd, ls_cmd, tree_cmd
 from rdc.session_state import SESSION_NAME_RE
@@ -171,6 +172,7 @@ main.add_command(android_group, name="android")
 main.add_command(serve_cmd, name="serve")
 main.add_command(callstacks_cmd, name="callstacks")
 main.add_command(setup_renderdoc_cmd, name="setup-renderdoc")
+main.add_command(unused_targets_cmd, name="unused-targets")
 
 
 if __name__ == "__main__":

@@ -774,6 +774,53 @@ def _build_synthetic_pass_list(actions: list[Any], sf: Any = None) -> list[dict[
     return passes
 
 
+def _count_rt_switches(
+    actions: list[Any],
+    begin_eid: int,
+    end_eid: int,
+) -> dict[str, Any]:
+    """Count render-target switches within a pass EID range.
+
+    Args:
+        actions: Root action list from ReplayController.
+        begin_eid: First EID of the pass (inclusive).
+        end_eid: Last EID of the pass (inclusive).
+
+    Returns:
+        Dict with ``count`` (int) and ``switches`` list of dicts
+        containing ``eid``, ``from_targets``, and ``to_targets``.
+    """
+    leaf_actions: list[Any] = []
+
+    def _collect(nodes: list[Any]) -> None:
+        for a in nodes:
+            flags = int(a.flags)
+            if flags & _DRAW_OR_DISPATCH_OR_CLEAR:
+                if begin_eid <= a.eventId <= end_eid:
+                    leaf_actions.append(a)
+            if a.children:
+                _collect(a.children)
+
+    _collect(actions)
+    leaf_actions.sort(key=lambda a: a.eventId)
+
+    switches: list[dict[str, Any]] = []
+    prev_key: tuple[int, ...] | None = None
+    for a in leaf_actions:
+        key = _rt_key(a)
+        if prev_key is not None and key != prev_key:
+            switches.append(
+                {
+                    "eid": a.eventId,
+                    "from_targets": prev_key,
+                    "to_targets": key,
+                }
+            )
+        prev_key = key
+
+    return {"count": len(switches), "switches": switches}
+
+
 def _pass_list_with_fallback(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
     """Build pass list, falling back to synthetic RT inference if no API passes found."""
     passes = _build_pass_list(actions, sf)
@@ -937,3 +984,117 @@ def _bucket_eid(eid: int, passes: list[dict[str, Any]]) -> int:
         if p["begin_eid"] <= eid <= p["end_eid"]:
             return i
     return -1
+
+
+# ---------------------------------------------------------------------------
+# Unused render targets
+# ---------------------------------------------------------------------------
+
+_DEPTH_STENCIL_USAGE: int = 33  # DepthStencilTarget
+
+
+def find_unused_targets(
+    passes: list[dict[str, Any]],
+    usage_data: dict[int, list[Any]],
+    res_names: dict[int, str],
+    swapchain_ids: set[int],
+) -> dict[str, Any]:
+    """Detect render targets written but never consumed by visible output.
+
+    Args:
+        passes: Pass list from ``_build_pass_list()``.
+        usage_data: Resource ID -> EventUsage list.
+        res_names: Resource ID -> human-readable name.
+        swapchain_ids: Resource IDs identified as swapchain images.
+
+    Returns:
+        Dict with ``unused`` list and ``waves`` count.
+    """
+    if not passes or not usage_data:
+        return {"unused": [], "waves": 0}
+
+    n = len(passes)
+    writes: list[set[int]] = [set() for _ in range(n)]
+    reads: list[set[int]] = [set() for _ in range(n)]
+    depth_resources: set[int] = set()
+
+    for rid, events in usage_data.items():
+        if rid == 0:
+            continue
+        for ev in events:
+            eid = ev.eventId
+            usage_val = int(ev.usage)
+            pidx = _bucket_eid(eid, passes)
+            if pidx < 0:
+                continue
+            if usage_val in _WRITE_USAGES:
+                writes[pidx].add(rid)
+                if usage_val == _DEPTH_STENCIL_USAGE:
+                    depth_resources.add(rid)
+            elif usage_val in _READ_USAGES:
+                reads[pidx].add(rid)
+
+    res_writers: dict[int, list[int]] = {}
+    res_readers: dict[int, list[int]] = {}
+    for pidx in range(n):
+        for rid in writes[pidx]:
+            res_writers.setdefault(rid, []).append(pidx)
+        for rid in reads[pidx]:
+            res_readers.setdefault(rid, []).append(pidx)
+
+    all_written: set[int] = set()
+    for ws in writes:
+        all_written |= ws
+
+    # Mark live: swapchain + depth/stencil are always live
+    live: set[int] = (swapchain_ids & all_written) | swapchain_ids | depth_resources
+
+    # Reverse-walk: if a pass writes a live resource, its read inputs are live
+    changed = True
+    while changed:
+        changed = False
+        for pidx in range(n):
+            if writes[pidx] & live:
+                for rid in reads[pidx]:
+                    if rid not in live and rid in all_written:
+                        live.add(rid)
+                        changed = True
+
+    unused_rids = all_written - live
+    if not unused_rids:
+        return {"unused": [], "waves": 0}
+
+    # Assign wave numbers via iterative leaf pruning
+    remaining = set(unused_rids)
+    wave_map: dict[int, int] = {}
+    wave = 0
+
+    while remaining:
+        wave += 1
+        leaf_dead: set[int] = set()
+        for rid in remaining:
+            reader_passes = res_readers.get(rid, [])
+            feeds_remaining = any(writes[rp] & remaining - {rid} for rp in reader_passes)
+            if not feeds_remaining:
+                leaf_dead.add(rid)
+        if not leaf_dead:
+            for rid in remaining:
+                wave_map[rid] = wave
+            remaining.clear()
+        else:
+            for rid in leaf_dead:
+                wave_map[rid] = wave
+            remaining -= leaf_dead
+
+    unused_list = []
+    for rid in sorted(unused_rids):
+        writer_names = sorted({passes[pidx]["name"] for pidx in res_writers.get(rid, [])})
+        unused_list.append(
+            {
+                "id": rid,
+                "name": res_names.get(rid, ""),
+                "written_by": writer_names,
+                "wave": wave_map[rid],
+            }
+        )
+    return {"unused": unused_list, "waves": wave}

@@ -652,6 +652,7 @@ List render passes.
 | `--dot` | Graphviz DOT output (requires --deps). | flag |  |
 | `--graph` | Human-readable graph (requires --deps). | flag |  |
 | `--table` | Per-pass I/O table (requires --deps). | flag |  |
+| `--switches` | Show RT switch count per pass (TBR flush risk). | flag |  |
 | `--no-header` | Omit TSV header | flag |  |
 | `--jsonl` | JSONL output | flag |  |
 | `-q, --quiet` | Print primary key column only | flag |  |
@@ -1149,6 +1150,18 @@ Display VFS subtree structure.
 |------|------|------|---------|
 | `--depth` |  | integer range | 2 |
 | `--json` | JSON output | flag |  |
+
+## `rdc unused-targets`
+
+Detect render targets produced but never consumed by visible output.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | JSON output | flag |  |
+| `-q, --quiet` | One resource ID per line | flag |  |
+| `--no-header` | Omit TSV header | flag |  |
 
 ## `rdc usage`
 
