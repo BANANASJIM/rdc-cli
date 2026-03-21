@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -445,7 +446,7 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
 def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
     """Get render pass hierarchy from actions."""
     enriched = _build_pass_list(actions, sf)
-    return {"passes": [{"name": p["name"], "draws": p["draws"]} for p in enriched]}
+    return {"passes": enriched}
 
 
 def _subtree_has_draws(action: Any) -> bool:
@@ -547,6 +548,26 @@ def pass_name_for_eid(eid: int, passes: list[dict[str, Any]]) -> str:
     return "-"
 
 
+_LOAD_STORE_RE = re.compile(r"(C|DS|D|S)=([^,)]+)")
+
+
+def _parse_load_store_ops(begin_name: str, end_name: str) -> dict[str, list[tuple[str, str]]]:
+    """Extract load/store ops from BeginPass/EndPass action name strings.
+
+    Args:
+        begin_name: e.g. ``"vkCmdBeginRenderPass(C=Clear, D=Load)"``
+        end_name: e.g. ``"vkCmdEndRenderPass(C=Store, DS=Don't Care)"``
+
+    Returns:
+        Dict with ``load_ops`` and ``store_ops``, each a list of
+        ``(target, op)`` tuples.  Uses a list (not dict) because
+        multi-RT captures may repeat keys like ``C=``.
+    """
+    load_ops = _LOAD_STORE_RE.findall(begin_name) if begin_name else []
+    store_ops = _LOAD_STORE_RE.findall(end_name) if end_name else []
+    return {"load_ops": load_ops, "store_ops": store_ops}
+
+
 def _build_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
     """Build enriched pass list with begin/end EID, draws, dispatches, triangles."""
     passes: list[dict[str, Any]] = []
@@ -570,6 +591,7 @@ def _build_pass_list_recursive(
 
         if is_begin:
             api_name = a.GetName(sf) if sf is not None else getattr(a, "_name", "")
+            before = len(passes)
             if a.children:
                 # Children-of-BeginPass: real API and mock tree patterns
                 content = a.children
@@ -584,6 +606,14 @@ def _build_pass_list_recursive(
                     if "(" in api_name:
                         entry["name"] = _friendly_pass_name(api_name, len(passes))
                     passes.append(entry)
+                # Find EndPass sibling for store ops
+                end_name = ""
+                if i + 1 < len(actions) and int(actions[i + 1].flags) & _END_PASS:
+                    end_name = (
+                        actions[i + 1].GetName(sf)
+                        if sf is not None
+                        else getattr(actions[i + 1], "_name", "")
+                    )
                 i += 1
             else:
                 # Flat-sibling: collect window between BeginPass and EndPass
@@ -605,7 +635,19 @@ def _build_pass_list_recursive(
                     if "(" in api_name:
                         entry["name"] = _friendly_pass_name(api_name, len(passes))
                     passes.append(entry)
+                end_name = ""
+                if j < len(actions) and int(actions[j].flags) & _END_PASS:
+                    end_name = (
+                        actions[j].GetName(sf)
+                        if sf is not None
+                        else getattr(actions[j], "_name", "")
+                    )
                 i = j
+            # Attach load/store ops to all passes added in this block
+            ops = _parse_load_store_ops(api_name, end_name)
+            for idx in range(before, len(passes)):
+                passes[idx]["load_ops"] = ops["load_ops"]
+                passes[idx]["store_ops"] = ops["store_ops"]
         elif a.children:
             _build_pass_list_recursive(a.children, passes, sf)
             i += 1

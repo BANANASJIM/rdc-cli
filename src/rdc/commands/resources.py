@@ -199,8 +199,22 @@ def passes_cmd(
         for p in passes:
             sys.stdout.write(str(p.get("name", "")) + "\n")
     else:
-        tsv_rows = [[p.get("name", "-"), p.get("draws", 0)] for p in passes]
-        write_tsv(tsv_rows, header=["NAME", "DRAWS"], no_header=no_header)
+        tsv_rows = [
+            [
+                p.get("name", "-"),
+                p.get("draws", 0),
+                p.get("dispatches", 0),
+                p.get("triangles", 0),
+                p.get("begin_eid", "-"),
+                p.get("end_eid", "-"),
+            ]
+            for p in passes
+        ]
+        write_tsv(
+            tsv_rows,
+            header=["NAME", "DRAWS", "DISPATCHES", "TRIANGLES", "BEGIN_EID", "END_EID"],
+            no_header=no_header,
+        )
 
 
 def _passes_deps(use_json: bool, dot: bool, graph: bool) -> None:

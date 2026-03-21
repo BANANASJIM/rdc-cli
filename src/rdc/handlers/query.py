@@ -364,7 +364,35 @@ def _handle_stats(
         }
         for a in top
     ]
-    return _result_response(request_id, {"per_pass": per_pass, "top_draws": top_draws}), True
+
+    # Largest resources by byte size
+    largest: list[dict[str, Any]] = []
+    for rid, res in state.res_rid_map.items():
+        size = getattr(res, "byteSize", 0)
+        if size <= 0:
+            continue
+        t = getattr(res, "type", None)
+        type_name = getattr(t, "name", str(t)) if t is not None else ""
+        fmt = "-"
+        tex = state.tex_map.get(rid)
+        if tex is not None:
+            f = getattr(tex, "format", None)
+            fmt = f.Name() if f and hasattr(f, "Name") else str(f) if f else "-"
+        largest.append(
+            {
+                "id": rid,
+                "name": getattr(res, "name", ""),
+                "type": type_name,
+                "size": size,
+                "format": fmt,
+            }
+        )
+    largest.sort(key=lambda r: r["size"], reverse=True)
+    largest = largest[:5]
+
+    return _result_response(
+        request_id, {"per_pass": per_pass, "top_draws": top_draws, "largest_resources": largest}
+    ), True
 
 
 def _handle_events(

@@ -37,12 +37,15 @@ def stats_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> 
 
     per_pass = result.get("per_pass", [])
     top_draws = result.get("top_draws", [])
+    largest_resources = result.get("largest_resources", [])
 
     if use_jsonl:
         for p in per_pass:
             write_jsonl([p])
         for d in top_draws:
             write_jsonl([d])
+        for r in largest_resources:
+            write_jsonl([r])
         return
 
     if quiet:
@@ -73,6 +76,15 @@ def stats_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> 
         header_d = ["EID", "MARKER", "TRIANGLES"]
         rows_d = [[d["eid"], d.get("marker", "-"), d["triangles"]] for d in top_draws]
         write_tsv(rows_d, header=header_d, no_header=no_header)
+    if largest_resources:
+        if not no_header:
+            sys.stderr.write(chr(10) + "Largest Resources:" + chr(10))
+        header_r = ["ID", "NAME", "TYPE", "SIZE", "FORMAT"]
+        rows_r = [
+            [r["id"], r["name"], r["type"], r["size"], r.get("format", "-")]
+            for r in largest_resources
+        ]
+        write_tsv(rows_r, header=header_r, no_header=no_header)
 
 
 @click.command("log")

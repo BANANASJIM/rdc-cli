@@ -12,7 +12,9 @@ from mock_renderdoc import (
     Descriptor,
     MockPipeState,
     ResourceDescription,
+    ResourceFormat,
     ResourceId,
+    ResourceType,
     SDBasic,
     SDChunk,
     SDData,
@@ -21,6 +23,7 @@ from mock_renderdoc import (
     ShaderReflection,
     ShaderStage,
     StructuredFile,
+    TextureDescription,
 )
 
 from rdc.daemon_server import DaemonState, _handle_request
@@ -114,6 +117,88 @@ class TestStatsHandler:
         state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
         resp, _ = _handle_request(rpc_request("stats"), state)
         assert resp["error"]["code"] == -32002
+
+    def test_stats_largest_resources(self):
+        state = _make_state()
+        res = [
+            ResourceDescription(
+                resourceId=ResourceId(97),
+                name="albedo",
+                type=ResourceType.Texture,
+                byteSize=4194304,
+            ),
+            ResourceDescription(
+                resourceId=ResourceId(200),
+                name="shadowmap",
+                type=ResourceType.Texture,
+                byteSize=1048576,
+            ),
+            ResourceDescription(
+                resourceId=ResourceId(10),
+                name="vbuf",
+                type=ResourceType.Buffer,
+                byteSize=65536,
+            ),
+        ]
+        state.res_rid_map = {int(r.resourceId): r for r in res}
+        state.res_types = {int(r.resourceId): r.type.name for r in res}
+        state.tex_map = {
+            97: TextureDescription(
+                resourceId=ResourceId(97),
+                format=ResourceFormat(name="R8G8B8A8_UNORM"),
+            ),
+            200: TextureDescription(
+                resourceId=ResourceId(200),
+                format=ResourceFormat(name="D32_FLOAT"),
+            ),
+        }
+        resp, _ = _handle_request(rpc_request("stats"), state)
+        largest = resp["result"]["largest_resources"]
+        assert len(largest) == 3
+        assert largest[0]["id"] == 97
+        assert largest[0]["size"] == 4194304
+        assert largest[0]["format"] == "R8G8B8A8_UNORM"
+        assert largest[1]["id"] == 200
+        assert largest[2]["id"] == 10
+        assert largest[2]["format"] == "-"
+
+    def test_stats_largest_resources_fewer_than_5(self):
+        state = _make_state()
+        res = [
+            ResourceDescription(
+                resourceId=ResourceId(1),
+                name="buf",
+                type=ResourceType.Buffer,
+                byteSize=1024,
+            ),
+        ]
+        state.res_rid_map = {int(r.resourceId): r for r in res}
+        resp, _ = _handle_request(rpc_request("stats"), state)
+        largest = resp["result"]["largest_resources"]
+        assert len(largest) == 1
+        assert largest[0]["size"] == 1024
+
+    def test_stats_largest_resources_excludes_zero_size(self):
+        state = _make_state()
+        res = [
+            ResourceDescription(
+                resourceId=ResourceId(1),
+                name="nosize",
+                type=ResourceType.Buffer,
+                byteSize=0,
+            ),
+            ResourceDescription(
+                resourceId=ResourceId(2),
+                name="hassize",
+                type=ResourceType.Buffer,
+                byteSize=512,
+            ),
+        ]
+        state.res_rid_map = {int(r.resourceId): r for r in res}
+        resp, _ = _handle_request(rpc_request("stats"), state)
+        largest = resp["result"]["largest_resources"]
+        assert len(largest) == 1
+        assert largest[0]["name"] == "hassize"
 
 
 class TestEventsHandler:

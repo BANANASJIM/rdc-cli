@@ -74,22 +74,67 @@ def test_resource_error(monkeypatch) -> None:
 def test_passes_tsv(monkeypatch) -> None:
     patch_cli_session(
         monkeypatch,
-        {"tree": {"passes": [{"name": "Shadow", "draws": 3}, {"name": "Main", "draws": 12}]}},
+        {
+            "tree": {
+                "passes": [
+                    {
+                        "name": "Shadow",
+                        "draws": 3,
+                        "dispatches": 0,
+                        "triangles": 600,
+                        "begin_eid": 10,
+                        "end_eid": 50,
+                        "load_ops": [("C", "Clear")],
+                        "store_ops": [("C", "Store")],
+                    },
+                    {
+                        "name": "Main",
+                        "draws": 12,
+                        "dispatches": 1,
+                        "triangles": 4800,
+                        "begin_eid": 51,
+                        "end_eid": 200,
+                        "load_ops": [],
+                        "store_ops": [],
+                    },
+                ]
+            }
+        },
     )
     result = CliRunner().invoke(passes_cmd, [])
     assert result.exit_code == 0
     assert "Shadow" in result.output
     assert "Main" in result.output
+    assert "DISPATCHES" in result.output
+    assert "TRIANGLES" in result.output
+    assert "BEGIN_EID" in result.output
+    assert "END_EID" in result.output
 
 
 def test_passes_json(monkeypatch) -> None:
     patch_cli_session(
         monkeypatch,
-        {"tree": {"passes": [{"name": "Shadow", "draws": 3}]}},
+        {
+            "tree": {
+                "passes": [
+                    {
+                        "name": "Shadow",
+                        "draws": 3,
+                        "dispatches": 0,
+                        "triangles": 600,
+                        "begin_eid": 10,
+                        "end_eid": 50,
+                        "load_ops": [["C", "Clear"]],
+                        "store_ops": [["C", "Store"]],
+                    }
+                ]
+            }
+        },
     )
     result = CliRunner().invoke(passes_cmd, ["--json"])
     assert result.exit_code == 0
     assert '"Shadow"' in result.output
+    assert '"load_ops"' in result.output
 
 
 def test_passes_no_session(monkeypatch) -> None:
@@ -209,14 +254,39 @@ def test_resources_quiet(monkeypatch) -> None:
 
 # ── passes output options ──────────────────────────────────────────
 
-_PASSES_TREE = {"tree": {"passes": [{"name": "Shadow", "draws": 3}, {"name": "Main", "draws": 12}]}}
+_PASSES_TREE = {
+    "tree": {
+        "passes": [
+            {
+                "name": "Shadow",
+                "draws": 3,
+                "dispatches": 0,
+                "triangles": 600,
+                "begin_eid": 10,
+                "end_eid": 50,
+                "load_ops": [],
+                "store_ops": [],
+            },
+            {
+                "name": "Main",
+                "draws": 12,
+                "dispatches": 1,
+                "triangles": 4800,
+                "begin_eid": 51,
+                "end_eid": 200,
+                "load_ops": [],
+                "store_ops": [],
+            },
+        ]
+    }
+}
 
 
 def test_passes_default_has_header(monkeypatch) -> None:
     patch_cli_session(monkeypatch, _PASSES_TREE)
     result = CliRunner().invoke(passes_cmd, [])
     assert result.exit_code == 0
-    assert "NAME\tDRAWS" in result.output
+    assert "NAME\tDRAWS\tDISPATCHES\tTRIANGLES\tBEGIN_EID\tEND_EID" in result.output
 
 
 def test_passes_no_header(monkeypatch) -> None:

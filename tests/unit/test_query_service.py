@@ -11,12 +11,14 @@ from mock_renderdoc import (
 from rdc.services.query_service import (
     _build_pass_list,
     _friendly_pass_name,
+    _parse_load_store_ops,
     aggregate_stats,
     filter_by_pass,
     filter_by_pattern,
     filter_by_type,
     find_action_by_eid,
     get_pass_detail,
+    get_pass_hierarchy,
     get_top_draws,
     pipeline_row,
     walk_actions,
@@ -558,3 +560,147 @@ class TestPipelineRowTopology:
         )()
         row = pipeline_row(10, "Vulkan", pipe)
         assert row["topology"] == "TriangleList"
+
+
+# ---------------------------------------------------------------------------
+# T2: _parse_load_store_ops
+# ---------------------------------------------------------------------------
+
+
+class TestParseLoadStoreOps:
+    def test_vulkan_begin_end(self) -> None:
+        result = _parse_load_store_ops(
+            "vkCmdBeginRenderPass(C=Clear, D=Load)",
+            "vkCmdEndRenderPass(C=Store, DS=Don't Care)",
+        )
+        assert result["load_ops"] == [("C", "Clear"), ("D", "Load")]
+        assert result["store_ops"] == [("C", "Store"), ("DS", "Don't Care")]
+
+    def test_multi_rt_repeated_c(self) -> None:
+        result = _parse_load_store_ops(
+            "vkCmdBeginRenderPass(C=Clear, C=Load, D=Clear)",
+            "vkCmdEndRenderPass(C=Store, C=Don't Care, DS=Don't Care)",
+        )
+        assert result["load_ops"] == [("C", "Clear"), ("C", "Load"), ("D", "Clear")]
+        assert result["store_ops"] == [
+            ("C", "Store"),
+            ("C", "Don't Care"),
+            ("DS", "Don't Care"),
+        ]
+
+    def test_dynamic_rendering(self) -> None:
+        result = _parse_load_store_ops(
+            "vkCmdBeginRendering(C=Clear, D=Clear)",
+            "vkCmdEndRendering(C=Store, D=Store)",
+        )
+        assert result["load_ops"] == [("C", "Clear"), ("D", "Clear")]
+        assert result["store_ops"] == [("C", "Store"), ("D", "Store")]
+
+    def test_missing_end_pass(self) -> None:
+        result = _parse_load_store_ops("vkCmdBeginRenderPass(C=Clear)", "")
+        assert result["load_ops"] == [("C", "Clear")]
+        assert result["store_ops"] == []
+
+    def test_gl_no_ops(self) -> None:
+        result = _parse_load_store_ops("glBeginQuery", "glEndQuery")
+        assert result["load_ops"] == []
+        assert result["store_ops"] == []
+
+    def test_empty_strings(self) -> None:
+        result = _parse_load_store_ops("", "")
+        assert result["load_ops"] == []
+        assert result["store_ops"] == []
+
+    def test_ds_combined_key(self) -> None:
+        result = _parse_load_store_ops(
+            "vkCmdBeginRenderPass(DS=Clear)",
+            "vkCmdEndRenderPass(DS=Store)",
+        )
+        assert result["load_ops"] == [("DS", "Clear")]
+        assert result["store_ops"] == [("DS", "Store")]
+
+    def test_separate_d_and_s(self) -> None:
+        result = _parse_load_store_ops(
+            "vkCmdBeginRenderPass(D=Clear, S=Load)",
+            "vkCmdEndRenderPass(D=Store, S=Don't Care)",
+        )
+        assert result["load_ops"] == [("D", "Clear"), ("S", "Load")]
+        assert result["store_ops"] == [("D", "Store"), ("S", "Don't Care")]
+
+
+# ---------------------------------------------------------------------------
+# T1+T2: get_pass_hierarchy surfaces all fields
+# ---------------------------------------------------------------------------
+
+
+class TestPassHierarchyFullFields:
+    def test_all_fields_present(self) -> None:
+        begin = ActionDescription(
+            eventId=10,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Clear, D=Load)",
+        )
+        draw = ActionDescription(eventId=11, flags=ActionFlags.Drawcall, numIndices=6, _name="draw")
+        end = ActionDescription(
+            eventId=12,
+            flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+            _name="vkCmdEndRenderPass(C=Store, DS=Don't Care)",
+        )
+        tree = get_pass_hierarchy([begin, draw, end])
+        p = tree["passes"][0]
+        assert p["draws"] == 1
+        assert p["dispatches"] == 0
+        assert p["triangles"] == 2
+        assert p["begin_eid"] == 10
+        assert p["end_eid"] == 11
+        assert p["load_ops"] == [("C", "Clear"), ("D", "Load")]
+        assert p["store_ops"] == [("C", "Store"), ("DS", "Don't Care")]
+
+    def test_children_pattern_with_ops(self) -> None:
+        begin = ActionDescription(
+            eventId=1,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Clear)",
+        )
+        begin.children = [
+            ActionDescription(eventId=2, flags=ActionFlags.Drawcall, numIndices=3, _name="d"),
+        ]
+        end = ActionDescription(
+            eventId=3,
+            flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+            _name="vkCmdEndRenderPass(C=Store)",
+        )
+        passes = _build_pass_list([begin, end])
+        assert len(passes) == 1
+        assert passes[0]["load_ops"] == [("C", "Clear")]
+        assert passes[0]["store_ops"] == [("C", "Store")]
+
+    def test_no_end_pass_empty_store_ops(self) -> None:
+        begin = ActionDescription(
+            eventId=1,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Load)",
+        )
+        draw = ActionDescription(eventId=2, flags=ActionFlags.Drawcall, numIndices=3, _name="d")
+        # No EndPass action at all
+        passes = _build_pass_list([begin, draw])
+        assert len(passes) == 1
+        assert passes[0]["load_ops"] == [("C", "Load")]
+        assert passes[0]["store_ops"] == []
+
+    def test_gl_pass_empty_ops(self) -> None:
+        begin = ActionDescription(
+            eventId=10,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="glBeginQuery",
+        )
+        draw = ActionDescription(eventId=11, flags=ActionFlags.Drawcall, numIndices=3, _name="draw")
+        end = ActionDescription(
+            eventId=12,
+            flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+            _name="glEndQuery",
+        )
+        tree = get_pass_hierarchy([begin, draw, end])
+        p = tree["passes"][0]
+        assert p["load_ops"] == []
+        assert p["store_ops"] == []

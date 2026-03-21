@@ -234,8 +234,15 @@ def test_query_service_pass_hierarchy() -> None:
 
     assert "passes" in tree
     assert len(tree["passes"]) == 1
-    assert tree["passes"][0]["name"] == "Pass1"
-    assert tree["passes"][0]["draws"] == 1
+    p = tree["passes"][0]
+    assert p["name"] == "Pass1"
+    assert p["draws"] == 1
+    assert p["dispatches"] == 0
+    assert p["triangles"] == 0
+    assert p["begin_eid"] == 10
+    assert p["end_eid"] == 11
+    assert p["load_ops"] == []
+    assert p["store_ops"] == []
 
 
 def test_daemon_resources_handler() -> None:
@@ -301,5 +308,12 @@ def test_daemon_passes_handler() -> None:
 
     assert "result" in resp
     assert "tree" in resp["result"]
-    assert len(resp["result"]["tree"]["passes"]) == 1
-    assert resp["result"]["tree"]["passes"][0]["draws"] == 1
+    passes = resp["result"]["tree"]["passes"]
+    assert len(passes) == 1
+    p = passes[0]
+    assert p["draws"] == 1
+    assert p["dispatches"] == 0
+    assert p["begin_eid"] == 10
+    assert p["end_eid"] == 11
+    assert "load_ops" in p
+    assert "store_ops" in p

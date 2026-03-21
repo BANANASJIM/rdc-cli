@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from click.testing import CliRunner
 from conftest import assert_json_output, assert_jsonl_output, patch_cli_session
 
@@ -394,3 +396,64 @@ def test_stats_json_includes_rt_dimensions(monkeypatch) -> None:
     assert data["per_pass"][0]["rt_w"] == 1920
     assert data["per_pass"][0]["rt_h"] == 1080
     assert data["per_pass"][0]["attachments"] == 3
+
+
+# ── T7: stats largest resources ──────────────────────────────────────
+
+_STATS_WITH_RESOURCES: dict[str, Any] = {
+    "per_pass": [{"name": "Main", "draws": 10, "dispatches": 0, "triangles": 5000}],
+    "top_draws": [],
+    "largest_resources": [
+        {
+            "id": 97,
+            "name": "albedo",
+            "type": "Texture",
+            "size": 4194304,
+            "format": "R8G8B8A8_UNORM",
+        },
+        {
+            "id": 200,
+            "name": "shadowmap",
+            "type": "Texture",
+            "size": 1048576,
+            "format": "D32_FLOAT",
+        },
+    ],
+}
+
+
+def test_stats_tsv_shows_largest_resources(monkeypatch) -> None:
+    patch_cli_session(monkeypatch, _STATS_WITH_RESOURCES)
+    result = CliRunner().invoke(main, ["stats"])
+    assert result.exit_code == 0
+    assert "Largest Resources:" in result.output
+    assert "albedo" in result.output
+    assert "4194304" in result.output
+
+
+def test_stats_json_includes_largest_resources(monkeypatch) -> None:
+    patch_cli_session(monkeypatch, _STATS_WITH_RESOURCES)
+    result = CliRunner().invoke(main, ["stats", "--json"])
+    data = assert_json_output(result)
+    assert "largest_resources" in data
+    assert len(data["largest_resources"]) == 2
+    assert data["largest_resources"][0]["id"] == 97
+    assert data["largest_resources"][0]["format"] == "R8G8B8A8_UNORM"
+
+
+def test_stats_no_header_hides_largest_resources_title(monkeypatch) -> None:
+    patch_cli_session(monkeypatch, _STATS_WITH_RESOURCES)
+    result = CliRunner().invoke(main, ["stats", "--no-header"])
+    assert result.exit_code == 0
+    assert "Largest Resources:" not in result.output
+    assert "albedo" in result.output
+
+
+def test_stats_empty_largest_resources(monkeypatch) -> None:
+    patch_cli_session(
+        monkeypatch,
+        {"per_pass": [], "top_draws": [], "largest_resources": []},
+    )
+    result = CliRunner().invoke(main, ["stats"])
+    assert result.exit_code == 0
+    assert "Largest Resources:" not in result.output
