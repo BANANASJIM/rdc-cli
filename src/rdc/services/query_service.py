@@ -163,7 +163,7 @@ def filter_by_pass(
     `a.pass_name` string comparison when no pass matches or `actions` is None.
     """
     if actions is not None:
-        passes = _build_pass_list(actions, sf)
+        passes = _pass_list_with_fallback(actions, sf)
         target = next((p for p in passes if p["name"].lower() == pass_name.lower()), None)
         if target:
             return [a for a in flat if target["begin_eid"] <= a.eid <= target["end_eid"]]
@@ -249,7 +249,7 @@ def _count_events_recursive(actions: list[Any]) -> int:
 
 
 def _count_passes(actions: list[Any]) -> int:
-    return len(_build_pass_list(actions))
+    return len(_pass_list_with_fallback(actions))
 
 
 def count_from_actions(
@@ -445,7 +445,7 @@ def get_resource_detail(adapter: Any, resid: int) -> dict[str, Any] | None:
 
 def get_pass_hierarchy(actions: list[Any], sf: Any = None) -> dict[str, Any]:
     """Get render pass hierarchy from actions."""
-    enriched = _build_pass_list(actions, sf)
+    enriched = _pass_list_with_fallback(actions, sf)
     return {"passes": enriched}
 
 
@@ -655,13 +655,140 @@ def _build_pass_list_recursive(
             i += 1
 
 
+_SYNTHETIC_MARKER_IGNORE: frozenset[str] = frozenset(
+    {"RenderLoop.Draw", "Frame", "Render", "DrawOpaqueObjects", "Scene", "Main"}
+)
+
+_DRAW_OR_DISPATCH_OR_CLEAR = _DRAWCALL | _MESHDRAW | _DISPATCH | _CLEAR
+
+
+def _rt_key(action: Any) -> tuple[int, ...]:
+    """Extract normalized RT tuple from action outputs/depthOut.
+
+    Strips trailing zero-valued slots so that unused padding doesn't
+    create false pass boundaries.
+    """
+    outputs: list[int] = [int(x) for x in action.outputs]
+    while outputs and outputs[-1] == 0:
+        outputs.pop()
+    return tuple(outputs) + (int(action.depthOut),)
+
+
+def _nearest_marker(action: Any, sf: Any = None) -> str | None:
+    """Walk up the action tree to find nearest PushMarker name, skipping ignored."""
+    node = getattr(action, "parent", None)
+    while node is not None:
+        if int(node.flags) & _PUSH_MARKER:
+            name: str = node.GetName(sf) if sf is not None else getattr(node, "_name", "")
+            if name and name not in _SYNTHETIC_MARKER_IGNORE:
+                return name
+        node = getattr(node, "parent", None)
+    return None
+
+
+def _friendly_rt_name(rt_key: tuple[int, ...], index: int) -> str:
+    """Generate a readable pass name from RT key for synthetic passes."""
+    non_zero = [v for v in rt_key[:-1] if v != 0]
+    has_depth = rt_key[-1] != 0
+    parts: list[str] = []
+    if non_zero:
+        n = len(non_zero)
+        parts.append(f"{n} Target{'s' if n > 1 else ''}")
+    if has_depth:
+        parts.append("Depth")
+    suffix = f" ({' + '.join(parts)})" if parts else ""
+    return f"Colour Pass #{index + 1}{suffix}"
+
+
+def _build_synthetic_pass_list(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
+    """Infer passes from render target changes for APIs without BeginPass/EndPass.
+
+    Walks all actions recursively and groups consecutive draw/dispatch/clear
+    actions that share the same (outputs, depthOut) tuple into synthetic passes.
+    """
+    leaf_actions: list[Any] = []
+
+    def _collect_leaves(nodes: list[Any]) -> None:
+        for a in nodes:
+            flags = int(a.flags)
+            if flags & _DRAW_OR_DISPATCH_OR_CLEAR:
+                leaf_actions.append(a)
+            if a.children:
+                _collect_leaves(a.children)
+
+    _collect_leaves(actions)
+
+    if not leaf_actions:
+        return []
+
+    passes: list[dict[str, Any]] = []
+    cur_key = _rt_key(leaf_actions[0])
+    cur_draws = 0
+    cur_dispatches = 0
+    cur_triangles = 0
+    cur_begin_eid = leaf_actions[0].eventId
+    cur_end_eid = leaf_actions[0].eventId
+    cur_marker: str | None = _nearest_marker(leaf_actions[0], sf)
+
+    def _flush() -> None:
+        nonlocal cur_draws, cur_dispatches, cur_triangles, cur_begin_eid, cur_end_eid, cur_marker
+        if cur_draws == 0 and cur_dispatches == 0:
+            return
+        name = cur_marker if cur_marker else _friendly_rt_name(cur_key, len(passes))
+        passes.append(
+            {
+                "name": name,
+                "begin_eid": cur_begin_eid,
+                "end_eid": cur_end_eid,
+                "draws": cur_draws,
+                "dispatches": cur_dispatches,
+                "triangles": cur_triangles,
+                "load_ops": [],
+                "store_ops": [],
+            }
+        )
+
+    for a in leaf_actions:
+        flags = int(a.flags)
+        key = _rt_key(a)
+        if key != cur_key:
+            _flush()
+            cur_key = key
+            cur_draws = 0
+            cur_dispatches = 0
+            cur_triangles = 0
+            cur_begin_eid = a.eventId
+            cur_end_eid = a.eventId
+            cur_marker = _nearest_marker(a, sf)
+
+        cur_end_eid = a.eventId
+        if flags & (_DRAWCALL | _MESHDRAW):
+            cur_draws += 1
+            cur_triangles += (a.numIndices // 3) * max(a.numInstances, 1)
+        elif flags & _DISPATCH:
+            cur_dispatches += 1
+        if cur_marker is None:
+            cur_marker = _nearest_marker(a, sf)
+
+    _flush()
+    return passes
+
+
+def _pass_list_with_fallback(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
+    """Build pass list, falling back to synthetic RT inference if no API passes found."""
+    passes = _build_pass_list(actions, sf)
+    if not passes:
+        passes = _build_synthetic_pass_list(actions, sf)
+    return passes
+
+
 def get_pass_detail(
     actions: list[Any],
     sf: Any = None,
     identifier: int | str = 0,
 ) -> dict[str, Any] | None:
     """Get detail for a single pass by index (int) or name (str)."""
-    passes = _build_pass_list(actions, sf)
+    passes = _pass_list_with_fallback(actions, sf)
     if isinstance(identifier, int):
         return passes[identifier] if 0 <= identifier < len(passes) else None
     lower = identifier.lower()
@@ -737,10 +864,21 @@ def build_pass_deps(
         usage_data: Map of resource ID to list of EventUsage objects.
 
     Returns:
-        Dict with "edges" key containing list of edge dicts.
+        Dict with ``edges`` (list of edge dicts) and ``per_pass``
+        (list of per-pass I/O dicts with reads, writes, load_ops, store_ops).
     """
     if not passes or not usage_data:
-        return {"edges": []}
+        per_pass = [
+            {
+                "name": p["name"],
+                "reads": [],
+                "writes": [],
+                "load_ops": p.get("load_ops", []),
+                "store_ops": p.get("store_ops", []),
+            }
+            for p in passes
+        ]
+        return {"edges": [], "per_pass": per_pass}
 
     n = len(passes)
     writes: list[set[int]] = [set() for _ in range(n)]
@@ -780,7 +918,18 @@ def build_pass_deps(
                         "resources": sorted(shared),
                     }
                 )
-    return {"edges": edges}
+
+    per_pass = [
+        {
+            "name": passes[i]["name"],
+            "reads": sorted(reads[i]),
+            "writes": sorted(writes[i]),
+            "load_ops": passes[i].get("load_ops", []),
+            "store_ops": passes[i].get("store_ops", []),
+        }
+        for i in range(n)
+    ]
+    return {"edges": edges, "per_pass": per_pass}
 
 
 def _bucket_eid(eid: int, passes: list[dict[str, Any]]) -> int:

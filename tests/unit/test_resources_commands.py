@@ -154,7 +154,7 @@ def test_pass_detail_tsv(monkeypatch) -> None:
             "dispatches": 0,
             "triangles": 12000,
             "color_targets": [{"id": 10}],
-            "depth_target": 20,
+            "depth_target": {"id": 20},
         },
     )
     result = CliRunner().invoke(pass_cmd, ["0"])
@@ -164,6 +164,69 @@ def test_pass_detail_tsv(monkeypatch) -> None:
     assert "12000" in result.output
     assert "Color Targets:" in result.output
     assert "Depth Target:" in result.output
+
+
+def test_pass_detail_enriched_display(monkeypatch) -> None:
+    """Enriched targets show name, format, and dimensions."""
+    patch_cli_session(
+        monkeypatch,
+        {
+            "name": "GBuffer",
+            "begin_eid": 10,
+            "end_eid": 50,
+            "draws": 3,
+            "dispatches": 0,
+            "triangles": 12000,
+            "color_targets": [
+                {
+                    "id": 97,
+                    "name": "albedo",
+                    "format": "R8G8B8A8_UNORM",
+                    "width": 1920,
+                    "height": 1080,
+                }
+            ],
+            "depth_target": {
+                "id": 200,
+                "name": "depth",
+                "format": "D32_FLOAT",
+                "width": 1920,
+                "height": 1080,
+            },
+            "load_ops": [["C", "Clear"], ["D", "Load"]],
+            "store_ops": [["C", "Store"], ["DS", "Don't Care"]],
+        },
+    )
+    result = CliRunner().invoke(pass_cmd, ["0"])
+    assert result.exit_code == 0
+    assert "97 (albedo, R8G8B8A8_UNORM, 1920x1080)" in result.output
+    assert "200 (depth, D32_FLOAT, 1920x1080)" in result.output
+    assert "Load Ops:" in result.output
+    assert "C=Clear" in result.output
+    assert "Store Ops:" in result.output
+    assert "C=Store" in result.output
+
+
+def test_pass_detail_id_only_fallback(monkeypatch) -> None:
+    """Target without enrichment shows just the ID."""
+    patch_cli_session(
+        monkeypatch,
+        {
+            "name": "Shadow",
+            "begin_eid": 10,
+            "end_eid": 50,
+            "draws": 1,
+            "dispatches": 0,
+            "triangles": 100,
+            "color_targets": [{"id": 42}],
+            "depth_target": None,
+        },
+    )
+    result = CliRunner().invoke(pass_cmd, ["0"])
+    assert result.exit_code == 0
+    assert "42" in result.output
+    assert "Depth Target:" in result.output
+    assert "Load Ops:" not in result.output
 
 
 def test_pass_detail_by_name(monkeypatch) -> None:
@@ -193,11 +256,31 @@ def test_pass_detail_json(monkeypatch) -> None:
             "draws": 3,
             "dispatches": 0,
             "triangles": 12000,
+            "color_targets": [
+                {
+                    "id": 97,
+                    "name": "albedo",
+                    "format": "R8G8B8A8_UNORM",
+                    "width": 1920,
+                    "height": 1080,
+                }
+            ],
+            "depth_target": {
+                "id": 200,
+                "name": "depth",
+                "format": "D32_FLOAT",
+                "width": 1920,
+                "height": 1080,
+            },
+            "load_ops": [["C", "Clear"]],
+            "store_ops": [["C", "Store"]],
         },
     )
     result = CliRunner().invoke(pass_cmd, ["0", "--json"])
     assert result.exit_code == 0
     assert '"name": "Shadow"' in result.output
+    assert '"format": "R8G8B8A8_UNORM"' in result.output
+    assert '"load_ops"' in result.output
 
 
 def test_pass_no_session(monkeypatch) -> None:

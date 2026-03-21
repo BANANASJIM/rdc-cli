@@ -623,6 +623,8 @@ class ActionDescription:
     previous: ActionDescription | None = None
     next: ActionDescription | None = None
     events: list[APIEvent] = field(default_factory=list)
+    outputs: list[ResourceId] = field(default_factory=lambda: [ResourceId(0)] * 8)
+    depthOut: ResourceId = field(default_factory=lambda: ResourceId(0))
     _name: str = ""
 
     def GetName(self, sf: Any) -> str:

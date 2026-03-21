@@ -550,14 +550,55 @@ class TestDaemonPassDepsSchema:
 # CLI: rdc passes --deps — cases 25-34b
 # ---------------------------------------------------------------------------
 
-_ONE_EDGE = {"edges": [{"src": "Shadow", "dst": "Main", "resources": [97]}]}
+_ONE_EDGE = {
+    "edges": [{"src": "Shadow", "dst": "Main", "resources": [97]}],
+    "per_pass": [
+        {
+            "name": "Shadow",
+            "reads": [],
+            "writes": [97],
+            "load_ops": [("C", "Clear")],
+            "store_ops": [("C", "Store")],
+        },
+        {
+            "name": "Main",
+            "reads": [97],
+            "writes": [12],
+            "load_ops": [],
+            "store_ops": [("C", "Store")],
+        },
+    ],
+}
 _TWO_EDGES = {
     "edges": [
         {"src": "Shadow", "dst": "Main", "resources": [97]},
         {"src": "Main", "dst": "Post", "resources": [200, 300]},
-    ]
+    ],
+    "per_pass": [
+        {
+            "name": "Shadow",
+            "reads": [],
+            "writes": [97],
+            "load_ops": [],
+            "store_ops": [],
+        },
+        {
+            "name": "Main",
+            "reads": [97],
+            "writes": [200, 300],
+            "load_ops": [],
+            "store_ops": [],
+        },
+        {
+            "name": "Post",
+            "reads": [200, 300],
+            "writes": [],
+            "load_ops": [],
+            "store_ops": [],
+        },
+    ],
 }
-_NO_EDGES = {"edges": []}
+_NO_EDGES: dict[str, Any] = {"edges": [], "per_pass": []}
 
 
 class TestCliDepsTsv:
@@ -689,3 +730,168 @@ class TestCliDepsGraph:
         result = CliRunner().invoke(passes_cmd, ["--deps", "--graph"])
         assert result.exit_code == 0
         assert "no dependencies" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Service: build_pass_deps() per_pass — T3
+# ---------------------------------------------------------------------------
+
+
+class TestServicePerPassReturned:
+    """per_pass is always returned alongside edges."""
+
+    def test_per_pass_basic(self) -> None:
+        passes = [_pass("Shadow", 1, 10), _pass("GBuffer", 11, 20)]
+        usage = {
+            88: [
+                _eu(5, rd.ResourceUsage.ColorTarget),
+                _eu(15, rd.ResourceUsage.PS_Resource),
+            ],
+        }
+        result = build_pass_deps(passes, usage)
+        assert "per_pass" in result
+        pp = result["per_pass"]
+        assert len(pp) == 2
+        assert pp[0]["name"] == "Shadow"
+        assert pp[0]["writes"] == [88]
+        assert pp[0]["reads"] == []
+        assert pp[1]["name"] == "GBuffer"
+        assert pp[1]["reads"] == [88]
+
+    def test_per_pass_load_store_ops(self) -> None:
+        passes = [
+            {
+                "name": "P",
+                "begin_eid": 1,
+                "end_eid": 10,
+                "load_ops": [("C", "Clear")],
+                "store_ops": [("C", "Store")],
+            },
+        ]
+        usage = {97: [_eu(5, rd.ResourceUsage.ColorTarget)]}
+        result = build_pass_deps(passes, usage)
+        pp = result["per_pass"]
+        assert pp[0]["load_ops"] == [("C", "Clear")]
+        assert pp[0]["store_ops"] == [("C", "Store")]
+
+    def test_per_pass_empty_usage(self) -> None:
+        passes = [_pass("A", 1, 10)]
+        result = build_pass_deps(passes, {})
+        assert result["per_pass"] == [
+            {
+                "name": "A",
+                "reads": [],
+                "writes": [],
+                "load_ops": [],
+                "store_ops": [],
+            }
+        ]
+
+    def test_per_pass_empty_passes(self) -> None:
+        result = build_pass_deps([], {})
+        assert result["per_pass"] == []
+
+    def test_per_pass_ids_sorted(self) -> None:
+        passes = [_pass("A", 1, 10)]
+        usage = {
+            300: [_eu(5, rd.ResourceUsage.ColorTarget)],
+            100: [_eu(6, rd.ResourceUsage.ColorTarget)],
+            200: [_eu(7, rd.ResourceUsage.ColorTarget)],
+        }
+        result = build_pass_deps(passes, usage)
+        assert result["per_pass"][0]["writes"] == [100, 200, 300]
+
+
+# ---------------------------------------------------------------------------
+# Daemon handler: pass_deps per_pass — T3
+# ---------------------------------------------------------------------------
+
+
+class TestDaemonPassDepsPerPass:
+    """Handler returns per_pass alongside edges."""
+
+    def test_per_pass_in_response(self) -> None:
+        state = _make_pass_deps_state()
+        resp, running = _handle_request(rpc_request("pass_deps"), state)
+        assert running
+        pp = resp["result"]["per_pass"]
+        assert len(pp) == 2
+        for p in pp:
+            assert "reads" in p
+            assert "writes" in p
+            assert isinstance(p["reads"], list)
+            assert isinstance(p["writes"], list)
+
+
+# ---------------------------------------------------------------------------
+# CLI: rdc passes --deps --table — T3
+# ---------------------------------------------------------------------------
+
+
+class TestCliDepsTable:
+    """--table output tests."""
+
+    def test_table_header_and_data(self, monkeypatch: Any) -> None:
+        patch_cli_session(monkeypatch, _ONE_EDGE)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--table"])
+        assert result.exit_code == 0
+        lines = result.output.strip().splitlines()
+        assert lines[0] == "PASS\tREADS\tWRITES\tLOAD\tSTORE"
+        assert "Shadow" in lines[1]
+        assert "97" in lines[1]
+        assert "C=Clear" in lines[1]
+        assert "Main" in lines[2]
+
+    def test_table_no_passes(self, monkeypatch: Any) -> None:
+        patch_cli_session(monkeypatch, _NO_EDGES)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--table"])
+        assert result.exit_code == 0
+        lines = result.output.strip().splitlines()
+        assert lines == ["PASS\tREADS\tWRITES\tLOAD\tSTORE"]
+
+    def test_table_dash_for_empty(self, monkeypatch: Any) -> None:
+        data: dict[str, Any] = {
+            "edges": [],
+            "per_pass": [
+                {
+                    "name": "X",
+                    "reads": [],
+                    "writes": [],
+                    "load_ops": [],
+                    "store_ops": [],
+                },
+            ],
+        }
+        patch_cli_session(monkeypatch, data)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--table"])
+        assert result.exit_code == 0
+        lines = result.output.strip().splitlines()
+        assert lines[1] == "X\t-\t-\t-\t-"
+
+    def test_table_json_includes_both(self, monkeypatch: Any) -> None:
+        patch_cli_session(monkeypatch, _ONE_EDGE)
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--json"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert "edges" in data
+        assert "per_pass" in data
+
+    def test_table_and_dot_exclusive(self) -> None:
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--table", "--dot"])
+        assert result.exit_code == 2
+
+    def test_table_and_graph_exclusive(self) -> None:
+        result = CliRunner().invoke(passes_cmd, ["--deps", "--table", "--graph"])
+        assert result.exit_code == 2
+
+    def test_table_without_deps(self) -> None:
+        result = CliRunner().invoke(passes_cmd, ["--table"])
+        assert result.exit_code == 2
+
+    def test_default_deps_unchanged(self, monkeypatch: Any) -> None:
+        """Default --deps still shows edge view (SRC/DST/RESOURCES)."""
+        patch_cli_session(monkeypatch, _ONE_EDGE)
+        result = CliRunner().invoke(passes_cmd, ["--deps"])
+        assert result.exit_code == 0
+        lines = result.output.strip().splitlines()
+        assert lines[0] == "SRC\tDST\tRESOURCES"

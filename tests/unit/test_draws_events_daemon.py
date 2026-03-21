@@ -404,7 +404,91 @@ class TestPassHandler:
         result = resp["result"]
         assert len(result["color_targets"]) == 1
         assert result["color_targets"][0]["id"] == 10
-        assert result["depth_target"] == 20
+        assert result["depth_target"]["id"] == 20
+
+    def test_pass_enriched_targets(self):
+        state = _make_pass_state()
+        state.tex_map = {
+            10: TextureDescription(
+                resourceId=ResourceId(10),
+                width=1920,
+                height=1080,
+                format=ResourceFormat(name="R8G8B8A8_UNORM"),
+            ),
+            20: TextureDescription(
+                resourceId=ResourceId(20),
+                width=1920,
+                height=1080,
+                format=ResourceFormat(name="D32_FLOAT"),
+            ),
+        }
+        state.res_names = {10: "albedo", 20: "depth"}
+        resp, _ = _handle_request(rpc_request("pass", {"index": 0}), state)
+        result = resp["result"]
+        c0 = result["color_targets"][0]
+        assert c0["id"] == 10
+        assert c0["name"] == "albedo"
+        assert c0["format"] == "R8G8B8A8_UNORM"
+        assert c0["width"] == 1920
+        assert c0["height"] == 1080
+        dt = result["depth_target"]
+        assert dt["id"] == 20
+        assert dt["name"] == "depth"
+        assert dt["format"] == "D32_FLOAT"
+
+    def test_pass_unknown_resource_fallback(self):
+        """Unknown resource ID (not in tex_map) falls back to ID-only."""
+        resp, _ = _handle_request(rpc_request("pass", {"index": 0}), _make_pass_state())
+        result = resp["result"]
+        c0 = result["color_targets"][0]
+        assert c0 == {"id": 10}
+        assert result["depth_target"] == {"id": 20}
+
+    def test_pass_no_color_targets(self):
+        """Pass with no color attachments, only depth."""
+        actions = _build_pass_actions()
+        sf = _build_sf()
+        pipe = SimpleNamespace(
+            GetOutputTargets=lambda: [],
+            GetDepthTarget=lambda: SimpleNamespace(resource=_IntLike(20)),
+        )
+        ctrl = SimpleNamespace(
+            GetRootActions=lambda: actions,
+            GetResources=lambda: [],
+            GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+            GetPipelineState=lambda: pipe,
+            SetFrameEvent=lambda eid, force: None,
+            GetStructuredFile=lambda: sf,
+            Shutdown=lambda: None,
+        )
+        state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=300, structured_file=sf)
+        resp, _ = _handle_request(rpc_request("pass", {"index": 0}), state)
+        result = resp["result"]
+        assert result["color_targets"] == []
+        assert result["depth_target"]["id"] == 20
+
+    def test_pass_no_depth(self):
+        """Pass with no depth target."""
+        actions = _build_pass_actions()
+        sf = _build_sf()
+        pipe = SimpleNamespace(
+            GetOutputTargets=lambda: [SimpleNamespace(resource=_IntLike(10))],
+            GetDepthTarget=lambda: SimpleNamespace(resource=_IntLike(0)),
+        )
+        ctrl = SimpleNamespace(
+            GetRootActions=lambda: actions,
+            GetResources=lambda: [],
+            GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+            GetPipelineState=lambda: pipe,
+            SetFrameEvent=lambda eid, force: None,
+            GetStructuredFile=lambda: sf,
+            Shutdown=lambda: None,
+        )
+        state = make_daemon_state(ctrl=ctrl, version=(1, 33), max_eid=300, structured_file=sf)
+        resp, _ = _handle_request(rpc_request("pass", {"index": 0}), state)
+        result = resp["result"]
+        assert len(result["color_targets"]) == 1
+        assert result["depth_target"] is None
 
 
 class TestLogHandler:

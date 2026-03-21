@@ -229,14 +229,32 @@ def _handle_pass(
     if err is None:
         pipe = state.adapter.get_pipeline_state()
         detail["color_targets"] = [
-            {"id": int(t.resource)} for t in pipe.GetOutputTargets() if int(t.resource) != 0
+            _enrich_target(int(t.resource), state)
+            for t in pipe.GetOutputTargets()
+            if int(t.resource) != 0
         ]
         depth_id = int(pipe.GetDepthTarget().resource)
-        detail["depth_target"] = depth_id if depth_id != 0 else None
+        detail["depth_target"] = _enrich_target(depth_id, state) if depth_id != 0 else None
     else:
         detail["color_targets"] = []
         detail["depth_target"] = None
     return _result_response(request_id, detail), True
+
+
+def _enrich_target(rid: int, state: DaemonState) -> dict[str, Any]:
+    """Build an enriched attachment dict for a render target resource ID."""
+    entry: dict[str, Any] = {"id": rid}
+    name = state.res_names.get(rid, "")
+    if name:
+        entry["name"] = name
+    tex = state.tex_map.get(rid)
+    if tex is not None:
+        fmt = getattr(tex, "format", None)
+        if fmt and hasattr(fmt, "Name"):
+            entry["format"] = fmt.Name()
+        entry["width"] = tex.width
+        entry["height"] = tex.height
+    return entry
 
 
 def _handle_log(
