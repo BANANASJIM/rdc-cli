@@ -59,6 +59,50 @@ Example -- JSON pipeline with jq:
 rdc events --json | jq '.[] | select(.type == "DrawIndexed")'
 ```
 
+## Render Pass Analysis
+
+### List passes (Phase 8 columns)
+
+`rdc passes` outputs 6 columns: NAME, DRAWS, DISPATCHES, TRIANGLES, BEGIN_EID, END_EID.
+
+```bash
+rdc passes                          # TSV table
+rdc passes --json                   # includes load_ops/store_ops per pass
+rdc passes --switches               # adds RT_SWITCHES column (TBR optimization)
+rdc passes --deps --table           # per-pass READS/WRITES/LOAD/STORE
+```
+
+### Inspect a single pass
+
+`rdc pass <name>` shows enriched attachments: resource name, format, dimensions, and load/store ops.
+
+```bash
+rdc pass GBuffer
+rdc pass GBuffer --json
+rdc pass 0                          # by 0-based index
+```
+
+### Detect dead render targets
+
+`rdc unused-targets` finds render targets written but never consumed by visible output. Columns: ID, NAME, WRITTEN_BY, WAVE.
+
+```bash
+rdc unused-targets                  # TSV
+rdc unused-targets --json           # structured
+rdc unused-targets -q               # one resource ID per line (for scripting)
+```
+
+### Frame statistics
+
+`rdc stats` outputs three sections: Per-Pass Breakdown, Top Draws by Triangle Count, and Largest Resources.
+
+```bash
+rdc stats                           # all three sections
+rdc stats --json                    # includes largest_resources array
+```
+
+GL/GLES/D3D11 captures without native BeginPass/EndPass markers get synthetic pass inference automatically — no extra flags needed.
+
 ## Common Tasks
 
 ### Find all draw calls

@@ -168,13 +168,19 @@
           "name": "passes",
           "id": "passes",
           "help": "List render passes.",
-          "usage": "rdc passes [--json] [--deps] [--dot] [--graph] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc passes [--json] [--deps] [--table] [--switches] [--dot] [--graph] [--no-header] [--jsonl] [-q]"
         },
         {
           "name": "pass",
           "id": "pass",
           "help": "Show detail for a single render pass by 0-based index or name.",
           "usage": "rdc pass <IDENTIFIER> [--json]"
+        },
+        {
+          "name": "unused-targets",
+          "id": "unused-targets",
+          "help": "List render targets written but never read (dead attachment detection).",
+          "usage": "rdc unused-targets [--json] [--no-header] [--jsonl] [-q]"
         }
       ]
     },

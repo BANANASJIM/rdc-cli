@@ -95,4 +95,31 @@ rdc usage 5
 
 # Show all resource usage
 rdc usage --all</code></pre>
+
+  <h2>Pass Analysis</h2>
+  <p>
+    <code>rdc passes</code> shows 6 columns: NAME, DRAWS, DISPATCHES, TRIANGLES, BEGIN_EID, END_EID.
+    GL/GLES/D3D11 captures get synthetic pass inference automatically.
+  </p>
+  <pre><code># Tabular pass summary
+rdc passes
+
+# Per-pass dependency graph (reads/writes/load/store)
+rdc passes --deps --table
+
+# Add RT_SWITCHES column for TBR/mobile bandwidth analysis
+rdc passes --switches
+
+# Inspect attachments, load/store ops, and dimensions for a pass
+rdc pass GBuffer
+
+# JSON output — includes load_ops/store_ops per pass
+rdc passes --json | jq '.[] | {name: .name, load: .load_ops, store: .store_ops}'</code></pre>
+
+  <h2>Dead Render Target Detection</h2>
+  <pre><code># List render targets written but never sampled/read
+rdc unused-targets
+
+# JSON output for scripted analysis
+rdc unused-targets --json | jq '.[].name'</code></pre>
 </Docs>

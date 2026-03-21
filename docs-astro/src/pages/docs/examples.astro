@@ -260,17 +260,51 @@ rdc --session after close</code></pre>
 
   <h2 id="render-pass">Render Pass Analysis</h2>
 
-  <pre><code>{"# List all render passes"}
+  <pre><code>{"# List all render passes (NAME, DRAWS, DISPATCHES, TRIANGLES, BEGIN_EID, END_EID)"}
 rdc passes
 
-{"# Inspect a specific pass"}
+{"# Inspect attachments, load/store ops, and dimensions for a pass"}
 rdc pass GBuffer
 
 {"# List draws in a pass"}
 rdc draws --pass GBuffer
 
 {"# Find passes with many draws"}
-rdc passes --json | jq '.[] | select(.draw_count > 50)'</code></pre>
+rdc passes --json | jq '.[] | select(.draw_count > 50)'
+
+{"# Largest triangle passes"}
+rdc passes --json | jq 'sort_by(.triangles) | reverse | .[0:5] | .[] | {name, triangles}'
+
+{"# Passes that clear then discard (load=Clear, store=Discard — wasted work)"}
+rdc passes --json | jq '.[] | select(.load_ops[]? == "Clear" and .store_ops[]? == "Discard")'</code></pre>
+
+  <h2 id="pass-deps">Pass Dependency Analysis</h2>
+
+  <pre><code>{"# Per-pass reads/writes/load/store table"}
+rdc passes --deps --table
+
+{"# TBR/mobile: identify passes that switch render targets frequently"}
+rdc passes --switches
+
+{"# Passes with RT_SWITCHES > 2 (high bandwidth pressure on tile-based GPUs)"}
+rdc passes --switches --json | jq '.[] | select(.rt_switches > 2) | {name, rt_switches}'
+
+{"# Full dependency graph as DOT (render with Graphviz)"}
+rdc passes --deps --dot | dot -Tsvg -o passes.svg</code></pre>
+
+  <h2 id="unused-targets">Dead Render Target Detection</h2>
+
+  <pre><code>{"# Find render targets that are written but never read"}
+rdc unused-targets
+
+{"# Names only — quick scan"}
+rdc unused-targets -q
+
+{"# JSON — get name + format + size for each dead target"}
+rdc unused-targets --json | jq '.[] | {name, format, width, height}'
+
+{"# Count dead targets (useful as a CI assert)"}
+rdc unused-targets -q | wc -l</code></pre>
 
   <h2 id="pixel-ladder">Pixel Investigation Ladder</h2>
 
