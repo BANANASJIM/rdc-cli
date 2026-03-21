@@ -34,12 +34,15 @@
 - Pass with no color attachments → only depth shown
 - Pass with no depth → depth section omitted
 
-### T5: synthetic pass inference
-- GL capture with marker stacks → synthetic passes inferred
+### T5: synthetic pass inference (RT-switch hybrid)
+- GL capture → passes inferred from `(outputs[], depthOut)` tuple changes
 - Vulkan capture with BeginPass/EndPass → `_build_pass_list()` used (no fallback)
+- D3D11 capture → same RT-switch detection as GL
 - Empty action tree → empty pass list
-- Nested markers → outermost non-filtered marker used as pass name
-- Engine markers (Unity RenderLoop.Draw) → filtered out
+- RT-switch grouping: consecutive same-tuple actions = one pass
+- Pass naming: nearest marker preferred, `_friendly_pass_name()` fallback
+- Engine markers (Unity RenderLoop.Draw) → filtered via `_SYNTHETIC_MARKER_IGNORE`
+- GL load/store → `"unknown"` (no BeginPass name to parse)
 
 ### T6: unused-targets
 - No unused targets → exit 0, empty output
@@ -56,6 +59,15 @@
 - Resource with zero byte size → excluded
 - `rdc stats --json` includes `largest_resources` array
 
+### T8: event-level RT switch detection
+- Pass with 0 RT switches → RT_SWITCHES = 0, empty rt_switches array
+- Pass with 2 RT switches → RT_SWITCHES = 2, array has 2 entries with eid/from/to
+- `--switches` flag adds RT_SWITCHES column to TSV
+- `--switches --json` includes rt_switches array per pass
+- Synthetic pass (T5) with internal RT switches → correctly detected
+- Vulkan single-RT pass → 0 switches
+- `--switches` without `--json` → count only (no detail in TSV)
+
 ## Integration tests
 
 - `pixi run rdc open tests/fixtures/vkcube.rdc` → `rdc passes` shows new columns
@@ -69,3 +81,5 @@
 - Verify synthetic pass inference with a GL/GLES capture (if fixture available)
 - Verify `rdc passes --deps --table | grep` pipeline works
 - Verify `rdc unused-targets -q | xargs -I{} rdc usage {}` pipeline
+- Verify `rdc passes --switches` shows RT switch counts
+- Verify `rdc passes --switches --json | jq '.passes[] | select(.rt_switches | length > 0)'` filters TBR-risky passes

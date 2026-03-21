@@ -34,13 +34,16 @@
   - [ ] `pass_cmd` — render enriched attachment blocks
   - [ ] Tests: pass detail with attachment info
 
-- [ ] **T5**: GL/GLES synthetic pass inference (#195)
-  - [ ] New `_build_synthetic_pass_list()` in `query_service.py`
-  - [ ] Marker stack grouping with engine marker filtering
+- [ ] **T5**: GL/GLES/D3D11 synthetic pass inference (#195)
+  - [ ] `mock_renderdoc.py` — add `outputs` (8-tuple) and `depthOut` to `ActionDescription`
+  - [ ] New `_build_synthetic_pass_list(actions)` in `query_service.py`
+  - [ ] RT-switch detection: `(outputs[0:8], depthOut)` tuple change = pass boundary
+  - [ ] Pass naming: marker stack primary, `_friendly_pass_name()` fallback
+  - [ ] `_SYNTHETIC_MARKER_IGNORE` filter for engine-internal markers
   - [ ] Fallback in `get_pass_hierarchy()` when `_build_pass_list()` returns empty
-  - [ ] Tests: synthetic pass from marker stacks, empty capture, mixed markers
+  - [ ] Tests: RT-switch based grouping, marker naming, empty capture, mixed markers
 
-## Wave 3 (depends on T3)
+## Wave 3 (depends on T3 for T6, depends on T5 for T8)
 
 - [ ] **T6**: `rdc unused-targets` command (#196)
   - [ ] New `commands/unused.py` — Click command with TSV/JSON/quiet output
@@ -48,3 +51,11 @@
   - [ ] Service function: swapchain reachability → wave-based pruning
   - [ ] Register in `cli.py`
   - [ ] Tests: command, handler, service (empty/no-unused/multi-wave scenarios)
+
+- [ ] **T8**: `rdc passes --switches` — event-level RT switch detection
+  - [ ] Reuse T5's `(outputs[0:8], depthOut)` detection, scoped within each pass
+  - [ ] `_count_rt_switches(actions, begin_eid, end_eid)` in `query_service.py`
+  - [ ] `--switches` flag on `passes_cmd` — add RT_SWITCHES column
+  - [ ] `--json` includes `rt_switches: [{eid, from_targets, to_targets}]` per pass
+  - [ ] Handler: iterate pass actions, compare consecutive RT tuples
+  - [ ] Tests: pass with 0 switches, pass with multiple switches, synthetic pass switches
