@@ -1,0 +1,37 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the use case first — what problem are you solving?
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use case
+      description: What are you trying to do that isn't possible or is too difficult today?
+      placeholder: "I'm trying to ... but currently I have to ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: If you have ideas on the CLI interface, include example invocations.
+      placeholder: |
+        ```bash
+        rdc frobnicate --flag value
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried any workarounds? Other tools that solve this?
+    validations:
+      required: false
