@@ -43,8 +43,12 @@ Default TSV adds columns: DISPATCHES, TRIANGLES, BEGIN_EID, END_EID.
 
 ### T2: load/store extraction
 
-New `_parse_load_store_ops(begin_name, end_name)` function. Regex: `r'([CDS]+)=([^,)]+)'`.
-Attach `load_ops`/`store_ops` dicts to each pass in `_build_pass_list()`.
+New `_parse_load_store_ops(begin_name, end_name)` function. Regex: `r'(C|D|S|DS)=([^,)]+)'`.
+Returns `load_ops`/`store_ops` as `list[dict]` (not dict — multi-RT captures repeat
+`C=` keys, e.g., `C=Store, C=Don't Care`). Attach to each pass in `_build_pass_list()`.
+
+Note: `C`/`D`/`S`/`DS` are per-attachment-type keys (C=Color, D=Depth, S=Stencil),
+not per-individual-color-attachment. A single `C=Clear` may apply to all color targets.
 
 ### T3: `rdc passes --deps --table` — per-pass I/O view
 
@@ -53,11 +57,13 @@ them after computing edges. Return them alongside edges.
 
 New `--table` flag renders the design spec's PASS/READS/WRITES/LOAD_STORE table.
 Edge view remains the default. `--json` always includes both.
+`--table` is mutually exclusive with `--dot`/`--graph` (UsageError if combined).
 
 ### T4: `rdc pass <name>` — attachment detail
 
 Enrich each attachment with name, format, dimensions from `state.tex_map`.
-Include load/store from T2 (aggregated level, not per-attachment).
+Include per-attachment-type load/store from T2 (C/D/S/DS keys, not per-individual-
+color-attachment since a single `C=Clear` may apply to all color targets).
 
 ### T5: GL/GLES/D3D11 synthetic pass inference (#195)
 
@@ -74,7 +80,9 @@ New `_build_synthetic_pass_list(actions)` using **RT-switch hybrid approach**:
 
 Does NOT modify `walk_actions()`. Fallback at `get_pass_hierarchy()` level only.
 
-Prerequisites: `mock_renderdoc.py` must add `outputs`/`depthOut` to `ActionDescription`.
+Prerequisites: `mock_renderdoc.py` must add `outputs: list[ResourceId]` (8 elements,
+default all-zero) and `depthOut: ResourceId` (default zero) to `ActionDescription`.
+RT tuple comparison: `tuple(int(x) for x in a.outputs) + (int(a.depthOut),)`.
 
 ### T6: `rdc unused-targets` — new command (#196)
 

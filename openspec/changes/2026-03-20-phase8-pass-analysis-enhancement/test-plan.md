@@ -2,19 +2,18 @@
 
 ## Unit tests
 
-### T1: passes surface existing data
+### T1+T2: passes surface existing data + load/store extraction
 - `rdc passes` TSV output includes DISPATCHES, TRIANGLES, BEGIN_EID, END_EID columns
-- `rdc passes --json` includes all fields per pass
+- `rdc passes --json` includes all fields per pass (including load_ops/store_ops)
 - `rdc passes --no-header` omits header row
 - `rdc passes --quiet` outputs only pass names
 - `rdc passes --jsonl` outputs one JSON object per line per pass
 - Backward compat: existing tests still pass with new columns
-
-### T2: load/store extraction
-- `_parse_load_store_ops("vkCmdBeginRenderPass(C=Clear, D=Load)", "vkCmdEndRenderPass(C=Store, DS=Don't Care)")` → `{"load": {"C": "Clear", "D": "Load"}, "store": {"C": "Store", "DS": "Don't Care"}}`
+- `_parse_load_store_ops("vkCmdBeginRenderPass(C=Clear, D=Load)", "vkCmdEndRenderPass(C=Store, DS=Don't Care)")` → `{"load": [("C", "Clear"), ("D", "Load")], "store": [("C", "Store"), ("DS", "Don't Care")]}`
+- Multi-RT: `"vkCmdEndRenderPass(C=Store, C=Don't Care, DS=Don't Care)"` → store has 2 C entries (list, not dict)
 - Dynamic rendering: `vkCmdBeginRendering(C=Clear, D=Clear)` format
-- Missing end pass name → store_ops is empty dict
-- No load/store in name (GL/GLES) → both dicts empty
+- Missing end pass name → store_ops is empty list
+- No load/store in name (GL/GLES) → both lists empty
 - Aggregated "Different load ops" → preserved as-is
 - Edge case: `DS=` combined key vs separate `D=`/`S=` keys
 
@@ -40,7 +39,8 @@
 - D3D11 capture → same RT-switch detection as GL
 - Empty action tree → empty pass list
 - RT-switch grouping: consecutive same-tuple actions = one pass
-- Pass naming: nearest marker preferred, `_friendly_pass_name()` fallback
+- Zero-padded outputs: actions with same non-zero outputs but different zero-padding in unused slots = same pass (no false boundary)
+- Pass naming: nearest marker preferred, RT-info `_friendly_pass_name()` fallback
 - Engine markers (Unity RenderLoop.Draw) → filtered via `_SYNTHETIC_MARKER_IGNORE`
 - GL load/store → `"unknown"` (no BeginPass name to parse)
 
@@ -57,6 +57,7 @@
 - `rdc stats` includes "Largest Resources" section
 - Top 5 resources by byte size
 - Resource with zero byte size → excluded
+- Fewer than 5 resources → show all available
 - `rdc stats --json` includes `largest_resources` array
 
 ### T8: event-level RT switch detection
@@ -73,7 +74,9 @@
 - `pixi run rdc open tests/fixtures/vkcube.rdc` → `rdc passes` shows new columns
 - `rdc passes --deps --table` shows per-pass I/O for vkcube
 - `rdc pass <name>` shows enriched attachments
+- `rdc stats` shows Largest Resources section
 - `rdc unused-targets` runs without error
+- `rdc passes --switches` shows RT switch counts
 
 ## Manual tests
 
