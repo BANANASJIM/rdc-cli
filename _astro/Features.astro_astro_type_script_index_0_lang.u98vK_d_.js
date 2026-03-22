@@ -1,0 +1,1 @@
+import{g as r,S as t}from"./ScrollTrigger.C0eCJjti.js";r.registerPlugin(t);r.utils.toArray(".feature-card").forEach((o,e)=>{r.fromTo(o,{opacity:0,y:50,scale:.96},{opacity:1,y:0,scale:1,duration:.8,delay:e*.12,ease:"power3.out",scrollTrigger:{trigger:o,start:"top 88%",toggleActions:"play none none none"}})});
