@@ -300,8 +300,8 @@ rdc unused-targets
 {"# Names only — quick scan"}
 rdc unused-targets -q
 
-{"# JSON — get name + format + size for each dead target"}
-rdc unused-targets --json | jq '.[] | {name, format, width, height}'
+{"# JSON — get name + writer + wave for each dead target"}
+rdc unused-targets --json | jq '.unused[] | {name, written_by, wave}'
 
 {"# Count dead targets (useful as a CI assert)"}
 rdc unused-targets -q | wc -l</code></pre>

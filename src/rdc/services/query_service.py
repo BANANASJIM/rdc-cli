@@ -1018,6 +1018,8 @@ def find_unused_targets(
     reads: list[set[int]] = [set() for _ in range(n)]
     depth_resources: set[int] = set()
 
+    out_of_pass_reads: set[int] = set()
+
     for rid, events in usage_data.items():
         if rid == 0:
             continue
@@ -1026,6 +1028,8 @@ def find_unused_targets(
             usage_val = int(ev.usage)
             pidx = _bucket_eid(eid, passes)
             if pidx < 0:
+                if usage_val in _READ_USAGES:
+                    out_of_pass_reads.add(rid)
                 continue
             if usage_val in _WRITE_USAGES:
                 writes[pidx].add(rid)
@@ -1046,8 +1050,8 @@ def find_unused_targets(
     for ws in writes:
         all_written |= ws
 
-    # Mark live: swapchain + depth/stencil are always live
-    live: set[int] = (swapchain_ids & all_written) | swapchain_ids | depth_resources
+    # Mark live: swapchain + depth/stencil + out-of-pass consumers are always live
+    live: set[int] = swapchain_ids | depth_resources | (out_of_pass_reads & all_written)
 
     # Reverse-walk: if a pass writes a live resource, its read inputs are live
     changed = True

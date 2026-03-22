@@ -18,10 +18,10 @@ def _handle_unused_targets(
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
 
-    from rdc.services.query_service import _build_pass_list, find_unused_targets
+    from rdc.services.query_service import _pass_list_with_fallback, find_unused_targets
 
     actions = state.adapter.get_root_actions()
-    passes = _build_pass_list(actions, state.structured_file)
+    passes = _pass_list_with_fallback(actions, state.structured_file)
 
     usage_data: dict[int, list[Any]] = {}
     for resid, rid_obj in state.res_rid_map.items():

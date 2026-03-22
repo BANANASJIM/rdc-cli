@@ -210,7 +210,7 @@ Run `rdc --help` for the full list, or `rdc <command> --help` for details.  See 
 | GPU state | `pipeline`, `bindings`, `shader`, `shaders`, `shader-map` |
 | Debug | `debug pixel`, `debug vertex`, `debug thread`, `pixel`, `pick-pixel`, `tex-stats` |
 | Shader edit | `shader-build`, `shader-replace`, `shader-restore`, `shader-restore-all`, `shader-encodings` |
-| Resources | `resources`, `resource`, `passes`, `pass`, `usage` |
+| Resources | `resources`, `resource`, `passes`, `pass`, `usage`, `unused-targets` |
 | Export | `texture`, `rt`, `buffer`, `mesh`, `snapshot` |
 | Search | `search`, `counters` |
 | Assertions | `assert-pixel`, `assert-state`, `assert-image`, `assert-count`, `assert-clean` |

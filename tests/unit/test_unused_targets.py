@@ -123,6 +123,54 @@ class TestServiceDepthConservativeKeep:
         assert 97 not in ids
 
 
+class TestServiceOutOfPassConsumer:
+    """Resource consumed outside any pass should be considered live."""
+
+    def test_copysrc_outside_pass_keeps_resource_live(self) -> None:
+        """Render in pass, then CopySrc to swapchain outside pass boundaries."""
+        passes = [_pass("Shadow", 1, 10), _pass("Main", 11, 20)]
+        usage = {
+            97: [
+                _eu(5, rd.ResourceUsage.ColorTarget),  # written in Shadow pass
+                _eu(25, rd.ResourceUsage.CopySrc),  # read outside any pass (eid 25)
+            ],
+            200: [_eu(15, rd.ResourceUsage.ColorTarget)],  # swapchain
+        }
+        result = find_unused_targets(passes, usage, {97: "RT", 200: "SC"}, {200})
+        ids = [e["id"] for e in result["unused"]]
+        assert 97 not in ids, "resource read outside pass should be live"
+
+
+class TestServiceGlesNoPassFallback:
+    """GLES-style captures with no BeginPass should still detect unused targets."""
+
+    def test_synthetic_passes_detect_unused(self) -> None:
+        from rdc.services.query_service import _pass_list_with_fallback
+
+        actions = [
+            rd.ActionDescription(
+                eventId=5,
+                flags=rd.ActionFlags.Drawcall,
+                _name="Draw #5",
+            ),
+            rd.ActionDescription(
+                eventId=10,
+                flags=rd.ActionFlags.Drawcall,
+                _name="Draw #10",
+            ),
+        ]
+        passes = _pass_list_with_fallback(actions)
+        assert len(passes) > 0, "synthetic fallback should produce passes"
+
+        usage = {
+            97: [_eu(5, rd.ResourceUsage.ColorTarget)],  # written, never read
+            200: [_eu(10, rd.ResourceUsage.ColorTarget)],  # swapchain
+        }
+        result = find_unused_targets(passes, usage, {97: "RT", 200: "SC"}, {200})
+        ids = [e["id"] for e in result["unused"]]
+        assert 97 in ids
+
+
 # ---------------------------------------------------------------------------
 # Daemon handler
 # ---------------------------------------------------------------------------
