@@ -168,7 +168,7 @@
           "name": "passes",
           "id": "passes",
           "help": "List render passes.",
-          "usage": "rdc passes [--json] [--deps] [--dot] [--graph] [--table] [--switches] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc passes [--json] [--deps] [--dot] [--graph] [--table] [--no-header] [--jsonl] [-q]"
         },
         {
           "name": "pass",
