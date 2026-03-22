@@ -774,53 +774,6 @@ def _build_synthetic_pass_list(actions: list[Any], sf: Any = None) -> list[dict[
     return passes
 
 
-def _count_rt_switches(
-    actions: list[Any],
-    begin_eid: int,
-    end_eid: int,
-) -> dict[str, Any]:
-    """Count render-target switches within a pass EID range.
-
-    Args:
-        actions: Root action list from ReplayController.
-        begin_eid: First EID of the pass (inclusive).
-        end_eid: Last EID of the pass (inclusive).
-
-    Returns:
-        Dict with ``count`` (int) and ``switches`` list of dicts
-        containing ``eid``, ``from_targets``, and ``to_targets``.
-    """
-    leaf_actions: list[Any] = []
-
-    def _collect(nodes: list[Any]) -> None:
-        for a in nodes:
-            flags = int(a.flags)
-            if flags & _DRAW_OR_DISPATCH_OR_CLEAR:
-                if begin_eid <= a.eventId <= end_eid:
-                    leaf_actions.append(a)
-            if a.children:
-                _collect(a.children)
-
-    _collect(actions)
-    leaf_actions.sort(key=lambda a: a.eventId)
-
-    switches: list[dict[str, Any]] = []
-    prev_key: tuple[int, ...] | None = None
-    for a in leaf_actions:
-        key = _rt_key(a)
-        if prev_key is not None and key != prev_key:
-            switches.append(
-                {
-                    "eid": a.eventId,
-                    "from_targets": prev_key,
-                    "to_targets": key,
-                }
-            )
-        prev_key = key
-
-    return {"count": len(switches), "switches": switches}
-
-
 def _pass_list_with_fallback(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
     """Build pass list, merging explicit passes with gap-filling synthetic passes."""
     explicit = _build_pass_list(actions, sf)

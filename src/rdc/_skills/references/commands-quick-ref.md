@@ -652,7 +652,6 @@ List render passes.
 | `--dot` | Graphviz DOT output (requires --deps). | flag |  |
 | `--graph` | Human-readable graph (requires --deps). | flag |  |
 | `--table` | Per-pass I/O table (requires --deps). | flag |  |
-| `--switches` | Show RT switch count per pass (TBR flush risk). | flag |  |
 | `--no-header` | Omit TSV header | flag |  |
 | `--jsonl` | JSONL output | flag |  |
 | `-q, --quiet` | Print primary key column only | flag |  |
