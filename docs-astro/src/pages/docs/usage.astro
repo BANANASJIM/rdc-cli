@@ -114,7 +114,7 @@ rdc passes --switches
 rdc pass GBuffer
 
 # JSON output — includes load_ops/store_ops per pass
-rdc passes --json | jq '.[] | {name: .name, load: .load_ops, store: .store_ops}'</code></pre>
+rdc passes --json | jq '.[] | {"{ name: .name, load: .load_ops, store: .store_ops }"}'</code></pre>
 
   <h2>Dead Render Target Detection</h2>
   <pre><code># List render targets written but never sampled/read

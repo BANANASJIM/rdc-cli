@@ -30,6 +30,7 @@ jobs:
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update PKGBUILD"
+          force_push: true
           post_process: git checkout -B master
 
   aur-stable:

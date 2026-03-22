@@ -273,7 +273,7 @@ rdc draws --pass GBuffer
 rdc passes --json | jq '.[] | select(.draw_count > 50)'
 
 {"# Largest triangle passes"}
-rdc passes --json | jq 'sort_by(.triangles) | reverse | .[0:5] | .[] | {name, triangles}'
+rdc passes --json | jq 'sort_by(.triangles) | reverse | .[0:5] | .[] | {"{ name, triangles }"}'
 
 {"# Passes that clear then discard (load=Clear, store=Discard — wasted work)"}
 rdc passes --json | jq '.[] | select(.load_ops[]? == "Clear" and .store_ops[]? == "Discard")'</code></pre>
@@ -287,7 +287,7 @@ rdc passes --deps --table
 rdc passes --switches
 
 {"# Passes with RT_SWITCHES > 2 (high bandwidth pressure on tile-based GPUs)"}
-rdc passes --switches --json | jq '.[] | select(.rt_switches > 2) | {name, rt_switches}'
+rdc passes --switches --json | jq '.[] | select(.rt_switches > 2) | {"{ name, rt_switches }"}'
 
 {"# Full dependency graph as DOT (render with Graphviz)"}
 rdc passes --deps --dot | dot -Tsvg -o passes.svg</code></pre>
@@ -301,7 +301,7 @@ rdc unused-targets
 rdc unused-targets -q
 
 {"# JSON — get name + writer + wave for each dead target"}
-rdc unused-targets --json | jq '.unused[] | {name, written_by, wave}'
+rdc unused-targets --json | jq '.unused[] | {"{ name, written_by, wave }"}'
 
 {"# Count dead targets (useful as a CI assert)"}
 rdc unused-targets -q | wc -l</code></pre>
