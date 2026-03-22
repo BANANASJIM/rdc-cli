@@ -822,11 +822,26 @@ def _count_rt_switches(
 
 
 def _pass_list_with_fallback(actions: list[Any], sf: Any = None) -> list[dict[str, Any]]:
-    """Build pass list, falling back to synthetic RT inference if no API passes found."""
-    passes = _build_pass_list(actions, sf)
-    if not passes:
-        passes = _build_synthetic_pass_list(actions, sf)
-    return passes
+    """Build pass list, merging explicit passes with gap-filling synthetic passes."""
+    explicit = _build_pass_list(actions, sf)
+    if not explicit:
+        return _build_synthetic_pass_list(actions, sf)
+    synthetic = _build_synthetic_pass_list(actions, sf)
+    if not synthetic:
+        return explicit
+    # Keep synthetic passes whose EID range doesn't overlap any explicit pass
+    gap_fills = [
+        s
+        for s in synthetic
+        if not any(
+            s["begin_eid"] <= e["end_eid"] and s["end_eid"] >= e["begin_eid"] for e in explicit
+        )
+    ]
+    if not gap_fills:
+        return explicit
+    merged = explicit + gap_fills
+    merged.sort(key=lambda p: p["begin_eid"])
+    return merged
 
 
 def get_pass_detail(
