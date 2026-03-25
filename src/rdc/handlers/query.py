@@ -200,12 +200,6 @@ def _handle_passes(
     actions = state.adapter.get_root_actions()
     tree = get_pass_hierarchy(actions, state.structured_file)
 
-    if params.get("switches"):
-        from rdc.services.query_service import _count_rt_switches
-
-        for p in tree.get("passes", []):
-            p["rt_switches"] = _count_rt_switches(actions, p["begin_eid"], p["end_eid"])
-
     return _result_response(request_id, {"tree": tree}), True
 
 

@@ -14,6 +14,7 @@ from rdc.services.query_service import (
     _build_synthetic_pass_list,
     _friendly_pass_name,
     _parse_load_store_ops,
+    _pass_list_with_fallback,
     aggregate_stats,
     filter_by_pass,
     filter_by_pattern,
@@ -1048,3 +1049,128 @@ class TestSyntheticPassIntegrationGL:
         detail = get_pass_detail(actions, None, 0)
         assert detail is not None
         assert detail["draws"] == 1
+
+
+class TestPassListHybridFallback:
+    """_pass_list_with_fallback merges explicit + gap-filling synthetic passes."""
+
+    def test_mixed_explicit_and_synthetic(self) -> None:
+        """Explicit passes cover EID 10-12, synthetic fills gap at EID 60-61."""
+        begin = ActionDescription(
+            eventId=10,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Clear)",
+        )
+        draw1 = ActionDescription(
+            eventId=11,
+            flags=ActionFlags.Drawcall,
+            numIndices=6,
+            outputs=_make_outputs(100),
+            depthOut=ResourceId(50),
+            _name="d1",
+        )
+        end = ActionDescription(
+            eventId=12,
+            flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+            _name="vkCmdEndRenderPass(C=Store)",
+        )
+        # Gap actions: different RT, no BeginPass
+        rt2 = _make_outputs(200)
+        gap_draw1 = ActionDescription(
+            eventId=60,
+            flags=ActionFlags.Drawcall,
+            numIndices=9,
+            outputs=rt2,
+            depthOut=ResourceId(0),
+            _name="ssao",
+        )
+        gap_draw2 = ActionDescription(
+            eventId=61,
+            flags=ActionFlags.Drawcall,
+            numIndices=12,
+            outputs=rt2,
+            depthOut=ResourceId(0),
+            _name="bloom",
+        )
+        actions = [begin, draw1, end, gap_draw1, gap_draw2]
+        passes = _pass_list_with_fallback(actions)
+        assert len(passes) == 2
+        assert passes[0]["begin_eid"] <= 12
+        assert passes[1]["begin_eid"] == 60
+        assert passes[1]["draws"] == 2
+
+    def test_pure_explicit_no_gaps(self) -> None:
+        """All actions inside BeginPass -> only explicit passes returned."""
+        begin = ActionDescription(
+            eventId=10,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Clear)",
+        )
+        draw = ActionDescription(
+            eventId=11,
+            flags=ActionFlags.Drawcall,
+            numIndices=6,
+            outputs=_make_outputs(100),
+            depthOut=ResourceId(50),
+            _name="d",
+        )
+        end = ActionDescription(
+            eventId=12,
+            flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+            _name="vkCmdEndRenderPass(C=Store)",
+        )
+        passes = _pass_list_with_fallback([begin, draw, end])
+        assert len(passes) == 1
+        assert passes[0]["draws"] == 1
+
+    def test_pure_synthetic_fallback(self) -> None:
+        """No BeginPass at all -> full synthetic fallback."""
+        rt = _make_outputs(100)
+        actions = [
+            ActionDescription(
+                eventId=1,
+                flags=ActionFlags.Drawcall,
+                numIndices=6,
+                outputs=rt,
+                depthOut=ResourceId(50),
+                _name="glDrawArrays",
+            ),
+        ]
+        passes = _pass_list_with_fallback(actions)
+        assert len(passes) == 1
+        assert passes[0]["draws"] == 1
+
+    def test_overlapping_synthetic_discarded(self) -> None:
+        """Synthetic pass overlapping explicit pass EID range is discarded."""
+        begin = ActionDescription(
+            eventId=10,
+            flags=ActionFlags.BeginPass | ActionFlags.PassBoundary,
+            _name="vkCmdBeginRenderPass(C=Clear)",
+        )
+        draw1 = ActionDescription(
+            eventId=15,
+            flags=ActionFlags.Drawcall,
+            numIndices=6,
+            outputs=_make_outputs(100),
+            depthOut=ResourceId(50),
+            _name="d1",
+        )
+        # Overlapping draw inside BeginPass EID range but different RT
+        draw_overlap = ActionDescription(
+            eventId=18,
+            flags=ActionFlags.Drawcall,
+            numIndices=3,
+            outputs=_make_outputs(200),
+            depthOut=ResourceId(0),
+            _name="overlap",
+        )
+        end = ActionDescription(
+            eventId=20,
+            flags=ActionFlags.EndPass | ActionFlags.PassBoundary,
+            _name="vkCmdEndRenderPass(C=Store)",
+        )
+        actions = [begin, draw1, draw_overlap, end]
+        passes = _pass_list_with_fallback(actions)
+        # Synthetic pass for draw_overlap (EID 18) overlaps explicit (10-20) -> discarded
+        assert len(passes) == 1
+        assert passes[0]["begin_eid"] <= 15

@@ -68,7 +68,6 @@ rdc events --json | jq '.[] | select(.type == "DrawIndexed")'
 ```bash
 rdc passes                          # TSV table
 rdc passes --json                   # includes load_ops/store_ops per pass
-rdc passes --switches               # adds RT_SWITCHES column (TBR optimization)
 rdc passes --deps --table           # per-pass READS/WRITES/LOAD/STORE
 ```
 
