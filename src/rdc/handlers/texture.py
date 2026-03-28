@@ -82,6 +82,10 @@ def _handle_tex_export(
         return _error_response(
             request_id, -32001, f"mip {mip} out of range (max: {tex.mips - 1})"
         ), True
+    eid = int(params.get("eid", state.current_eid))
+    err = _set_frame_event(state, eid)
+    if err:
+        return _error_response(request_id, -32002, err), True
     temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}.png"
     controller = state.adapter.controller
     texsave = _make_texsave(state.rd, tex.resourceId, mip)
@@ -107,6 +111,10 @@ def _handle_tex_raw(
     tex = state.tex_map.get(res_id)
     if tex is None:
         return _error_response(request_id, -32001, f"texture {res_id} not found"), True
+    eid = int(params.get("eid", state.current_eid))
+    err = _set_frame_event(state, eid)
+    if err:
+        return _error_response(request_id, -32002, err), True
     controller = state.adapter.controller
     sub = _make_subresource(state.rd)
     raw_data = controller.GetTextureData(tex.resourceId, sub)

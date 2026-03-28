@@ -56,7 +56,8 @@ jobs:
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --extra dev
-      - run: uv run --with pip-audit pip-audit
+      # CVE-2026-4539: no fixed pygments release yet (last_affected=2.19.2); ignore until upstream ships a patch
+      - run: uv run --with pip-audit pip-audit --ignore-vuln CVE-2026-4539
 
   validate-aur:
     name: Validate AUR PKGBUILD
