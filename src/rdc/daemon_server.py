@@ -198,7 +198,7 @@ def _load_replay(state: DaemonState) -> str | None:
     state.rd = rd
     version = _detect_version(rd)
     state.adapter = RenderDocAdapter(controller=controller, version=version)
-    state.structured_file = cap.GetStructuredData()
+    state.structured_file = state.adapter.get_structured_file()
 
     _init_adapter_state(state)
     return None
@@ -339,9 +339,9 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
 
         state.cap = cap
         state.rd = rd
-        state.structured_file = cap.GetStructuredData()
         version = _detect_version(rd)
         state.adapter = RenderDocAdapter(controller=controller, version=version)
+        state.structured_file = state.adapter.get_structured_file()
 
         _init_adapter_state(state)
         _start_ping_thread(state)
