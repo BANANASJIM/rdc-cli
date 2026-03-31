@@ -1824,7 +1824,9 @@ def CreateHeadlessWindowingData(width: int, height: int) -> Any:
 
 
 class ReplayOptions:
-    pass
+    forceGPUVendor: int = 0
+    forceGPUDeviceID: int = 0
+    forceGPUDriverName: str = ""
 
 
 def ExecuteAndInject(
