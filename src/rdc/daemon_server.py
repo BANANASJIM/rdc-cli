@@ -166,6 +166,35 @@ def _cleanup_temp(state: DaemonState) -> None:
 _log = logging.getLogger("rdc.daemon")
 
 
+def _match_capture_gpu(cap: Any, sd: Any = None) -> Any | None:
+    """Find the GPU used for capture by matching structured data against available GPUs."""
+    try:
+        gpus = cap.GetAvailableGPUs()
+        if not gpus:
+            return None
+        if len(gpus) == 1:
+            return gpus[0]
+        if sd is None:
+            return gpus[0]
+        for i in range(len(sd.chunks)):
+            c = sd.chunks[i]
+            if c.name == "vkEnumeratePhysicalDevices":
+                for j in range(c.NumChildren()):
+                    child = c.GetChild(j)
+                    if child.name == "physProps":
+                        for k in range(child.NumChildren()):
+                            prop = child.GetChild(k)
+                            if prop.name == "deviceName":
+                                name = prop.AsString()
+                                for g in gpus:
+                                    if g.name == name:
+                                        return g
+                break
+    except Exception:  # noqa: BLE001
+        pass
+    return gpus[0] if gpus else None
+
+
 def _load_replay(state: DaemonState) -> str | None:
     """Load renderdoc module and open capture. Returns error string or None."""
     from rdc.discover import find_renderdoc
@@ -189,7 +218,13 @@ def _load_replay(state: DaemonState) -> str | None:
         cap.Shutdown()
         return "local replay not supported on this platform"
 
-    result, controller = cap.OpenCapture(rd.ReplayOptions(), None)
+    opts = rd.ReplayOptions()
+    gpu = _match_capture_gpu(cap, cap.GetStructuredData())
+    if gpu is not None:
+        opts.forceGPUVendor = gpu.vendor
+        opts.forceGPUDeviceID = gpu.deviceID
+        _log.info("replay GPU: %s (vendor=%d id=%d)", gpu.name, gpu.vendor, gpu.deviceID)
+    result, controller = cap.OpenCapture(opts, None)
     if result != rd.ResultCode.Succeeded:
         cap.Shutdown()
         return f"OpenCapture failed: {result}"
@@ -321,8 +356,18 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
             state.local_capture_path = str(local_tmp)
             state.local_capture_is_temp = True
 
+        remote_opts = rd.ReplayOptions()
+        if state.local_capture_path:
+            tmp_cap = rd.OpenCaptureFile()
+            if tmp_cap.OpenFile(state.local_capture_path, "", None) == rd.ResultCode.Succeeded:
+                gpu = _match_capture_gpu(tmp_cap)
+                if gpu is not None:
+                    remote_opts.forceGPUVendor = gpu.vendor
+                    remote_opts.forceGPUDeviceID = gpu.deviceID
+                tmp_cap.Shutdown()
+
         result, controller = remote.OpenCapture(
-            rd.RemoteServer.NoPreference, remote_path, rd.ReplayOptions(), None
+            rd.RemoteServer.NoPreference, remote_path, remote_opts, None
         )
         if result != rd.ResultCode.Succeeded:
             _cleanup_temp_capture(state)
