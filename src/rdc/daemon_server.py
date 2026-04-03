@@ -168,6 +168,7 @@ _log = logging.getLogger("rdc.daemon")
 
 def _match_capture_gpu(cap: Any, sd: Any = None) -> Any | None:
     """Find the GPU used for capture by matching structured data against available GPUs."""
+    gpus: list[Any] = []
     try:
         gpus = cap.GetAvailableGPUs()
         if not gpus:
@@ -506,8 +507,6 @@ def run_server(  # pragma: no cover
 
 
 def main() -> None:  # pragma: no cover
-    _platform.install_shutdown_signal()
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
@@ -528,6 +527,22 @@ def main() -> None:  # pragma: no cover
         if err:
             sys.stderr.write(f"error: {err}\n")
             sys.exit(1)
+
+    def _shutdown() -> None:
+        _stop_ping_thread(state)
+        if state.is_remote and state.remote is not None:
+            if state.adapter is not None:
+                try:
+                    state.remote.CloseCapture(state.adapter.controller)
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                state.remote.ShutdownConnection()
+            except Exception:  # noqa: BLE001
+                pass
+        sys.exit(0)
+
+    _platform.install_shutdown_signal(_shutdown)
 
     run_server(
         host=args.host,
