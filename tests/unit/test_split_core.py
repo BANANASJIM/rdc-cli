@@ -58,7 +58,7 @@ class TestProxyRemoteDeprecation:
 
         called_with: dict[str, Any] = {}
 
-        def fake_open(cap: Any, *, remote_url: str | None = None) -> tuple[bool, str]:
+        def fake_open(cap: Any, *, remote_url: str | None = None, **_: Any) -> tuple[bool, str]:
             called_with["remote_url"] = remote_url
             return True, f"opened: {cap}"
 
@@ -102,7 +102,7 @@ class TestProxyRemoteDeprecation:
 
         called_with: dict[str, Any] = {}
 
-        def fake_open(cap: Any, *, remote_url: str | None = None) -> tuple[bool, str]:
+        def fake_open(cap: Any, *, remote_url: str | None = None, **_: Any) -> tuple[bool, str]:
             called_with["remote_url"] = remote_url
             return True, f"opened: {cap}"
 

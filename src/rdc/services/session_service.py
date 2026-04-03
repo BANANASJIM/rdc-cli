@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 import socket
 import subprocess
@@ -121,26 +122,38 @@ def _check_existing_session() -> tuple[bool, str | None]:
     return False, None
 
 
+def _resolve_timeout(timeout: float | None, *, remote: bool) -> float:
+    if timeout is not None:
+        return timeout
+    env = os.environ.get("RDC_OPEN_TIMEOUT")
+    if env is not None:
+        return float(env)
+    return 300.0 if remote else 15.0
+
+
 def open_session(
     capture: str | Path,
     *,
     remote_url: str | None = None,
+    timeout: float | None = None,
 ) -> tuple[bool, str]:
     exists, err = _check_existing_session()
     if exists:
         return False, err or "error: active session exists"
 
+    resolved_timeout = _resolve_timeout(timeout, remote=remote_url is not None)
+    max_attempts = 1 if remote_url is not None else 3
     host = "127.0.0.1"
     detail = "unknown error"
-    for _attempt in range(3):
+    for _attempt in range(max_attempts):
         port = pick_port()
         token = secrets.token_hex(16)
         proc = start_daemon(str(capture), port, token, remote_url=remote_url)
 
-        ok, detail = wait_for_ping(host, port, token, proc=proc)
+        ok, detail = wait_for_ping(host, port, token, timeout_s=resolved_timeout, proc=proc)
         if ok:
             break
-        proc.kill()
+        proc.terminate()
         try:
             _, stderr = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
@@ -368,6 +381,7 @@ def listen_open_session(
     listen_addr: str,
     *,
     remote_url: str | None = None,
+    timeout: float | None = None,
 ) -> tuple[bool, dict[str, Any] | str]:
     """Open a session with the daemon listening on a specified address.
 
@@ -375,6 +389,7 @@ def listen_open_session(
         capture: Path to capture file.
         listen_addr: Bind address string (see _parse_listen_addr).
         remote_url: Optional remote replay URL.
+        timeout: Daemon startup timeout in seconds (None = auto).
 
     Returns:
         (ok, info_dict_or_error) tuple.
@@ -383,6 +398,7 @@ def listen_open_session(
     if exists:
         return False, err or "error: active session exists"
 
+    resolved_timeout = _resolve_timeout(timeout, remote=remote_url is not None)
     bind_host, bind_port = _parse_listen_addr(listen_addr)
     connect_host = "127.0.0.1" if bind_host == "0.0.0.0" else bind_host
     token = secrets.token_hex(16)
@@ -394,9 +410,11 @@ def listen_open_session(
         remote_url=remote_url,
     )
 
-    ok, detail = wait_for_ping(connect_host, bind_port, token, proc=proc)
+    ok, detail = wait_for_ping(
+        connect_host, bind_port, token, timeout_s=resolved_timeout, proc=proc
+    )
     if not ok:
-        proc.kill()
+        proc.terminate()
         try:
             _, stderr = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:

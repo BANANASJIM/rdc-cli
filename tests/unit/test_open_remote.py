@@ -18,7 +18,7 @@ class TestOpenCmdRemote:
         captured: list[dict[str, Any]] = []
 
         def fake_open_session(
-            capture: str | Path, *, remote_url: str | None = None
+            capture: str | Path, *, remote_url: str | None = None, **_: Any
         ) -> tuple[bool, str]:
             captured.append({"capture": str(capture), "remote_url": remote_url})
             return True, f"opened: {capture}"
@@ -40,7 +40,7 @@ class TestOpenCmdRemote:
         capture_file.touch()
 
         def fake_open_session(
-            capture: str | Path, *, remote_url: str | None = None
+            capture: str | Path, *, remote_url: str | None = None, **_: Any
         ) -> tuple[bool, str]:
             captured.append({"capture": str(capture), "remote_url": remote_url})
             return True, f"opened: {capture}"
