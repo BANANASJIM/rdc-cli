@@ -622,6 +622,7 @@ Create local default session and start daemon skeleton.
 | `--listen` | Listen on [ADDR]:PORT. Use :0 for auto-port on all interfaces. | text |  |
 | `--connect` | Connect to an already-running external daemon. | text |  |
 | `--token` | Authentication token (required with --connect). | text |  |
+| `--timeout` | Daemon startup timeout in seconds. | float |  |
 
 ## `rdc pass`
 
