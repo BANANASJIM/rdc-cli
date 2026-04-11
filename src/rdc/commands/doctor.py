@@ -416,8 +416,9 @@ def run_doctor() -> list[CheckResult]:
 
 HINT_MAP: dict[str, str] = {
     "replay-support": (
-        "renderdoc module found but replay API is missing"
-        " -- rebuild renderdoc with replay support enabled"
+        "renderdoc replay API unavailable"
+        " -- ensure renderdoc is installed with replay support enabled"
+        " (see renderdoc-module check above for module load status)"
     ),
     "renderdoccmd": (
         "install renderdoccmd or add it to PATH;"
