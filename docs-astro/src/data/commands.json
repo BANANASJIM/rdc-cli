@@ -474,6 +474,24 @@
           "usage": "rdc remote capture <APP> -o <PATH> [--url TEXT] [--args TEXT] [--workdir TEXT] [--frame INTEGER] [--timeout FLOAT] [--api-validation] [--callstacks] [--hook-children] [--ref-all-resources] [--soft-memory-limit INTEGER] [--keep-remote] [--json]"
         },
         {
+          "name": "remote setup",
+          "id": "remote-setup",
+          "help": "Verify a remote server is reachable, handshake, and save state.",
+          "usage": "rdc remote setup <URL> [--timeout FLOAT] [--json]"
+        },
+        {
+          "name": "remote status",
+          "id": "remote-status",
+          "help": "Show the currently saved remote server state.",
+          "usage": "rdc remote status [--json]"
+        },
+        {
+          "name": "remote disconnect",
+          "id": "remote-disconnect",
+          "help": "Delete the saved remote server state (local only).",
+          "usage": "rdc remote disconnect [--json]"
+        },
+        {
           "name": "android setup",
           "id": "android-setup",
           "help": "Start RenderDoc remote server on an Android device.",
