@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from rdc import _platform
+from rdc._progress import make_progress_cb
 from rdc._transport import recv_line as _recv_line
 from rdc.adapter import RenderDocAdapter
 from rdc.handlers._helpers import (
@@ -340,7 +341,9 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     try:
         local_capture = Path(state.capture)
         if local_capture.exists():
-            remote_path = remote.CopyCaptureToRemote(str(local_capture), None)
+            remote_path = remote.CopyCaptureToRemote(
+                str(local_capture), make_progress_cb("uploading")
+            )
             state.local_capture_path = str(local_capture)
         else:
             remote_path = state.capture
@@ -348,7 +351,9 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
 
             local_tmp = Path(tempfile.mkdtemp(prefix="rdc-remote-")) / "capture.rdc"
             try:
-                remote.CopyCaptureFromRemote(remote_path, str(local_tmp), None)
+                remote.CopyCaptureFromRemote(
+                    remote_path, str(local_tmp), make_progress_cb("downloading")
+                )
             except Exception as exc:  # noqa: BLE001
                 shutil.rmtree(local_tmp.parent, ignore_errors=True)
                 remote.ShutdownConnection()
@@ -367,7 +372,10 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                 tmp_cap.Shutdown()
 
         result, controller = remote.OpenCapture(
-            rd.RemoteServer.NoPreference, remote_path, remote_opts, None
+            rd.RemoteServer.NoPreference,
+            remote_path,
+            remote_opts,
+            make_progress_cb("opening capture"),
         )
         if result != rd.ResultCode.Succeeded:
             _cleanup_temp_capture(state)

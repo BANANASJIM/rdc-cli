@@ -218,9 +218,9 @@ class TestRemoteCapture:
         result = remote_capture(rd, remote, "host:39920", "/app", output="/tmp/out.rdc")
         assert result.success is True
         assert result.path == "/tmp/out.rdc"
-        remote.CopyCaptureFromRemote.assert_called_once_with(
-            "/remote/cap.rdc", "/tmp/out.rdc", None
-        )
+        args = remote.CopyCaptureFromRemote.call_args[0]
+        assert args[:2] == ("/remote/cap.rdc", "/tmp/out.rdc")
+        assert callable(args[2])
         tc.Shutdown.assert_called_once()
 
     def test_success_local_file(self, monkeypatch: pytest.MonkeyPatch) -> None:
