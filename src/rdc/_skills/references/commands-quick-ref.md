@@ -760,6 +760,16 @@ Connect to a remote RenderDoc server.
 |------|------|------|---------|
 | `--json` | Output as JSON. | flag |  |
 
+## `rdc remote disconnect`
+
+Delete the saved remote server state (local only).
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--json` | Output as JSON. | flag |  |
+
 ## `rdc remote list`
 
 List capturable applications on a remote host.
@@ -769,6 +779,33 @@ List capturable applications on a remote host.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--url` | Override saved remote (host:port). | text |  |
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc remote setup`
+
+Verify a remote server is reachable, handshake, and save state.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `url` | text | yes |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--timeout` | TCP probe timeout in seconds. | float | 10.0 |
+| `--json` | Output as JSON. | flag |  |
+
+## `rdc remote status`
+
+Show the currently saved remote server state.
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
 | `--json` | Output as JSON. | flag |  |
 
 ## `rdc resource`
