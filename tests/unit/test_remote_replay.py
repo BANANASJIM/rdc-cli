@@ -113,7 +113,9 @@ class TestLoadRemoteReplay:
             err = _load_remote_replay(state, "host:39920")
 
         assert err is None
-        mock_remote.CopyCaptureToRemote.assert_called_once_with(str(local_capture), None)
+        args = mock_remote.CopyCaptureToRemote.call_args[0]
+        assert args[0] == str(local_capture)
+        assert callable(args[1])
         assert state.local_capture_path == str(local_capture)
 
     def test_remote_path_downloads(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
