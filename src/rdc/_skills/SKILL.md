@@ -20,7 +20,11 @@ Check setup: `rdc doctor`.
 
 Follow this session lifecycle for any capture analysis task:
 
-1. **Open** a capture: `rdc open path/to/capture.rdc`
+1. **Open** a capture:
+   - Local: `rdc open path/to/capture.rdc`
+   - Remote replay (Proxy): `rdc open capture.rdc --proxy host:port`
+   - Split thin-client: `rdc open --connect host:port --token TOKEN`
+   - Android device: `rdc open capture.rdc --android [--serial SERIAL]`
 2. **Inspect** metadata: `rdc info`, `rdc stats`, `rdc events`
 3. **Navigate** the VFS: `rdc ls /`, `rdc ls /textures`, `rdc cat /pipelines/0`
 4. **Analyze** specifics: `rdc shaders`, `rdc pipeline`, `rdc resources`, `rdc bindings`
@@ -195,6 +199,53 @@ rdc shader-replace EID s.frag     # hot-swap into capture
 rdc shader-restore EID            # revert single shader
 rdc shader-restore-all            # revert all modifications
 ```
+
+## Remote Capture Workflow
+
+rdc-cli wraps `renderdoccmd remoteserver` to support PC-to-PC remote captures.
+
+- `rdc serve [--port PORT] [--allow-ips CIDR] [--no-exec] [--daemon]` — launch remoteserver on the target machine
+- `rdc remote connect <host:port>` — save remote connection state
+- `rdc remote list` — enumerate capturable apps on the remote
+- `rdc remote capture <app> -o frame.rdc [--args ...] [--frame N] [--keep-remote]` — inject, capture, and transfer back. `--keep-remote` skips the transfer and prints the remote path for use with `--proxy`.
+- `rdc open frame.rdc --proxy host:port` — remote-backed replay (daemon local, GPU remote)
+
+`remote_state.py` persists the last connected host so subsequent `rdc remote list` can omit `--url`.
+
+## Split Mode (thin client)
+
+Split mode decouples CLI and daemon — run the daemon where the GPU is and connect from a machine that doesn't need the renderdoc module. Useful when the analyst's laptop is macOS/Windows and the GPU is on a Linux server.
+
+- Server side: `rdc open capture.rdc --listen [ADDR[:PORT]]`
+  - Prints four lines to stdout: `host: ADDR`, `port: PORT`, `token: TOKEN`, `connect with: rdc open --connect ADDR:PORT --token TOKEN`
+- Client side: `rdc open --connect HOST:PORT --token TOKEN`
+
+SSH tunnel tip: `ssh -L 54321:localhost:54321 user@server`, then connect to `localhost:54321`.
+
+Every normal command (`rdc draws`, `rdc rt`, ...) works transparently in Split mode. Binary exports use `file_read` RPC with raw binary frames — no base64 overhead.
+
+## Android Workflow
+
+- `rdc android setup [--serial SERIAL]` — pushes RenderDoc APK, starts remoteserver on device, sets adb forward, saves remote state. Uses Device Protocol API.
+- `rdc android capture <activity> [--serial SERIAL] [--timeout N] [--port PORT] [-o out.rdc]` — GPU debug layers based capture (works around EMUI/Mali injection limitations).
+- `rdc android stop [--serial SERIAL]` — stops the remoteserver and cleans state.
+- For remote replay: `rdc open frame.rdc --proxy adb://SERIAL` (auto-resolves to forwarded localhost port).
+
+Hardware matrix: Adreno is the happy path; Mali may need the ARM Performance Studio fork (see `rdc setup-renderdoc --android --arm`).
+
+## Troubleshooting
+
+Always run `rdc doctor` first — it prints actionable hints for missing renderdoc module, missing adb, missing RenderDoc APK, wrong library paths.
+
+Common failure categories:
+
+- **network / connect failed** — remote host unreachable, firewall, wrong port. Verify `rdc serve` is running on the target.
+- **version mismatch** — host and target RenderDoc versions differ. Re-run `rdc setup-renderdoc` or `rdc setup-renderdoc --android` to align.
+- **inject failed / ident=0** — injection blocked (Android EMUI, macOS SIP, Windows privilege). See `rdc doctor` hints.
+- **OpenCapture unsupported** — local GPU can't replay the capture's API surface; switch to `--proxy` or `--android` remote replay.
+- **not loaded / no session** — forgot `rdc open`; use `rdc status` to inspect.
+
+For long operations (large capture transfers, remote replay init), the CLI has limited progress feedback — this is a known UX gap, not a hang. Wait up to the `--timeout` value before concluding failure.
 
 ## Command Reference
 
