@@ -48,9 +48,12 @@ def _get_diagnostic() -> ProbeOutcome | None:
 
 
 def _is_arm_studio_dir(directory: str) -> bool:
-    """Return True if directory contains ARM PS patched renderdoc.so + librenderdoc.so."""
+    """Return True if directory is an ARM Performance Studio renderdoc install."""
     d = Path(directory)
-    return (d / "librenderdoc.so").is_file() and (d / "renderdoc.so").is_file()
+    if not ((d / "librenderdoc.so").is_file() and (d / "renderdoc.so").is_file()):
+        return False
+    parts = d.resolve().parts
+    return any("arm-performance-studio" in p.lower() for p in parts)
 
 
 def _preload_librenderdoc(directory: str) -> None:
@@ -136,7 +139,7 @@ def find_renderdoc() -> ModuleType | None:
 
     env_path = os.environ.get("RENDERDOC_PYTHON_PATH")
     if env_path:
-        candidates.append(env_path)
+        candidates.append(os.path.abspath(env_path))
 
     try:
         candidates.extend(_platform.renderdoc_search_paths())
@@ -203,7 +206,7 @@ def find_renderdoccmd() -> Path | None:
     env_path = os.environ.get("RENDERDOC_PYTHON_PATH")
     if env_path:
         name = "renderdoccmd.exe" if sys.platform == "win32" else "renderdoccmd"
-        candidate = Path(env_path) / name
+        candidate = Path(os.path.abspath(env_path)) / name
         if candidate.exists():
             return candidate
 

@@ -180,6 +180,12 @@ def _complete_capture_path(
     default=None,
     help="Authentication token (required with --connect).",
 )
+@click.option(
+    "--timeout",
+    type=float,
+    default=None,
+    help="Daemon startup timeout in seconds.",
+)
 def open_cmd(
     capture: str | None,
     preload: bool,
@@ -190,6 +196,7 @@ def open_cmd(
     listen: str | None,
     connect: str | None,
     connect_token: str | None,
+    timeout: float | None,
 ) -> None:
     """Create local default session and start daemon skeleton."""
     # Handle --remote deprecation
@@ -269,7 +276,7 @@ def open_cmd(
             click.echo(f"error: file not found: {capture}", err=True)
             raise SystemExit(1)
         try:
-            ok, result = listen_open_session(capture, listen, remote_url=proxy_url)
+            ok, result = listen_open_session(capture, listen, remote_url=proxy_url, timeout=timeout)
         except ValueError as exc:
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(1) from None
@@ -293,7 +300,7 @@ def open_cmd(
     if proxy_url is None and not Path(capture).exists():
         click.echo(f"error: file not found: {capture}", err=True)
         raise SystemExit(1)
-    ok, message = open_session(capture, remote_url=proxy_url)
+    ok, message = open_session(capture, remote_url=proxy_url, timeout=timeout)
     if not ok:
         click.echo(message, err=True)
         raise SystemExit(1)

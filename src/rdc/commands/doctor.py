@@ -414,6 +414,38 @@ def run_doctor() -> list[CheckResult]:
     return results
 
 
+HINT_MAP: dict[str, str] = {
+    "replay-support": (
+        "renderdoc replay API unavailable"
+        " -- ensure renderdoc is installed with replay support enabled"
+        " (see renderdoc-module check above for module load status)"
+    ),
+    "renderdoccmd": (
+        "install renderdoccmd or add it to PATH;"
+        " see https://bananasjim.github.io/rdc-cli/docs/install/"
+    ),
+    "platform": "rdc-cli capture requires Linux, macOS, or Windows",
+    "win-python-version": (
+        "rebuild renderdoc Python bindings against the running Python version,"
+        " or switch Python to match the .pyd tag"
+    ),
+    "win-vs-build-tools": (
+        "install Visual Studio 2022 Build Tools from https://visualstudio.microsoft.com/downloads/"
+    ),
+    "win-renderdoc-install": (
+        "install RenderDoc from https://renderdoc.org/builds or set RENDERDOC_PYTHON_PATH"
+    ),
+    "win-vulkan-layer": (
+        "re-install RenderDoc to restore the Vulkan implicit layer registry entry"
+    ),
+    "mac-xcode-cli": "run: xcode-select --install",
+    "mac-homebrew": "install Homebrew from https://brew.sh",
+    "mac-renderdoc-dylib": (
+        "build renderdoc for macOS; see https://bananasjim.github.io/rdc-cli/docs/install/"
+    ),
+}
+
+
 @click.command("doctor")
 def doctor_cmd() -> None:
     """Run environment checks for rdc-cli."""
@@ -426,7 +458,11 @@ def doctor_cmd() -> None:
         if not result.ok:
             has_error = True
             if result.name == "renderdoc-module":
-                click.echo(_RENDERDOC_BUILD_HINT, err=True)
+                click.echo(f"  hint: {_RENDERDOC_BUILD_HINT}", err=True)
+            else:
+                hint = HINT_MAP.get(result.name)
+                if hint:
+                    click.echo(f"  hint: {hint}", err=True)
 
     if has_error:
         raise SystemExit(1)

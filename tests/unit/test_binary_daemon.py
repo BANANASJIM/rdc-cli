@@ -244,6 +244,13 @@ class TestTexExport:
         assert resp["error"]["code"] == -32001
         assert "mip" in resp["error"]["message"]
 
+    def test_eid_out_of_range(self, tmp_path):
+        state = _make_handler_state(tmp_path)
+        resp, _ = _handle_request(
+            rpc_request("tex_export", {"id": 42, "eid": 99999}, token="abcdef1234567890"), state
+        )
+        assert resp["error"]["code"] == -32002
+
     def test_no_temp_dir(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
         state.adapter = RenderDocAdapter(
@@ -274,6 +281,13 @@ class TestTexRaw:
             rpc_request("tex_raw", {"id": 999}, token="abcdef1234567890"), state
         )
         assert resp["error"]["code"] == -32001
+
+    def test_eid_out_of_range(self, tmp_path):
+        state = _make_handler_state(tmp_path)
+        resp, _ = _handle_request(
+            rpc_request("tex_raw", {"id": 42, "eid": 99999}, token="abcdef1234567890"), state
+        )
+        assert resp["error"]["code"] == -32002
 
     def test_no_temp_dir(self):
         state = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")

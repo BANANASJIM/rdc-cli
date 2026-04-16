@@ -8,6 +8,7 @@ from typing import Any
 
 import click
 
+from rdc._progress import make_progress_cb
 from rdc.capture_core import CaptureResult, build_capture_options, run_target_control_loop
 
 _PRIVATE_NETS = (
@@ -177,7 +178,7 @@ def remote_capture(
         result.remote_path = result.path
     elif not result.local:
         try:
-            remote.CopyCaptureFromRemote(result.path, output, None)
+            remote.CopyCaptureFromRemote(result.path, output, make_progress_cb("downloading"))
             result.path = output
             result.local = True
         except Exception as exc:

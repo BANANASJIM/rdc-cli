@@ -239,9 +239,16 @@ class TestArmStudioDir:
     """_is_arm_studio_dir detects ARM PS directory layout."""
 
     def test_both_files_present(self, tmp_path: Path) -> None:
+        arm_dir = tmp_path / "arm-performance-studio" / "renderdoc" / "lib"
+        arm_dir.mkdir(parents=True)
+        (arm_dir / "librenderdoc.so").write_text("fake")
+        (arm_dir / "renderdoc.so").write_text("fake")
+        assert _is_arm_studio_dir(str(arm_dir)) is True
+
+    def test_non_arm_dir_with_both_files(self, tmp_path: Path) -> None:
         (tmp_path / "librenderdoc.so").write_text("fake")
         (tmp_path / "renderdoc.so").write_text("fake")
-        assert _is_arm_studio_dir(str(tmp_path)) is True
+        assert _is_arm_studio_dir(str(tmp_path)) is False
 
     def test_missing_librenderdoc(self, tmp_path: Path) -> None:
         (tmp_path / "renderdoc.so").write_text("fake")

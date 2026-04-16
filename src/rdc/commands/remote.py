@@ -1,10 +1,12 @@
-"""Remote RenderDoc server commands: connect, list, capture."""
+"""Remote RenderDoc server commands: connect, list, capture, setup, status, disconnect."""
 
 from __future__ import annotations
 
 import dataclasses
 import json
+import socket
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,7 @@ from rdc.remote_core import (
 )
 from rdc.remote_state import (
     RemoteServerState,
+    delete_remote_state,
     load_latest_remote_state,
     save_remote_state,
 )
@@ -285,3 +288,194 @@ def _download_split_remote_capture(result: CaptureResult, output: Path) -> Captu
     if not result.success or not result.path:
         return result
     return write_capture_to_path(result, output)
+
+
+def _tcp_probe(host: str, port: int, timeout_s: float) -> str | None:
+    """Probe TCP reachability. Returns None on success or a failure literal."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout_s):
+            return None
+    except ConnectionRefusedError:
+        return "refused"
+    except TimeoutError:
+        return "timeout"
+    except OSError:
+        return "unreachable"
+
+
+def _setup_hint_for(failure: str, host: str, port: int, timeout_s: float = 10.0) -> str:
+    """Map a failure literal to an actionable hint string."""
+    if failure == "refused":
+        return (
+            f"rdc serve does not appear to be running on {host}:{port}. "
+            f"On the target, run: rdc serve --daemon --port {port}"
+        )
+    if failure == "timeout":
+        return (
+            f"cannot reach {host}:{port} within {timeout_s:g}s -- "
+            "check network path, firewall, or docker port mapping"
+        )
+    if failure == "unreachable":
+        return f"cannot resolve or reach {host} -- check hostname and network route"
+    if failure == "ping_failed":
+        return (
+            f"TCP reachable but renderdoc handshake failed -- the process listening on "
+            f"{host}:{port} may not be renderdoccmd remoteserver, or versions differ. "
+            f"Run 'rdc doctor' locally and compare with 'rdc --version' on {host}"
+        )
+    return f"unknown failure class: {failure}"
+
+
+def _emit_setup_failure(
+    host: str,
+    port: int,
+    failure: str,
+    detail: str,
+    timeout_s: float,
+    use_json: bool,
+) -> None:
+    hint = _setup_hint_for(failure, host, port, timeout_s)
+    if use_json:
+        click.echo(
+            json.dumps(
+                {
+                    "host": host,
+                    "port": port,
+                    "error": detail,
+                    "failure": failure,
+                    "hint": hint,
+                }
+            ),
+            err=True,
+        )
+    else:
+        click.echo(f"error: {detail}", err=True)
+        click.echo(f"hint: {hint}", err=True)
+    raise SystemExit(1)
+
+
+def _renderdoc_handshake(host: str, port: int) -> None:
+    """Perform CreateRemoteServerConnection + Ping + Shutdown. Raises RuntimeError on failure."""
+    rd = require_renderdoc()
+    conn_url = build_conn_url(host, port)
+    remote = connect_remote_server(rd, conn_url)
+    try:
+        remote.Ping()
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(str(exc)) from exc
+    finally:
+        remote.ShutdownConnection()
+
+
+@remote_group.command("setup")
+@click.argument("url")
+@click.option(
+    "--timeout", "timeout_s", type=float, default=10.0, help="TCP probe timeout in seconds."
+)
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
+def remote_setup_cmd(url: str, timeout_s: float, use_json: bool) -> None:
+    """Verify a remote server is reachable, handshake, and save state."""
+    try:
+        host, port = parse_url(url)
+    except ValueError as exc:
+        click.echo(f"error: {exc}", err=True)
+        raise SystemExit(1) from None
+    _check_public_ip(host)
+
+    failure = _tcp_probe(host, port, timeout_s)
+    if failure is not None:
+        detail_map = {
+            "refused": f"cannot reach {host}:{port} (connection refused)",
+            "timeout": f"cannot reach {host}:{port} (timeout after {timeout_s:g}s)",
+            "unreachable": f"cannot reach {host} (network unreachable)",
+        }
+        _emit_setup_failure(host, port, failure, detail_map[failure], timeout_s, use_json)
+
+    try:
+        _renderdoc_handshake(host, port)
+    except RuntimeError as exc:
+        _emit_setup_failure(
+            host,
+            port,
+            "ping_failed",
+            f"TCP reachable but renderdoc handshake failed: {exc}",
+            timeout_s,
+            use_json,
+        )
+
+    save_remote_state(RemoteServerState(host=host, port=port, connected_at=time.time()))
+
+    if use_json:
+        click.echo(json.dumps({"host": host, "port": port, "next": "rdc remote list"}))
+    else:
+        click.echo(f"connected: {host}:{port}")
+        click.echo("next: rdc remote list", err=True)
+
+
+def _format_age(seconds: float) -> str:
+    s = max(0, int(seconds))
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}h{m}m"
+    if m:
+        return f"{m}m{sec}s"
+    return f"{sec}s"
+
+
+@remote_group.command("status")
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
+def remote_status_cmd(use_json: bool) -> None:
+    """Show the currently saved remote server state."""
+    state = load_latest_remote_state()
+    if state is None:
+        if use_json:
+            click.echo(json.dumps({"state": None}))
+        else:
+            click.echo("no saved remote state", err=True)
+            click.echo(
+                "hint: run 'rdc remote setup HOST[:PORT]' "
+                "or 'rdc remote connect HOST[:PORT]' first",
+                err=True,
+            )
+        return
+
+    saved_at_iso = datetime.fromtimestamp(state.connected_at, tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    age = _format_age(time.time() - state.connected_at)
+    if use_json:
+        click.echo(
+            json.dumps(
+                {
+                    "host": state.host,
+                    "port": state.port,
+                    "saved_at": saved_at_iso,
+                    "age": age,
+                }
+            )
+        )
+    else:
+        click.echo(f"host: {state.host}")
+        click.echo(f"port: {state.port}")
+        click.echo(f"saved_at: {saved_at_iso}")
+        click.echo(f"age: {age}")
+
+
+@remote_group.command("disconnect")
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON.")
+def remote_disconnect_cmd(use_json: bool) -> None:
+    """Delete the saved remote server state (local only)."""
+    state = load_latest_remote_state()
+    if state is None:
+        if use_json:
+            click.echo(json.dumps({"disconnected": None}))
+        else:
+            click.echo("nothing to disconnect", err=True)
+        return
+    delete_remote_state(state.host, state.port)
+    label = f"{state.host}:{state.port}"
+    if use_json:
+        click.echo(json.dumps({"disconnected": label}))
+    else:
+        click.echo(f"disconnected: {label}")

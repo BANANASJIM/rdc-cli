@@ -10,6 +10,8 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
+import click
+
 from rdc import _platform
 from rdc.discover import find_renderdoc
 
@@ -220,7 +222,9 @@ def run_target_control_loop(
     else:
         tc.TriggerCapture(1)
 
-    deadline = time.monotonic() + timeout
+    start = time.monotonic()
+    deadline = start + timeout
+    last_echo = start
     while time.monotonic() < deadline:
         if not tc.Connected():
             return CaptureResult(error="target disconnected")
@@ -239,6 +243,10 @@ def run_target_control_loop(
             )
         if msg_type == 1:
             return CaptureResult(error="target disconnected")
+        now = time.monotonic()
+        if now - last_echo >= 5.0:
+            click.echo(f"waiting for capture... ({int(now - start):d}s)", err=True)
+            last_echo = now
         time.sleep(0.01)
 
     return CaptureResult(error="timeout waiting for capture")
