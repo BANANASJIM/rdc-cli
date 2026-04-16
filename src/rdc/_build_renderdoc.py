@@ -295,6 +295,10 @@ def _safe_extractall(zf: zipfile.ZipFile, dest: Path) -> None:
             sys.stderr.write(f"ERROR: zip-slip attempt detected: {member.filename}\n")
             raise SystemExit(1)
         zf.extract(member, dest)
+        # Restore Unix execute bits that zipfile.extract() drops.
+        unix_mode = member.external_attr >> 16
+        if unix_mode and (unix_mode & 0o111):
+            target.chmod(target.stat().st_mode | (unix_mode & 0o111))
 
 
 def download_swig(build_dir: Path) -> None:
@@ -756,8 +760,10 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     plat = _platform()
-    install_dir = Path(args.install_dir) if args.install_dir else default_install_dir()
-    build_dir = Path(args.build_dir) if args.build_dir else install_dir.parent / "renderdoc-build"
+    install_dir = Path(args.install_dir).resolve() if args.install_dir else default_install_dir()
+    build_dir = (
+        Path(args.build_dir).resolve() if args.build_dir else install_dir.parent / "renderdoc-build"
+    )
 
     if _artifacts_present(install_dir, plat):
         _log(f"renderdoc already exists at {install_dir}/")
