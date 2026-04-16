@@ -1,0 +1,236 @@
+<!DOCTYPE html><html lang="en" class="dark"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Pipe-friendly TSV output, JSON mode, 75 commands, daemon-backed session for interactive GPU capture exploration."><meta name="theme-color" content="#0a0e17"><link rel="icon" type="image/svg+xml" href="/rdc-cli/favicon.svg"><title>Remote &amp; Split Mode — rdc-cli</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><script>
+      // Apply saved mode before first paint to prevent FOUC
+      (function(){var m=localStorage.getItem('rdc-mode');if(m==='light'){document.documentElement.classList.add('light');document.documentElement.classList.remove('dark');}})();
+    </script><link rel="stylesheet" href="/rdc-cli/_astro/ai-integration.wwOwWHjs.css"></head> <body class="min-h-screen">  <nav class="fixed top-0 w-full z-50 bg-gpu-dark/80 backdrop-blur-xl border-b border-gpu-border/50"> <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between"> <a href="/rdc-cli/" class="flex items-center gap-3 group"> <span class="font-mono font-bold text-lg text-gpu-accent group-hover:text-gpu-accent-dim transition-colors">
+rdc<span class="text-gray-500">-cli</span> </span> </a> <!-- Desktop nav --> <div class="hidden md:flex items-center gap-8"> <a href="/rdc-cli/docs/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Docs </a><a href="/rdc-cli/docs/commands/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Commands </a><a href="/rdc-cli/docs/examples/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Examples </a><a href="/rdc-cli/docs/install/" class="text-sm text-gray-400 hover:text-gpu-accent transition-colors"> Install </a> <button id="theme-toggle" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Toggle light/dark mode"> <!-- Sun icon (shown in dark mode) --> <svg id="icon-sun" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <circle cx="12" cy="12" r="5"></circle> <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path> </svg> <!-- Moon icon (shown in light mode) --> <svg id="icon-moon" class="w-4.5 h-4.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button> <script type="module">const o=document.getElementById("theme-toggle"),n=document.getElementById("icon-sun"),c=document.getElementById("icon-moon");function t(e){document.documentElement.classList.toggle("light",e),document.documentElement.classList.toggle("dark",!e),n.classList.toggle("hidden",e),c.classList.toggle("hidden",!e),localStorage.setItem("rdc-mode",e?"light":"dark")}const d=localStorage.getItem("rdc-mode");d==="light"&&t(!0);o.addEventListener("click",()=>{t(!document.documentElement.classList.contains("light"))});</script> <a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-gpu-accent transition-colors" aria-label="GitHub"> <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"> <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"></path> </svg> </a> </div> <!-- Mobile: theme toggle + hamburger --> <div class="flex md:hidden items-center gap-3"> <button id="theme-toggle" class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Toggle light/dark mode"> <!-- Sun icon (shown in dark mode) --> <svg id="icon-sun" class="w-4.5 h-4.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <circle cx="12" cy="12" r="5"></circle> <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path> </svg> <!-- Moon icon (shown in light mode) --> <svg id="icon-moon" class="w-4.5 h-4.5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"> <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path> </svg> </button>  <button id="mobile-menu-btn" class="text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer" aria-label="Menu"> <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path> </svg> </button> </div> </div> <!-- Mobile menu --> <div id="mobile-menu" class="hidden md:hidden bg-gpu-dark/95 backdrop-blur-xl border-b border-gpu-border/50 px-6 py-4 space-y-2"> <a href="/rdc-cli/docs/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Docs</a><a href="/rdc-cli/docs/commands/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Commands</a><a href="/rdc-cli/docs/examples/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Examples</a><a href="/rdc-cli/docs/install/" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">Install</a> <a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="block text-sm text-gray-400 hover:text-gpu-accent py-2 transition-colors">GitHub</a> </div> </nav> <script type="module">const e=document.getElementById("mobile-menu-btn"),n=document.getElementById("mobile-menu");e?.addEventListener("click",()=>n?.classList.toggle("hidden"));</script> <div class="pt-16 min-h-screen flex flex-col md:flex-row"> <!-- Mobile sidebar toggle --> <div class="md:hidden px-6 pt-4"> <button id="sidebar-toggle" class="flex items-center gap-2 text-sm text-gray-400 hover:text-gpu-accent transition-colors cursor-pointer"> <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path> </svg>
+Navigation
+</button> <nav id="mobile-sidebar" class="hidden mt-3 space-y-1 pb-4 border-b border-gpu-border"> <a href="/rdc-cli/docs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Overview </a><a href="/rdc-cli/docs/install/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Installation </a><a href="/rdc-cli/docs/usage/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Usage Patterns </a><a href="/rdc-cli/docs/commands/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Commands </a><a href="/rdc-cli/docs/remote/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gpu-accent bg-gpu-accent/10"> Remote &amp; Split </a><a href="/rdc-cli/docs/vfs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> VFS Paths </a><a href="/rdc-cli/docs/ai-integration/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> AI Agent Integration </a><a href="/rdc-cli/docs/design/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Design </a><a href="/rdc-cli/docs/examples/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Examples </a> </nav> </div> <!-- Desktop sidebar --> <aside class="hidden md:block w-64 shrink-0 border-r border-gpu-border bg-gpu-deeper/50 p-6 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto"> <nav class="space-y-1"> <a href="/rdc-cli/docs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Overview </a><a href="/rdc-cli/docs/install/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Installation </a><a href="/rdc-cli/docs/usage/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Usage Patterns </a><a href="/rdc-cli/docs/commands/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Commands </a><a href="/rdc-cli/docs/remote/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gpu-accent bg-gpu-accent/10"> Remote &amp; Split </a><a href="/rdc-cli/docs/vfs/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> VFS Paths </a><a href="/rdc-cli/docs/ai-integration/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> AI Agent Integration </a><a href="/rdc-cli/docs/design/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Design </a><a href="/rdc-cli/docs/examples/" class="block px-3 py-2 rounded-md text-sm transition-colors text-gray-400 hover:text-gray-200 hover:bg-gpu-card"> Examples </a> </nav> </aside> <!-- Content --> <main class="flex-1 max-w-3xl mx-auto px-8 py-12"> <h1 class="text-4xl font-bold text-gray-100 mb-8">Remote &amp; Split Mode</h1> <div class="prose prose-invert prose-base max-w-none
+        prose-headings:text-gray-200 prose-headings:font-semibold
+        prose-a:text-gpu-accent prose-a:no-underline hover:prose-a:underline
+        prose-code:text-gpu-accent prose-code:bg-[#0a1525] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-[#060d18] prose-pre:border prose-pre:border-[#1e3050] prose-pre:rounded-xl
+        [&_pre_code]:p-0 [&_pre_code]:bg-transparent
+        prose-td:text-gray-400 prose-th:text-gray-300
+        prose-strong:text-gray-200
+        prose-li:text-gray-400
+      ">  <h2>Architecture</h2> <p>
+rdc-cli uses a three-tier architecture that cleanly separates the CLI frontend,
+    the daemon (replay engine), and the GPU. Each tier can run on a different
+    machine, enabling flexible cross-platform workflows.
+</p> <pre><code>
++--------------------------------------------------+
+|  Tier 1: CLI (thin client)                       |
+|  Pure JSON-RPC client, no renderdoc / GPU needed |
+|  Runs on any platform: macOS / Windows / Linux   |
++-------------------------+------------------------+
+                          | JSON-RPC over TCP
+                          | (localhost or network)
++-------------------------v------------------------+
+|  Tier 2: Daemon (replay engine)                  |
+|  Loads capture, holds replay state               |
+|  Requires renderdoc module                       |
++-------------------------+------------------------+
+                          | Optional: RenderDoc remote protocol
+                          | (only when GPU is on another machine)
++-------------------------v------------------------+
+|  Tier 3: GPU                                     |
+|  Local GPU or remote renderdoccmd server         |
++--------------------------------------------------+
+  </code></pre> <p> <strong>Core principle:</strong> the CLI does not care where the daemon is;
+    the daemon does not care where the CLI is. The session file is the only
+    connection contract between them.
+</p> <h2>Three Deployment Modes</h2> <table> <thead> <tr> <th>Mode</th> <th>Daemon runs on</th> <th>GPU access</th> <th>Client needs renderdoc?</th> <th>Server needs</th> </tr> </thead> <tbody> <tr> <td><strong>Local</strong> (default)</td> <td>Same machine as CLI</td> <td>Local GPU</td> <td>Yes</td> <td>&mdash;</td> </tr> <tr> <td><strong>Proxy</strong> (<code>--proxy</code>)</td> <td>Same machine as CLI</td> <td>Remote <code>renderdoccmd</code> server</td> <td>Yes</td> <td><code>renderdoccmd</code></td> </tr> <tr> <td><strong>Split</strong> (<code>--listen</code> / <code>--connect</code>)</td> <td>Remote machine (server)</td> <td>Server-local GPU</td> <td><strong>No</strong></td> <td>renderdoc module + rdc-cli</td> </tr> </tbody> </table> <p>The three modes are orthogonal and can be freely combined:</p> <pre><code>Local:         [CLI + daemon + GPU]
+Proxy:         [CLI + daemon] --RenderDoc protocol--> [remoteserver + GPU]
+Split:         [CLI] --JSON-RPC--> [daemon + GPU]
+Split+Proxy:   [CLI] --JSON-RPC--> [daemon] --RenderDoc protocol--> [remoteserver + GPU]</code></pre> <h2>When to Use Which</h2> <table> <thead> <tr><th>Scenario</th><th>Mode</th><th>Why</th></tr> </thead> <tbody> <tr> <td>Single machine, local GPU</td> <td>Local</td> <td>Simplest setup, no network involved</td> </tr> <tr> <td>macOS client, Linux/Windows GPU server</td> <td>Split</td> <td>macOS has no renderdoc &mdash; split client needs nothing</td> </tr> <tr> <td>CI runner analyzing captures</td> <td>Split</td> <td>CI runner connects to a pre-started daemon, zero GPU dependency on CI</td> </tr> <tr> <td>Existing RenderDoc <code>remoteserver</code> fleet</td> <td>Proxy</td> <td>Reuse existing infrastructure, no rdc-cli needed on GPU servers</td> </tr> <tr> <td>Client has renderdoc but no GPU</td> <td>Proxy</td> <td>Daemon runs locally, GPU work forwarded to remote server</td> </tr> <tr> <td>Cross-vendor replay (capture needs original GPU)</td> <td>Split or Proxy</td> <td>RenderDoc captures are GPU-vendor-bound; use remote replay on the original GPU</td> </tr> <tr> <td>Client without GPU or renderdoc, server only has <code>renderdoccmd</code></td> <td>Split+Proxy</td> <td>CLI &rarr; daemon (on a third machine) &rarr; <code>remoteserver</code> (GPU machine)</td> </tr> </tbody> </table> <hr> <h2>Split Mode (recommended for cross-platform)</h2> <p>
+Split mode is the recommended way to use rdc-cli across machines.
+    The daemon runs on the machine with RenderDoc and a GPU. The CLI connects
+    over TCP and needs <strong>no local RenderDoc installation</strong>.
+    All commands work transparently &mdash; the user experience is identical
+    to local mode.
+</p> <h3>How it works</h3> <ol> <li>The server runs <code>rdc open capture.rdc --listen ADDR:PORT</code>,
+      which starts a daemon that binds to the network and prints a connection token.</li> <li>The client runs <code>rdc open --connect HOST:PORT --token TOKEN</code>,
+      which creates a local session file with <code>pid=0</code> (marking it as an external daemon).</li> <li>All subsequent commands (<code>rdc draws</code>, <code>rdc rt</code>, etc.)
+      send JSON-RPC requests to the remote daemon and receive results.
+      Binary exports (textures, render targets) are transferred inline.</li> </ol> <h3>Server side</h3> <pre><code># Bind to a specific LAN interface (recommended)
+rdc open frame.rdc --listen 192.168.1.10:54321
+
+# Or auto-assign port on all interfaces
+# WARNING: 0.0.0.0 exposes the daemon to the entire network — use only on trusted LANs
+rdc open frame.rdc --listen 0.0.0.0:0
+
+# Output:
+#   opened: frame.rdc (listening)
+#   host: 0.0.0.0
+#   port: 54321
+#   token: &lt;TOKEN&gt;
+#   connect with: rdc open --connect &lt;server-ip&gt;:54321 --token &lt;TOKEN&gt;
+
+# Bind to a specific interface and port (useful for CI/automation)
+rdc open frame.rdc --listen 10.0.0.1:8080</code></pre> <h3>Client side</h3> <pre><code># Connect from any machine (macOS, Windows, CI runner, etc.)
+rdc open --connect replay-host:54321 --token TOKEN
+
+# Everything works exactly like local mode
+rdc status             # shows remote capture path and daemon info
+rdc info               # capture metadata
+rdc goto 142           # navigate to a draw call
+rdc draws              # list all draw calls
+rdc pipeline           # pipeline state
+rdc rt 142 -o out.png  # export render target
+rdc debug pixel 142 400 300   # shader debugging
+rdc counters --eid 142        # GPU performance counters
+rdc close              # disconnect (daemon keeps running)
+rdc close --shutdown   # disconnect AND stop the remote daemon</code></pre> <h3>Session transparency</h3> <p>
+The session file is the only thing that differs between local and split mode.
+    When <code>pid &gt; 0</code>, the daemon is local and health-checked via
+<code>is_pid_alive()</code>. When <code>pid == 0</code>, the daemon is
+    external and health-checked via a <code>ping</code> RPC. All other behavior
+    is identical.
+</p> <h3>Security</h3> <ul> <li><strong>Token authentication:</strong> 128-bit random token
+      (<code>secrets.token_hex(16)</code>), verified with
+<code>secrets.compare_digest()</code> for timing-safe comparison.</li> <li><strong>Default bind:</strong> <code>0.0.0.0</code> (all interfaces).
+      Prefer binding to a specific LAN IP or <code>127.0.0.1</code> on untrusted networks.</li> <li><strong>SSH tunnel (recommended for untrusted networks):</strong></li> </ul> <pre><code># On the client machine
+ssh -L 54321:localhost:54321 user@replay-host
+rdc open --connect localhost:54321 --token TOKEN</code></pre> <hr> <h2>Proxy Mode</h2> <p>
+Proxy mode runs the daemon on the client machine, but forwards all GPU
+    operations to a remote <code>renderdoccmd remoteserver</code> via
+    RenderDoc's native remote protocol. Use this when you have existing
+    RenderDoc remote server infrastructure and don't want to install rdc-cli
+    on every GPU server.
+</p> <h3>How it works</h3> <ol> <li>A <code>renderdoccmd remoteserver</code> runs on the GPU machine (port 39920 by default).</li> <li>The client runs <code>rdc open capture.rdc --proxy HOST:PORT</code>.
+      The local daemon uploads the capture to the remote server and opens it there.</li> <li>The local daemon holds a remote controller proxy. Metadata queries
+      (events, draws, pipeline state) work through this proxy. The daemon maintains
+      a background keepalive ping every 3 seconds.</li> </ol> <h3>Start a remote server</h3> <pre><code># Using rdc-cli (wraps renderdoccmd) — restrict to trusted subnet
+rdc serve --allow-ips 10.0.0.0/24
+rdc serve --daemon --port 39920      # detach after printing PID
+
+# Or use renderdoccmd directly
+renderdoccmd remoteserver</code></pre> <h3>Connect via proxy</h3> <pre><code># Capture locally replayed on remote GPU
+rdc open frame.rdc --proxy gpu-server:39920
+rdc status     # shows "remote: gpu-server:39920"
+rdc draws      # metadata queries work normally
+rdc pipeline   # pipeline state via remote controller</code></pre> <h3>Proxy mode limitations</h3> <ul> <li><strong>Requires renderdoc on the client:</strong> the daemon needs
+      the renderdoc module to create the remote controller proxy.</li> <li><strong>Requires <code>renderdoccmd</code> on the server:</strong> needed
+      to run the remote server process.</li> <li><strong>Binary export limitations:</strong> commands that export files
+      (<code>rt</code>, <code>texture</code>) may not work reliably in proxy mode.
+      The remote controller's <code>SaveTexture()</code> writes to the remote
+      server's filesystem, not the client's. For full export support, use
+      Split mode instead.</li> </ul> <hr> <h2>Android Remote Replay</h2> <p>
+Android captures can only be replayed on the original device GPU (desktop GPUs
+    are incompatible with mobile GLES/Vulkan captures). The <code>--android</code>
+flag on <code>rdc open</code> automates this: it resolves the device's
+    adb-forwarded port from saved state and opens a proxy replay session.
+</p> <h3>Workflow</h3> <pre><code># 1. Setup: start RenderDoc remote server on the device
+rdc android setup
+
+# 2. Capture a frame
+rdc android capture com.example.app/.MainActivity -o frame.rdc
+
+# 3. Remote replay on the device GPU
+rdc open frame.rdc --android              # auto-resolves device
+rdc open frame.rdc --android --serial XYZ # explicit device selection
+
+# 4. All commands work transparently
+rdc info          # shows "API: OpenGL, machine_ident: Android ARM 64-bit"
+rdc draws         # draw call list
+rdc pick-pixel 540 1170 --json   # pixel queries
+rdc snapshot 11 -o ./snap/      # pipeline + shader export
+rdc close
+
+# 5. Cleanup
+rdc android stop</code></pre> <h3>How it works</h3> <p> <code>--android</code> reads the <code>RemoteServerState</code> saved by
+<code>rdc android setup</code>, finds the adb-forwarded TCP port via
+<code>adb forward --list</code>, and passes <code>localhost:PORT</code>
+as the proxy URL. The daemon then uploads the capture to the device via
+<code>CopyCaptureToRemote</code> and opens it for replay on the device GPU.
+</p> <h3>Prerequisites</h3> <ul> <li><code>rdc android setup</code> must be run first (starts the remote server)</li> <li>Device must be connected via USB with <code>adb</code> access</li> <li>Android 10+ for GPU debug layer capture</li> </ul> <hr> <h2>Remote Capture Commands</h2> <p>
+The <code>rdc remote</code> command group connects to a remote RenderDoc
+    target control server to list running applications and trigger captures.
+    This is independent of proxy/split mode &mdash; it uses RenderDoc's
+    target control protocol.
+</p> <pre><code># Connect to a remote RenderDoc server and save state
+rdc remote connect gpu-server:39920
+
+# List capturable applications on the remote host
+rdc remote list
+
+# Trigger capture of a specific application
+rdc remote capture /usr/bin/game -o /tmp/remote.rdc</code></pre> <hr> <h2>Proxy vs Split: Key Differences</h2> <table> <thead> <tr><th></th><th>Proxy (<code>--proxy</code>)</th><th>Split (<code>--listen</code> / <code>--connect</code>)</th></tr> </thead> <tbody> <tr> <td><strong>Daemon location</strong></td> <td>Client machine</td> <td>Server machine</td> </tr> <tr> <td><strong>Communication protocol</strong></td> <td>RenderDoc internal binary protocol</td> <td>JSON-RPC (rdc-cli's own protocol)</td> </tr> <tr> <td><strong>Client dependency</strong></td> <td>renderdoc module required</td> <td>Only rdc-cli (no renderdoc)</td> </tr> <tr> <td><strong>Server dependency</strong></td> <td><code>renderdoccmd</code></td> <td>renderdoc module + rdc-cli</td> </tr> <tr> <td><strong>GPU operations</strong></td> <td>Proxied through remote controller</td> <td>Executed locally on daemon machine</td> </tr> <tr> <td><strong>Binary export</strong></td> <td>Limited (path goes to remote filesystem)</td> <td>Full support (daemon writes locally, transfers via JSON-RPC)</td> </tr> <tr> <td><strong>Use case</strong></td> <td>Reuse existing <code>renderdoccmd</code> servers</td> <td>Cross-platform, zero-dependency clients</td> </tr> </tbody> </table> <p>
+In short: <strong>Proxy</strong> means "local daemon, remote GPU";
+<strong>Split</strong> means "remote daemon (with GPU), local thin client".
+    Split is simpler, more reliable, and recommended for most cross-platform
+    workflows. Proxy is useful when you already have RenderDoc remote server
+    infrastructure.
+</p> <hr> <h2>Recipes</h2> <h3>macOS development with Linux GPU server</h3> <pre><code># Linux server (has GPU + renderdoc)
+rdc capture -o /tmp/scene.rdc -- ./my_game
+rdc open /tmp/scene_frame0.rdc --listen 0.0.0.0:0
+# note the port and token from output
+
+# macOS laptop (no GPU, no renderdoc)
+pip install rdc-cli    # or: uv tool install rdc-cli
+rdc open --connect linux-server:PORT --token TOKEN
+rdc draws | sort -t$'\t' -k3 -rn | head -10    # top draws by triangle count
+rdc shader 142 ps | grep shadow                 # search shaders
+rdc rt 142 -o ~/Desktop/render.png              # export render target
+rdc close</code></pre> <h3>CI pipeline: regression testing on shared GPU server</h3> <pre><code># GPU server (always running)
+rdc open golden_frame.rdc --listen 0.0.0.0:9000
+
+# CI runner (no GPU needed)
+rdc open --connect gpu-server:9000 --token $RDC_TOKEN
+rdc assert-pixel 142 400 300 --expect "0.5 0.0 0.0 1.0" --tolerance 0.01
+rdc assert-state 142 topology --expect TriangleList
+rdc assert-count draws --expect 50 --op ge
+rdc assert-clean --min-severity HIGH
+rdc close</code></pre> <h3>Cross-vendor debugging (NVIDIA capture, AMD client)</h3> <pre><code># RenderDoc captures are GPU-vendor-bound.
+# An NVIDIA capture cannot replay on AMD hardware (different memory types).
+# Solution: replay on the original GPU via Split mode.
+
+# NVIDIA server (where the capture was made)
+rdc open nvidia_capture.rdc --listen 0.0.0.0:0
+
+# AMD workstation (cannot replay this capture locally)
+rdc open --connect nvidia-server:PORT --token TOKEN
+rdc draws             # inspect the frame
+rdc debug pixel 42 300 200    # debug shader on NVIDIA GPU
+rdc close</code></pre> <h3>Proxy + Split combined: three-machine setup</h3> <pre><code># Machine A: GPU server with renderdoccmd only (no rdc-cli)
+renderdoccmd remoteserver
+
+# Machine B: daemon host with renderdoc module + rdc-cli (no GPU)
+rdc open frame.rdc --listen 0.0.0.0:5000 --proxy machine-a:39920
+
+# Machine C: thin client (no renderdoc, no GPU)
+rdc open --connect machine-b:5000 --token TOKEN
+rdc draws</code></pre> <h3>Git Bash on Windows</h3> <pre><code># Git Bash (MSYS2) converts "/" arguments to Windows paths.
+# Set MSYS_NO_PATHCONV=1 for VFS path commands:
+export MSYS_NO_PATHCONV=1
+rdc ls /
+rdc cat /current/pipeline/summary
+
+# Commands without VFS paths work without the workaround:
+rdc draws
+rdc events
+rdc pipeline</code></pre> <h2>Command Reference</h2> <pre><code># Local mode (default)
+rdc open capture.rdc
+
+# Proxy mode
+rdc open capture.rdc --proxy HOST[:PORT]|adb://SERIAL
+
+# Android remote replay
+rdc open capture.rdc --android [--serial SERIAL]
+
+# Split server
+rdc open capture.rdc --listen [ADDR]:PORT    # :0 for auto-port
+
+# Split client
+rdc open --connect HOST:PORT --token TOKEN
+
+# Remote server management
+rdc serve [--daemon] [--port PORT] [--allow-ips CIDR,...]
+rdc remote connect HOST:PORT
+rdc remote list [--url HOST:PORT]
+rdc remote capture APP [-o OUTPUT]</code></pre> <h2>Notes</h2> <ul> <li><code>--connect</code> is mutually exclusive with <code>CAPTURE</code>, <code>--proxy</code>, <code>--android</code>, and <code>--listen</code>.</li> <li><code>--android</code> is mutually exclusive with <code>--proxy</code>, <code>--connect</code>, and <code>--listen</code>.</li> <li><code>--listen</code> can be combined with <code>--proxy</code> for Split+Proxy setups.</li> <li>For <code>rdc open</code>, <code>--remote</code> is a deprecated alias for <code>--proxy</code> (hidden, shows deprecation warning).</li> <li>The daemon has a 30-minute idle timeout by default. Any command resets the timer.</li> <li>IPv6 is not currently supported (<code>HOST:PORT</code> parsing uses <code>rsplit(":", 1)</code>).</li> </ul>  </div> </main> </div> <footer class="border-t border-gpu-border/50 bg-gpu-deeper/80"> <div class="max-w-6xl mx-auto px-6 py-16"> <div class="grid grid-cols-1 md:grid-cols-3 gap-8"> <div> <span class="font-mono font-bold text-gpu-accent">rdc<span class="text-gray-500">-cli</span></span> <p class="mt-3 text-sm text-gray-500">
+Unix-friendly CLI for RenderDoc captures.<br>
+Built for CI pipelines and AI agents.
+</p> </div> <div> <h4 class="text-sm font-semibold text-gray-300 mb-3">Links</h4> <ul class="space-y-2 text-sm text-gray-500"> <li><a href="/rdc-cli/docs/" class="hover:text-gpu-accent transition-colors">Documentation</a></li> <li><a href="/rdc-cli/docs/install/" class="hover:text-gpu-accent transition-colors">Installation</a></li> <li><a href="https://pypi.org/project/rdc-cli/" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">PyPI</a></li> </ul> </div> <div> <h4 class="text-sm font-semibold text-gray-300 mb-3">Community</h4> <ul class="space-y-2 text-sm text-gray-500"> <li><a href="https://github.com/BANANASJIM/rdc-cli" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">GitHub</a></li> <li><a href="https://github.com/BANANASJIM/rdc-cli/issues" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">Issues</a></li> <li><a href="https://github.com/BANANASJIM/rdc-cli/blob/master/LICENSE" target="_blank" rel="noopener noreferrer" class="hover:text-gpu-accent transition-colors">MIT License</a></li> </ul> </div> </div> <div class="mt-8 pt-6 border-t border-gpu-border text-center text-xs text-gray-500">
+MIT License &copy; 2026 rdc-cli contributors
+</div> </div> </footer>  </body></html> <script type="module">const e=document.getElementById("sidebar-toggle"),t=document.getElementById("mobile-sidebar");e?.addEventListener("click",()=>t?.classList.toggle("hidden"));</script>
