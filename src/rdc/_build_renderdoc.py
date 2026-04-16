@@ -377,6 +377,13 @@ def configure_build(
     cmd += CMAKE_COMMON_FLAGS
     cmd.append(f"-DRENDERDOC_SWIG_PACKAGE={swig_dir}")
 
+    # Use base_prefix Python so cmake finds python3.XX-config (venv lacks it)
+    base_python = Path(sys.base_prefix) / "bin" / Path(sys.executable).name
+    if base_python.exists():
+        cmd.append(f"-DPython3_EXECUTABLE={base_python}")
+    else:
+        _log(f"WARNING: base Python not found at {base_python}, cmake will auto-detect")
+
     env = dict(os.environ)
     if plat == "linux":
         _log("stripping LTO flags")
