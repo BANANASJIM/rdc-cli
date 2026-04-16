@@ -31,6 +31,7 @@ cmake = ">=3.26,<4"
 [target.linux-64.dependencies]
 cmake = ">=3.26,<4"
 ninja = ">=1.11,<2"
+libxml2 = ">=2.12"
 
 [feature.vulkan.target.osx-64.dependencies]
 libvulkan-headers = ">=1.3"
