@@ -381,6 +381,8 @@ def configure_build(
     base_python = Path(sys.base_prefix) / "bin" / Path(sys.executable).name
     if base_python.exists():
         cmd.append(f"-DPython3_EXECUTABLE={base_python}")
+    else:
+        _log(f"WARNING: base Python not found at {base_python}, cmake will auto-detect")
 
     env = dict(os.environ)
     if plat == "linux":
