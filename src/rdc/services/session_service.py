@@ -163,7 +163,7 @@ def open_session(
         if stderr and stderr.strip():
             detail = stderr.strip()
     else:
-        return False, f"error: daemon failed to start ({detail})"
+        return False, f"error: daemon failed to start ({detail}) -- hint: run 'rdc doctor'"
 
     create_session(
         capture=str(capture),
@@ -423,7 +423,7 @@ def listen_open_session(
             stderr = ""
         if stderr and stderr.strip():
             detail = stderr.strip()
-        return False, f"error: daemon failed to start ({detail})"
+        return False, f"error: daemon failed to start ({detail}) -- hint: run 'rdc doctor'"
 
     create_session(
         capture=capture,

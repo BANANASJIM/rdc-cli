@@ -9,7 +9,12 @@ from typing import Any
 import click
 
 from rdc._progress import make_progress_cb
-from rdc.capture_core import CaptureResult, build_capture_options, run_target_control_loop
+from rdc.capture_core import (
+    CaptureResult,
+    _inject_failure_hint,
+    build_capture_options,
+    run_target_control_loop,
+)
 
 _PRIVATE_NETS = (
     re.compile(r"^10\."),
@@ -100,7 +105,9 @@ def connect_remote_server(rd: Any, url: str) -> Any:
     result, remote = rd.CreateRemoteServerConnection(url)
     if result != 0:
         msg = getattr(result, "Message", lambda: f"code {result}")()
-        raise RuntimeError(f"connection failed: {msg}")
+        raise RuntimeError(
+            f"connection failed: {msg} -- hint: verify 'rdc serve' is running on {url}"
+        )
     return remote
 
 
@@ -151,11 +158,12 @@ def remote_capture(
     env_mods: list[Any] = []
     exec_result = remote.ExecuteAndInject(app, workdir, args, env_mods, capture_opts)
 
+    _inj_hint = _inject_failure_hint()
     if exec_result.result != 0:
         msg = getattr(exec_result.result, "Message", lambda: f"code {exec_result.result}")()
-        return CaptureResult(error=f"remote inject failed: {msg}")
+        return CaptureResult(error=f"remote inject failed: {msg} -- hint: {_inj_hint}")
     if exec_result.ident == 0:
-        return CaptureResult(error="remote inject returned zero ident")
+        return CaptureResult(error=f"remote inject returned zero ident -- hint: {_inj_hint}")
 
     tc = rd.CreateTargetControl(url, exec_result.ident, "rdc-cli", True)
     if tc is None:

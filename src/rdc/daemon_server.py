@@ -228,7 +228,7 @@ def _load_replay(state: DaemonState) -> str | None:
     result, controller = cap.OpenCapture(opts, None)
     if result != rd.ResultCode.Succeeded:
         cap.Shutdown()
-        return f"OpenCapture failed: {result}"
+        return f"OpenCapture failed: {result} -- hint: try 'rdc open --proxy HOST:PORT'"
 
     state.cap = cap
     state.rd = rd
