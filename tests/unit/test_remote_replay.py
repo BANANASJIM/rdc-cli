@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -188,6 +189,169 @@ class TestLoadRemoteReplay:
         assert state.adapter is not None
         assert state.cap is not None
         assert state._ping_thread is not None
+
+
+class TestLoadRemoteReplayStepLabels:
+    """T24 group C: step labels in remote replay setup failure messages."""
+
+    def test_upload_capture_runtime_error_step_label(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        rd, mock_remote = _make_mock_rd()
+        mock_remote.CopyCaptureToRemote.side_effect = RuntimeError("upload bang")
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        err = _load_remote_replay(state, "host:39920")
+        assert err is not None
+        assert "at step 'upload capture'" in err
+        assert "upload bang" in err
+        mock_remote.ShutdownConnection.assert_called_once()
+
+    def test_upload_capture_os_error_step_label(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        rd, mock_remote = _make_mock_rd()
+        mock_remote.CopyCaptureToRemote.side_effect = OSError("disk full")
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        err = _load_remote_replay(state, "host:39920")
+        assert err is not None
+        assert "at step 'upload capture'" in err
+        assert "disk full" in err
+
+    def test_gpu_probe_failure_is_non_fatal(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """GPU probe errors are swallowed into a warning; setup continues."""
+        rd, _mock_remote = _make_mock_rd()
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        def _boom_match(_cap: Any, _sd: Any = None) -> Any:
+            raise RuntimeError("gpu probe bang")
+
+        monkeypatch.setattr("rdc.daemon_server._match_capture_gpu", _boom_match)
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        with caplog.at_level(logging.WARNING, logger="rdc.daemon"):
+            with patch("rdc.daemon_server._init_adapter_state"):
+                err = _load_remote_replay(state, "host:39920")
+
+        assert err is None
+        assert any("GPU probe skipped" in r.message for r in caplog.records)
+
+    def test_gpu_probe_tmp_cap_shutdown_on_openfile_success(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """T24 group E: tmp_cap.Shutdown runs after a successful OpenFile probe."""
+        rd, _mock_remote = _make_mock_rd()
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        tmp_cap = MagicMock()
+        tmp_cap.OpenFile.return_value = rd.ResultCode.Succeeded
+
+        cap_for_metadata = MagicMock()
+        cap_for_metadata.OpenFile.return_value = rd.ResultCode.Succeeded
+        rd.OpenCaptureFile.side_effect = [tmp_cap, cap_for_metadata]
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        with patch("rdc.daemon_server._init_adapter_state"):
+            err = _load_remote_replay(state, "host:39920")
+
+        assert err is None
+        tmp_cap.Shutdown.assert_called_once()
+
+    def test_gpu_probe_tmp_cap_shutdown_on_openfile_failure(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """T24 group E: tmp_cap.Shutdown still runs when OpenFile returns non-Succeeded."""
+        rd, _mock_remote = _make_mock_rd()
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        tmp_cap = MagicMock()
+        tmp_cap.OpenFile.return_value = 1  # anything != Succeeded (which is 0)
+
+        cap_for_metadata = MagicMock()
+        cap_for_metadata.OpenFile.return_value = rd.ResultCode.Succeeded
+        rd.OpenCaptureFile.side_effect = [tmp_cap, cap_for_metadata]
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        with patch("rdc.daemon_server._init_adapter_state"):
+            err = _load_remote_replay(state, "host:39920")
+
+        assert err is None
+        tmp_cap.Shutdown.assert_called_once()
+
+    def test_gpu_probe_tmp_cap_shutdown_when_match_raises(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """T24 group E: tmp_cap.Shutdown runs even when _match_capture_gpu raises."""
+        rd, _mock_remote = _make_mock_rd()
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        tmp_cap = MagicMock()
+        tmp_cap.OpenFile.return_value = rd.ResultCode.Succeeded
+
+        cap_for_metadata = MagicMock()
+        cap_for_metadata.OpenFile.return_value = rd.ResultCode.Succeeded
+        rd.OpenCaptureFile.side_effect = [tmp_cap, cap_for_metadata]
+
+        def _boom_match(_cap: Any, _sd: Any = None) -> Any:
+            raise RuntimeError("gpu boom")
+
+        monkeypatch.setattr("rdc.daemon_server._match_capture_gpu", _boom_match)
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        with patch("rdc.daemon_server._init_adapter_state"):
+            err = _load_remote_replay(state, "host:39920")
+
+        assert err is None
+        tmp_cap.Shutdown.assert_called_once()
+
+    def test_outer_catchall_labels_init_adapter_state(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Unexpected exception in _init_adapter_state is wrapped with step label + type."""
+        rd, mock_remote = _make_mock_rd()
+        monkeypatch.setattr("rdc.discover.find_renderdoc", lambda: rd)
+
+        def _boom(_state: Any) -> None:
+            raise ValueError("adapter bang")
+
+        monkeypatch.setattr("rdc.daemon_server._init_adapter_state", _boom)
+
+        local_capture = tmp_path / "frame.rdc"
+        local_capture.write_bytes(b"\x00")
+        state = DaemonState(capture=str(local_capture), current_eid=0, token="tok12345")
+
+        err = _load_remote_replay(state, "host:39920")
+        assert err is not None
+        assert "at step 'init adapter state'" in err
+        assert "ValueError" in err
+        assert "adapter bang" in err
+        mock_remote.ShutdownConnection.assert_called_once()
 
 
 class TestLoadReplayRegressionB39:

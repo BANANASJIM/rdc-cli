@@ -135,6 +135,18 @@ class TestConnectRemoteServer:
         with pytest.raises(RuntimeError, match="connection failed"):
             connect_remote_server(rd, "192.168.1.10:39920")
 
+    def test_failure_hint_mentions_rdc_serve_and_url(self) -> None:
+        """T24: failure message carries hint referencing 'rdc serve' and the URL."""
+        rd = MagicMock()
+        rd.CreateRemoteServerConnection.return_value = (1, None)
+        url = "192.168.1.10:39920"
+        with pytest.raises(RuntimeError) as exc_info:
+            connect_remote_server(rd, url)
+        msg = str(exc_info.value)
+        assert "hint:" in msg
+        assert "rdc serve" in msg
+        assert url in msg
+
     def test_int_result_code(self) -> None:
         rd = MagicMock()
         rd.CreateRemoteServerConnection.return_value = (0, MagicMock())
@@ -256,6 +268,19 @@ class TestRemoteCapture:
         result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
         assert not result.success
         assert "inject failed" in result.error
+        assert "hint:" in result.error
+
+    def test_zero_ident_hint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """T24: remote inject returning ident=0 with success result carries hint."""
+        rd = MagicMock()
+        remote = MagicMock()
+        remote.ExecuteAndInject.return_value = SimpleNamespace(result=0, ident=0)
+        monkeypatch.setattr("rdc.remote_core.build_capture_options", lambda opts: MagicMock())
+
+        result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
+        assert not result.success
+        assert "zero ident" in result.error
+        assert "hint:" in result.error
 
     def test_tc_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rd = MagicMock()
