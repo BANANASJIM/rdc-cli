@@ -228,6 +228,27 @@ class TestLoadReplay:
         assert err is not None
         assert "renderdoc" in err
 
+    def test_load_replay_open_capture_failure_carries_proxy_hint(self, monkeypatch: Any) -> None:
+        """T24: OpenCapture failure surfaces 'rdc open --proxy' hint."""
+        import mock_renderdoc as mock_rd
+
+        original_open = mock_rd.MockCaptureFile.OpenCapture
+
+        def _fail(self: Any, options: Any, progress: Any) -> tuple[Any, Any]:
+            return mock_rd.ResultCode.InternalError, None
+
+        mock_rd.MockCaptureFile.OpenCapture = _fail  # type: ignore[assignment]
+        sys.modules["renderdoc"] = mock_rd  # type: ignore[assignment]
+        try:
+            state = DaemonState(capture="test.rdc", current_eid=0, token="tok")
+            err = _load_replay(state)
+            assert err is not None
+            assert "OpenCapture failed" in err
+            assert "rdc open --proxy" in err
+        finally:
+            mock_rd.MockCaptureFile.OpenCapture = original_open  # type: ignore[assignment]
+            sys.modules.pop("renderdoc", None)
+
 
 # --- P1-SEC-3: temp dir cleanup tests ---
 

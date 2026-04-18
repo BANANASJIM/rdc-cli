@@ -178,6 +178,7 @@ class TestExecuteAndCapture:
         result = execute_and_capture(rd, "/usr/bin/app")
         assert result.success is False
         assert "inject failed" in result.error
+        assert "hint:" in result.error
 
     def test_capture_trigger_mode(self) -> None:
         from rdc.capture_core import execute_and_capture
@@ -363,6 +364,7 @@ class TestIdentZeroFallback:
         result = execute_and_capture(rd, "/usr/bin/app")
         assert result.success is False
         assert "inject returned zero ident" in result.error
+        assert "hint:" in result.error
 
     def test_trigger_mode_with_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from rdc.capture_core import execute_and_capture
@@ -417,3 +419,35 @@ class TestTerminateProcess:
 
         assert terminate_process(0) is False
         assert calls == []
+
+
+class TestInjectFailureHint:
+    """Platform-specific hint text for inject failures (T24 group A)."""
+
+    def test_darwin_hint_mentions_sip_and_renderdoccmd(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from rdc.capture_core import _inject_failure_hint
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "darwin")
+        hint = _inject_failure_hint()
+        assert "SIP" in hint
+        assert "renderdoccmd" in hint
+        assert "hook-children" in hint
+
+    def test_win32_hint_mentions_administrator(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import _inject_failure_hint
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "win32")
+        hint = _inject_failure_hint()
+        assert "Administrator" in hint
+        assert "hook-children" in hint
+
+    def test_linux_hint_mentions_apparmor_selinux(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import _inject_failure_hint
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "linux")
+        hint = _inject_failure_hint()
+        assert "AppArmor" in hint
+        assert "SELinux" in hint
+        assert "hook-children" in hint

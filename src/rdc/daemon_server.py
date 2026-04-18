@@ -228,7 +228,7 @@ def _load_replay(state: DaemonState) -> str | None:
     result, controller = cap.OpenCapture(opts, None)
     if result != rd.ResultCode.Succeeded:
         cap.Shutdown()
-        return f"OpenCapture failed: {result}"
+        return f"OpenCapture failed: {result} -- hint: try 'rdc open --proxy HOST:PORT'"
 
     state.cap = cap
     state.rd = rd
@@ -338,12 +338,20 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     state.is_remote = True
     state.remote_url = remote_url
 
+    step = "init"
+    controller = None
+    cap = None
     try:
+        step = "stage capture"
         local_capture = Path(state.capture)
         if local_capture.exists():
-            remote_path = remote.CopyCaptureToRemote(
-                str(local_capture), make_progress_cb("uploading")
-            )
+            try:
+                remote_path = remote.CopyCaptureToRemote(
+                    str(local_capture), make_progress_cb("uploading")
+                )
+            except (RuntimeError, OSError) as exc:
+                remote.ShutdownConnection()
+                return f"remote replay setup failed at step 'upload capture': {exc}"
             state.local_capture_path = str(local_capture)
         else:
             remote_path = state.capture
@@ -354,23 +362,31 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                 remote.CopyCaptureFromRemote(
                     remote_path, str(local_tmp), make_progress_cb("downloading")
                 )
-            except Exception as exc:  # noqa: BLE001
+            except (RuntimeError, OSError) as exc:
                 shutil.rmtree(local_tmp.parent, ignore_errors=True)
                 remote.ShutdownConnection()
-                return f"CopyCaptureFromRemote failed: {exc}"
+                return f"remote replay setup failed at step 'download capture': {exc}"
             state.local_capture_path = str(local_tmp)
             state.local_capture_is_temp = True
 
+        step = "match gpu"
         remote_opts = rd.ReplayOptions()
         if state.local_capture_path:
-            tmp_cap = rd.OpenCaptureFile()
-            if tmp_cap.OpenFile(state.local_capture_path, "", None) == rd.ResultCode.Succeeded:
-                gpu = _match_capture_gpu(tmp_cap)
-                if gpu is not None:
-                    remote_opts.forceGPUVendor = gpu.vendor
-                    remote_opts.forceGPUDeviceID = gpu.deviceID
-                tmp_cap.Shutdown()
+            try:
+                tmp_cap = rd.OpenCaptureFile()
+                try:
+                    open_result = tmp_cap.OpenFile(state.local_capture_path, "", None)
+                    if open_result == rd.ResultCode.Succeeded:
+                        gpu = _match_capture_gpu(tmp_cap)
+                        if gpu is not None:
+                            remote_opts.forceGPUVendor = gpu.vendor
+                            remote_opts.forceGPUDeviceID = gpu.deviceID
+                finally:
+                    tmp_cap.Shutdown()
+            except Exception as exc:  # noqa: BLE001
+                _log.warning("GPU probe skipped: %s", exc)
 
+        step = "open remote capture"
         result, controller = remote.OpenCapture(
             rd.RemoteServer.NoPreference,
             remote_path,
@@ -382,11 +398,13 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
             remote.ShutdownConnection()
             return f"remote OpenCapture failed: {result}"
 
+        step = "open local metadata"
         cap = rd.OpenCaptureFile()
         open_result = cap.OpenFile(state.local_capture_path, "", None)
         if open_result != rd.ResultCode.Succeeded:
             _cleanup_temp_capture(state)
             remote.CloseCapture(controller)
+            cap.Shutdown()
             remote.ShutdownConnection()
             return f"local OpenFile (metadata) failed: {open_result}"
 
@@ -396,13 +414,25 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
         state.adapter = RenderDocAdapter(controller=controller, version=version)
         state.structured_file = state.adapter.get_structured_file()
 
+        step = "init adapter state"
         _init_adapter_state(state)
+        step = "start ping thread"
         _start_ping_thread(state)
     except Exception as exc:  # noqa: BLE001
         _stop_ping_thread(state)
+        if cap is not None:
+            try:
+                cap.Shutdown()
+            except Exception:  # noqa: BLE001
+                pass
+        if controller is not None:
+            try:
+                remote.CloseCapture(controller)
+            except Exception:  # noqa: BLE001
+                pass
         _cleanup_temp_capture(state)
         remote.ShutdownConnection()
-        return f"remote replay setup failed: {exc}"
+        return f"remote replay setup failed at step '{step}' ({type(exc).__name__}): {exc}"
     return None
 
 

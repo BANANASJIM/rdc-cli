@@ -243,6 +243,7 @@ def test_open_session_all_retries_fail(monkeypatch: pytest.MonkeyPatch, tmp_path
     ok, msg = session_service.open_session(Path("test.rdc"))
     assert ok is False
     assert "daemon failed to start" in msg
+    assert "rdc doctor" in msg
 
 
 def test_close_session_fallback_kill_on_shutdown_error(

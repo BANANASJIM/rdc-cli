@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import sys
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
@@ -117,6 +118,30 @@ def _get_pid_for_ident(rd: Any, ident: int) -> int:
         tc.Shutdown()
 
 
+def _inject_failure_hint() -> str:
+    if sys.platform == "darwin":
+        return (
+            "SIP may be blocking injection; "
+            "disable SIP for the target or attach via renderdoccmd; "
+            "for child processes, use --hook-children"
+        )
+    if sys.platform == "win32":
+        return "try running rdc as Administrator; for child processes, use --hook-children"
+    return (
+        "process may be blocked by AppArmor/SELinux or missing privileges; "
+        "for child processes, use --hook-children"
+    )
+
+
+def _remote_inject_failure_hint() -> str:
+    """OS-neutral hint for remote inject failures (target OS is unknown from host)."""
+    return (
+        "check target permissions (root/Administrator, AppArmor/SELinux/SIP), "
+        "firewall, and that the target's graphics API matches renderdoc capabilities; "
+        "for child processes, use --hook-children"
+    )
+
+
 def execute_and_capture(
     rd: Any,
     app: str,
@@ -161,16 +186,17 @@ def execute_and_capture(
             app_path = Path(workdir) / app_path
         app = str(app_path.resolve())
 
+    _inj_hint = _inject_failure_hint()
     result = rd.ExecuteAndInject(app, workdir or "", args, [], output, opts, wait_for_exit)
     if result.result != 0:
-        return CaptureResult(error=f"inject failed (code {result.result})")
+        return CaptureResult(error=f"inject failed (code {result.result}) -- hint: {_inj_hint}")
 
     ident = result.ident
     if ident == 0:
         # Some renderdoc builds return ident=0 even on success; discover via enumeration.
         ident = _discover_latest_target(rd, timeout=5.0)
         if ident == 0:
-            return CaptureResult(error="inject returned zero ident")
+            return CaptureResult(error=f"inject returned zero ident -- hint: {_inj_hint}")
         log.debug("discovered target ident %d via enumeration", ident)
 
     if trigger:
