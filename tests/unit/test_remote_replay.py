@@ -142,7 +142,7 @@ class TestLoadRemoteReplay:
         state = DaemonState(capture="/remote/captures/frame.rdc", current_eid=0, token="tok12345")
         err = _load_remote_replay(state, "host:39920")
         assert err is not None
-        assert "CopyCaptureFromRemote failed" in err
+        assert "at step 'download capture'" in err
         mock_remote.ShutdownConnection.assert_called_once()
 
     def test_open_capture_fails(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

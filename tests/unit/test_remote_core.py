@@ -280,7 +280,21 @@ class TestRemoteCapture:
         result = remote_capture(rd, remote, "host", "/app", output="/tmp/out.rdc")
         assert not result.success
         assert "zero ident" in result.error
-        assert "hint:" in result.error
+        assert "check target permissions" in result.error
+
+    def test_remote_inject_hint_is_neutral(self) -> None:
+        """Remote inject hint must not include host-OS-specific guidance (target OS unknown)."""
+        from rdc.capture_core import _remote_inject_failure_hint
+
+        hint = _remote_inject_failure_hint()
+        assert "check target permissions" in hint
+        # Must mention cross-platform hints generically, not as a host-OS-specific verdict.
+        lowered = hint.lower()
+        assert "apparmor/selinux/sip" in lowered
+        # No standalone platform-specific phrasing that falsely implies target OS.
+        assert "disable sip" not in lowered
+        assert "run as administrator" not in lowered
+        assert "may be blocking" not in lowered
 
     def test_tc_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rd = MagicMock()

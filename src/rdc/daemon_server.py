@@ -339,6 +339,8 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     state.remote_url = remote_url
 
     step = "init"
+    controller = None
+    cap = None
     try:
         step = "stage capture"
         local_capture = Path(state.capture)
@@ -363,7 +365,7 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
             except (RuntimeError, OSError) as exc:
                 shutil.rmtree(local_tmp.parent, ignore_errors=True)
                 remote.ShutdownConnection()
-                return f"CopyCaptureFromRemote failed: {exc}"
+                return f"remote replay setup failed at step 'download capture': {exc}"
             state.local_capture_path = str(local_tmp)
             state.local_capture_is_temp = True
 
@@ -402,6 +404,7 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
         if open_result != rd.ResultCode.Succeeded:
             _cleanup_temp_capture(state)
             remote.CloseCapture(controller)
+            cap.Shutdown()
             remote.ShutdownConnection()
             return f"local OpenFile (metadata) failed: {open_result}"
 
@@ -417,6 +420,16 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
         _start_ping_thread(state)
     except Exception as exc:  # noqa: BLE001
         _stop_ping_thread(state)
+        if cap is not None:
+            try:
+                cap.Shutdown()
+            except Exception:  # noqa: BLE001
+                pass
+        if controller is not None:
+            try:
+                remote.CloseCapture(controller)
+            except Exception:  # noqa: BLE001
+                pass
         _cleanup_temp_capture(state)
         remote.ShutdownConnection()
         return f"remote replay setup failed at step '{step}' ({type(exc).__name__}): {exc}"

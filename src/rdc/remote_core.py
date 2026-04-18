@@ -11,7 +11,7 @@ import click
 from rdc._progress import make_progress_cb
 from rdc.capture_core import (
     CaptureResult,
-    _inject_failure_hint,
+    _remote_inject_failure_hint,
     build_capture_options,
     run_target_control_loop,
 )
@@ -158,7 +158,7 @@ def remote_capture(
     env_mods: list[Any] = []
     exec_result = remote.ExecuteAndInject(app, workdir, args, env_mods, capture_opts)
 
-    _inj_hint = _inject_failure_hint()
+    _inj_hint = _remote_inject_failure_hint()
     if exec_result.result != 0:
         msg = getattr(exec_result.result, "Message", lambda: f"code {exec_result.result}")()
         return CaptureResult(error=f"remote inject failed: {msg} -- hint: {_inj_hint}")

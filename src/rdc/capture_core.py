@@ -133,6 +133,15 @@ def _inject_failure_hint() -> str:
     )
 
 
+def _remote_inject_failure_hint() -> str:
+    """OS-neutral hint for remote inject failures (target OS is unknown from host)."""
+    return (
+        "check target permissions (root/Administrator, AppArmor/SELinux/SIP), "
+        "firewall, and that the target's graphics API matches renderdoc capabilities; "
+        "for child processes, use --hook-children"
+    )
+
+
 def execute_and_capture(
     rd: Any,
     app: str,
