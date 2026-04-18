@@ -168,21 +168,26 @@ def _handle_remote_capture(
     output_local = _resolve_output_path(state, output, "remote-capture.rdc")
 
     try:
-        result = remote_capture(
-            rd,
-            remote,
-            conn_url,
-            app,
-            args=params.get("args", ""),
-            workdir=params.get("workdir", ""),
-            output=output_local,
-            opts=params.get("opts", {}) or {},
-            frame=params.get("frame"),
-            timeout=float(params.get("timeout", 60.0)),
-            keep_remote=bool(params.get("keep_remote", False)),
-        )
+        try:
+            result = remote_capture(
+                rd,
+                remote,
+                conn_url,
+                app,
+                args=params.get("args", ""),
+                workdir=params.get("workdir", ""),
+                output=output_local,
+                opts=params.get("opts", {}) or {},
+                frame=params.get("frame"),
+                timeout=float(params.get("timeout", 60.0)),
+                keep_remote=bool(params.get("keep_remote", False)),
+            )
+        except (RuntimeError, OSError) as exc:
+            msg = f"remote capture failed at step 'inject/transfer': {exc}"
+            return _error_response(request_id, -32002, msg), True
     except Exception as exc:  # noqa: BLE001
-        return _error_response(request_id, -32002, str(exc)), True
+        msg = f"remote capture failed at unknown step ({type(exc).__name__}): {exc}"
+        return _error_response(request_id, -32002, msg), True
     finally:
         remote.ShutdownConnection()
 
