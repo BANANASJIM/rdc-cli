@@ -168,3 +168,57 @@ class TestObjFormatter:
         assert len(faces) == 2
         assert faces[0] == [0, 1, 2]
         assert faces[1] == [0, 2, 3]
+
+
+class TestNonTriangleTopologyWarning:
+    """Non-triangle topology must warn rather than silently drop faces."""
+
+    def _resp(self, topology: str) -> dict[str, Any]:
+        return {
+            "eid": 7,
+            "stage": "vs-in",
+            "topology": topology,
+            "vertex_count": 4,
+            "comp_count": 3,
+            "stride": 12,
+            "vertices": [[0.0, 0.0, 0.0]] * 4,
+            "index_count": 0,
+            "indices": [],
+        }
+
+    def test_patch_list_warns_and_exits_zero(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: self._resp("PatchList_3"))
+        result = CliRunner().invoke(mesh_cmd, [])
+        assert result.exit_code == 0
+        assert "PatchList_3" in result.output
+        assert "no OBJ face mapping" in result.output
+        assert "4 vertices" in result.output
+        assert "0 faces" in result.output
+        v_lines = [ln for ln in result.output.split("\n") if ln.startswith("v ")]
+        f_lines = [ln for ln in result.output.split("\n") if ln.startswith("f ")]
+        assert len(v_lines) == 4
+        assert len(f_lines) == 0
+
+    def test_triangle_list_no_warning(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr(
+            "rdc.commands.mesh.call",
+            lambda m, p: {
+                **self._resp("TriangleList"),
+                "vertex_count": 3,
+                "vertices": [[0.0, 0.0, 0.0]] * 3,
+            },
+        )
+        result = CliRunner().invoke(mesh_cmd, [])
+        assert result.exit_code == 0
+        assert "no OBJ face mapping" not in result.output
+
+    def test_json_path_warns_on_non_triangle(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: self._resp("LineList"))
+        result = CliRunner().invoke(mesh_cmd, ["--json"])
+        assert result.exit_code == 0
+        assert "LineList" in result.output
+        assert "no OBJ face mapping" in result.output
+        data = json.loads(
+            "\n".join(ln for ln in result.output.split("\n") if not ln.startswith("mesh:"))
+        )
+        assert data["face_count"] == 0

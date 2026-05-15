@@ -38,6 +38,7 @@ def mesh_cmd(
 
     if use_json:
         faces = _generate_faces(result["vertex_count"], result["indices"], result["topology"])
+        _warn_if_no_faces(result["topology"], result["vertex_count"], faces)
         result["faces"] = faces
         result["face_count"] = len(faces)
         write_json(result)
@@ -45,6 +46,7 @@ def mesh_cmd(
 
     positions = _extract_positions(result["vertices"])
     faces = _generate_faces(result["vertex_count"], result["indices"], result["topology"])
+    _warn_if_no_faces(result["topology"], len(positions), faces)
     obj_text = _format_obj(
         positions,
         faces,
@@ -93,6 +95,17 @@ def _generate_faces(vertex_count: int, indices: list[int], topology: str) -> lis
         case _:
             pass
     return faces
+
+
+def _warn_if_no_faces(topology: str, vertex_count: int, faces: list[list[int]]) -> None:
+    """Warn on stderr when a non-triangle topology produces no OBJ faces."""
+    if faces or topology.startswith("Triangle"):
+        return
+    click.echo(
+        f"mesh: topology {topology!r} has no OBJ face mapping; "
+        f"exported {vertex_count} vertices, 0 faces",
+        err=True,
+    )
 
 
 def _format_obj(
