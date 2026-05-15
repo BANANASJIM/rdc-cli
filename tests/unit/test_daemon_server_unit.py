@@ -18,6 +18,7 @@ from rdc.daemon_server import (
     _cleanup_temp_capture,
     _handle_request,
     _load_replay,
+    _match_capture_gpu,
     _process_request,
     _set_frame_event,
 )
@@ -167,6 +168,145 @@ class TestHandleRequest:
         )
         assert "error" in resp
         assert resp["error"]["code"] == -32002
+
+
+class TestMatchCaptureGpu:
+    """Multi-GPU selection logic (#225 D3D12 + Vulkan + fallback)."""
+
+    # GPUVendor ordinals match RenderDoc's replay_enums.h.
+    _SOFTWARE = 9
+    _AMD = 2
+    _INTEL = 5
+    _NVIDIA = 6
+
+    class _FakeRD:
+        # Mirrors renderdoc.GPUVendor; the lowercase 'n' in nVidia matches upstream.
+        class GPUVendor:
+            Software = 9
+            AMD = 2
+            Intel = 5
+            nVidia = 6  # noqa: N815
+
+    @staticmethod
+    def _gpu(name: str, vendor: int) -> SimpleNamespace:
+        return SimpleNamespace(name=name, vendor=vendor, deviceID=0, driver="")
+
+    @staticmethod
+    def _cap(gpus: list[Any]) -> SimpleNamespace:
+        return SimpleNamespace(GetAvailableGPUs=lambda: gpus)
+
+    @staticmethod
+    def _vulkan_sd(device_name: str) -> SimpleNamespace:
+        import mock_renderdoc as rd
+
+        prop = rd.SDObject(name="deviceName", data=rd.SDData(basic=rd.SDBasic(value=device_name)))
+        phys = rd.SDObject(name="physProps", children=[prop])
+        chunk = rd.SDChunk(name="vkEnumeratePhysicalDevices", children=[phys])
+        return rd.StructuredFile(chunks=[chunk])
+
+    @staticmethod
+    def _d3d12_sd(description: str, chunk_name: str = "DriverInit") -> SimpleNamespace:
+        import mock_renderdoc as rd
+
+        desc = rd.SDObject(name="Description", data=rd.SDData(basic=rd.SDBasic(value=description)))
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc])
+        chunk = rd.SDChunk(name=chunk_name, children=[adapter])
+        return rd.StructuredFile(chunks=[chunk])
+
+    def test_single_gpu_returns_it(self) -> None:
+        only = self._gpu("Mock GPU", self._AMD)
+        cap = self._cap([only])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is only
+        assert _match_capture_gpu(cap, self._vulkan_sd("does-not-matter"), self._FakeRD) is only
+
+    def test_vulkan_match_by_devicename(self) -> None:
+        a = self._gpu("AMD Radeon Graphics", self._AMD)
+        b = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([a, b])
+        sd = self._vulkan_sd("NVIDIA RTX 4500 Ada")
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is b
+
+    def test_d3d12_match_via_driverinit_adapterdesc(self) -> None:
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada Generation", self._NVIDIA)
+        warp = self._gpu("Microsoft Basic Render Driver (WARP)", self._SOFTWARE)
+        cap = self._cap([igpu, discrete, warp])
+        sd = self._d3d12_sd("NVIDIA RTX 4500 Ada Generation")
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is discrete
+
+    def test_d3d12_fallback_skips_warp_prefers_nvidia(self) -> None:
+        warp = self._gpu("WARP", self._SOFTWARE)
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([warp, igpu, discrete])
+        # No structured data → fallback.
+        assert _match_capture_gpu(cap, None, self._FakeRD) is discrete
+
+    def test_d3d12_fallback_amd_over_intel(self) -> None:
+        intel = self._gpu("Intel UHD Graphics", self._INTEL)
+        amd = self._gpu("AMD Radeon RX", self._AMD)
+        warp = self._gpu("WARP", self._SOFTWARE)
+        cap = self._cap([intel, amd, warp])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is amd
+
+    def test_no_structured_data_uses_fallback_not_gpu0(self) -> None:
+        """Regression: issue #225 literal scenario — iGPU was previously returned as gpus[0]."""
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is discrete
+
+    def test_empty_gpu_list_returns_none(self) -> None:
+        cap = self._cap([])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is None
+
+    def test_remote_replay_passes_sd(self, monkeypatch: Any) -> None:
+        """The remote-replay call site must pass non-None sd and rd to the matcher."""
+        import mock_renderdoc as mock_rd
+
+        captured: dict[str, Any] = {}
+
+        def _spy(cap: Any, sd: Any = None, rd: Any = None) -> Any:
+            captured["cap"] = cap
+            captured["sd"] = sd
+            captured["rd"] = rd
+            return None
+
+        monkeypatch.setattr("rdc.daemon_server._match_capture_gpu", _spy)
+
+        # Force the remote connection to succeed and short-circuit OpenCapture so
+        # the function exits cleanly after the spy is called. Names mirror the
+        # renderdoc CamelCase API.
+        remote = SimpleNamespace(
+            CopyCaptureToRemote=lambda path, cb: path,
+            CopyCaptureFromRemote=lambda path, dst, cb: None,
+            OpenCapture=lambda pref, path, opts, cb: (mock_rd.ResultCode.InternalError, None),
+            ShutdownConnection=lambda: None,
+            Ping=lambda: None,
+        )
+
+        def _create_remote(url: str) -> tuple[Any, Any]:
+            return mock_rd.ResultCode.Succeeded, remote
+
+        monkeypatch.setattr(mock_rd, "CreateRemoteServerConnection", _create_remote, raising=False)
+
+        # Make local_capture exist so the upload branch is taken.
+        cap_path = Path("test.rdc")
+        cap_path.write_bytes(b"\x00")
+        try:
+            sys.modules["renderdoc"] = mock_rd  # type: ignore[assignment]
+            try:
+                from rdc.daemon_server import _load_remote_replay
+
+                state = DaemonState(capture=str(cap_path), current_eid=0, token="tok")
+                _load_remote_replay(state, "remote://example")
+            finally:
+                sys.modules.pop("renderdoc", None)
+        finally:
+            cap_path.unlink(missing_ok=True)
+
+        assert captured.get("sd") is not None
+        assert captured.get("rd") is mock_rd
 
 
 class TestShutdownExceptionStops:
