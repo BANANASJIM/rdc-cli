@@ -242,8 +242,10 @@ def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
                 if any(marker in cname for marker in d3d_markers):
                     desc = _find_adapter_description(c)
                     if desc:
+                        desc_l = desc.lower()
                         for g in gpus:
-                            if desc in g.name or g.name in desc:
+                            name_l = g.name.lower()
+                            if desc_l in name_l or name_l in desc_l:
                                 return g
 
         vendor_enum = getattr(rd, "GPUVendor", None) if rd is not None else None
@@ -252,12 +254,33 @@ def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
         intel = getattr(vendor_enum, "Intel", 5)
         software = getattr(vendor_enum, "Software", 9)
         priority = {nvidia: 0, amd: 1, intel: 2}
+        available = [(g.name, g.vendor, g.deviceID) for g in gpus]
         filtered = [g for g in gpus if g.vendor != software]
         if not filtered:
+            _log.warning(
+                "GPU match fallback: no name/desc match and only software GPUs; "
+                "available=%r choosing gpus[0]=%s",
+                available,
+                gpus[0].name,
+            )
             return gpus[0]
         filtered.sort(key=lambda g: priority.get(g.vendor, 99))
-        return filtered[0]
-    except Exception:  # noqa: BLE001
+        chosen = filtered[0]
+        _log.warning(
+            "GPU match fallback: no name/desc match; available=%r choosing "
+            "vendor-priority %s (vendor=%d id=%d)",
+            available,
+            chosen.name,
+            chosen.vendor,
+            chosen.deviceID,
+        )
+        return chosen
+    except Exception as exc:  # noqa: BLE001
+        _log.warning(
+            "GPU match raised %s: %s -- falling back to gpus[0]",
+            type(exc).__name__,
+            exc,
+        )
         try:
             return gpus[0] if gpus else None
         except NameError:
@@ -449,6 +472,12 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                         if gpu is not None:
                             remote_opts.forceGPUVendor = gpu.vendor
                             remote_opts.forceGPUDeviceID = gpu.deviceID
+                            _log.info(
+                                "remote replay GPU: %s (vendor=%d id=%d)",
+                                gpu.name,
+                                gpu.vendor,
+                                gpu.deviceID,
+                            )
                 finally:
                     tmp_cap.Shutdown()
             except Exception as exc:  # noqa: BLE001

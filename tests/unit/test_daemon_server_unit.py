@@ -242,6 +242,31 @@ class TestMatchCaptureGpu:
         sd = self._d3d12_sd("NVIDIA RTX 4500 Ada Generation")
         assert _match_capture_gpu(cap, sd, self._FakeRD) is discrete
 
+    def test_d3d12_match_case_insensitive(self) -> None:
+        """#225: mixed-case adapter Description matches a differently-cased GPU name.
+
+        With a case-sensitive match this would miss and fall to vendor priority;
+        case-insensitive matching must return the named GPU directly.
+        """
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        amd = self._gpu("amd radeon rx 7900 xtx", self._AMD)
+        cap = self._cap([nvidia, amd])
+        # Capture was produced on the AMD card; desc differs only in case.
+        sd = self._d3d12_sd("AMD Radeon RX 7900 XTX")
+        # Vendor-priority fallback would pick NVIDIA; case-insensitive match must
+        # return the AMD card the capture actually came from.
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is amd
+
+    def test_fallback_emits_diagnostic_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Vendor-priority fallback must log the available GPUs and the chosen one."""
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        with caplog.at_level(logging.WARNING, logger="rdc.daemon"):
+            assert _match_capture_gpu(cap, None, self._FakeRD) is discrete
+        assert any("fallback" in r.message.lower() for r in caplog.records)
+        assert any("NVIDIA RTX 4500 Ada" in r.message for r in caplog.records)
+
     def test_d3d12_fallback_skips_warp_prefers_nvidia(self) -> None:
         warp = self._gpu("WARP", self._SOFTWARE)
         igpu = self._gpu("AMD Radeon Graphics", self._AMD)
