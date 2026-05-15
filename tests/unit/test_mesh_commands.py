@@ -81,6 +81,27 @@ class TestMeshCmd:
         assert result.exit_code == 0
         assert calls[0][1]["stage"] == "gs-out"
 
+    def test_mesh_stage_vs_in_forwarded(self, monkeypatch: Any) -> None:
+        calls: list[tuple[str, dict[str, Any]]] = []
+
+        def mock_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+            calls.append((method, params))
+            return _MESH_RESPONSE
+
+        monkeypatch.setattr("rdc.commands.mesh.call", mock_call)
+        runner = CliRunner()
+        result = runner.invoke(mesh_cmd, ["--stage", "vs-in"])
+        assert result.exit_code == 0
+        assert calls[0][1]["stage"] == "vs-in"
+
+    def test_mesh_unknown_stage_rejected(self, monkeypatch: Any) -> None:
+        called: list[Any] = []
+        monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: called.append((m, p)))
+        runner = CliRunner()
+        result = runner.invoke(mesh_cmd, ["--stage", "bad-stage"])
+        assert result.exit_code == 2
+        assert not called
+
     def test_mesh_help(self) -> None:
         runner = CliRunner()
         result = runner.invoke(mesh_cmd, ["--help"])

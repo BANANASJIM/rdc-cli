@@ -15,7 +15,7 @@ from rdc.formatters.json_fmt import write_json
 @click.argument("eid", type=int, required=False, default=None, shell_complete=complete_eid)
 @click.option(
     "--stage",
-    type=click.Choice(["vs-out", "gs-out"]),
+    type=click.Choice(["vs-in", "vs-out", "gs-out"]),
     default="vs-out",
     help="Mesh data stage (default: vs-out)",
 )

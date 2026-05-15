@@ -538,3 +538,79 @@ class TestMeshDataGolden:
         # Restore
         state.adapter.controller.GetBufferData = orig_get
         state.adapter.controller.GetPostVSData = orig_postvs
+
+
+class TestMeshDataVsIn:
+    """mesh_data handler accepts the vs-in stage (issue #224)."""
+
+    def test_vs_in_decodes_geometry(self, state: DaemonState) -> None:
+        """stage=vs-in calls GetPostVSData with stage int 0 and decodes vertices."""
+        vdata = struct.pack("<9f", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
+        idata = struct.pack("<3H", 0, 1, 2)
+        mesh = SimpleNamespace(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=12,
+            vertexByteOffset=0,
+            vertexByteSize=len(vdata),
+            numIndices=3,
+            indexResourceId=ResourceId(98),
+            indexByteOffset=0,
+            indexByteSize=len(idata),
+            indexByteStride=2,
+            format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
+            topology="TriangleList",
+        )
+        seen_stages: list[int] = []
+        orig_get = state.adapter.controller.GetBufferData
+        orig_postvs = state.adapter.controller.GetPostVSData
+
+        def _get(rid: Any, offset: int, length: int) -> bytes:
+            if int(rid) == 99:
+                return vdata
+            if int(rid) == 98:
+                return idata
+            return orig_get(rid, offset, length)
+
+        def _postvs(inst: int, view: int, stage: int) -> Any:
+            seen_stages.append(int(stage))
+            return mesh
+
+        state.adapter.controller.GetBufferData = _get
+        state.adapter.controller.GetPostVSData = _postvs
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            state,
+        )
+        r = resp["result"]
+        assert seen_stages == [0]
+        assert r["stage"] == "vs-in"
+        assert r["vertex_count"] == 3
+        assert r["vertices"][0] == pytest.approx([1.0, 2.0, 3.0])
+        assert r["vertices"][2] == pytest.approx([7.0, 8.0, 9.0])
+
+        state.adapter.controller.GetBufferData = orig_get
+        state.adapter.controller.GetPostVSData = orig_postvs
+
+    def test_vs_in_non_draw_returns_error(self, state: DaemonState) -> None:
+        """stage=vs-in on a non-draw event returns JSON-RPC error -32001."""
+        empty = SimpleNamespace(vertexResourceId=ResourceId(0), vertexByteStride=0)
+        orig_postvs = state.adapter.controller.GetPostVSData
+        state.adapter.controller.GetPostVSData = lambda inst, view, stage: empty
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+        assert resp["error"]["message"] == "no PostVS data at this event"
+        state.adapter.controller.GetPostVSData = orig_postvs
+
+    def test_invalid_stage_lists_vs_in(self, state: DaemonState) -> None:
+        """An unknown stage error message lists vs-in, vs-out and gs-out."""
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "hs-out"}, token="abcdef1234567890"),
+            state,
+        )
+        msg = resp["error"]["message"]
+        assert "vs-in" in msg
+        assert "vs-out" in msg
+        assert "gs-out" in msg

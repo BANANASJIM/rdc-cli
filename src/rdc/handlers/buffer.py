@@ -268,7 +268,7 @@ def _handle_vbuffer_decode(  # noqa: PLR0912
     ), True
 
 
-_MESH_STAGE_MAP: dict[str, int] = {"vs-out": 1, "gs-out": 2}
+_MESH_STAGE_MAP: dict[str, int] = {"vs-in": 0, "vs-out": 1, "gs-out": 2}
 
 
 def _handle_mesh_data(
@@ -280,7 +280,7 @@ def _handle_mesh_data(
     stage_val = _MESH_STAGE_MAP.get(stage_name)
     if stage_val is None:
         return _error_response(
-            request_id, -32602, f"invalid stage {stage_name!r}; use vs-out or gs-out"
+            request_id, -32602, f"invalid stage {stage_name!r}; use vs-in, vs-out or gs-out"
         ), True
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
