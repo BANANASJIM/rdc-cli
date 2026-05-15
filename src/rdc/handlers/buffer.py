@@ -196,6 +196,65 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
     ), True
 
 
+def _handle_cbuffer_raw(
+    request_id: int, params: dict[str, Any], state: DaemonState
+) -> tuple[dict[str, Any], bool]:
+    cb_set = int(params.get("set", 0))
+    cb_binding = int(params.get("binding", 0))
+    stage_name = str(params.get("stage", "ps"))
+    stage_val = STAGE_MAP.get(stage_name, 4)
+    if state.temp_dir is None:
+        return _error_response(request_id, -32002, "temp directory not available"), True
+    try:
+        eid, pipe_state = require_pipe(params, state, request_id)
+    except PipeError as exc:
+        return exc.response, True
+    refl = pipe_state.GetShaderReflection(stage_val)
+    if refl is None:
+        return _error_response(request_id, -32001, f"no reflection for stage {stage_name}"), True
+    blocks = getattr(refl, "constantBlocks", [])
+    target_block = None
+    target_idx = 0
+    for i, cb in enumerate(blocks):
+        s = getattr(cb, "fixedBindSetOrSpace", 0)
+        b = getattr(cb, "fixedBindNumber", 0)
+        if s == cb_set and b == cb_binding:
+            target_block = cb
+            target_idx = i
+            break
+    if target_block is None:
+        return _error_response(
+            request_id,
+            -32001,
+            f"no constant block at set={cb_set} binding={cb_binding}",
+        ), True
+    if not getattr(target_block, "bufferBacked", True):
+        return _error_response(
+            request_id,
+            -32602,
+            "cbuffer is not buffer-backed (push constant or root constant)",
+        ), True
+    if not hasattr(pipe_state, "GetConstantBlock"):
+        return _error_response(
+            request_id,
+            -32601,
+            "GetConstantBlock unavailable on this RenderDoc version",
+        ), True
+    controller = state.adapter.controller  # type: ignore[union-attr]
+    cb_used = pipe_state.GetConstantBlock(stage_val, target_idx, 0)
+    cb_desc = cb_used.descriptor
+    cb_resource = cb_desc.resource
+    cb_offset = getattr(cb_desc, "byteOffset", 0)
+    cb_size = getattr(cb_desc, "byteSize", 0)
+    raw_data = controller.GetBufferData(cb_resource, cb_offset, cb_size)
+    temp_path = state.temp_dir / f"cbuffer_{eid}_{cb_set}_{cb_binding}.bin"
+    temp_path.write_bytes(raw_data)
+    return _result_response(
+        request_id,
+        {"path": str(temp_path), "size": len(raw_data)},
+    ), True
+
+
 def _handle_vbuffer_decode(  # noqa: PLR0912
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -372,6 +431,7 @@ HANDLERS: dict[str, Handler] = {
     "buf_raw": _handle_buf_raw,
     "postvs": _handle_postvs,
     "cbuffer_decode": _handle_cbuffer_decode,
+    "cbuffer_raw": _handle_cbuffer_raw,
     "vbuffer_decode": _handle_vbuffer_decode,
     "ibuffer_decode": _handle_ibuffer_decode,
     "mesh_data": _handle_mesh_data,

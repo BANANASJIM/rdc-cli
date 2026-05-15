@@ -202,6 +202,12 @@
           "usage": "rdc buffer <ID> [-o PATH] [--raw]"
         },
         {
+          "name": "cbuffer",
+          "id": "cbuffer",
+          "help": "Decode a constant buffer to JSON or export its raw bytes.",
+          "usage": "rdc cbuffer [EID] [--stage CHOICE] [--set INTEGER] [--binding INTEGER] [--json] [--raw] [-o PATH]"
+        },
+        {
           "name": "rt",
           "id": "rt",
           "help": "Export render target as PNG.",

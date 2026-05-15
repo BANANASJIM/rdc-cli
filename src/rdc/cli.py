@@ -28,6 +28,7 @@ from rdc.commands.capturefile import (
     sections_cmd,
     thumbnail_cmd,
 )
+from rdc.commands.cbuffer import cbuffer_cmd
 from rdc.commands.completion import completion_cmd
 from rdc.commands.counters import counters_cmd
 from rdc.commands.debug import debug_group
@@ -136,6 +137,7 @@ main.add_command(complete_cmd, name="_complete")
 main.add_command(texture_cmd, name="texture")
 main.add_command(rt_cmd, name="rt")
 main.add_command(buffer_cmd, name="buffer")
+main.add_command(cbuffer_cmd, name="cbuffer")
 main.add_command(mesh_cmd, name="mesh")
 main.add_command(search_cmd, name="search")
 main.add_command(usage_cmd, name="usage")

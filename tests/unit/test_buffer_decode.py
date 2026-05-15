@@ -89,6 +89,8 @@ def state(tmp_path: Path) -> DaemonState:
     # Set up cbuffer descriptor for GetConstantBlock
     pipe._cbuffer_descriptors[(ShaderStage.Pixel, 0)] = Descriptor(
         resource=ResourceId(50),
+        byteOffset=0,
+        byteSize=16,
     )
 
     # Vertex inputs for vbuffer test
@@ -131,6 +133,7 @@ def state(tmp_path: Path) -> DaemonState:
 
     vbuf_data = _make_vbuffer_data()
     ibuf_data = _make_ibuffer_data_u16()
+    cbuf_data = bytes(range(16))
     light_val = ShaderValue(f32v=[0.5, 0.7, 0.0] + [0.0] * 13)
     intensity_val = ShaderValue(f32v=[1.0] + [0.0] * 15)
     cbuffer_vars = [
@@ -163,6 +166,8 @@ def state(tmp_path: Path) -> DaemonState:
             return vbuf_data
         if rid == 43:
             return ibuf_data
+        if rid == 50:
+            return cbuf_data[offset : offset + length] if length > 0 else cbuf_data[offset:]
         return b""
 
     controller = SimpleNamespace(
@@ -279,6 +284,91 @@ class TestCbufferDecode:
         r = resp["result"]
         assert r["variables"][0]["name"] == "light.dir"
         assert r["variables"][1]["name"] == "light.color"
+
+
+class TestCbufferRaw:
+    def test_happy_path(self, state: DaemonState, tmp_path: Path) -> None:
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["size"] == 16
+        out = Path(r["path"])
+        assert out.exists()
+        assert out.read_bytes() == bytes(range(16))
+        assert out == tmp_path / "cbuffer_10_0_0.bin"
+
+    def test_not_buffer_backed(self, state: DaemonState, tmp_path: Path) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._reflections[ShaderStage.Pixel].constantBlocks[0].bufferBacked = False
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        assert "error" in resp
+        assert "not buffer-backed" in resp["error"]["message"].lower()
+        assert not (tmp_path / "cbuffer_10_0_0.bin").exists()
+
+    def test_no_adapter(self) -> None:
+        s = DaemonState(
+            capture="t.rdc",
+            current_eid=0,
+            token="abcdef1234567890",
+        )
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            s,
+        )
+        assert resp["error"]["code"] == -32002
+
+    def test_invalid_binding(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 99}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+
+    def test_no_reflection(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw",
+                {"eid": 10, "set": 0, "binding": 0, "stage": "vs"},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+
+    def test_constant_block_unavailable(self, state: DaemonState, monkeypatch: Any) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        monkeypatch.delattr(type(pipe), "GetConstantBlock")
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        assert "error" in resp
+        assert "unavailable" in resp["error"]["message"].lower()
+
+    def test_no_temp_dir(self, state: DaemonState) -> None:
+        state.temp_dir = None
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32002
 
 
 class TestVbufferDecode:
