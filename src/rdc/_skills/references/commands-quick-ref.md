@@ -297,8 +297,8 @@ Decode a constant buffer to JSON or export its raw bytes.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `--stage` | Shader stage (default: ps) | choice | ps |
-| `--set` | Descriptor set / register space | integer | 0 |
-| `--binding` | Binding / register number | integer | 0 |
+| `--set` | Vulkan: descriptor set. D3D12: register space. | integer | 0 |
+| `--binding` | Vulkan: binding. D3D12: shader register (bN). | integer | 0 |
 | `--json` | JSON output (default) | flag |  |
 | `--raw` | Export raw constant-buffer bytes | flag |  |
 | `-o, --output` | Write raw bytes to file | path |  |

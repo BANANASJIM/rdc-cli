@@ -117,6 +117,15 @@ class TestCbufferCmd:
         assert "--stage" in result.output
         assert "--raw" in result.output
 
+    def test_help_documents_d3d12_bindings(self) -> None:
+        """--set/--binding help must explain the D3D12 register-space framing."""
+        runner = CliRunner()
+        result = runner.invoke(cbuffer_cmd, ["--help"])
+        assert result.exit_code == 0
+        out = result.output.lower()
+        assert "register space" in out
+        assert "bn" in out or "shader register" in out
+
     def test_in_main_help(self) -> None:
         runner = CliRunner()
         result = runner.invoke(main, ["--help"])

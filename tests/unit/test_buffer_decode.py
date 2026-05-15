@@ -370,6 +370,72 @@ class TestCbufferRaw:
         )
         assert resp["error"]["code"] == -32002
 
+    def test_null_resource_not_bound(self, state: DaemonState, tmp_path: Path) -> None:
+        """Null/zero cbuffer resource → clean -32001 error, no temp file."""
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._cbuffer_descriptors[(ShaderStage.Pixel, 0)] = Descriptor(
+            resource=ResourceId(0),
+            byteOffset=0,
+            byteSize=16,
+        )
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+        assert "not bound" in resp["error"]["message"].lower()
+        assert not (tmp_path / "cbuffer_10_0_0.bin").exists()
+
+    def test_zero_byte_size_falls_back_to_reflected(
+        self, state: DaemonState, tmp_path: Path
+    ) -> None:
+        """byteSize==0 falls back to reflected block size; GetBufferData never gets size 0."""
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._cbuffer_descriptors[(ShaderStage.Pixel, 0)] = Descriptor(
+            resource=ResourceId(50),
+            byteOffset=0,
+            byteSize=0,
+        )
+        pipe._reflections[ShaderStage.Pixel].constantBlocks[0].byteSize = 12
+        orig_get = state.adapter.controller.GetBufferData
+        seen_sizes: list[int] = []
+
+        def _get(rid: Any, offset: int, length: int) -> bytes:
+            seen_sizes.append(length)
+            return orig_get(rid, offset, length)
+
+        state.adapter.controller.GetBufferData = _get
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["size"] == 12
+        assert 0 not in seen_sizes
+        assert Path(r["path"]).read_bytes() == bytes(range(12))
+
+    def test_zero_byte_size_and_zero_reflected(self, state: DaemonState, tmp_path: Path) -> None:
+        """byteSize==0 and reflected size 0 → clean error, never dump whole buffer."""
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._cbuffer_descriptors[(ShaderStage.Pixel, 0)] = Descriptor(
+            resource=ResourceId(50),
+            byteOffset=0,
+            byteSize=0,
+        )
+        pipe._reflections[ShaderStage.Pixel].constantBlocks[0].byteSize = 0
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_raw", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        assert "error" in resp
+        assert not (tmp_path / "cbuffer_10_0_0.bin").exists()
+
 
 class TestVbufferDecode:
     def test_happy_path(self, state: DaemonState) -> None:

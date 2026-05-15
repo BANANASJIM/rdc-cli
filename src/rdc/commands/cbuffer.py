@@ -19,8 +19,19 @@ from rdc.formatters.json_fmt import write_json
     default="ps",
     help="Shader stage (default: ps)",
 )
-@click.option("--set", "cb_set", type=int, default=0, help="Descriptor set / register space")
-@click.option("--binding", type=int, default=0, help="Binding / register number")
+@click.option(
+    "--set",
+    "cb_set",
+    type=int,
+    default=0,
+    help="Vulkan: descriptor set. D3D12: register space.",
+)
+@click.option(
+    "--binding",
+    type=int,
+    default=0,
+    help="Vulkan: binding. D3D12: shader register (bN).",
+)
 @click.option("--json", "use_json", is_flag=True, help="JSON output (default)")
 @click.option("--raw", is_flag=True, help="Export raw constant-buffer bytes")
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write raw bytes to file")

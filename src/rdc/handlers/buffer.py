@@ -246,6 +246,16 @@ def _handle_cbuffer_raw(
     cb_resource = cb_desc.resource
     cb_offset = getattr(cb_desc, "byteOffset", 0)
     cb_size = getattr(cb_desc, "byteSize", 0)
+    if cb_resource is None or int(cb_resource) == 0:
+        return _error_response(request_id, -32001, "cbuffer not bound at this draw"), True
+    if cb_size == 0:
+        cb_size = getattr(target_block, "byteSize", 0)
+    if cb_size == 0:
+        return _error_response(
+            request_id,
+            -32001,
+            "cbuffer size is unknown (descriptor and reflection both report 0)",
+        ), True
     raw_data = controller.GetBufferData(cb_resource, cb_offset, cb_size)
     temp_path = state.temp_dir / f"cbuffer_{eid}_{cb_set}_{cb_binding}.bin"
     temp_path.write_bytes(raw_data)
