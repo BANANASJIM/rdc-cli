@@ -194,7 +194,8 @@ def _find_adapter_description(chunk: Any) -> str | None:
                         value = grand.AsString()
                         if value:
                             return str(value)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("adapter-desc parse failed: %s: %s", type(exc).__name__, exc)
         return None
     return None
 
@@ -481,7 +482,7 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                 finally:
                     tmp_cap.Shutdown()
             except Exception as exc:  # noqa: BLE001
-                _log.warning("GPU probe skipped: %s", exc)
+                _log.warning("GPU probe skipped: %s: %s", type(exc).__name__, exc)
 
         step = "open remote capture"
         result, controller = remote.OpenCapture(
