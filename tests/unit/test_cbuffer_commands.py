@@ -77,6 +77,16 @@ class TestCbufferCmd:
         assert result.exit_code != 0
         assert "-o" in result.output or "output" in result.output.lower()
 
+    def test_raw_without_eid(self, monkeypatch: Any, tmp_path: Path) -> None:
+        monkeypatch.setattr(
+            "rdc.commands.cbuffer._export_vfs_path",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not be called")),
+        )
+        runner = CliRunner()
+        result = runner.invoke(cbuffer_cmd, ["--raw", "-o", str(tmp_path / "cb.bin")])
+        assert result.exit_code == 2
+        assert "EID" in result.output
+
     def test_no_session(self, monkeypatch: Any) -> None:
         def mock_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
             raise SystemExit(1)
@@ -86,7 +96,7 @@ class TestCbufferCmd:
         result = runner.invoke(cbuffer_cmd, ["10"])
         assert result.exit_code == 1
 
-    def test_eid_omitted_uses_completion_fallback(self, monkeypatch: Any) -> None:
+    def test_eid_omitted_lets_daemon_default(self, monkeypatch: Any) -> None:
         calls: list[dict[str, Any]] = []
 
         def mock_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
