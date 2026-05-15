@@ -4,7 +4,7 @@
 
 - [ ] Add stage int `0` entry to `GetPostVSData` mock in `tests/mocks/mock_renderdoc.py`
       with a minimal `MeshFormat` (position attribute, Triangle topology, ≥3 vertices)
-- [ ] Verify `test_mock_api_sync.py` still passes after mock change
+- [ ] Verify `tests/integration/test_mock_api_sync.py` still passes after mock change
 
 ## Phase B: Daemon handler
 

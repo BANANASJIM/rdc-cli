@@ -16,7 +16,9 @@ from mock_renderdoc import (
     BoundVBuffer,
     ConstantBlock,
     Descriptor,
+    MeshFormat,
     MockPipeState,
+    MockReplayController,
     ResourceDescription,
     ResourceFormat,
     ResourceId,
@@ -543,11 +545,11 @@ class TestMeshDataGolden:
 class TestMeshDataVsIn:
     """mesh_data handler accepts the vs-in stage (issue #224)."""
 
-    def test_vs_in_decodes_geometry(self, state: DaemonState) -> None:
+    def test_vs_in_decodes_geometry(self, tmp_path: Path) -> None:
         """stage=vs-in calls GetPostVSData with stage int 0 and decodes vertices."""
         vdata = struct.pack("<9f", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
         idata = struct.pack("<3H", 0, 1, 2)
-        mesh = SimpleNamespace(
+        mesh = MeshFormat(
             vertexResourceId=ResourceId(99),
             vertexByteStride=12,
             vertexByteOffset=0,
@@ -560,36 +562,28 @@ class TestMeshDataVsIn:
             format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
             topology="TriangleList",
         )
-        seen_stages: list[int] = []
-        orig_get = state.adapter.controller.GetBufferData
-        orig_postvs = state.adapter.controller.GetPostVSData
+        ctrl = MockReplayController()
+        ctrl._actions = _build_actions()
+        ctrl._buffer_data[99] = vdata
+        ctrl._buffer_data[98] = idata
+        ctrl.set_mesh_data(0, mesh)
 
-        def _get(rid: Any, offset: int, length: int) -> bytes:
-            if int(rid) == 99:
-                return vdata
-            if int(rid) == 98:
-                return idata
-            return orig_get(rid, offset, length)
+        s = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
+        s.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+        s.max_eid = 10
+        s.rd = mock_rd
+        s.temp_dir = tmp_path
+        s.vfs_tree = build_vfs_skeleton(ctrl._actions, [])
 
-        def _postvs(inst: int, view: int, stage: int) -> Any:
-            seen_stages.append(int(stage))
-            return mesh
-
-        state.adapter.controller.GetBufferData = _get
-        state.adapter.controller.GetPostVSData = _postvs
         resp, _ = _handle_request(
             rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
-            state,
+            s,
         )
         r = resp["result"]
-        assert seen_stages == [0]
         assert r["stage"] == "vs-in"
         assert r["vertex_count"] == 3
         assert r["vertices"][0] == pytest.approx([1.0, 2.0, 3.0])
         assert r["vertices"][2] == pytest.approx([7.0, 8.0, 9.0])
-
-        state.adapter.controller.GetBufferData = orig_get
-        state.adapter.controller.GetPostVSData = orig_postvs
 
     def test_vs_in_non_draw_returns_error(self, state: DaemonState) -> None:
         """stage=vs-in on a non-draw event returns JSON-RPC error -32001."""
