@@ -226,6 +226,14 @@ class TestMatchCaptureGpu:
         sd = self._vulkan_sd("NVIDIA RTX 4500 Ada")
         assert _match_capture_gpu(cap, sd, self._FakeRD) is b
 
+    def test_vulkan_no_name_match_falls_back_to_vendor_priority(self) -> None:
+        """Vulkan chunk present but deviceName matches no GPU → vendor-priority fallback, not gpu[0]."""  # noqa: E501
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        sd = self._vulkan_sd("NVIDIA GTX 1080 (uninstalled hardware)")
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is discrete
+
     def test_d3d12_match_via_driverinit_adapterdesc(self) -> None:
         igpu = self._gpu("AMD Radeon Graphics", self._AMD)
         discrete = self._gpu("NVIDIA RTX 4500 Ada Generation", self._NVIDIA)
