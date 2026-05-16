@@ -35,6 +35,15 @@ ReplayController for the duration of the session.
 - **THEN** it calls controller.Shutdown() and cap.Shutdown()
 - **AND** the process exits
 
+#### Scenario: Multi-GPU capture replay
+- **WHEN** the capture was taken on a multi-GPU system
+- **AND** multiple GPUs are available for replay
+- **THEN** the daemon selects the GPU whose name matches structured-data adapter
+  metadata extracted from the capture
+- **AND** if no structured-data match exists, Software/WARP adapters are excluded
+  and the highest-ranked discrete GPU is preferred (nVidia > AMD > Intel)
+- **AND** a single available GPU is always returned directly without inspection
+
 ### Requirement: Navigation methods
 The daemon MUST support event navigation with SetFrameEvent caching.
 

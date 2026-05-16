@@ -337,7 +337,7 @@ def _handle_vbuffer_decode(  # noqa: PLR0912
     ), True
 
 
-_MESH_STAGE_MAP: dict[str, int] = {"vs-out": 1, "gs-out": 2}
+_MESH_STAGE_MAP: dict[str, int] = {"vs-in": 0, "vs-out": 1, "gs-out": 2}
 
 
 def _handle_mesh_data(
@@ -349,7 +349,7 @@ def _handle_mesh_data(
     stage_val = _MESH_STAGE_MAP.get(stage_name)
     if stage_val is None:
         return _error_response(
-            request_id, -32602, f"invalid stage {stage_name!r}; use vs-out or gs-out"
+            request_id, -32602, f"invalid stage {stage_name!r}; use vs-in, vs-out or gs-out"
         ), True
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
@@ -364,9 +364,12 @@ def _handle_mesh_data(
     fmt = getattr(mesh, "format", None)
     comp_width = getattr(fmt, "compByteWidth", 4) if fmt else 4
     comp_count = getattr(fmt, "compCount", 4) if fmt else 4
-    v_offset = getattr(mesh, "vertexByteOffset", 0)
+    # RenderDoc's decode_mesh reads each vertex buffer from the start of the
+    # bound region and locates the position attribute at vertexByteOffset
+    # within the interleaved vertex stride.
+    pos_offset = getattr(mesh, "vertexByteOffset", 0)
     v_size = getattr(mesh, "vertexByteSize", 0)
-    raw = controller.GetBufferData(mesh.vertexResourceId, v_offset, v_size)
+    raw = controller.GetBufferData(mesh.vertexResourceId, 0, v_size)
     num_verts = len(raw) // stride if stride > 0 else 0
     num_indices = getattr(mesh, "numIndices", 0)
     if num_indices > 0:
@@ -375,7 +378,7 @@ def _handle_mesh_data(
             num_verts = min(num_verts, num_indices)
     vertices: list[list[float]] = []
     for i in range(num_verts):
-        base = i * stride
+        base = i * stride + pos_offset
         if base + comp_width * comp_count <= len(raw) and comp_width in (1, 2, 4):
             vertices.append(_decode_float_components(raw, base, comp_width, comp_count))
         else:
@@ -387,8 +390,10 @@ def _handle_mesh_data(
                 else:
                     comps.append(0.0)
             vertices.append(comps)
-    # Decode index buffer
+    # Decode index buffer. RenderDoc's decode_mesh adds mesh.baseVertex to
+    # every index (0 for vs-out/gs-out, non-zero for vs-in base-vertex draws).
     irid = int(getattr(mesh, "indexResourceId", 0))
+    base_vertex = getattr(mesh, "baseVertex", 0)
     indices: list[int] = []
     if irid != 0:
         i_offset = getattr(mesh, "indexByteOffset", 0)
@@ -396,7 +401,7 @@ def _handle_mesh_data(
         i_stride = getattr(mesh, "indexByteStride", 0)
         if i_stride in (2, 4) and i_size > 0:
             iraw = controller.GetBufferData(mesh.indexResourceId, i_offset, i_size)
-            indices = _decode_index_buffer(iraw, i_stride)
+            indices = [i + base_vertex for i in _decode_index_buffer(iraw, i_stride)]
     topology = _enum_name(getattr(mesh, "topology", ""))
     return _result_response(
         request_id,
