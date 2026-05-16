@@ -1578,6 +1578,17 @@ class TestMeshDataReal:
         assert len(result["vertices"]) == result["vertex_count"]
         assert result["stage"] == "vs-out"
 
+    def test_mesh_data_vs_in_real(self) -> None:
+        """mesh_data with stage=vs-in returns input-assembler vertices.
+
+        D3D12: verified by @Misaka-Mikoto-Tech on real capture.
+        """
+        eid = self._first_draw_eid()
+        result = _call(self.state, "mesh_data", {"eid": eid, "stage": "vs-in"})
+        assert result["stage"] == "vs-in"
+        assert result["vertex_count"] > 0
+        assert len(result["vertices"]) == result["vertex_count"]
+
     def test_mesh_data_topology_string(self) -> None:
         """Topology field is a non-empty string, not an integer."""
         eid = self._first_draw_eid()

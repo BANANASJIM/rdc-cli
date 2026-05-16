@@ -16,7 +16,9 @@ from mock_renderdoc import (
     BoundVBuffer,
     ConstantBlock,
     Descriptor,
+    MeshFormat,
     MockPipeState,
+    MockReplayController,
     ResourceDescription,
     ResourceFormat,
     ResourceId,
@@ -538,3 +540,222 @@ class TestMeshDataGolden:
         # Restore
         state.adapter.controller.GetBufferData = orig_get
         state.adapter.controller.GetPostVSData = orig_postvs
+
+
+class TestMeshDataVsIn:
+    """mesh_data handler accepts the vs-in stage (issue #224)."""
+
+    def test_vs_in_decodes_geometry(self, tmp_path: Path) -> None:
+        """stage=vs-in calls GetPostVSData with stage int 0 and decodes vertices."""
+        vdata = struct.pack("<9f", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
+        idata = struct.pack("<3H", 0, 1, 2)
+        mesh = MeshFormat(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=12,
+            vertexByteOffset=0,
+            vertexByteSize=len(vdata),
+            numIndices=3,
+            indexResourceId=ResourceId(98),
+            indexByteOffset=0,
+            indexByteSize=len(idata),
+            indexByteStride=2,
+            format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
+            topology="TriangleList",
+        )
+        ctrl = MockReplayController()
+        ctrl._actions = _build_actions()
+        ctrl._buffer_data[99] = vdata
+        ctrl._buffer_data[98] = idata
+        ctrl.set_mesh_data(0, mesh)
+
+        s = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
+        s.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+        s.max_eid = 10
+        s.rd = mock_rd
+        s.temp_dir = tmp_path
+        s.vfs_tree = build_vfs_skeleton(ctrl._actions, [])
+
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            s,
+        )
+        r = resp["result"]
+        assert r["stage"] == "vs-in"
+        assert r["vertex_count"] == 3
+        assert r["vertices"][0] == pytest.approx([1.0, 2.0, 3.0])
+        assert r["vertices"][2] == pytest.approx([7.0, 8.0, 9.0])
+
+    def test_vs_in_non_draw_returns_error(self, state: DaemonState) -> None:
+        """stage=vs-in on a non-draw event returns JSON-RPC error -32001."""
+        empty = SimpleNamespace(vertexResourceId=ResourceId(0), vertexByteStride=0)
+        orig_postvs = state.adapter.controller.GetPostVSData
+        state.adapter.controller.GetPostVSData = lambda inst, view, stage: empty
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+        assert resp["error"]["message"] == "no PostVS data at this event"
+        state.adapter.controller.GetPostVSData = orig_postvs
+
+    def test_invalid_stage_lists_vs_in(self, state: DaemonState) -> None:
+        """An unknown stage error message lists vs-in, vs-out and gs-out."""
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "hs-out"}, token="abcdef1234567890"),
+            state,
+        )
+        msg = resp["error"]["message"]
+        assert "vs-in" in msg
+        assert "vs-out" in msg
+        assert "gs-out" in msg
+
+
+def _vsin_state(tmp_path: Path, mesh: MeshFormat, buffers: dict[int, bytes]) -> DaemonState:
+    """Build a DaemonState whose VSIn stage returns the given MeshFormat."""
+    ctrl = MockReplayController()
+    ctrl._actions = _build_actions()
+    for rid, data in buffers.items():
+        ctrl._buffer_data[rid] = data
+    ctrl.set_mesh_data(0, mesh)
+    s = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
+    s.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    s.max_eid = 10
+    s.rd = mock_rd
+    s.temp_dir = tmp_path
+    s.vfs_tree = build_vfs_skeleton(ctrl._actions, [])
+    return s
+
+
+class TestMeshDataBaseVertex:
+    """baseVertex and vertexByteOffset correctness (RenderDoc decode_mesh parity)."""
+
+    def test_base_vertex_shifts_indices(self, tmp_path: Path) -> None:
+        """Decoded indices are offset by mesh.baseVertex like RenderDoc's reference."""
+        vdata = struct.pack("<9f", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
+        idata = struct.pack("<3H", 0, 1, 2)
+        mesh = MeshFormat(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=12,
+            vertexByteSize=len(vdata),
+            baseVertex=4,
+            numIndices=3,
+            indexResourceId=ResourceId(98),
+            indexByteSize=len(idata),
+            indexByteStride=2,
+            format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
+            topology="TriangleList",
+        )
+        s = _vsin_state(tmp_path, mesh, {99: vdata, 98: idata})
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"), s
+        )
+        assert resp["result"]["indices"] == [4, 5, 6]
+
+    def test_vs_out_base_vertex_zero_unchanged(self, tmp_path: Path) -> None:
+        """vs-out with baseVertex==0 keeps indices unshifted (regression)."""
+        vdata = struct.pack("<8f", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)
+        idata = struct.pack("<3H", 0, 1, 1)
+        mesh = MeshFormat(
+            vertexResourceId=ResourceId(70),
+            vertexByteStride=16,
+            vertexByteSize=len(vdata),
+            baseVertex=0,
+            numIndices=3,
+            indexResourceId=ResourceId(71),
+            indexByteSize=len(idata),
+            indexByteStride=2,
+            format=ResourceFormat(name="R32G32B32A32_FLOAT", compByteWidth=4, compCount=4),
+            topology="TriangleList",
+        )
+        ctrl = MockReplayController()
+        ctrl._actions = _build_actions()
+        ctrl._buffer_data[70] = vdata
+        ctrl._buffer_data[71] = idata
+        ctrl.set_mesh_data(1, mesh)
+        s = DaemonState(capture="test.rdc", current_eid=0, token="abcdef1234567890")
+        s.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+        s.max_eid = 10
+        s.rd = mock_rd
+        s.temp_dir = tmp_path
+        s.vfs_tree = build_vfs_skeleton(ctrl._actions, [])
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-out"}, token="abcdef1234567890"), s
+        )
+        assert resp["result"]["indices"] == [0, 1, 1]
+
+    def test_vertex_byte_offset_reads_position(self, tmp_path: Path) -> None:
+        """Position is read at i*stride + vertexByteOffset (POSITION not first)."""
+        # stride=20: 8 bytes padding then vec3 position
+        verts = [
+            (0.0, 0.0, 1.0, 2.0, 3.0),
+            (0.0, 0.0, 4.0, 5.0, 6.0),
+            (0.0, 0.0, 7.0, 8.0, 9.0),
+        ]
+        vdata = b"".join(struct.pack("<5f", *v) for v in verts)
+        mesh = MeshFormat(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=20,
+            vertexByteOffset=8,
+            vertexByteSize=len(vdata),
+            numIndices=3,
+            format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
+            topology="TriangleList",
+        )
+        s = _vsin_state(tmp_path, mesh, {99: vdata})
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"), s
+        )
+        r = resp["result"]
+        assert r["vertices"][0] == pytest.approx([1.0, 2.0, 3.0])
+        assert r["vertices"][2] == pytest.approx([7.0, 8.0, 9.0])
+
+    def test_16bit_index_buffer_decoded(self, tmp_path: Path) -> None:
+        """A 16-bit index buffer decodes per indexByteStride=2."""
+        vdata = struct.pack("<12f", *range(12))
+        idata = struct.pack("<4H", 0, 1, 2, 3)
+        mesh = MeshFormat(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=12,
+            vertexByteSize=len(vdata),
+            numIndices=4,
+            indexResourceId=ResourceId(98),
+            indexByteSize=len(idata),
+            indexByteStride=2,
+            format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
+            topology="TriangleList",
+        )
+        s = _vsin_state(tmp_path, mesh, {99: vdata, 98: idata})
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"), s
+        )
+        assert resp["result"]["indices"] == [0, 1, 2, 3]
+
+    def test_base_vertex_with_offset_combined(self, tmp_path: Path) -> None:
+        """baseVertex and vertexByteOffset apply together (full decode_mesh parity)."""
+        verts = [
+            (0.0, 0.0, 1.0, 2.0, 3.0),
+            (0.0, 0.0, 4.0, 5.0, 6.0),
+            (0.0, 0.0, 7.0, 8.0, 9.0),
+        ]
+        vdata = b"".join(struct.pack("<5f", *v) for v in verts)
+        idata = struct.pack("<3I", 0, 1, 2)
+        mesh = MeshFormat(
+            vertexResourceId=ResourceId(99),
+            vertexByteStride=20,
+            vertexByteOffset=8,
+            vertexByteSize=len(vdata),
+            baseVertex=10,
+            numIndices=3,
+            indexResourceId=ResourceId(98),
+            indexByteSize=len(idata),
+            indexByteStride=4,
+            format=ResourceFormat(name="R32G32B32_FLOAT", compByteWidth=4, compCount=3),
+            topology="TriangleList",
+        )
+        s = _vsin_state(tmp_path, mesh, {99: vdata, 98: idata})
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"), s
+        )
+        r = resp["result"]
+        assert r["indices"] == [10, 11, 12]
+        assert r["vertices"][1] == pytest.approx([4.0, 5.0, 6.0])
