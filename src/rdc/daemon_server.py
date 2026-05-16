@@ -167,33 +167,125 @@ def _cleanup_temp(state: DaemonState) -> None:
 _log = logging.getLogger("rdc.daemon")
 
 
-def _match_capture_gpu(cap: Any, sd: Any = None) -> Any | None:
-    """Find the GPU used for capture by matching structured data against available GPUs."""
+def _find_adapter_description(chunk: Any) -> str | None:
+    """Extract D3D12 adapter description string from a structured-data chunk.
+
+    Args:
+        chunk: A renderdoc SDChunk (or SDObject) whose subtree may contain an
+            ``AdapterDesc``/``pAdapter``/``adapter`` child with a ``Description``
+            or ``DeviceName`` field, or a direct ``Description``/``DeviceName``
+            child.
+
+    Returns:
+        The adapter description string when found, otherwise ``None``.
+    """
+    try:
+        for i in range(chunk.NumChildren()):
+            child = chunk.GetChild(i)
+            cname = child.name
+            if cname in ("Description", "DeviceName"):
+                value = child.AsString()
+                if value:
+                    return str(value)
+            if cname in ("AdapterDesc", "pAdapter", "adapter"):
+                for j in range(child.NumChildren()):
+                    grand = child.GetChild(j)
+                    if grand.name in ("Description", "DeviceName"):
+                        value = grand.AsString()
+                        if value:
+                            return str(value)
+    except Exception as exc:  # noqa: BLE001
+        _log.debug("adapter-desc parse failed: %s: %s", type(exc).__name__, exc)
+        return None
+    return None
+
+
+def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
+    """Pick the replay GPU that produced ``cap``.
+
+    Walks structured-data chunks to match the capture's Vulkan
+    ``vkEnumeratePhysicalDevices`` device name or the D3D12 adapter
+    description. Falls back to vendor priority (nVidia > AMD > Intel,
+    Software/WARP excluded) when no chunk-based match succeeds.
+
+    Args:
+        cap: An open renderdoc capture file.
+        sd: Optional structured data from ``cap.GetStructuredData()``.
+        rd: Optional renderdoc module, used for ``GPUVendor`` enum lookup.
+
+    Returns:
+        The selected ``GPUDevice`` or ``None`` when no GPUs are available.
+    """
     try:
         gpus = cap.GetAvailableGPUs()
         if not gpus:
             return None
         if len(gpus) == 1:
             return gpus[0]
-        if sd is None:
+
+        if sd is not None:
+            d3d_markers = ("DriverInit", "EnumAdapters", "CreateDXGIFactory")
+            for i in range(len(sd.chunks)):
+                c = sd.chunks[i]
+                cname = c.name
+                if cname == "vkEnumeratePhysicalDevices":
+                    for j in range(c.NumChildren()):
+                        child = c.GetChild(j)
+                        if child.name == "physProps":
+                            for k in range(child.NumChildren()):
+                                prop = child.GetChild(k)
+                                if prop.name == "deviceName":
+                                    name = prop.AsString()
+                                    for g in gpus:
+                                        if g.name == name:
+                                            return g
+                    break
+                if any(marker in cname for marker in d3d_markers):
+                    desc = _find_adapter_description(c)
+                    if desc:
+                        desc_l = desc.lower()
+                        for g in gpus:
+                            name_l = g.name.lower()
+                            if desc_l in name_l or name_l in desc_l:
+                                return g
+
+        vendor_enum = getattr(rd, "GPUVendor", None) if rd is not None else None
+        nvidia = getattr(vendor_enum, "nVidia", 6)
+        amd = getattr(vendor_enum, "AMD", 2)
+        intel = getattr(vendor_enum, "Intel", 5)
+        software = getattr(vendor_enum, "Software", 9)
+        priority = {nvidia: 0, amd: 1, intel: 2}
+        available = [(g.name, g.vendor, g.deviceID) for g in gpus]
+        filtered = [g for g in gpus if g.vendor != software]
+        if not filtered:
+            _log.warning(
+                "GPU match fallback: no name/desc match and only software GPUs; "
+                "available=%r choosing gpus[0]=%s",
+                available,
+                gpus[0].name,
+            )
             return gpus[0]
-        for i in range(len(sd.chunks)):
-            c = sd.chunks[i]
-            if c.name == "vkEnumeratePhysicalDevices":
-                for j in range(c.NumChildren()):
-                    child = c.GetChild(j)
-                    if child.name == "physProps":
-                        for k in range(child.NumChildren()):
-                            prop = child.GetChild(k)
-                            if prop.name == "deviceName":
-                                name = prop.AsString()
-                                for g in gpus:
-                                    if g.name == name:
-                                        return g
-                break
-    except Exception:  # noqa: BLE001
-        pass
-    return gpus[0] if gpus else None
+        filtered.sort(key=lambda g: priority.get(g.vendor, 99))
+        chosen = filtered[0]
+        _log.warning(
+            "GPU match fallback: no name/desc match; available=%r choosing "
+            "vendor-priority %s (vendor=%d id=%d)",
+            available,
+            chosen.name,
+            chosen.vendor,
+            chosen.deviceID,
+        )
+        return chosen
+    except Exception as exc:  # noqa: BLE001
+        _log.warning(
+            "GPU match raised %s: %s -- falling back to gpus[0]",
+            type(exc).__name__,
+            exc,
+        )
+        try:
+            return gpus[0] if gpus else None
+        except NameError:
+            return None
 
 
 def _load_replay(state: DaemonState) -> str | None:
@@ -220,7 +312,7 @@ def _load_replay(state: DaemonState) -> str | None:
         return "local replay not supported on this platform"
 
     opts = rd.ReplayOptions()
-    gpu = _match_capture_gpu(cap, cap.GetStructuredData())
+    gpu = _match_capture_gpu(cap, cap.GetStructuredData(), rd)
     if gpu is not None:
         opts.forceGPUVendor = gpu.vendor
         opts.forceGPUDeviceID = gpu.deviceID
@@ -377,14 +469,20 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                 try:
                     open_result = tmp_cap.OpenFile(state.local_capture_path, "", None)
                     if open_result == rd.ResultCode.Succeeded:
-                        gpu = _match_capture_gpu(tmp_cap)
+                        gpu = _match_capture_gpu(tmp_cap, tmp_cap.GetStructuredData(), rd)
                         if gpu is not None:
                             remote_opts.forceGPUVendor = gpu.vendor
                             remote_opts.forceGPUDeviceID = gpu.deviceID
+                            _log.info(
+                                "remote replay GPU: %s (vendor=%d id=%d)",
+                                gpu.name,
+                                gpu.vendor,
+                                gpu.deviceID,
+                            )
                 finally:
                     tmp_cap.Shutdown()
             except Exception as exc:  # noqa: BLE001
-                _log.warning("GPU probe skipped: %s", exc)
+                _log.warning("GPU probe skipped: %s: %s", type(exc).__name__, exc)
 
         step = "open remote capture"
         result, controller = remote.OpenCapture(
