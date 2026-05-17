@@ -12,7 +12,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from rdc import _platform
 from rdc._progress import make_progress_cb
@@ -167,37 +167,63 @@ def _cleanup_temp(state: DaemonState) -> None:
 _log = logging.getLogger("rdc.daemon")
 
 
-def _find_adapter_description(chunk: Any) -> str | None:
-    """Extract D3D12 adapter description string from a structured-data chunk.
+class AdapterMatch(NamedTuple):
+    """Adapter identity parsed from a D3D12 structured-data chunk."""
+
+    description: str
+    device_id: int | None
+
+
+def _scalar_int(node: Any, name: str) -> int | None:
+    """Return the AsInt() value of a direct child ``name``, or None if absent."""
+    for i in range(node.NumChildren()):
+        child = node.GetChild(i)
+        if child.name == name:
+            return int(child.AsInt())
+    return None
+
+
+def _walk_adapter(node: Any, depth: int) -> AdapterMatch | None:
+    """Depth-bounded descent for a Description/DeviceName plus paired DeviceId."""
+    if depth < 0:
+        return None
+    for i in range(node.NumChildren()):
+        child = node.GetChild(i)
+        cname = child.name
+        if cname in ("Description", "DeviceName"):
+            value = child.AsString()
+            if value:
+                return AdapterMatch(str(value), _scalar_int(node, "DeviceId"))
+        if cname in ("AdapterDesc", "pAdapter", "adapter"):
+            found = _walk_adapter(child, depth - 1)
+            if found is not None:
+                return found
+    for i in range(node.NumChildren()):
+        found = _walk_adapter(node.GetChild(i), depth - 1)
+        if found is not None:
+            return found
+    return None
+
+
+def _find_adapter_description(chunk: Any) -> AdapterMatch | None:
+    """Extract D3D12 adapter identity from a structured-data chunk subtree.
+
+    Recurses up to 5 levels for a ``Description``/``DeviceName`` field, pairing
+    it with a sibling ``DeviceId`` PCI scalar when present.
 
     Args:
         chunk: A renderdoc SDChunk (or SDObject) whose subtree may contain an
-            ``AdapterDesc``/``pAdapter``/``adapter`` child with a ``Description``
-            or ``DeviceName`` field, or a direct ``Description``/``DeviceName``
-            child.
+            ``AdapterDesc``/``pAdapter``/``adapter`` node with a ``Description``
+            or ``DeviceName`` field at any depth, or a direct one.
 
     Returns:
-        The adapter description string when found, otherwise ``None``.
+        An :class:`AdapterMatch` when a description is found, otherwise ``None``.
     """
     try:
-        for i in range(chunk.NumChildren()):
-            child = chunk.GetChild(i)
-            cname = child.name
-            if cname in ("Description", "DeviceName"):
-                value = child.AsString()
-                if value:
-                    return str(value)
-            if cname in ("AdapterDesc", "pAdapter", "adapter"):
-                for j in range(child.NumChildren()):
-                    grand = child.GetChild(j)
-                    if grand.name in ("Description", "DeviceName"):
-                        value = grand.AsString()
-                        if value:
-                            return str(value)
+        return _walk_adapter(chunk, 5)
     except Exception as exc:  # noqa: BLE001
         _log.debug("adapter-desc parse failed: %s: %s", type(exc).__name__, exc)
         return None
-    return None
 
 
 def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
@@ -223,12 +249,22 @@ def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
         if len(gpus) == 1:
             return gpus[0]
 
+        saw_adapter_chunk = False
         if sd is not None:
-            d3d_markers = ("DriverInit", "EnumAdapters", "CreateDXGIFactory")
+            d3d_markers = (
+                "Driver Initialisation Parameters",  # renderdoc 1.42 D3D12 name
+                # Legacy markers: provably dead on renderdoc-1.42 D3D12 (the
+                # real chunk name has spaces). Retained for older/other
+                # renderdoc versions and API paths that still emit them.
+                "DriverInit",
+                "EnumAdapters",
+                "CreateDXGIFactory",
+            )
             for i in range(len(sd.chunks)):
                 c = sd.chunks[i]
                 cname = c.name
                 if cname == "vkEnumeratePhysicalDevices":
+                    saw_adapter_chunk = True
                     for j in range(c.NumChildren()):
                         child = c.GetChild(j)
                         if child.name == "physProps":
@@ -241,13 +277,28 @@ def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
                                             return g
                     break
                 if any(marker in cname for marker in d3d_markers):
-                    desc = _find_adapter_description(c)
-                    if desc:
-                        desc_l = desc.lower()
+                    saw_adapter_chunk = True
+                    match = _find_adapter_description(c)
+                    if match:
+                        # device_id 0 is the WARP/software sentinel: a present
+                        # but zero DXGI_ADAPTER_DESC.DeviceId must fall through
+                        # to name-substring, never bind the WARP adapter.
+                        if match.device_id:
+                            for g in gpus:
+                                if g.deviceID and g.deviceID == match.device_id:
+                                    return g
+                        desc_l = match.description.lower()
                         for g in gpus:
                             name_l = g.name.lower()
                             if desc_l in name_l or name_l in desc_l:
                                 return g
+
+        if sd is not None and not saw_adapter_chunk:
+            _log.warning(
+                "no recognized adapter chunk (vk/d3d markers) in structured "
+                "data -- renderdoc version may have changed chunk naming; "
+                "falling back to vendor priority"
+            )
 
         vendor_enum = getattr(rd, "GPUVendor", None) if rd is not None else None
         nvidia = getattr(vendor_enum, "nVidia", 6)
