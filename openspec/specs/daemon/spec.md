@@ -38,8 +38,15 @@ ReplayController for the duration of the session.
 #### Scenario: Multi-GPU capture replay
 - **WHEN** the capture was taken on a multi-GPU system
 - **AND** multiple GPUs are available for replay
-- **THEN** the daemon selects the GPU whose name matches structured-data adapter
-  metadata extracted from the capture
+- **THEN** the daemon walks structured-data chunks whose name contains any of
+  "Driver Initialisation Parameters", "DriverInit", "EnumAdapters", or
+  "CreateDXGIFactory"
+- **AND** within each such chunk descends recursively (depth ≤ 5) to locate an
+  AdapterDesc/pAdapter/adapter subtree
+- **AND** selects the GPU whose PCI DeviceId exactly matches
+  DXGI_ADAPTER_DESC.DeviceId when that field is present
+- **AND** falls back to case-insensitive name-substring match when no exact
+  DeviceId match is found
 - **AND** if no structured-data match exists, Software/WARP adapters are excluded
   and the highest-ranked discrete GPU is preferred (nVidia > AMD > Intel)
 - **AND** a single available GPU is always returned directly without inspection

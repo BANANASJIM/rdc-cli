@@ -16,6 +16,7 @@ from rdc.daemon_server import (
     _NO_REPLAY_METHODS,
     DaemonState,
     _cleanup_temp_capture,
+    _find_adapter_description,
     _handle_request,
     _load_replay,
     _match_capture_gpu,
@@ -340,6 +341,205 @@ class TestMatchCaptureGpu:
 
         assert captured.get("sd") is not None
         assert captured.get("rd") is mock_rd
+
+
+class TestFix225D3D12ChunkNameAndDeviceId:
+    """#225 fix-forward: real chunk name, depth-3 walk, exact DeviceId match.
+
+    5 red-first defect proofs + 9 regression guards. Mock shapes per
+    tests/mocks/mock_renderdoc.py: SDObject has only AsString()/AsInt();
+    numeric scalars via SDBasic.value read with AsInt(); strings with
+    AsString(). The mock module has no GPUVendor attribute, so the production
+    fallback uses hardcoded nVidia=6/AMD=2/Intel=5/Software=9 and
+    priority={6:0, 2:1, 5:2}.
+    """
+
+    _CHUNK = "Internal::Driver Initialisation Parameters"
+
+    @staticmethod
+    def _gpu(name: str, vendor: int, device_id: int) -> SimpleNamespace:
+        return SimpleNamespace(name=name, vendor=vendor, deviceID=device_id, driver="")
+
+    @staticmethod
+    def _cap(gpus: list[Any]) -> SimpleNamespace:
+        return SimpleNamespace(GetAvailableGPUs=lambda: gpus)
+
+    @staticmethod
+    def _str_obj(name: str, value: str) -> Any:
+        import mock_renderdoc as rd
+
+        return rd.SDObject(name=name, data=rd.SDData(basic=rd.SDBasic(value=value)))
+
+    @staticmethod
+    def _int_obj(name: str, value: int) -> Any:
+        import mock_renderdoc as rd
+
+        return rd.SDObject(name=name, data=rd.SDData(basic=rd.SDBasic(value=value)))
+
+    def _depth3_sd(
+        self,
+        description: str,
+        device_id: int | None,
+        chunk_name: str,
+    ) -> Any:
+        """Canonical chunk -> InitParams -> AdapterDesc -> {Description[, DeviceId]}."""
+        import mock_renderdoc as rd
+
+        children: list[Any] = [self._str_obj("Description", description)]
+        if device_id is not None:
+            children.append(self._int_obj("DeviceId", device_id))
+        adapter = rd.SDObject(name="AdapterDesc", children=children)
+        init = rd.SDObject(name="InitParams", children=[adapter])
+        chunk = rd.SDChunk(name=chunk_name, children=[init])
+        return rd.StructuredFile(chunks=[chunk])
+
+    def _depth2_sd(self, description: str, chunk_name: str) -> Any:
+        """chunk -> AdapterDesc -> Description (no InitParams wrapper)."""
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", description)
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc])
+        chunk = rd.SDChunk(name=chunk_name, children=[adapter])
+        return rd.StructuredFile(chunks=[chunk])
+
+    # --- Red-first defect proofs ------------------------------------------
+
+    def test_d3d12_chunk_guard_recognizes_real_chunk_name(self) -> None:
+        """Defect 1 in isolation: depth-2 layout, only the marker is missing."""
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon RX 7900 XTX", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        sd = self._depth2_sd("AMD Radeon RX 7900 XTX", self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is amd
+
+    def test_d3d12_chunk_guard_fires_on_real_name(self) -> None:
+        """End-to-end real tree: all 3 fixes needed to return AMD over priority."""
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon RX 7900 XTX", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        sd = self._depth3_sd("AMD Radeon RX 7900 XTX", 29772, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is amd
+
+    def test_find_adapter_description_depth3(self) -> None:
+        """Defect 2: walker must reach AdapterDesc under InitParams (grandchild)."""
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", "NVIDIA RTX 4500 Ada Generation")
+        devid = self._int_obj("DeviceId", 10161)
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc, devid])
+        init = rd.SDObject(name="InitParams", children=[adapter])
+        chunk = rd.SDChunk(name=self._CHUNK, children=[init])
+        result = _find_adapter_description(chunk)
+        assert result is not None
+        assert result.description == "NVIDIA RTX 4500 Ada Generation"
+        assert result.device_id == 10161
+
+    def test_exact_deviceid_wins_over_wrong_name(self) -> None:
+        """Defect 3: same-vendor, wrong-name-first; DeviceId must disambiguate."""
+        import mock_renderdoc as rd
+
+        wrong = self._gpu("NVIDIA RTX 4500 Ada Generation Laptop GPU", 6, 9999)
+        right = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([wrong, right])
+        sd = self._depth3_sd("NVIDIA RTX 4500", 10161, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is right
+
+    def test_exact_deviceid_same_vendor_multi_gpu(self) -> None:
+        """Defect 3 pinned: 3 NVIDIA GPUs, wanted one last and not name-matching."""
+        import mock_renderdoc as rd
+
+        g1 = self._gpu("NVIDIA RTX A5000", 6, 2204)
+        g2 = self._gpu("NVIDIA RTX A4000", 6, 9999)
+        g3 = self._gpu("NVIDIA RTX A6000", 6, 8888)
+        cap = self._cap([g1, g2, g3])
+        sd = self._depth3_sd("NVIDIA RTX A5000", 8888, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is g3
+
+    # --- Regression guards (green pre-fix) ---------------------------------
+
+    def test_d3d12_legacy_marker_path_unbroken(self) -> None:
+        import mock_renderdoc as rd
+
+        intel = self._gpu("Intel HD Graphics", 5, 1234)
+        cap = self._cap([intel, self._gpu("NVIDIA RTX 4500", 6, 10161)])
+        sd = self._depth2_sd("Intel HD Graphics", "DriverInit")
+        assert _match_capture_gpu(cap, sd, rd) is intel
+
+    def test_find_adapter_description_depth1_still_works(self) -> None:
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", "AMD Radeon RX 7900 XTX")
+        chunk = rd.SDChunk(name="DriverInit", children=[desc])
+        result = _find_adapter_description(chunk)
+        assert result is not None
+        assert result.description == "AMD Radeon RX 7900 XTX"
+
+    def test_find_adapter_description_depth2_adapter_child(self) -> None:
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", "NVIDIA RTX 4500 Ada Generation")
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc])
+        chunk = rd.SDChunk(name="DriverInit", children=[adapter])
+        result = _find_adapter_description(chunk)
+        assert result is not None
+        assert result.description == "NVIDIA RTX 4500 Ada Generation"
+
+    def test_name_substring_fallback_when_no_device_id(self) -> None:
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon RX 7900 XTX", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        sd = self._depth3_sd("NVIDIA RTX 4500 Ada Generation", None, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is nvidia
+
+    def test_fallback_still_works_when_no_chunk(self) -> None:
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon Graphics", 2, 5056)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        assert _match_capture_gpu(cap, None, rd) is nvidia
+
+    def test_vulkan_path_unchanged(self) -> None:
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD RX 7900 XT", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        prop = self._str_obj("deviceName", "AMD RX 7900 XT")
+        phys = rd.SDObject(name="physProps", children=[prop])
+        chunk = rd.SDChunk(name="vkEnumeratePhysicalDevices", children=[phys])
+        sd = rd.StructuredFile(chunks=[chunk])
+        assert _match_capture_gpu(cap, sd, rd) is amd
+
+    def test_single_gpu_short_circuit(self) -> None:
+        import mock_renderdoc as rd
+
+        only = self._gpu("Mock GPU", 2, 1)
+        cap = self._cap([only])
+        assert _match_capture_gpu(cap, None, rd) is only
+
+    def test_empty_gpu_list_returns_none(self) -> None:
+        import mock_renderdoc as rd
+
+        cap = self._cap([])
+        assert _match_capture_gpu(cap, None, rd) is None
+
+    def test_zero_device_id_does_not_bind_warp(self) -> None:
+        """WARP-sentinel guard: a present-but-zero DeviceId must fall through
+        to name-substring, never exact-match the WARP adapter (deviceID=0)."""
+        import mock_renderdoc as rd
+
+        warp = self._gpu("WARP Rasterizer", 9, 0)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([warp, nvidia])
+        sd = self._depth3_sd("NVIDIA RTX 4500 Ada Generation", 0, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is nvidia
 
 
 class TestShutdownExceptionStops:
