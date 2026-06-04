@@ -1,0 +1,1 @@
+import{g as r,S as o}from"./ScrollTrigger.C0eCJjti.js";r.registerPlugin(o);r.fromTo(".command-category",{opacity:0,y:30,scale:.95},{opacity:1,y:0,scale:1,duration:.5,stagger:.06,ease:"power3.out",scrollTrigger:{trigger:"#commands-grid",start:"top 85%"}});
