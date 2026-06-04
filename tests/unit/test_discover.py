@@ -234,6 +234,64 @@ class TestFindRenderdocFallback:
         assert diag.result == ProbeResult.CRASH_PRONE
         assert diag.candidate_path == str(crash_dir)
 
+    def test_diagnostic_set_after_import_failed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """A module that exists but fails to import (ABI mismatch) is recorded.
+
+        Without this, an import-failed candidate left no diagnostic and the
+        caller could not distinguish it from "nothing found at all".
+        """
+        bad_dir = tmp_path / "abi-mismatch"
+        bad_dir.mkdir()
+        # A module artifact is present -- the import failure is a real load
+        # failure (ABI mismatch), not "no module here".
+        (bad_dir / "renderdoc.so").write_text("fake")
+
+        def mock_renderdoc_search_paths():
+            return [str(bad_dir)]
+
+        def mock_which(cmd: str):
+            return None
+
+        monkeypatch.setattr("rdc.discover._try_import", lambda: None)
+        monkeypatch.setattr(
+            "rdc.discover._probe_candidate",
+            lambda path, timeout=5.0: ProbeOutcome(ProbeResult.IMPORT_FAILED, str(bad_dir)),
+        )
+        monkeypatch.setattr("rdc.discover._try_import_from", lambda d: None)
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", mock_renderdoc_search_paths)
+        monkeypatch.setattr("rdc.discover.shutil.which", mock_which)
+
+        result = find_renderdoc()
+
+        assert result is None
+        diag = _get_diagnostic()
+        assert diag is not None
+        assert diag.result == ProbeResult.IMPORT_FAILED
+        assert diag.candidate_path == str(bad_dir)
+
+    def test_import_failed_without_module_leaves_no_diagnostic(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """A dir with no module (e.g. the renderdoccmd sibling /usr/bin) probes
+        as IMPORT_FAILED but must not be reported as "found but failed to import".
+        """
+        empty_dir = tmp_path / "no-module"
+        empty_dir.mkdir()
+
+        monkeypatch.setattr("rdc.discover._try_import", lambda: None)
+        monkeypatch.setattr(
+            "rdc.discover._probe_candidate",
+            lambda path, timeout=5.0: ProbeOutcome(ProbeResult.IMPORT_FAILED, str(empty_dir)),
+        )
+        monkeypatch.setattr("rdc.discover._try_import_from", lambda d: None)
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [str(empty_dir)])
+        monkeypatch.setattr("rdc.discover.shutil.which", lambda cmd: None)
+
+        assert find_renderdoc() is None
+        assert _get_diagnostic() is None
+
 
 class TestArmStudioDir:
     """_is_arm_studio_dir detects ARM PS directory layout."""

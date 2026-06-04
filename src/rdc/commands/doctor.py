@@ -61,6 +61,14 @@ def _import_renderdoc() -> tuple[Any | None, CheckResult]:
                 False,
                 f"incompatible at {diag.candidate_path} -- rebuild renderdoc for current Python",
             )
+        if diag is not None and diag.result == ProbeResult.IMPORT_FAILED:
+            return None, CheckResult(
+                "renderdoc-module",
+                False,
+                f"found at {diag.candidate_path} but failed to import"
+                " -- likely built for a different Python (ABI mismatch);"
+                " rebuild for current Python",
+            )
         return None, CheckResult("renderdoc-module", False, "not found in search paths")
 
     version = getattr(module, "GetVersionString", lambda: "unknown")()
