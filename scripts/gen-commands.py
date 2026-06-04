@@ -35,7 +35,7 @@ CATEGORIES: list[tuple[str, str, str | None, list[str]]] = [
         "search", "passes", "pass", "unused-targets",
     ]),
     ("Export", "export", None, [
-        "texture", "buffer", "rt", "mesh", "snapshot",
+        "texture", "buffer", "cbuffer", "rt", "mesh", "snapshot",
     ]),
     ("Pixel & Debug", "pixel-debug", None, [
         "pixel", "pick-pixel", "tex-stats",

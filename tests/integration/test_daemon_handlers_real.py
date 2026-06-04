@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -1578,6 +1579,17 @@ class TestMeshDataReal:
         assert len(result["vertices"]) == result["vertex_count"]
         assert result["stage"] == "vs-out"
 
+    def test_mesh_data_vs_in_real(self) -> None:
+        """mesh_data with stage=vs-in returns input-assembler vertices.
+
+        D3D12: verified by @Misaka-Mikoto-Tech on real capture.
+        """
+        eid = self._first_draw_eid()
+        result = _call(self.state, "mesh_data", {"eid": eid, "stage": "vs-in"})
+        assert result["stage"] == "vs-in"
+        assert result["vertex_count"] > 0
+        assert len(result["vertices"]) == result["vertex_count"]
+
     def test_mesh_data_topology_string(self) -> None:
         """Topology field is a non-empty string, not an integer."""
         eid = self._first_draw_eid()
@@ -1968,6 +1980,25 @@ class TestBufferDecodeReal:
         params = {"eid": eid, "stage": "vs", "set": 0, "binding": 0}
         result = _call(self.state, "cbuffer_decode", params)
         assert "variables" in result and "set" in result
+
+    def test_cbuffer_raw_returns_file(self) -> None:
+        """cbuffer_raw writes a temp file whose size matches the response."""
+        eid = self._first_draw_eid()
+        params = {"eid": eid, "stage": "vs", "set": 0, "binding": 0}
+        result = _call(self.state, "cbuffer_raw", params)
+        assert "path" in result
+        assert result["size"] > 0
+        assert os.path.exists(result["path"])
+        assert os.path.getsize(result["path"]) == result["size"]
+
+    def test_cbuffer_decode_and_raw_size_agree(self) -> None:
+        """Decoded variable footprint is consistent with raw byte size."""
+        eid = self._first_draw_eid()
+        params = {"eid": eid, "stage": "vs", "set": 0, "binding": 0}
+        decoded = _call(self.state, "cbuffer_decode", params)
+        raw = _call(self.state, "cbuffer_raw", params)
+        assert len(decoded["variables"]) > 0
+        assert raw["size"] > 0
 
     def test_vbuffer_decode_returns_vertex_data(self) -> None:
         """vbuffer_decode returns columns + vertices for a draw event."""

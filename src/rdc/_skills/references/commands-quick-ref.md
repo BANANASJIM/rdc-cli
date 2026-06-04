@@ -282,6 +282,27 @@ Output VFS leaf node content.
 | `--raw` | Force raw output even on TTY | flag |  |
 | `-o, --output` | Write binary output to file | path |  |
 
+## `rdc cbuffer`
+
+Decode a constant buffer to JSON or export its raw bytes.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `eid` | integer | no |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--stage` | Shader stage (default: ps) | choice | ps |
+| `--set` | Vulkan: descriptor set. D3D12: register space. | integer | 0 |
+| `--binding` | Vulkan: binding. D3D12: shader register (bN). | integer | 0 |
+| `--json` | JSON output (default) | flag |  |
+| `--raw` | Export raw constant-buffer bytes | flag |  |
+| `-o, --output` | Write raw bytes to file | path |  |
+
 ## `rdc close`
 
 Close daemon-backed session.

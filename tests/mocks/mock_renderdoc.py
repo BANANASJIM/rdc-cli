@@ -1497,8 +1497,22 @@ class MockReplayController:
         """Mock GetCBufferVariableContents."""
         return self._cbuffer_variables.get((int(stage), idx), [])
 
+    def set_mesh_data(self, stage: Any, mesh: MeshFormat) -> None:
+        """Configure the MeshFormat returned for a given mesh data stage.
+
+        Args:
+            stage: A ``MeshDataStage`` value (or its int), e.g. ``0`` for VSIn.
+            mesh: The ``MeshFormat`` to return for that stage.
+        """
+        self._mesh_data[int(stage)] = mesh
+
     def GetPostVSData(self, instance: int, view: int, stage: Any) -> MeshFormat:
-        """Mock GetPostVSData -- returns configured or empty mesh format."""
+        """Mock GetPostVSData -- returns configured or empty mesh format.
+
+        Unconfigured stages (including VSIn at stage int ``0`` for non-draw
+        events) yield a default ``MeshFormat`` with zero ``vertexResourceId``
+        and ``vertexByteStride``, exercising the daemon's ``-32001`` path.
+        """
         return self._mesh_data.get(int(stage), MeshFormat())
 
     def GetDisassemblyTargets(self, with_pipeline: bool) -> list[str]:

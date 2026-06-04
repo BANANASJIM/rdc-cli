@@ -16,8 +16,10 @@ from rdc.daemon_server import (
     _NO_REPLAY_METHODS,
     DaemonState,
     _cleanup_temp_capture,
+    _find_adapter_description,
     _handle_request,
     _load_replay,
+    _match_capture_gpu,
     _process_request,
     _set_frame_event,
 )
@@ -167,6 +169,377 @@ class TestHandleRequest:
         )
         assert "error" in resp
         assert resp["error"]["code"] == -32002
+
+
+class TestMatchCaptureGpu:
+    """Multi-GPU selection logic (#225 D3D12 + Vulkan + fallback)."""
+
+    # GPUVendor ordinals match RenderDoc's replay_enums.h.
+    _SOFTWARE = 9
+    _AMD = 2
+    _INTEL = 5
+    _NVIDIA = 6
+
+    class _FakeRD:
+        # Mirrors renderdoc.GPUVendor; the lowercase 'n' in nVidia matches upstream.
+        class GPUVendor:
+            Software = 9
+            AMD = 2
+            Intel = 5
+            nVidia = 6  # noqa: N815
+
+    @staticmethod
+    def _gpu(name: str, vendor: int) -> SimpleNamespace:
+        return SimpleNamespace(name=name, vendor=vendor, deviceID=0, driver="")
+
+    @staticmethod
+    def _cap(gpus: list[Any]) -> SimpleNamespace:
+        return SimpleNamespace(GetAvailableGPUs=lambda: gpus)
+
+    @staticmethod
+    def _vulkan_sd(device_name: str) -> SimpleNamespace:
+        import mock_renderdoc as rd
+
+        prop = rd.SDObject(name="deviceName", data=rd.SDData(basic=rd.SDBasic(value=device_name)))
+        phys = rd.SDObject(name="physProps", children=[prop])
+        chunk = rd.SDChunk(name="vkEnumeratePhysicalDevices", children=[phys])
+        return rd.StructuredFile(chunks=[chunk])
+
+    @staticmethod
+    def _d3d12_sd(description: str, chunk_name: str = "DriverInit") -> SimpleNamespace:
+        import mock_renderdoc as rd
+
+        desc = rd.SDObject(name="Description", data=rd.SDData(basic=rd.SDBasic(value=description)))
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc])
+        chunk = rd.SDChunk(name=chunk_name, children=[adapter])
+        return rd.StructuredFile(chunks=[chunk])
+
+    def test_single_gpu_returns_it(self) -> None:
+        only = self._gpu("Mock GPU", self._AMD)
+        cap = self._cap([only])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is only
+        assert _match_capture_gpu(cap, self._vulkan_sd("does-not-matter"), self._FakeRD) is only
+
+    def test_vulkan_match_by_devicename(self) -> None:
+        a = self._gpu("AMD Radeon Graphics", self._AMD)
+        b = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([a, b])
+        sd = self._vulkan_sd("NVIDIA RTX 4500 Ada")
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is b
+
+    def test_vulkan_no_name_match_falls_back_to_vendor_priority(self) -> None:
+        """Vulkan chunk present but deviceName matches no GPU → vendor-priority fallback, not gpu[0]."""  # noqa: E501
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        sd = self._vulkan_sd("NVIDIA GTX 1080 (uninstalled hardware)")
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is discrete
+
+    def test_d3d12_match_via_driverinit_adapterdesc(self) -> None:
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada Generation", self._NVIDIA)
+        warp = self._gpu("Microsoft Basic Render Driver (WARP)", self._SOFTWARE)
+        cap = self._cap([igpu, discrete, warp])
+        sd = self._d3d12_sd("NVIDIA RTX 4500 Ada Generation")
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is discrete
+
+    def test_d3d12_match_case_insensitive(self) -> None:
+        """#225: mixed-case adapter Description matches a differently-cased GPU name.
+
+        With a case-sensitive match this would miss and fall to vendor priority;
+        case-insensitive matching must return the named GPU directly.
+        """
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        amd = self._gpu("amd radeon rx 7900 xtx", self._AMD)
+        cap = self._cap([nvidia, amd])
+        # Capture was produced on the AMD card; desc differs only in case.
+        sd = self._d3d12_sd("AMD Radeon RX 7900 XTX")
+        # Vendor-priority fallback would pick NVIDIA; case-insensitive match must
+        # return the AMD card the capture actually came from.
+        assert _match_capture_gpu(cap, sd, self._FakeRD) is amd
+
+    def test_fallback_emits_diagnostic_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Vendor-priority fallback must log the available GPUs and the chosen one."""
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        with caplog.at_level(logging.WARNING, logger="rdc.daemon"):
+            assert _match_capture_gpu(cap, None, self._FakeRD) is discrete
+        assert any("fallback" in r.message.lower() for r in caplog.records)
+        assert any("NVIDIA RTX 4500 Ada" in r.message for r in caplog.records)
+
+    def test_d3d12_fallback_skips_warp_prefers_nvidia(self) -> None:
+        warp = self._gpu("WARP", self._SOFTWARE)
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([warp, igpu, discrete])
+        # No structured data → fallback.
+        assert _match_capture_gpu(cap, None, self._FakeRD) is discrete
+
+    def test_d3d12_fallback_amd_over_intel(self) -> None:
+        intel = self._gpu("Intel UHD Graphics", self._INTEL)
+        amd = self._gpu("AMD Radeon RX", self._AMD)
+        warp = self._gpu("WARP", self._SOFTWARE)
+        cap = self._cap([intel, amd, warp])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is amd
+
+    def test_no_structured_data_uses_fallback_not_gpu0(self) -> None:
+        """Regression: issue #225 literal scenario — iGPU was previously returned as gpus[0]."""
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is discrete
+
+    def test_empty_gpu_list_returns_none(self) -> None:
+        cap = self._cap([])
+        assert _match_capture_gpu(cap, None, self._FakeRD) is None
+
+    def test_remote_replay_passes_sd(self, monkeypatch: Any) -> None:
+        """The remote-replay call site must pass non-None sd and rd to the matcher."""
+        import mock_renderdoc as mock_rd
+
+        captured: dict[str, Any] = {}
+
+        def _spy(cap: Any, sd: Any = None, rd: Any = None) -> Any:
+            captured["cap"] = cap
+            captured["sd"] = sd
+            captured["rd"] = rd
+            return None
+
+        monkeypatch.setattr("rdc.daemon_server._match_capture_gpu", _spy)
+
+        # Force the remote connection to succeed and short-circuit OpenCapture so
+        # the function exits cleanly after the spy is called. Names mirror the
+        # renderdoc CamelCase API.
+        remote = SimpleNamespace(
+            CopyCaptureToRemote=lambda path, cb: path,
+            CopyCaptureFromRemote=lambda path, dst, cb: None,
+            OpenCapture=lambda pref, path, opts, cb: (mock_rd.ResultCode.InternalError, None),
+            ShutdownConnection=lambda: None,
+            Ping=lambda: None,
+        )
+
+        def _create_remote(url: str) -> tuple[Any, Any]:
+            return mock_rd.ResultCode.Succeeded, remote
+
+        monkeypatch.setattr(mock_rd, "CreateRemoteServerConnection", _create_remote, raising=False)
+
+        # Make local_capture exist so the upload branch is taken.
+        cap_path = Path("test.rdc")
+        cap_path.write_bytes(b"\x00")
+        try:
+            sys.modules["renderdoc"] = mock_rd  # type: ignore[assignment]
+            try:
+                from rdc.daemon_server import _load_remote_replay
+
+                state = DaemonState(capture=str(cap_path), current_eid=0, token="tok")
+                _load_remote_replay(state, "remote://example")
+            finally:
+                sys.modules.pop("renderdoc", None)
+        finally:
+            cap_path.unlink(missing_ok=True)
+
+        assert captured.get("sd") is not None
+        assert captured.get("rd") is mock_rd
+
+
+class TestFix225D3D12ChunkNameAndDeviceId:
+    """#225 fix-forward: real chunk name, depth-3 walk, exact DeviceId match.
+
+    5 red-first defect proofs + 9 regression guards. Mock shapes per
+    tests/mocks/mock_renderdoc.py: SDObject has only AsString()/AsInt();
+    numeric scalars via SDBasic.value read with AsInt(); strings with
+    AsString(). The mock module has no GPUVendor attribute, so the production
+    fallback uses hardcoded nVidia=6/AMD=2/Intel=5/Software=9 and
+    priority={6:0, 2:1, 5:2}.
+    """
+
+    _CHUNK = "Internal::Driver Initialisation Parameters"
+
+    @staticmethod
+    def _gpu(name: str, vendor: int, device_id: int) -> SimpleNamespace:
+        return SimpleNamespace(name=name, vendor=vendor, deviceID=device_id, driver="")
+
+    @staticmethod
+    def _cap(gpus: list[Any]) -> SimpleNamespace:
+        return SimpleNamespace(GetAvailableGPUs=lambda: gpus)
+
+    @staticmethod
+    def _str_obj(name: str, value: str) -> Any:
+        import mock_renderdoc as rd
+
+        return rd.SDObject(name=name, data=rd.SDData(basic=rd.SDBasic(value=value)))
+
+    @staticmethod
+    def _int_obj(name: str, value: int) -> Any:
+        import mock_renderdoc as rd
+
+        return rd.SDObject(name=name, data=rd.SDData(basic=rd.SDBasic(value=value)))
+
+    def _depth3_sd(
+        self,
+        description: str,
+        device_id: int | None,
+        chunk_name: str,
+    ) -> Any:
+        """Canonical chunk -> InitParams -> AdapterDesc -> {Description[, DeviceId]}."""
+        import mock_renderdoc as rd
+
+        children: list[Any] = [self._str_obj("Description", description)]
+        if device_id is not None:
+            children.append(self._int_obj("DeviceId", device_id))
+        adapter = rd.SDObject(name="AdapterDesc", children=children)
+        init = rd.SDObject(name="InitParams", children=[adapter])
+        chunk = rd.SDChunk(name=chunk_name, children=[init])
+        return rd.StructuredFile(chunks=[chunk])
+
+    def _depth2_sd(self, description: str, chunk_name: str) -> Any:
+        """chunk -> AdapterDesc -> Description (no InitParams wrapper)."""
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", description)
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc])
+        chunk = rd.SDChunk(name=chunk_name, children=[adapter])
+        return rd.StructuredFile(chunks=[chunk])
+
+    # --- Red-first defect proofs ------------------------------------------
+
+    def test_d3d12_chunk_guard_recognizes_real_chunk_name(self) -> None:
+        """Defect 1 in isolation: depth-2 layout, only the marker is missing."""
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon RX 7900 XTX", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        sd = self._depth2_sd("AMD Radeon RX 7900 XTX", self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is amd
+
+    def test_d3d12_chunk_guard_fires_on_real_name(self) -> None:
+        """End-to-end real tree: all 3 fixes needed to return AMD over priority."""
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon RX 7900 XTX", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        sd = self._depth3_sd("AMD Radeon RX 7900 XTX", 29772, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is amd
+
+    def test_find_adapter_description_depth3(self) -> None:
+        """Defect 2: walker must reach AdapterDesc under InitParams (grandchild)."""
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", "NVIDIA RTX 4500 Ada Generation")
+        devid = self._int_obj("DeviceId", 10161)
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc, devid])
+        init = rd.SDObject(name="InitParams", children=[adapter])
+        chunk = rd.SDChunk(name=self._CHUNK, children=[init])
+        result = _find_adapter_description(chunk)
+        assert result is not None
+        assert result.description == "NVIDIA RTX 4500 Ada Generation"
+        assert result.device_id == 10161
+
+    def test_exact_deviceid_wins_over_wrong_name(self) -> None:
+        """Defect 3: same-vendor, wrong-name-first; DeviceId must disambiguate."""
+        import mock_renderdoc as rd
+
+        wrong = self._gpu("NVIDIA RTX 4500 Ada Generation Laptop GPU", 6, 9999)
+        right = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([wrong, right])
+        sd = self._depth3_sd("NVIDIA RTX 4500", 10161, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is right
+
+    def test_exact_deviceid_same_vendor_multi_gpu(self) -> None:
+        """Defect 3 pinned: 3 NVIDIA GPUs, wanted one last and not name-matching."""
+        import mock_renderdoc as rd
+
+        g1 = self._gpu("NVIDIA RTX A5000", 6, 2204)
+        g2 = self._gpu("NVIDIA RTX A4000", 6, 9999)
+        g3 = self._gpu("NVIDIA RTX A6000", 6, 8888)
+        cap = self._cap([g1, g2, g3])
+        sd = self._depth3_sd("NVIDIA RTX A5000", 8888, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is g3
+
+    # --- Regression guards (green pre-fix) ---------------------------------
+
+    def test_d3d12_legacy_marker_path_unbroken(self) -> None:
+        import mock_renderdoc as rd
+
+        intel = self._gpu("Intel HD Graphics", 5, 1234)
+        cap = self._cap([intel, self._gpu("NVIDIA RTX 4500", 6, 10161)])
+        sd = self._depth2_sd("Intel HD Graphics", "DriverInit")
+        assert _match_capture_gpu(cap, sd, rd) is intel
+
+    def test_find_adapter_description_depth1_still_works(self) -> None:
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", "AMD Radeon RX 7900 XTX")
+        chunk = rd.SDChunk(name="DriverInit", children=[desc])
+        result = _find_adapter_description(chunk)
+        assert result is not None
+        assert result.description == "AMD Radeon RX 7900 XTX"
+
+    def test_find_adapter_description_depth2_adapter_child(self) -> None:
+        import mock_renderdoc as rd
+
+        desc = self._str_obj("Description", "NVIDIA RTX 4500 Ada Generation")
+        adapter = rd.SDObject(name="AdapterDesc", children=[desc])
+        chunk = rd.SDChunk(name="DriverInit", children=[adapter])
+        result = _find_adapter_description(chunk)
+        assert result is not None
+        assert result.description == "NVIDIA RTX 4500 Ada Generation"
+
+    def test_name_substring_fallback_when_no_device_id(self) -> None:
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon RX 7900 XTX", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        sd = self._depth3_sd("NVIDIA RTX 4500 Ada Generation", None, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is nvidia
+
+    def test_fallback_still_works_when_no_chunk(self) -> None:
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD Radeon Graphics", 2, 5056)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        assert _match_capture_gpu(cap, None, rd) is nvidia
+
+    def test_vulkan_path_unchanged(self) -> None:
+        import mock_renderdoc as rd
+
+        amd = self._gpu("AMD RX 7900 XT", 2, 29772)
+        nvidia = self._gpu("NVIDIA RTX 4500", 6, 10161)
+        cap = self._cap([amd, nvidia])
+        prop = self._str_obj("deviceName", "AMD RX 7900 XT")
+        phys = rd.SDObject(name="physProps", children=[prop])
+        chunk = rd.SDChunk(name="vkEnumeratePhysicalDevices", children=[phys])
+        sd = rd.StructuredFile(chunks=[chunk])
+        assert _match_capture_gpu(cap, sd, rd) is amd
+
+    def test_single_gpu_short_circuit(self) -> None:
+        import mock_renderdoc as rd
+
+        only = self._gpu("Mock GPU", 2, 1)
+        cap = self._cap([only])
+        assert _match_capture_gpu(cap, None, rd) is only
+
+    def test_empty_gpu_list_returns_none(self) -> None:
+        import mock_renderdoc as rd
+
+        cap = self._cap([])
+        assert _match_capture_gpu(cap, None, rd) is None
+
+    def test_zero_device_id_does_not_bind_warp(self) -> None:
+        """WARP-sentinel guard: a present-but-zero DeviceId must fall through
+        to name-substring, never exact-match the WARP adapter (deviceID=0)."""
+        import mock_renderdoc as rd
+
+        warp = self._gpu("WARP Rasterizer", 9, 0)
+        nvidia = self._gpu("NVIDIA RTX 4500 Ada Generation", 6, 10161)
+        cap = self._cap([warp, nvidia])
+        sd = self._depth3_sd("NVIDIA RTX 4500 Ada Generation", 0, self._CHUNK)
+        assert _match_capture_gpu(cap, sd, rd) is nvidia
 
 
 class TestShutdownExceptionStops:
