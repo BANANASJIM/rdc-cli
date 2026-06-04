@@ -46,6 +46,7 @@ def start_daemon(
     host: str = "127.0.0.1",
     idle_timeout: int = 1800,
     remote_url: str | None = None,
+    gpu: str | None = None,
 ) -> subprocess.Popen[str]:
     cmd = [
         sys.executable,
@@ -62,6 +63,8 @@ def start_daemon(
         "--idle-timeout",
         str(idle_timeout),
     ]
+    if gpu:
+        cmd += ["--gpu", gpu]
     if remote_url:
         cmd += ["--remote-url", remote_url]
     elif not _renderdoc_available():
@@ -136,6 +139,7 @@ def open_session(
     *,
     remote_url: str | None = None,
     timeout: float | None = None,
+    gpu: str | None = None,
 ) -> tuple[bool, str]:
     exists, err = _check_existing_session()
     if exists:
@@ -148,7 +152,7 @@ def open_session(
     for _attempt in range(max_attempts):
         port = pick_port()
         token = secrets.token_hex(16)
-        proc = start_daemon(str(capture), port, token, remote_url=remote_url)
+        proc = start_daemon(str(capture), port, token, remote_url=remote_url, gpu=gpu)
 
         ok, detail = wait_for_ping(host, port, token, timeout_s=resolved_timeout, proc=proc)
         if ok:
@@ -382,6 +386,7 @@ def listen_open_session(
     *,
     remote_url: str | None = None,
     timeout: float | None = None,
+    gpu: str | None = None,
 ) -> tuple[bool, dict[str, Any] | str]:
     """Open a session with the daemon listening on a specified address.
 
@@ -408,6 +413,7 @@ def listen_open_session(
         token,
         host=bind_host,
         remote_url=remote_url,
+        gpu=gpu,
     )
 
     ok, detail = wait_for_ping(

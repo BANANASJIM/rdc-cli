@@ -186,6 +186,14 @@ def _complete_capture_path(
     default=None,
     help="Daemon startup timeout in seconds.",
 )
+@click.option(
+    "--gpu",
+    "gpu",
+    default=None,
+    metavar="INDEX|NAME|DEVICEID",
+    help="Force the replay GPU by 0-based index, name substring, or device ID "
+    "(overrides auto-selection).",
+)
 def open_cmd(
     capture: str | None,
     preload: bool,
@@ -197,6 +205,7 @@ def open_cmd(
     connect: str | None,
     connect_token: str | None,
     timeout: float | None,
+    gpu: str | None,
 ) -> None:
     """Create local default session and start daemon skeleton."""
     # Handle --remote deprecation
@@ -242,6 +251,11 @@ def open_cmd(
     if connect is None and connect_token is not None:
         click.echo("warning: --token is ignored without --connect", err=True)
 
+    # --gpu configures the daemon's replay; an external daemon (--connect) is
+    # already running, so it cannot apply here.
+    if gpu is not None and connect is not None:
+        click.echo("warning: --gpu is ignored with --connect", err=True)
+
     # Dispatch: --connect
     if connect is not None:
         assert connect_token is not None
@@ -276,7 +290,9 @@ def open_cmd(
             click.echo(f"error: file not found: {capture}", err=True)
             raise SystemExit(1)
         try:
-            ok, result = listen_open_session(capture, listen, remote_url=proxy_url, timeout=timeout)
+            ok, result = listen_open_session(
+                capture, listen, remote_url=proxy_url, timeout=timeout, gpu=gpu
+            )
         except ValueError as exc:
             click.echo(f"error: {exc}", err=True)
             raise SystemExit(1) from None
@@ -300,7 +316,7 @@ def open_cmd(
     if proxy_url is None and not Path(capture).exists():
         click.echo(f"error: file not found: {capture}", err=True)
         raise SystemExit(1)
-    ok, message = open_session(capture, remote_url=proxy_url, timeout=timeout)
+    ok, message = open_session(capture, remote_url=proxy_url, timeout=timeout, gpu=gpu)
     if not ok:
         click.echo(message, err=True)
         raise SystemExit(1)

@@ -141,6 +141,7 @@ class DaemonState:
     _debug_messages_cache: list[Any] | None = None
     remote: Any = None
     remote_url: str = ""
+    gpu_pref: str = ""
     is_remote: bool = False
     local_capture_path: str = ""
     local_capture_is_temp: bool = False
@@ -226,18 +227,49 @@ def _find_adapter_description(chunk: Any) -> AdapterMatch | None:
         return None
 
 
-def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
+def _resolve_gpu_pref(gpus: list[Any], pref: str) -> Any | None:
+    """Resolve a user ``--gpu`` preference against the available GPUs.
+
+    Accepts, in order: a 0-based index, a device ID (decimal or ``0x`` hex),
+    or a case-insensitive substring of the GPU name. Returns the matching
+    ``GPUDevice``, or ``None`` if nothing matches.
+    """
+    pref = pref.strip()
+    if not pref:
+        return None
+    if pref.isdigit() and int(pref) < len(gpus):
+        return gpus[int(pref)]
+    try:
+        want_id = int(pref, 0)
+    except ValueError:
+        want_id = None
+    if want_id is not None:
+        for g in gpus:
+            if g.deviceID == want_id:
+                return g
+    needle = pref.lower()
+    for g in gpus:
+        if needle in g.name.lower():
+            return g
+    return None
+
+
+def _match_capture_gpu(
+    cap: Any, sd: Any = None, rd: Any = None, pref: str | None = None
+) -> Any | None:
     """Pick the replay GPU that produced ``cap``.
 
-    Walks structured-data chunks to match the capture's Vulkan
-    ``vkEnumeratePhysicalDevices`` device name or the D3D12 adapter
-    description. Falls back to vendor priority (nVidia > AMD > Intel,
-    Software/WARP excluded) when no chunk-based match succeeds.
+    When *pref* is given (the user's ``--gpu``), it takes precedence over
+    auto-selection. Otherwise walks structured-data chunks to match the
+    capture's Vulkan ``vkEnumeratePhysicalDevices`` device name or the D3D12
+    adapter description, falling back to vendor priority (nVidia > AMD >
+    Intel, Software/WARP excluded) when no chunk-based match succeeds.
 
     Args:
         cap: An open renderdoc capture file.
         sd: Optional structured data from ``cap.GetStructuredData()``.
         rd: Optional renderdoc module, used for ``GPUVendor`` enum lookup.
+        pref: Optional user GPU preference (index, device ID, or name substring).
 
     Returns:
         The selected ``GPUDevice`` or ``None`` when no GPUs are available.
@@ -246,6 +278,16 @@ def _match_capture_gpu(cap: Any, sd: Any = None, rd: Any = None) -> Any | None:
         gpus = cap.GetAvailableGPUs()
         if not gpus:
             return None
+        if pref:
+            chosen = _resolve_gpu_pref(gpus, pref)
+            if chosen is not None:
+                _log.info("replay GPU (user --gpu=%r): %s", pref, chosen.name)
+                return chosen
+            _log.warning(
+                "--gpu=%r matched no available GPU; available=%r -- using auto-selection",
+                pref,
+                [(g.name, g.deviceID) for g in gpus],
+            )
         if len(gpus) == 1:
             return gpus[0]
 
@@ -363,7 +405,7 @@ def _load_replay(state: DaemonState) -> str | None:
         return "local replay not supported on this platform"
 
     opts = rd.ReplayOptions()
-    gpu = _match_capture_gpu(cap, cap.GetStructuredData(), rd)
+    gpu = _match_capture_gpu(cap, cap.GetStructuredData(), rd, state.gpu_pref or None)
     if gpu is not None:
         opts.forceGPUVendor = gpu.vendor
         opts.forceGPUDeviceID = gpu.deviceID
@@ -520,7 +562,9 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
                 try:
                     open_result = tmp_cap.OpenFile(state.local_capture_path, "", None)
                     if open_result == rd.ResultCode.Succeeded:
-                        gpu = _match_capture_gpu(tmp_cap, tmp_cap.GetStructuredData(), rd)
+                        gpu = _match_capture_gpu(
+                            tmp_cap, tmp_cap.GetStructuredData(), rd, state.gpu_pref or None
+                        )
                         if gpu is not None:
                             remote_opts.forceGPUVendor = gpu.vendor
                             remote_opts.forceGPUDeviceID = gpu.deviceID
@@ -703,9 +747,12 @@ def main() -> None:  # pragma: no cover
     parser.add_argument("--idle-timeout", type=int, default=1800)
     parser.add_argument("--no-replay", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--remote-url", default=None)
+    parser.add_argument("--gpu", default=None)
     args = parser.parse_args()
 
-    state = DaemonState(capture=args.capture, current_eid=0, token=args.token)
+    state = DaemonState(
+        capture=args.capture, current_eid=0, token=args.token, gpu_pref=args.gpu or ""
+    )
 
     if not args.no_replay:
         if args.remote_url:
