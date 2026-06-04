@@ -644,6 +644,7 @@ Create local default session and start daemon skeleton.
 | `--connect` | Connect to an already-running external daemon. | text |  |
 | `--token` | Authentication token (required with --connect). | text |  |
 | `--timeout` | Daemon startup timeout in seconds. | float |  |
+| `--gpu` | Force the replay GPU by 0-based index, name substring, or device ID (overrides auto-selection). | text |  |
 
 ## `rdc pass`
 

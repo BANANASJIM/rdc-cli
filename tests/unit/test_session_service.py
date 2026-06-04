@@ -195,6 +195,33 @@ def test_start_daemon_idle_timeout_default(monkeypatch: pytest.MonkeyPatch) -> N
     assert captured_cmd[idx + 1] == "1800"
 
 
+def test_start_daemon_gpu_passed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+    captured_cmd: list[str] = []
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
+        captured_cmd.extend(cmd)
+        return MagicMock()
+
+    monkeypatch.setattr(session_service.subprocess, "Popen", fake_popen)
+    session_service.start_daemon("test.rdc", 9999, "tok", gpu="1")
+    idx = captured_cmd.index("--gpu")
+    assert captured_cmd[idx + 1] == "1"
+
+
+def test_start_daemon_gpu_omitted_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+    captured_cmd: list[str] = []
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
+        captured_cmd.extend(cmd)
+        return MagicMock()
+
+    monkeypatch.setattr(session_service.subprocess, "Popen", fake_popen)
+    session_service.start_daemon("test.rdc", 9999, "tok")
+    assert "--gpu" not in captured_cmd
+
+
 def test_open_session_retries_on_port_conflict(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

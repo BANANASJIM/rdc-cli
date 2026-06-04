@@ -21,6 +21,7 @@ from rdc.daemon_server import (
     _load_replay,
     _match_capture_gpu,
     _process_request,
+    _resolve_gpu_pref,
     _set_frame_event,
 )
 
@@ -294,16 +295,63 @@ class TestMatchCaptureGpu:
         cap = self._cap([])
         assert _match_capture_gpu(cap, None, self._FakeRD) is None
 
+    def test_pref_by_index(self) -> None:
+        a = self._gpu("AMD Radeon Graphics", self._AMD)
+        b = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([a, b])
+        assert _match_capture_gpu(cap, None, self._FakeRD, pref="1") is b
+
+    def test_pref_by_name_substring_case_insensitive(self) -> None:
+        a = self._gpu("AMD Radeon RX 7800 XT", self._AMD)
+        b = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([a, b])
+        assert _match_capture_gpu(cap, None, self._FakeRD, pref="7800 xt") is a
+
+    def test_pref_by_device_id_decimal_and_hex(self) -> None:
+        a = SimpleNamespace(name="iGPU", vendor=self._AMD, deviceID=5710, driver="")
+        b = SimpleNamespace(name="dGPU", vendor=self._AMD, deviceID=29822, driver="")
+        cap = self._cap([a, b])
+        assert _match_capture_gpu(cap, None, self._FakeRD, pref="29822") is b
+        assert _match_capture_gpu(cap, None, self._FakeRD, pref="0x747e") is b
+
+    def test_pref_overrides_auto_match(self) -> None:
+        """An explicit --gpu wins even when the capture's deviceName matches another GPU."""
+        a = self._gpu("AMD Radeon Graphics", self._AMD)
+        b = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([a, b])
+        sd = self._vulkan_sd("NVIDIA RTX 4500 Ada")  # would auto-match b
+        assert _match_capture_gpu(cap, sd, self._FakeRD, pref="AMD") is a
+
+    def test_pref_no_match_warns_and_falls_back(self, caplog: pytest.LogCaptureFixture) -> None:
+        igpu = self._gpu("AMD Radeon Graphics", self._AMD)
+        discrete = self._gpu("NVIDIA RTX 4500 Ada", self._NVIDIA)
+        cap = self._cap([igpu, discrete])
+        with caplog.at_level(logging.WARNING, logger="rdc.daemon"):
+            chosen = _match_capture_gpu(cap, None, self._FakeRD, pref="Matrox")
+        assert chosen is discrete  # vendor-priority fallback still applies
+        assert any("--gpu" in r.message for r in caplog.records)
+
+    def test_resolve_gpu_pref_forms(self) -> None:
+        a = SimpleNamespace(name="iGPU RADEON", vendor=self._AMD, deviceID=5710, driver="")
+        b = SimpleNamespace(name="dGPU NAVI", vendor=self._AMD, deviceID=29822, driver="")
+        gpus = [a, b]
+        assert _resolve_gpu_pref(gpus, "0") is a
+        assert _resolve_gpu_pref(gpus, "navi") is b
+        assert _resolve_gpu_pref(gpus, "0x747e") is b
+        assert _resolve_gpu_pref(gpus, "nope") is None
+        assert _resolve_gpu_pref(gpus, "") is None
+
     def test_remote_replay_passes_sd(self, monkeypatch: Any) -> None:
         """The remote-replay call site must pass non-None sd and rd to the matcher."""
         import mock_renderdoc as mock_rd
 
         captured: dict[str, Any] = {}
 
-        def _spy(cap: Any, sd: Any = None, rd: Any = None) -> Any:
+        def _spy(cap: Any, sd: Any = None, rd: Any = None, pref: Any = None) -> Any:
             captured["cap"] = cap
             captured["sd"] = sd
             captured["rd"] = rd
+            captured["pref"] = pref
             return None
 
         monkeypatch.setattr("rdc.daemon_server._match_capture_gpu", _spy)
@@ -685,6 +733,7 @@ class TestSigtermHandler:
                 token="tok",
                 idle_timeout=1800,
                 no_replay=True,
+                gpu=None,
             )
             mock_parser_cls.return_value.parse_args.return_value = mock_args
 

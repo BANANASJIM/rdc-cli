@@ -38,7 +38,10 @@ ReplayController for the duration of the session.
 #### Scenario: Multi-GPU capture replay
 - **WHEN** the capture was taken on a multi-GPU system
 - **AND** multiple GPUs are available for replay
-- **THEN** the daemon walks structured-data chunks whose name contains any of
+- **THEN** if the user passed `--gpu` (a 0-based index, a PCI device ID in
+  decimal or `0x` hex, or a case-insensitive name substring) that resolves to an
+  available GPU, that GPU is selected and structured-data inspection is skipped
+- **AND** otherwise the daemon walks structured-data chunks whose name contains any of
   "Driver Initialisation Parameters", "DriverInit", "EnumAdapters", or
   "CreateDXGIFactory"
 - **AND** within each such chunk descends recursively (depth ≤ 5) to locate an
@@ -49,6 +52,8 @@ ReplayController for the duration of the session.
   DeviceId match is found
 - **AND** if no structured-data match exists, Software/WARP adapters are excluded
   and the highest-ranked discrete GPU is preferred (nVidia > AMD > Intel)
+- **AND** an unresolved `--gpu` preference logs a warning and falls back to the
+  auto-selection above
 - **AND** a single available GPU is always returned directly without inspection
 
 ### Requirement: Navigation methods

@@ -305,6 +305,32 @@ def test_open_android_resolves_adb_url(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert recorded["calls"][0]["kwargs"]["remote_url"] == "adb://ABC123"
 
 
+def test_open_gpu_passed_to_daemon(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    recorded = _mock_daemon_capture(monkeypatch)
+    capture_file = tmp_path / "capture.rdc"
+    capture_file.touch()
+
+    result = CliRunner().invoke(main, ["open", str(capture_file), "--gpu", "1"])
+    assert result.exit_code == 0, result.output + (result.stderr or "")
+    assert recorded["calls"][0]["kwargs"]["gpu"] == "1"
+
+
+def test_open_gpu_ignored_with_connect(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _setup_data_dir(monkeypatch, tmp_path)
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr(
+        "rdc.commands.session.connect_session", lambda *a, **kw: (True, "connected")
+    )
+
+    result = CliRunner().invoke(
+        main, ["open", "--connect", "host:1234", "--token", "tok", "--gpu", "1"]
+    )
+    assert result.exit_code == 0, result.output + (result.stderr or "")
+    assert "--gpu is ignored with --connect" in (result.stderr or "") + result.output
+
+
 def test_open_android_with_serial(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
     monkeypatch.delenv("RDC_SESSION", raising=False)
