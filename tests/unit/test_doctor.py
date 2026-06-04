@@ -650,6 +650,32 @@ class TestImportRenderdocDiagnostics:
         assert crash_path in result.detail
         assert "rebuild" in result.detail.lower() or "incompatible" in result.detail.lower()
 
+    def test_import_failed_shows_path_and_abi_hint(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """When a module exists but fails to import, name the path and ABI cause.
+
+        Regression: an ABI-mismatched module (built for another Python) used to
+        be reported as the generic "not found in search paths".
+        """
+        bad_path = str(tmp_path / "abi-mismatch")
+        monkeypatch.setattr(
+            "rdc.commands.doctor.find_renderdoc",
+            lambda: None,
+        )
+        monkeypatch.setattr(
+            "rdc.commands.doctor._get_diagnostic",
+            lambda: ProbeOutcome(ProbeResult.IMPORT_FAILED, bad_path),
+        )
+
+        _, result = _import_renderdoc()
+
+        assert result.ok is False
+        assert bad_path in result.detail
+        assert "import" in result.detail.lower()
+        assert "python" in result.detail.lower()
+        assert "not found" not in result.detail.lower()
+
     def test_no_diagnostic_shows_not_found(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When no diagnostic available, show generic not found message."""
         monkeypatch.setattr(
