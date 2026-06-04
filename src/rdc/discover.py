@@ -56,6 +56,16 @@ def _is_arm_studio_dir(directory: str) -> bool:
     return any("arm-performance-studio" in p.lower() for p in parts)
 
 
+def _has_renderdoc_module(directory: str) -> bool:
+    """Return True if *directory* holds an importable renderdoc module artifact."""
+    d = Path(directory)
+    return (
+        (d / "renderdoc.py").is_file()
+        or bool(list(d.glob("renderdoc*.so")))
+        or bool(list(d.glob("renderdoc*.pyd")))
+    )
+
+
 def _preload_librenderdoc(directory: str) -> None:
     """Preload librenderdoc.so with RTLD_GLOBAL for ARM PS patched module.
 
@@ -173,6 +183,10 @@ def find_renderdoc() -> ModuleType | None:
             crash_prone_candidates.append(outcome.candidate_path)
             _diagnostic = outcome
         elif outcome.result == ProbeResult.TIMEOUT:
+            _diagnostic = outcome
+        elif outcome.result == ProbeResult.IMPORT_FAILED and _has_renderdoc_module(path):
+            # A module file is present but won't load (e.g. built for another
+            # Python); keep it so the caller can tell this from "not found".
             _diagnostic = outcome
 
     if crash_prone_candidates:
