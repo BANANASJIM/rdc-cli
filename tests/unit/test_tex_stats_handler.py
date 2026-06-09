@@ -423,6 +423,23 @@ def test_rt_depth_remote_decodes_grayscale(tmp_path: object) -> None:
     assert abs(img.getpixel((1, 0)) - 64) <= 2
 
 
+def test_rt_depth_remote_d16_decodes_grayscale(tmp_path: object) -> None:
+    # compType 8 = Depth; D16 is uint16, not float16
+    fmt = rd.ResourceFormat(name="D16", compByteWidth=2, compCount=1, compType=8)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(306), width=2, height=2, format=fmt)
+    raw = struct.pack("<4H", 0, 16384, 49152, 65535)  # uint16 depths
+    depth = rd.Descriptor(resource=rd.ResourceId(306))
+    state = _remote_state(tex, raw, tmp_path, depth_target=depth)
+    resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (2, 2)
+    assert img.mode == "L"
+    assert img.getpixel((0, 0)) == 0
+    assert img.getpixel((1, 1)) == 255
+    # depth=16384 over [0,65535] -> 16384/65535*255 = 63.75 -> 64
+    assert abs(img.getpixel((1, 0)) - 64) <= 2
+
+
 def test_rt_overlay_remote_still_rejected() -> None:
     state = make_daemon_state(is_remote=True, rd=rd)
     resp, _ = _handle_request(rpc_request("rt_overlay", {"overlay": "wireframe"}), state)

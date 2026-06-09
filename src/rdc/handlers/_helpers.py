@@ -298,9 +298,10 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
         return None
 
     ct = int(fmt.compType)
-    _float_ctypes = {int(rd.CompType.Float), int(rd.CompType.Depth)}
-    if ct in _float_ctypes:
+    if ct == int(rd.CompType.Float):
         dtype = np.dtype(np.float32 if cbw == 4 else np.float16)
+    elif ct == int(rd.CompType.Depth):
+        dtype = np.dtype(np.float32 if cbw == 4 else np.uint16)
     elif cbw == 1:
         dtype = np.dtype(np.uint8)
     elif cbw == 2:
