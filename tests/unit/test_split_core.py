@@ -913,10 +913,12 @@ class TestListenOpenSessionService:
     def test_listen_daemon_fail(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         _setup_no_replay(monkeypatch, tmp_path)
         monkeypatch.setattr(session_service, "load_session", lambda: None)
+        stderr_path = tmp_path / "daemon.stderr"
+        stderr_path.write_text("bind failed")
         mock_proc = MagicMock()
         mock_proc.pid = 999
         mock_proc.kill.return_value = None
-        mock_proc.communicate.return_value = ("", "bind failed")
+        mock_proc._rdc_stderr_path = str(stderr_path)
         monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
         monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (False, "timeout"))
 
