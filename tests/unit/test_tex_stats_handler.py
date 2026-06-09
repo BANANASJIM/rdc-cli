@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import io
+import struct
+
 import mock_renderdoc as rd
+import numpy as np
 from conftest import make_daemon_state, rpc_request
+from PIL import Image
 
 from rdc.daemon_server import DaemonState, _handle_request
 
@@ -291,26 +296,168 @@ def test_tex_stats_histogram_channel_length_mismatch() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Remote mode rejection
+# Remote-mode export via GetTextureData decode (#236)
 # ---------------------------------------------------------------------------
 
 
-def test_tex_export_remote_rejected() -> None:
-    state = make_daemon_state(is_remote=True, rd=rd)
-    resp, _ = _handle_request(rpc_request("tex_export", {"id": 1}), state)
+def _remote_state(
+    tex: rd.TextureDescription,
+    raw: bytes,
+    tmp_path: object,
+    *,
+    output_targets: list[rd.Descriptor] | None = None,
+    depth_target: rd.Descriptor | None = None,
+) -> DaemonState:
+    ctrl = rd.MockReplayController()
+    ctrl._textures = [tex]
+    ctrl._texture_data[int(tex.resourceId)] = raw
+    if output_targets is not None or depth_target is not None:
+        ctrl._pipe_state = rd.MockPipeState(
+            output_targets=output_targets, depth_target=depth_target
+        )
+    return make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tmp_path=tmp_path,
+        tex_map={int(tex.resourceId): tex},
+        is_remote=True,
+    )
+
+
+def _read_png(path: str) -> Image.Image:
+    with open(path, "rb") as fh:
+        data = fh.read()
+    assert data[:4] == b"\x89PNG"
+    return Image.open(io.BytesIO(data))
+
+
+def test_tex_export_remote_rgba8(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(96), width=4, height=2, format=fmt)
+    raw = bytes(range(4 * 2 * 4))
+    state = _remote_state(tex, raw, tmp_path)
+    resp, running = _handle_request(rpc_request("tex_export", {"id": 96}), state)
+    assert running
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (4, 2)
+    assert img.mode == "RGBA"
+    assert resp["result"]["size"] > 0
+
+
+def test_tex_export_remote_bgra_swaps_channels(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="B8G8R8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(96), width=1, height=1, format=fmt)
+    raw = bytes([10, 20, 30, 40])  # B,G,R,A
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 96}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (30, 20, 10, 40)
+
+
+def test_tex_export_remote_r8_grayscale(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8_UNORM", compByteWidth=1, compCount=1, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(7), width=2, height=2, format=fmt)
+    raw = bytes([10, 20, 30, 40])
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 7}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (2, 2)
+    assert img.getpixel((0, 0))[:3] == (10, 10, 10)
+
+
+def test_tex_export_remote_float16_hdr(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R16G16B16A16_FLOAT", compByteWidth=2, compCount=4, compType=1)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(8), width=1, height=1, format=fmt)
+    raw = np.array([2.0, 0.5, 0.0, 1.0], dtype=np.float16).tobytes()
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 8}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 255  # clipped + sRGB encode of 1.0
+    assert px[3] == 255
+
+
+def test_tex_export_remote_length_mismatch_errors(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(96), width=4, height=4, format=fmt)
+    state = _remote_state(tex, b"\x00\x01\x02\x03", tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 96}), state)
     assert resp["error"]["code"] == -32002
-    assert "not supported in remote mode" in resp["error"]["message"]
 
 
-def test_rt_export_remote_rejected() -> None:
-    state = make_daemon_state(is_remote=True, rd=rd)
-    resp, _ = _handle_request(rpc_request("rt_export", {}), state)
+def test_tex_export_remote_special_format_rejected(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="BC1_UNORM", compByteWidth=0, compCount=4, compType=2, type=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(96), width=4, height=4, format=fmt)
+    state = _remote_state(tex, b"\x00" * 8, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 96}), state)
     assert resp["error"]["code"] == -32002
-    assert "not supported in remote mode" in resp["error"]["message"]
+    assert "not supported" in resp["error"]["message"]
 
 
-def test_rt_depth_remote_rejected() -> None:
+def test_rt_export_remote_decodes_png(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="B8G8R8A8_SRGB", compByteWidth=1, compCount=4, compType=9)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(96), width=2, height=2, format=fmt)
+    raw = bytes(range(2 * 2 * 4))
+    targets = [rd.Descriptor(resource=rd.ResourceId(96))]
+    state = _remote_state(tex, raw, tmp_path, output_targets=targets)
+    resp, _ = _handle_request(rpc_request("rt_export", {"eid": 100}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (2, 2)
+    assert img.mode == "RGBA"
+
+
+def test_rt_depth_remote_decodes_grayscale(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="D32_FLOAT", compByteWidth=4, compCount=1, compType=8)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(305), width=2, height=2, format=fmt)
+    raw = struct.pack("<4f", 0.0, 0.25, 0.75, 1.0)
+    depth = rd.Descriptor(resource=rd.ResourceId(305))
+    state = _remote_state(tex, raw, tmp_path, depth_target=depth)
+    resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (2, 2)
+    assert img.mode == "L"
+    # Auto-contrast: min depth -> 0, max depth -> 255
+    assert img.getpixel((0, 0)) == 0
+    assert img.getpixel((1, 1)) == 255
+
+
+def test_rt_overlay_remote_still_rejected() -> None:
     state = make_daemon_state(is_remote=True, rd=rd)
-    resp, _ = _handle_request(rpc_request("rt_depth", {}), state)
+    resp, _ = _handle_request(rpc_request("rt_overlay", {"overlay": "wireframe"}), state)
     assert resp["error"]["code"] == -32002
-    assert "not supported in remote mode" in resp["error"]["message"]
+    assert "remote mode" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# Local mode still routes through SaveTexture (regression)
+# ---------------------------------------------------------------------------
+
+
+def test_tex_export_local_uses_savetexture(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(42), width=4, height=4, format=fmt)
+    ctrl = rd.MockReplayController()
+    ctrl._textures = [tex]
+    ctrl._actions = [
+        rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
+    ]
+    save_calls: list[str] = []
+    orig_save = ctrl.SaveTexture
+
+    def _spy(texsave: object, path: str) -> bool:
+        save_calls.append(path)
+        return orig_save(texsave, path)
+
+    ctrl.SaveTexture = _spy  # type: ignore[method-assign]
+    state = make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tmp_path=tmp_path,
+        tex_map={42: tex},
+        is_remote=False,
+    )
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 42}), state)
+    assert "result" in resp
+    assert len(save_calls) == 1

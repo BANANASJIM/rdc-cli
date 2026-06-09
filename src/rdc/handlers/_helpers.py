@@ -254,6 +254,100 @@ def _make_subresource(rd: Any, mip: int = 0) -> Any:
     return sub
 
 
+def _srgb_encode(linear: Any) -> Any:
+    """Apply the sRGB OETF to a clipped [0, 1] float array."""
+    import numpy as np
+
+    lo = linear <= 0.0031308
+    return np.where(lo, linear * 12.92, 1.055 * np.power(linear, 1.0 / 2.4) - 0.055)
+
+
+def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bool) -> bytes | None:
+    """Decode tightly packed GetTextureData bytes into PNG bytes.
+
+    Only ``ResourceFormatType.Regular`` formats are handled; returns ``None`` for
+    block-compressed / packed / MSAA formats and on a length mismatch so callers
+    can emit a clear error. Depth targets are contrast-stretched to grayscale.
+
+    Args:
+        rd: The renderdoc module.
+        tex: TextureDescription for the resource.
+        raw: Tightly packed pixel bytes for one subresource (top-down).
+        mip: Mip level the bytes correspond to.
+        is_depth: Whether to render the data as a single grayscale depth channel.
+
+    Returns:
+        PNG-encoded bytes, or ``None`` if the format cannot be decoded.
+    """
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    fmt = tex.format
+    if fmt.type != rd.ResourceFormatType.Regular:
+        return None
+    if getattr(tex, "msSamp", 1) > 1:
+        return None
+
+    width = max(1, tex.width >> mip)
+    height = max(1, tex.height >> mip)
+    cc = fmt.compCount
+    cbw = fmt.compByteWidth
+    if len(raw) != width * height * cc * cbw:
+        return None
+
+    ct = int(fmt.compType)
+    dtype_map = {1: np.float32, 2: np.float16}
+    if ct == int(rd.CompType.Float):
+        dtype = np.dtype(dtype_map.get(cbw, np.float32))
+    elif cbw == 1:
+        dtype = np.dtype(np.uint8)
+    elif cbw == 2:
+        dtype = np.dtype(np.uint16)
+    else:
+        dtype = np.dtype(np.uint32)
+
+    arr = np.frombuffer(raw, dtype=dtype).reshape((height, width, cc))
+
+    if is_depth:
+        d = arr[:, :, 0].astype(np.float32)
+        d_min, d_max = float(d.min()), float(d.max())
+        norm = (d - d_min) / (d_max - d_min) if d_max > d_min else np.zeros_like(d)
+        gray = (norm * 255.0).round().astype(np.uint8)
+        buf = io.BytesIO()
+        Image.fromarray(gray, mode="L").save(buf, format="PNG")
+        return buf.getvalue()
+
+    if ct == int(rd.CompType.Float):
+        f = np.clip(arr.astype(np.float32), 0.0, 1.0)
+        rgba8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
+    elif dtype == np.uint16:
+        rgba8 = (arr / 257.0).round().astype(np.uint8)
+    else:
+        rgba8 = arr.astype(np.uint8)
+
+    if fmt.BGRAOrder() and cc >= 3:
+        rgba8 = rgba8[:, :, [2, 1, 0] + list(range(3, cc))]
+
+    if cc == 1:
+        rgb = np.repeat(rgba8, 3, axis=2)
+        out = np.dstack([rgb, np.full((height, width, 1), 255, np.uint8)])
+    elif cc == 2:
+        zero = np.zeros((height, width, 1), np.uint8)
+        alpha = np.full((height, width, 1), 255, np.uint8)
+        out = np.concatenate([rgba8, zero, alpha], axis=2)
+    elif cc == 3:
+        alpha = np.full((height, width, 1), 255, np.uint8)
+        out = np.concatenate([rgba8, alpha], axis=2)
+    else:
+        out = rgba8
+
+    buf = io.BytesIO()
+    Image.fromarray(out, mode="RGBA").save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def require_pipe(params: dict[str, Any], state: DaemonState, request_id: int) -> tuple[int, Any]:
     """Validate adapter, set eid, return pipe_state.
 
