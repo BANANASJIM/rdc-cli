@@ -3,7 +3,8 @@
 ## Scope
 
 ### In scope
-- `_decode_texture_to_png` helper: format coverage, channel fixups, length guard
+- `_decode_dtype` table + `_decode_texture_png` helper: format coverage, channel fixups,
+  signed remap, length guard, empty-data guard
 - `tex_export` in remote mode: PNG written locally
 - `rt_export` in remote mode: PNG written locally
 - `rt_depth` in remote mode: grayscale PNG written locally
@@ -13,7 +14,7 @@
 
 ### Out of scope
 - `rt_overlay` correctness (guard is unchanged)
-- Block-compressed / packed formats (v1 returns -32002; one negative test covers the class)
+- Block-compressed / packed formats (returns -32002; negative tests cover the class)
 - MSAA textures (guarded; one negative test)
 - Live GPU proxy (manual only; see below)
 
@@ -21,102 +22,81 @@
 
 | Layer | Type | File |
 |-------|------|------|
-| Unit | `_decode_texture_to_png` + export handlers (mock) | `tests/unit/test_tex_stats_handler.py` (extend) |
-| Unit | mock infrastructure | `tests/mocks/mock_renderdoc.py` (extend) |
+| Unit | `_decode_texture_png` + export handlers (mock) | `tests/unit/test_tex_stats_handler.py` |
+| Unit | mock infrastructure | `tests/mocks/mock_renderdoc.py` |
 
 ## Mock infrastructure (prerequisite)
 
-Extend `tests/mocks/mock_renderdoc.py` before writing handler tests:
+`tests/mocks/mock_renderdoc.py` provides, for the remote-decode tests:
 
-- Add `ResourceFormatType` as an `IntEnum`:
-  `Regular=0, R10G10B10A2=12, R11G11B10=13, R5G6B5=14, R9G9B9E5=16, D16S8=19, D24S8=20, D32S8=21, S8=22, A8=28`.
-- Ensure `ResourceFormat` defaults: `type=0` (Regular), `compType=2` (UNorm), `compByteWidth=1`,
-  `compCount=4`, `BGRAOrder()` returns `False`, `SRGBCorrected()` returns `False`.
-- `MockReplayController._texture_data[rid]` must be pre-populated by each test with bytes of
-  length `h * w * compCount * compByteWidth`; `GetTextureData(rid, sub)` returns it.
+- `ResourceFormat(name, compByteWidth, compCount, compType, type=...)` with `BGRAOrder()`
+  and `Name()`; `type` defaults to Regular and is set non-Regular for packed/block tests.
+- `MockReplayController._texture_data[rid]` pre-populated by each test with the raw bytes;
+  `GetTextureData(rid, sub)` returns it (and can return `b""` to exercise the empty guard).
+- `MockPipeState(output_targets=..., depth_target=...)` and `Descriptor(resource=...)` for
+  the `rt_export` / `rt_depth` paths.
 
 ## Unit test cases
 
-All cases: `is_remote=True`, controller has no GPU, no `SaveTexture` called.
+All remote cases run with `is_remote=True`; no real GPU, no `SaveTexture` call.
+Test names are the actual functions present in `tests/unit/test_tex_stats_handler.py`.
 
-### Format coverage (`tex_export` or helper, one test per format class)
+### Color decode — accepted formats
 
-1. **RGBA8_UNORM** (`compType=UNorm=2, compByteWidth=1, compCount=4, BGRAOrder=False`):
-   supply `h*w*4` bytes of known pattern; assert output PNG is valid (`magic == b'\x89PNG'`),
-   pixel at (0,0) matches expected RGBA value.
+1. `test_tex_export_remote_rgba8` — R8G8B8A8_UNORM 4x2: valid PNG, size (4,2), mode RGBA.
+2. `test_tex_export_remote_bgra_swaps_channels` — B8G8R8A8_UNORM 1x1: input B,G,R,A bytes
+   decode to RGBA pixel with R/B swapped.
+3. `test_tex_export_remote_r8_grayscale` — R8_UNORM 2x2 (cc=1): single channel repeated to
+   RGB (pixel `(10,10,10)`), output is RGBA.
+4. `test_tex_export_remote_float16_hdr` — R16G16B16A16_FLOAT 1x1: value 2.0 clipped + sRGB
+   encoded to 255; alpha 255.
+5. `test_tex_export_remote_r16_unorm_scales_by_257` — R16_UNORM: 65535/257=255, 32896/257=128.
+6. `test_tex_export_remote_rgba32f_hdr_clip` — R32G32B32A32_FLOAT 1x1: 5.0 clipped to 1.0 ->
+   sRGB -> 255; 0.0 -> 0; alpha 255.
+7. `test_tex_export_remote_snorm_remaps_signed` — R8G8B8A8_SNORM read as int8: -1->0,
+   0->~128, +1->255.
+8. `test_tex_export_remote_uint8_passthrough` — R8G8B8A8_UINT 1x1: bytes pass through to RGBA.
 
-2. **BGRA8_UNORM** (`BGRAOrder=True, compCount=4`): supply bytes with B,G,R,A channel
-   pattern; assert output PNG pixel has R and B swapped vs input bytes.
+### Color decode — rejected formats (→ -32002)
 
-3. **BGRA8_SRGB** (`compType=UNormSRGB=9, BGRAOrder=True`): assert sRGB bytes pass through
-   unchanged (no double-gamma), output PNG pixel matches direct uint8 reorder.
-
-4. **R8_UNORM** (`compCount=1`): supply `h*w` bytes; assert output PNG is mode `L` or has
-   repeated grayscale channels.
-
-5. **R8G8_UNORM** (`compCount=2`): supply `h*w*2` bytes; assert output PNG has zero B channel
-   and A=255.
-
-6. **R16G16B16A16_UNORM** (`compByteWidth=2, compType=UNorm=2`): supply `h*w*8` uint16 little-
-   endian bytes (max value 65535); assert PNG pixel channels are `round(65535/257)` = 255.
-
-7. **R16G16B16A16_FLOAT** (`compByteWidth=2, compType=Float=1`): supply `h*w*8` bytes encoding
-   known float16 values in `[0, 1]`; assert output PNG pixel is within ±2 of expected sRGB-
-   encoded value.
-
-8. **R32G32B32A32_FLOAT** (`compByteWidth=4, compType=Float=1`): supply `h*w*16` bytes
-   encoding float32 `[0.0, 1.0, 0.5, 1.0]` per pixel; assert PNG pixel matches sRGB OETF
-   applied to those values.
-
-9. **D32_FLOAT depth** (`compCount=1, compByteWidth=4, compType=Depth=8 or Float=1`):
-   supply `h*w*4` float32 bytes spanning a known `[d_min, d_max]` range; assert PNG mode `L`,
-   pixel at minimum depth is 0, pixel at maximum depth is 255.
-
-10. **Non-Regular format rejected**: set `tex.format.type = ResourceFormatType.D24S8 (=20)`;
-    assert response is a JSON-RPC error with code `-32002` and message containing
-    `"not supported for remote decode"`.
-
-11. **Length mismatch guard**: supply raw bytes of length `h*w*4 - 1` (one byte short);
-    assert response is a JSON-RPC error (not a crash / `ValueError`).
-
-12. **MSAA rejected**: set `tex.msSamp = 2`; assert JSON-RPC error (mirror `tex_stats` guard).
+9. `test_tex_export_remote_length_mismatch_errors` — 4x4 RGBA8 with 4 bytes only -> -32002.
+10. `test_tex_export_remote_special_format_rejected` — BC1_UNORM (non-Regular) ->
+    "not supported".
+11. `test_tex_export_remote_sint_rejected` — R8G8B8A8_SINT (no display mapping) ->
+    "not supported".
+12. `test_tex_export_remote_typeless_rejected` — R8G8B8A8_TYPELESS -> -32002.
+13. `test_tex_export_remote_uscaled_rejected` — R8G8B8A8_USCALED -> -32002.
+14. `test_tex_export_remote_packed_format_rejected` — R11G11B10_FLOAT (packed, non-Regular)
+    -> "not supported".
+15. `test_tex_export_remote_msaa_rejected` — RGBA8_UNORM with `msSamp=4` -> -32002.
+16. `test_tex_export_remote_no_data_rejected` — `GetTextureData` returns `b""` ->
+    "no texture data", no `len(None)` crash.
 
 ### `rt_export` remote mode
 
-13. Configure `MockPipeState` with an `output_targets` list containing a `Descriptor` whose
-    `resource` maps to a `TextureDescription` (RGBA8_UNORM, 4×4) in `state.tex_map`; set
-    `ctrl._texture_data[id]` accordingly.  Call `rpc_request('rt_export', {})`.  Assert
-    `resp['result']['path']` points to a file whose first 4 bytes are `b'\x89PNG'`.
-
-14. **rt_export target not in tex_map**: supply a `Descriptor.resource` id not present in
-    `state.tex_map`; assert JSON-RPC error, no file created.
+17. `test_rt_export_remote_decodes_png` — `MockPipeState` output target -> B8G8R8A8_SRGB 2x2
+    `TextureDescription` in `tex_map`; result path is a valid PNG, mode RGBA.
 
 ### `rt_depth` remote mode
 
-15. Configure `MockPipeState` with a `depth_target` Descriptor mapping to a D32_FLOAT
-    `TextureDescription` (4×4) in `state.tex_map`; supply `ctrl._texture_data[id]` as float32
-    bytes. Assert response has a `path` pointing to a valid PNG file.
+18. `test_rt_depth_remote_decodes_grayscale` — D32_FLOAT 2x2 depth target: mode `L`, min
+    depth -> 0, max depth -> 255, mid depth ~64.
+19. `test_rt_depth_remote_d16_decodes_grayscale` — D16 (uint16 depth, compType=Depth) 2x2:
+    mode `L`, 0 -> 0, 65535 -> 255, 16384 -> ~64.
 
-### Regression: local mode unchanged
+### Regression: local mode + rt_overlay
 
-16. Set `is_remote=False`; call `rpc_request('tex_export', {'id': id})` with a standard
-    mock setup.  Assert `controller.SaveTexture` was called (not `GetTextureData`).  Assert
-    no `_decode_texture_to_png` call.
-
-17. Same for `rt_export` and `rt_depth` with `is_remote=False`.
-
-### Regression: `rt_overlay` still blocked in remote mode
-
-18. Set `is_remote=True`; call `rpc_request('rt_overlay', {'overlay': 'wireframe'})`.
-    Assert JSON-RPC error with code indicating remote overlay is unsupported.
+20. `test_rt_overlay_remote_still_rejected` — `rt_overlay` remote -> -32002, "remote mode".
+21. `test_tex_export_local_uses_savetexture` — `is_remote=False`: `SaveTexture` is called
+    exactly once (local path unchanged, not routed through the decode helper).
 
 ## Manual / GPU proxy check
 
 The following cannot run in CI (requires a live remote daemon + real GPU):
 
 - Connect client to a remote daemon replaying a vkcube capture; call `tex_export` on a
-  known color target (e.g. resource id=96); verify the local PNG opens correctly and matches
-  the texture as displayed in RenderDoc GUI.
+  known color target; verify the local PNG opens correctly and matches the texture as
+  displayed in the RenderDoc GUI.
 - Same for `rt_export` and `rt_depth`.
 - Verify a BC7-compressed texture returns `-32002` (not a garbled PNG).
 
