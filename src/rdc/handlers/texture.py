@@ -77,6 +77,8 @@ def _export_remote(
     controller = state.adapter.controller  # type: ignore[union-attr]
     sub = _make_subresource(state.rd, mip)
     raw = controller.GetTextureData(resource_id, sub)
+    if not raw:
+        return _error_response(request_id, -32002, "no texture data returned"), True
     png = _decode_texture_png(state.rd, tex, raw, mip, is_depth=is_depth)
     if png is None:
         fmt_name = tex.format.Name() if hasattr(tex.format, "Name") else ""

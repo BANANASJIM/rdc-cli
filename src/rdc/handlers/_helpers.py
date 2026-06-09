@@ -262,12 +262,41 @@ def _srgb_encode(linear: Any) -> Any:
     return np.where(lo, linear * 12.92, 1.055 * np.power(linear, 1.0 / 2.4) - 0.055)
 
 
+def _decode_dtype(rd: Any, comp_type: int, comp_byte_width: int) -> str | None:
+    """numpy dtype name for a (CompType, compByteWidth) pair, or None to reject.
+
+    Pairs absent from this map have no unambiguous 8-bit display mapping
+    (Typeless, SInt, UScaled, SScaled, exotic widths) and are rejected rather
+    than guessed. Float covers half/single; packed floats (R11G11B10, R9G9B9E5)
+    are non-Regular and never reach here.
+    """
+    ct = rd.CompType
+    table: dict[tuple[int, int], str] = {
+        (int(ct.Float), 2): "float16",
+        (int(ct.Float), 4): "float32",
+        (int(ct.UNorm), 1): "uint8",
+        (int(ct.UNorm), 2): "uint16",
+        (int(ct.UNormSRGB), 1): "uint8",
+        (int(ct.SNorm), 1): "int8",
+        (int(ct.SNorm), 2): "int16",
+        (int(ct.UInt), 1): "uint8",
+        (int(ct.UInt), 2): "uint16",
+        (int(ct.Depth), 1): "uint8",
+        (int(ct.Depth), 2): "uint16",
+        (int(ct.Depth), 4): "float32",
+    }
+    return table.get((comp_type, comp_byte_width))
+
+
 def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bool) -> bytes | None:
     """Decode tightly packed GetTextureData bytes into PNG bytes.
 
-    Only ``ResourceFormatType.Regular`` formats are handled; returns ``None`` for
-    block-compressed / packed / MSAA formats and on a length mismatch so callers
-    can emit a clear error. Depth targets are contrast-stretched to grayscale.
+    Handles the full ``ResourceFormatType.Regular`` space deliberately: every
+    (CompType, compByteWidth) pair we can display is mapped to a numpy dtype and
+    an explicit 8-bit conversion. Any pair not in the table (Typeless, SInt,
+    UScaled, SScaled, exotic widths), every non-Regular format (block-compressed,
+    packed, combined depth-stencil), MSAA, length mismatches, and empty data all
+    return ``None`` so the caller emits a clean error rather than a wrong image.
 
     Args:
         rd: The renderdoc module.
@@ -284,6 +313,9 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
     import numpy as np
     from PIL import Image
 
+    if not raw:
+        return None
+
     fmt = tex.format
     if fmt.type != rd.ResourceFormatType.Regular:
         return None
@@ -294,22 +326,14 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
     height = max(1, tex.height >> mip)
     cc = fmt.compCount
     cbw = fmt.compByteWidth
-    if len(raw) != width * height * cc * cbw:
+    if cc <= 0 or len(raw) != width * height * cc * cbw:
         return None
 
     ct = int(fmt.compType)
-    if ct == int(rd.CompType.Float):
-        dtype = np.dtype(np.float32 if cbw == 4 else np.float16)
-    elif ct == int(rd.CompType.Depth):
-        dtype = np.dtype(np.float32 if cbw == 4 else np.uint16)
-    elif cbw == 1:
-        dtype = np.dtype(np.uint8)
-    elif cbw == 2:
-        dtype = np.dtype(np.uint16)
-    else:
-        dtype = np.dtype(np.uint32)
-
-    arr = np.frombuffer(raw, dtype=dtype).reshape((height, width, cc))
+    dtype_name = _decode_dtype(rd, ct, cbw)
+    if dtype_name is None:
+        return None
+    arr = np.frombuffer(raw, dtype=np.dtype(dtype_name)).reshape((height, width, cc))
 
     if is_depth:
         d = arr[:, :, 0].astype(np.float32)
@@ -323,10 +347,13 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
     if ct == int(rd.CompType.Float):
         f = np.clip(arr.astype(np.float32), 0.0, 1.0)
         rgba8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
-    elif dtype == np.uint16:
+    elif ct == int(rd.CompType.SNorm):
+        # [-1, 1] -> [0, 1]; divisor is the signed-int max for the width.
+        denom = float(np.iinfo(np.dtype(dtype_name)).max)
+        f = np.clip(arr.astype(np.float32) / denom, -1.0, 1.0) * 0.5 + 0.5
+        rgba8 = (f * 255.0).round().astype(np.uint8)
+    elif dtype_name == "uint16":
         rgba8 = (arr / 257.0).round().astype(np.uint8)
-    elif cbw == 4:
-        return None
     else:
         rgba8 = arr.astype(np.uint8)
 

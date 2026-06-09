@@ -440,6 +440,113 @@ def test_rt_depth_remote_d16_decodes_grayscale(tmp_path: object) -> None:
     assert abs(img.getpixel((1, 0)) - 64) <= 2
 
 
+def test_tex_export_remote_r16_unorm_scales_by_257(tmp_path: object) -> None:
+    # R16 UNorm: 16-bit -> 8-bit via /257. 65535/257 = 255, 32896/257 = 128.
+    fmt = rd.ResourceFormat(name="R16_UNORM", compByteWidth=2, compCount=1, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(50), width=2, height=1, format=fmt)
+    raw = struct.pack("<2H", 65535, 32896)
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 50}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0))[:3] == (255, 255, 255)
+    assert img.getpixel((1, 0))[:3] == (128, 128, 128)
+
+
+def test_tex_export_remote_rgba32f_hdr_clip(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R32G32B32A32_FLOAT", compByteWidth=4, compCount=4, compType=1)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(51), width=1, height=1, format=fmt)
+    raw = np.array([5.0, 0.0, 0.0, 1.0], dtype=np.float32).tobytes()
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 51}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 255  # clipped to 1.0 -> sRGB -> 255
+    assert px[1] == 0  # 0.0 -> 0
+    assert px[3] == 255
+
+
+def test_tex_export_remote_snorm_remaps_signed(tmp_path: object) -> None:
+    # SNorm normal map: -1 -> 0, 0 -> ~128, +1 -> 255. Read as int8, not uint8.
+    fmt = rd.ResourceFormat(name="R8G8B8A8_SNORM", compByteWidth=1, compCount=4, compType=3)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(52), width=1, height=1, format=fmt)
+    raw = struct.pack("<4b", -127, 0, 127, 127)  # R=-1, G=0, B=+1, A=+1
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 52}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 0  # -1 -> 0
+    assert abs(px[1] - 128) <= 1  # 0 -> ~128
+    assert px[2] == 255  # +1 -> 255
+
+
+def test_tex_export_remote_uint8_passthrough(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UINT", compByteWidth=1, compCount=4, compType=4)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(53), width=1, height=1, format=fmt)
+    raw = bytes([10, 20, 30, 40])
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 53}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (10, 20, 30, 40)
+
+
+def test_tex_export_remote_sint_rejected(tmp_path: object) -> None:
+    # SInt has no unambiguous display mapping -> clean reject.
+    fmt = rd.ResourceFormat(name="R8G8B8A8_SINT", compByteWidth=1, compCount=4, compType=5)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(54), width=1, height=1, format=fmt)
+    state = _remote_state(tex, bytes([1, 2, 3, 4]), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 54}), state)
+    assert resp["error"]["code"] == -32002
+    assert "not supported" in resp["error"]["message"]
+
+
+def test_tex_export_remote_typeless_rejected(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_TYPELESS", compByteWidth=1, compCount=4, compType=0)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(55), width=1, height=1, format=fmt)
+    state = _remote_state(tex, bytes([1, 2, 3, 4]), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 55}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_tex_export_remote_uscaled_rejected(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_USCALED", compByteWidth=1, compCount=4, compType=6)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(56), width=1, height=1, format=fmt)
+    state = _remote_state(tex, bytes([1, 2, 3, 4]), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 56}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_tex_export_remote_packed_format_rejected(tmp_path: object) -> None:
+    # R11G11B10 is a packed (non-Regular) format -> reject.
+    fmt = rd.ResourceFormat(
+        name="R11G11B10_FLOAT", compByteWidth=4, compCount=3, compType=1, type=13
+    )
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(57), width=1, height=1, format=fmt)
+    state = _remote_state(tex, bytes(4), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 57}), state)
+    assert resp["error"]["code"] == -32002
+    assert "not supported" in resp["error"]["message"]
+
+
+def test_tex_export_remote_msaa_rejected(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(58), width=1, height=1, format=fmt, msSamp=4
+    )
+    state = _remote_state(tex, bytes(4), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 58}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_tex_export_remote_no_data_rejected(tmp_path: object) -> None:
+    # GetTextureData returns empty -> clean -32002, no len(None) crash.
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(59), width=2, height=2, format=fmt)
+    state = _remote_state(tex, b"", tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 59}), state)
+    assert resp["error"]["code"] == -32002
+    assert "no texture data" in resp["error"]["message"]
+
+
 def test_rt_overlay_remote_still_rejected() -> None:
     state = make_daemon_state(is_remote=True, rd=rd)
     resp, _ = _handle_request(rpc_request("rt_overlay", {"overlay": "wireframe"}), state)
