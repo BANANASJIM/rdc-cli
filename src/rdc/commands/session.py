@@ -95,8 +95,9 @@ def _resolve_android_url(serial: str | None) -> str:
     port = _adb_forwarded_port(dev_serial)
     if port is not None:
         return f"localhost:{port}"
-    # Fallback to adb:// URL if no forward found
-    return f"adb://{dev_serial}"
+    raise click.UsageError(
+        f"adb forward not found for {dev_serial}; run: rdc android setup --serial {dev_serial}"
+    )
 
 
 def _complete_capture_path(

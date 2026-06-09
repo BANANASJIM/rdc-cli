@@ -204,29 +204,49 @@ def _setup_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return data
 
 
+def _forward(monkeypatch: pytest.MonkeyPatch, port: int | None) -> None:
+    """Stub adb-forward lookup to return *port* (or None)."""
+    monkeypatch.setattr("rdc.commands.session._adb_forwarded_port", lambda serial: port)
+
+
 def test_resolve_android_url_with_serial(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
+    _forward(monkeypatch, 27015)
     save_remote_state(RemoteServerState(host="adb://DEV1", port=0, connected_at=1000.0))
 
     result = _resolve_android_url(serial="DEV1")
-    assert result == "adb://DEV1"
+    assert result == "localhost:27015"
 
 
 def test_resolve_android_url_no_serial_uses_latest(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
+    _forward(monkeypatch, 27016)
     save_remote_state(RemoteServerState(host="adb://OLD", port=0, connected_at=500.0))
     save_remote_state(RemoteServerState(host="adb://NEW", port=0, connected_at=2000.0))
 
     result = _resolve_android_url(serial=None)
-    assert result == "adb://NEW"
+    assert result == "localhost:27016"
+
+
+def test_resolve_android_url_no_forward_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """No adb forward -> clean UsageError, never a crash-prone adb:// URL."""
+    _setup_data_dir(monkeypatch, tmp_path)
+    _forward(monkeypatch, None)
+    save_remote_state(RemoteServerState(host="adb://DEV1", port=0, connected_at=1000.0))
+
+    with pytest.raises(click.UsageError, match="adb forward not found for DEV1"):
+        _resolve_android_url(serial="DEV1")
 
 
 def test_resolve_android_url_serial_not_found(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
+    _forward(monkeypatch, 27017)
     save_remote_state(RemoteServerState(host="adb://AAA", port=0, connected_at=1000.0))
 
     with pytest.raises(click.UsageError, match="ZZZ"):
@@ -245,11 +265,12 @@ def test_resolve_android_url_ignores_non_adb(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
+    _forward(monkeypatch, 27018)
     save_remote_state(RemoteServerState(host="192.168.1.10", port=8888, connected_at=9999.0))
     save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
 
     result = _resolve_android_url(serial=None)
-    assert result == "adb://ABC123"
+    assert result == "localhost:27018"
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +315,7 @@ def _mock_daemon_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 def test_open_android_resolves_adb_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
     monkeypatch.delenv("RDC_SESSION", raising=False)
+    _forward(monkeypatch, 27015)
     save_remote_state(RemoteServerState(host="adb://ABC123", port=0, connected_at=1000.0))
     recorded = _mock_daemon_capture(monkeypatch)
     capture_file = tmp_path / "capture.rdc"
@@ -302,7 +324,7 @@ def test_open_android_resolves_adb_url(monkeypatch: pytest.MonkeyPatch, tmp_path
     result = CliRunner().invoke(main, ["open", str(capture_file), "--android"])
     assert result.exit_code == 0, result.output + (result.stderr or "")
     assert len(recorded["calls"]) == 1
-    assert recorded["calls"][0]["kwargs"]["remote_url"] == "adb://ABC123"
+    assert recorded["calls"][0]["kwargs"]["remote_url"] == "localhost:27015"
 
 
 def test_open_gpu_passed_to_daemon(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -334,6 +356,7 @@ def test_open_gpu_ignored_with_connect(monkeypatch: pytest.MonkeyPatch, tmp_path
 def test_open_android_with_serial(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _setup_data_dir(monkeypatch, tmp_path)
     monkeypatch.delenv("RDC_SESSION", raising=False)
+    _forward(monkeypatch, 27019)
     save_remote_state(RemoteServerState(host="adb://AAA", port=0, connected_at=2000.0))
     save_remote_state(RemoteServerState(host="adb://BBB", port=0, connected_at=1000.0))
     recorded = _mock_daemon_capture(monkeypatch)
@@ -342,7 +365,7 @@ def test_open_android_with_serial(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
 
     result = CliRunner().invoke(main, ["open", str(capture_file), "--android", "--serial", "BBB"])
     assert result.exit_code == 0, result.output + (result.stderr or "")
-    assert recorded["calls"][0]["kwargs"]["remote_url"] == "adb://BBB"
+    assert recorded["calls"][0]["kwargs"]["remote_url"] == "localhost:27019"
 
 
 def test_open_android_no_state_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
