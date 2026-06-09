@@ -220,6 +220,83 @@ class TestSnapshotPartialFailures:
         assert len(color_files) == 3
 
 
+class TestSnapshotRemoteSkips:
+    """#8/#9: a -32002 decode failure must skip-and-warn, not silently truncate."""
+
+    def _send_request_with_codes(
+        self, tmp_path: Path, *, color_error_code: int, depth_error_code: int
+    ) -> Any:
+        color0 = _make_temp_png(tmp_path, "tmp_color0.png")
+
+        def fake_send_request(
+            host: str, port: int, payload: dict[str, Any], **_kw: Any
+        ) -> dict[str, Any]:
+            method = payload["method"]
+            params = payload.get("params", {})
+            if method == "shader_all":
+                return {"jsonrpc": "2.0", "id": 1, "result": {"eid": 142, "stages": []}}
+            if method == "rt_export":
+                idx = params.get("target", 0)
+                if idx == 0:
+                    return {"jsonrpc": "2.0", "id": 1, "result": {"path": color0, "size": 1}}
+                if idx == 1:
+                    # Unsupported format on target 1 -> -32002.
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "error": {"code": color_error_code, "message": "not supported"},
+                    }
+                # Target 2+ absent -> -32001 stop.
+                return {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "error": {"code": -32001, "message": "out of range"},
+                }
+            if method == "rt_depth":
+                return {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "error": {"code": depth_error_code, "message": "unsupported depth"},
+                }
+            return {"jsonrpc": "2.0", "id": 1, "result": {}}
+
+        return fake_send_request
+
+    def test_color_decode_failure_skips_and_continues(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "snap"
+        mock_sr = self._send_request_with_codes(
+            tmp_path, color_error_code=-32002, depth_error_code=-32001
+        )
+        with (
+            patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
+        ):
+            result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
+
+        assert result.exit_code == 0
+        # color0 written, color1 skipped (decode), loop reached color2 (absent) and stopped.
+        assert (out_dir / "color0.png").exists()
+        assert not (out_dir / "color1.png").exists()
+        assert "skipped color1" in result.output
+
+    def test_depth_decode_failure_warns(self, tmp_path: Path) -> None:
+        out_dir = tmp_path / "snap"
+        mock_sr = self._send_request_with_codes(
+            tmp_path, color_error_code=-32001, depth_error_code=-32002
+        )
+        with (
+            patch.object(snap_mod, "call", return_value=_PIPELINE_RESPONSE),
+            patch.object(helpers_mod, "require_session", return_value=_SESSION),
+            patch.object(helpers_mod, "send_request", side_effect=mock_sr),
+        ):
+            result = CliRunner().invoke(main, ["snapshot", "142", "-o", str(out_dir)])
+
+        assert result.exit_code == 0
+        assert not (out_dir / "depth.png").exists()
+        assert "skipped depth" in result.output
+
+
 class TestSnapshotFatalFailures:
     def test_pipeline_fails(self, tmp_path: Path) -> None:
         out_dir = tmp_path / "snap"

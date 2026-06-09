@@ -547,6 +547,89 @@ def test_tex_export_remote_no_data_rejected(tmp_path: object) -> None:
     assert "no texture data" in resp["error"]["message"]
 
 
+def test_tex_export_remote_3d_tiles_depth_slices(tmp_path: object) -> None:
+    # 3D RGBA8 depth=2: GetTextureData returns the whole w*h*depth mip.
+    # Slices are tiled vertically into one (depth*height, width) image.
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(70), width=2, height=2, depth=2, format=fmt
+    )
+    raw = bytes(range(2 * 2 * 2 * 4))  # depth*height*width*cc
+    state = _remote_state(tex, raw, tmp_path)
+    resp, running = _handle_request(rpc_request("tex_export", {"id": 70}), state)
+    assert running
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (2, 4)  # width=2, height=depth*height=4
+    assert img.mode == "RGBA"
+    # First pixel of slice 0 and first pixel of slice 1 differ.
+    assert img.getpixel((0, 0)) == (0, 1, 2, 3)
+    assert img.getpixel((0, 2)) == (16, 17, 18, 19)
+
+
+def test_tex_export_remote_float_nan_renders_black(tmp_path: object, recwarn: object) -> None:
+    # NaN in a float HDR channel must render as 0 with no numpy RuntimeWarning.
+    fmt = rd.ResourceFormat(name="R16G16B16A16_FLOAT", compByteWidth=2, compCount=4, compType=1)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(71), width=1, height=1, format=fmt)
+    raw = np.array([np.nan, 0.5, 0.0, 1.0], dtype=np.float16).tobytes()
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 71}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 0  # NaN -> 0
+    assert px[3] == 255
+    assert not any(issubclass(w.category, RuntimeWarning) for w in recwarn)  # type: ignore[attr-defined]
+
+
+def test_tex_export_remote_rg8_two_channel(tmp_path: object) -> None:
+    # cc=2 R8G8_UNORM: B forced to 0, alpha forced to 255.
+    fmt = rd.ResourceFormat(name="R8G8_UNORM", compByteWidth=1, compCount=2, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(72), width=1, height=1, format=fmt)
+    raw = bytes([90, 160])
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 72}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (90, 160, 0, 255)
+
+
+def test_tex_export_remote_rgb8_three_channel_appends_alpha(tmp_path: object) -> None:
+    # cc=3 R8G8B8_UNORM: opaque alpha appended.
+    fmt = rd.ResourceFormat(name="R8G8B8_UNORM", compByteWidth=1, compCount=3, compType=2)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(73), width=1, height=1, format=fmt)
+    raw = bytes([11, 22, 33])
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 73}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (11, 22, 33, 255)
+
+
+def test_tex_export_remote_snorm16_remaps_signed(tmp_path: object) -> None:
+    # cc=2 R16G16_SNORM: -32767 -> 0, 0 -> ~128, +32767 -> 255.
+    fmt = rd.ResourceFormat(name="R16G16_SNORM", compByteWidth=2, compCount=2, compType=3)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(74), width=1, height=1, format=fmt)
+    raw = struct.pack("<2h", -32767, 0)
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 74}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 0  # -1 -> 0
+    assert abs(px[1] - 128) <= 1  # 0 -> ~128
+    assert px[2] == 0  # B forced to 0
+    assert px[3] == 255
+
+
+def test_rt_export_remote_srgb_bgra_pixel_values(tmp_path: object) -> None:
+    # B8G8R8A8_SRGB (compType 9 = UNormSRGB): input bytes [B,G,R,A] -> RGBA.
+    # UNormSRGB is a passthrough (already display-encoded); BGRA order swaps.
+    fmt = rd.ResourceFormat(name="B8G8R8A8_SRGB", compByteWidth=1, compCount=4, compType=9)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(75), width=1, height=1, format=fmt)
+    raw = bytes([10, 20, 30, 40])  # B=10, G=20, R=30, A=40
+    targets = [rd.Descriptor(resource=rd.ResourceId(75))]
+    state = _remote_state(tex, raw, tmp_path, output_targets=targets)
+    resp, _ = _handle_request(rpc_request("rt_export", {"eid": 100}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (30, 20, 10, 40)
+
+
 def test_rt_overlay_remote_still_rejected() -> None:
     state = make_daemon_state(is_remote=True, rd=rd)
     resp, _ = _handle_request(rpc_request("rt_overlay", {"overlay": "wireframe"}), state)
