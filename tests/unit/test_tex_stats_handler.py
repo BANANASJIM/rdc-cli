@@ -417,9 +417,10 @@ def test_rt_depth_remote_decodes_grayscale(tmp_path: object) -> None:
     img = _read_png(resp["result"]["path"])
     assert img.size == (2, 2)
     assert img.mode == "L"
-    # Auto-contrast: min depth -> 0, max depth -> 255
     assert img.getpixel((0, 0)) == 0
     assert img.getpixel((1, 1)) == 255
+    # depth=0.25 over [0,1] range -> 0.25*255 = 63.75 -> 64; uint32 reinterpret gives ~251
+    assert abs(img.getpixel((1, 0)) - 64) <= 2
 
 
 def test_rt_overlay_remote_still_rejected() -> None:

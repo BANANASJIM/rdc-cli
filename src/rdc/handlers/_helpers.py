@@ -298,9 +298,9 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
         return None
 
     ct = int(fmt.compType)
-    dtype_map = {1: np.float32, 2: np.float16}
-    if ct == int(rd.CompType.Float):
-        dtype = np.dtype(dtype_map.get(cbw, np.float32))
+    _float_ctypes = {int(rd.CompType.Float), int(rd.CompType.Depth)}
+    if ct in _float_ctypes:
+        dtype = np.dtype(np.float32 if cbw == 4 else np.float16)
     elif cbw == 1:
         dtype = np.dtype(np.uint8)
     elif cbw == 2:
@@ -324,6 +324,8 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
         rgba8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
     elif dtype == np.uint16:
         rgba8 = (arr / 257.0).round().astype(np.uint8)
+    elif cbw == 4:
+        return None
     else:
         rgba8 = arr.astype(np.uint8)
 
