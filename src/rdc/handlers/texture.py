@@ -76,7 +76,10 @@ def _export_remote(
     """Fetch raw pixels over the wire and decode them locally to a PNG."""
     controller = state.adapter.controller  # type: ignore[union-attr]
     sub = _make_subresource(state.rd, mip)
-    raw = controller.GetTextureData(resource_id, sub)
+    try:
+        raw = controller.GetTextureData(resource_id, sub)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(request_id, -32002, f"GetTextureData failed: {exc}"), True
     if not raw:
         return _error_response(request_id, -32002, "no texture data returned"), True
     png = _decode_texture_png(state.rd, tex, raw, mip, is_depth=is_depth)
@@ -85,10 +88,12 @@ def _export_remote(
         return _error_response(
             request_id, -32002, f"format {fmt_name} not supported for remote decode"
         ), True
-    temp_path.write_bytes(png)
-    return _result_response(
-        request_id, {"path": str(temp_path), "size": temp_path.stat().st_size}
-    ), True
+    try:
+        temp_path.write_bytes(png)
+        size = temp_path.stat().st_size
+    except OSError as exc:
+        return _error_response(request_id, -32002, f"failed to write export: {exc}"), True
+    return _result_response(request_id, {"path": str(temp_path), "size": size}), True
 
 
 def _handle_tex_export(
@@ -147,6 +152,8 @@ def _handle_tex_raw(
     controller = state.adapter.controller
     sub = _make_subresource(state.rd)
     raw_data = controller.GetTextureData(tex.resourceId, sub)
+    if not raw_data:
+        return _error_response(request_id, -32002, "no texture data returned"), True
     temp_path = state.temp_dir / f"tex_{res_id}.raw"
     temp_path.write_bytes(raw_data)
     return _result_response(

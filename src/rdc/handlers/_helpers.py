@@ -305,6 +305,12 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
         mip: Mip level the bytes correspond to.
         is_depth: Whether to render the data as a single grayscale depth channel.
 
+    For 3D textures (``depth > 1``) ``GetTextureData`` returns the whole
+    width*height*depth mip. Every depth slice is tiled vertically into a single
+    ``(depth*height, width)`` image so no slice is silently dropped; all slices
+    share the same channel/sRGB/BGRA/expand processing. ``depth == 1`` is
+    byte-for-byte identical to the 2D path.
+
     Returns:
         PNG-encoded bytes, or ``None`` if the format cannot be decoded.
     """
@@ -324,16 +330,19 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
 
     width = max(1, tex.width >> mip)
     height = max(1, tex.height >> mip)
+    depth_lvl = max(1, getattr(tex, "depth", 1) >> mip)
     cc = fmt.compCount
     cbw = fmt.compByteWidth
-    if cc <= 0 or len(raw) != width * height * cc * cbw:
+    if cc <= 0 or len(raw) != width * height * depth_lvl * cc * cbw:
         return None
 
     ct = int(fmt.compType)
     dtype_name = _decode_dtype(rd, ct, cbw)
     if dtype_name is None:
         return None
-    arr = np.frombuffer(raw, dtype=np.dtype(dtype_name)).reshape((height, width, cc))
+    # Tile depth slices vertically: (depth*height, width, cc).
+    arr = np.frombuffer(raw, dtype=np.dtype(dtype_name)).reshape((depth_lvl * height, width, cc))
+    height = depth_lvl * height
 
     if is_depth:
         d = arr[:, :, 0].astype(np.float32)
@@ -345,7 +354,8 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
         return buf.getvalue()
 
     if ct == int(rd.CompType.Float):
-        f = np.clip(arr.astype(np.float32), 0.0, 1.0)
+        sanitized = np.nan_to_num(arr.astype(np.float32), nan=0.0, posinf=1.0, neginf=0.0)
+        f = np.clip(sanitized, 0.0, 1.0)
         rgba8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
     elif ct == int(rd.CompType.SNorm):
         # [-1, 1] -> [0, 1]; divisor is the signed-int max for the width.
