@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from conftest import make_daemon_state
 
+from rdc.daemon_server import cleanup_state
 from rdc.handlers.core import _handle_shutdown, _handle_status
 from rdc.handlers.texture import _handle_rt_overlay
 
@@ -73,6 +74,40 @@ class TestShutdownRemote:
         state.cap = mock_cap
         _handle_shutdown(1, {"_token": "tok"}, state)
         mock_cap.Shutdown.assert_called_once()
+
+
+class TestCleanupState:
+    def test_remote_runs_close_and_shutdown_connection(self) -> None:
+        """Shared helper used by both shutdown RPC and idle-timeout exit."""
+        state = _make_state(is_remote=True)
+        cleanup_state(state)
+        state.remote.CloseCapture.assert_called_once_with(state.adapter.controller)
+        state.remote.ShutdownConnection.assert_called_once()
+
+    def test_remote_does_not_call_adapter_shutdown(self) -> None:
+        state = _make_state(is_remote=True)
+        mock_adapter = MagicMock()
+        mock_adapter.controller = MagicMock()
+        state.adapter = mock_adapter  # type: ignore[assignment]
+        cleanup_state(state)
+        mock_adapter.shutdown.assert_not_called()
+
+    def test_local_calls_adapter_shutdown_not_connection(self) -> None:
+        state = _make_state(is_remote=False)
+        mock_adapter = MagicMock()
+        mock_adapter.controller = MagicMock()
+        state.adapter = mock_adapter  # type: ignore[assignment]
+        cleanup_state(state)
+        mock_adapter.shutdown.assert_called_once()
+
+    def test_remote_stops_ping_thread(self) -> None:
+        state = _make_state(is_remote=True)
+        stop_event = threading.Event()
+        state._ping_stop = stop_event
+        state._ping_thread = MagicMock()
+        cleanup_state(state)
+        assert stop_event.is_set()
+        state._ping_thread.join.assert_called_once_with(timeout=5.0)
 
 
 class TestStatusRemote:
