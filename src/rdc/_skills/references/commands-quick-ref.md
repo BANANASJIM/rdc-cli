@@ -877,7 +877,8 @@ Export render target as PNG.
 | Flag | Help | Type | Default |
 |------|------|------|---------|
 | `-o, --output` | Write to file | path |  |
-| `--target` | Color target index (default 0) | integer | 0 |
+| `--target` | Color target index (default 0); mutually exclusive with --depth | integer |  |
+| `--depth` | Export the raw depth attachment texture (/draws/<eid>/targets/depth.png); distinct from --overlay depth, which renders RenderDoc's depth overlay visualization. Ignored when --overlay is set. | flag |  |
 | `--raw` | Force raw output even on TTY | flag |  |
 | `--overlay` | Render with debug overlay | choice |  |
 | `--width` | Overlay render width | integer | 256 |
