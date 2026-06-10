@@ -102,7 +102,13 @@ The following cannot run in CI (requires a live remote daemon + real GPU):
 
 ## Run command
 
+```bash
+pytest tests/unit/test_tex_stats_handler.py -q
 ```
+
+Optional (explicit interpreter / renderdoc module path used during development):
+
+```bash
 RENDERDOC_PYTHON_PATH=/usr/lib/python3.14/site-packages ./.venv-236/bin/python -m pytest tests/unit/test_tex_stats_handler.py -q
 ```
 

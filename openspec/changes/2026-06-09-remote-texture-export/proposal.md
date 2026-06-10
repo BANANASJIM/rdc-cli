@@ -91,10 +91,10 @@ follow-up.
 
 ### Scope
 
-- In scope: `tex_export`, `rt_export`, `rt_depth` in remote mode.
+- In scope: `tex_export`, `rt_export`, `rt_depth` in remote mode; 3D textures (`depth > 1`)
+  are exported by tiling depth slices vertically into one image.
 - Out of scope: block-compressed formats; packed formats (R11G11B10, R10G10B10A2, R9G9B9E5,
-  R5G6B5, D24S8, D32S8); 3D textures (`depth > 1`); MSAA (`msSamp > 1`); local mode
-  (unchanged byte-for-byte).
+  R5G6B5, D24S8, D32S8); MSAA (`msSamp > 1`); local mode (unchanged byte-for-byte).
 
 ## Risks
 
