@@ -11,6 +11,7 @@ from typing import Any
 import click
 
 from rdc.commands._helpers import require_renderdoc
+from rdc.remote_core import _normalize_remote_host
 from rdc.target_state import (
     TargetControlState,
     load_latest_target_state,
@@ -31,6 +32,7 @@ def _resolve_ident(ident: int | None) -> int:
 
 def _connect(rd: Any, host: str, ident: int) -> Any:
     """Create a TargetControl connection, exit on failure."""
+    host = _normalize_remote_host(host)
     tc = rd.CreateTargetControl(host, ident, "rdc-cli", True)
     if tc is None:
         click.echo(f"error: failed to connect to target ident={ident}", err=True)

@@ -21,6 +21,11 @@
       `"127.0.0.1"`
 - [x] `capture_core.py:100,103`: `rd.EnumerateRemoteTargets("localhost", ...)` →
       `"127.0.0.1"`
+- [x] `commands/capture_control.py`: import `_normalize_remote_host` from
+      `remote_core.py`; call it at the top of `_connect` so the `--host` option
+      (default `localhost`) is normalized before `rd.CreateTargetControl` —
+      covers `rdc attach/capture-trigger/capture-list/capture-copy` (path #9),
+      both default and explicit `localhost`/`LOCALHOST`
 - [x] `tests/unit/test_remote_core.py`: add `TestNormalizeRemoteHost` (items 1-7
       in test-plan); update `TestParseUrl.test_localhost` + add items 8-11;
       update `TestBuildConnUrl` (items 13a-13b, including the existing
@@ -33,6 +38,10 @@
       `"127.0.0.1"` (item 15)
 - [x] `tests/unit/test_capture_core.py`: assert `EnumerateRemoteTargets`
       receives `"127.0.0.1"` as host (item 16)
+- [x] `tests/unit/test_capture_control.py`: assert `rd.CreateTargetControl`
+      receives `"127.0.0.1"` when `--host` is omitted (item 17) and when
+      `--host LOCALHOST` is explicit (item 18); non-localhost host passes through
+      unchanged (item 19)
 - [x] `pixi run check` green (lint + typecheck + tests)
 - [ ] Changelog note: state files previously keyed on `localhost` become stale
       after upgrade; `rdc remote disconnect && rdc remote connect 127.0.0.1:PORT`

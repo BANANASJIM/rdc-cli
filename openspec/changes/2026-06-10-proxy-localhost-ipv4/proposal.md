@@ -29,6 +29,7 @@ or rdc-cli socket call:
 | 6 | `rdc android setup` | `commands/android.py:339` | `conn_url = f"localhost:{forwarded_port}"` → `connect_remote_server(rd, conn_url)` at `android.py:342` |
 | 7 | `rdc android capture` (target control) | `commands/android.py:464` | `rd.CreateTargetControl("localhost", local_port, ...)` — this is `CreateTargetControl`, not `CreateRemoteServerConnection`; same IPv6 risk |
 | 8 | `capture_core.py:100,103` | internal enumeration | `rd.EnumerateRemoteTargets("localhost", ...)` — local capture use only, no user-visible flag |
+| 9 | `rdc attach IDENT` / `capture-trigger` / `capture-list` / `capture-copy` | `commands/capture_control.py:47,72,88,139` — `--host` option (default `localhost`) | `host` → `_connect(rd, host, ident)` (`capture_control.py:32`) → `rd.CreateTargetControl(host, ident, ...)` — user-supplied `--host` (default and explicit `localhost`/`LOCALHOST`) reaches `CreateTargetControl` un-normalized; same IPv4-only risk class |
 
 The critical path for the reported bug is entry #1. Paths #3, #6, #7, #8 also
 use the literal `"localhost"` string hardcoded in the implementation; the user
@@ -126,6 +127,13 @@ single RenderDoc API boundary: `daemon_server.py:568` before passing to
   - `commands/session.py:97` (`_resolve_android_url` returning
     `f"localhost:{port}"`) needs no literal change: it flows through the daemon
     `--remote-url` argv and is normalized at the daemon seam (path #3).
+- Path #9 (`commands/capture_control.py`) takes a user-facing `--host` option
+  (default `localhost`) that flows through `_connect` into
+  `rd.CreateTargetControl`. This is normalized by calling `_normalize_remote_host`
+  at the top of `_connect` (`capture_control.py:32`) — covering both the default
+  and an explicit `--host localhost`/`--host LOCALHOST` — without changing the
+  click default (cosmetic once `_connect` normalizes; minimal diff). The
+  standalone helper is imported from `remote_core.py`, no logic is duplicated.
 
 ### State-file key implication
 

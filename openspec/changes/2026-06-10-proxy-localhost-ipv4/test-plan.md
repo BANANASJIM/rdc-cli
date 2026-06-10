@@ -55,6 +55,16 @@ Hardcoded literals (`tests/unit/test_android_commands.py`,
     tests use `lambda _host, ...` mocks — extend or add one assertion capturing
     the host).
 
+`tests/unit/test_capture_control.py` (TargetControl `--host` option,
+`_connect` seam at `capture_control.py:32`):
+
+17. `rdc attach 12345` (no `--host`): the mocked `rd.CreateTargetControl` first
+    argument is `"127.0.0.1"` (default `localhost` normalized).
+18. `rdc attach 12345 --host LOCALHOST`: the mocked `rd.CreateTargetControl`
+    first argument is `"127.0.0.1"` (explicit, case-insensitive).
+19. `rdc attach 12345 --host 192.168.1.50`: the mocked `rd.CreateTargetControl`
+    first argument is `"192.168.1.50"` unchanged (non-localhost passthrough).
+
 Run: `pixi run test` (unit only). Full gate: `pixi run check`.
 
 ## Manual / real-GPU
