@@ -320,6 +320,20 @@ class CompType(IntEnum):
     UNormSRGB = 9
 
 
+class ResourceFormatType(IntEnum):
+    Regular = 0
+    BC1 = 2
+    R10G10B10A2 = 12
+    R11G11B10 = 13
+    R5G6B5 = 14
+    R9G9B9E5 = 16
+    D16S8 = 19
+    D24S8 = 20
+    D32S8 = 21
+    S8 = 22
+    A8 = 28
+
+
 class MeshDataStage(IntEnum):
     VSIn = 0
     VSOut = 1

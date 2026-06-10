@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from rdc.handlers._helpers import (
     PipeError,
+    _decode_texture_png,
     _error_response,
     _make_subresource,
     _make_texsave,
@@ -62,11 +63,42 @@ def _handle_tex_info(
     ), True
 
 
+def _export_remote(
+    request_id: int,
+    state: DaemonState,
+    tex: Any,
+    resource_id: Any,
+    temp_path: Path,
+    mip: int,
+    *,
+    is_depth: bool = False,
+) -> tuple[dict[str, Any], bool]:
+    """Fetch raw pixels over the wire and decode them locally to a PNG."""
+    controller = state.adapter.controller  # type: ignore[union-attr]
+    sub = _make_subresource(state.rd, mip)
+    try:
+        raw = controller.GetTextureData(resource_id, sub)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(request_id, -32002, f"GetTextureData failed: {exc}"), True
+    if not raw:
+        return _error_response(request_id, -32002, "no texture data returned"), True
+    png = _decode_texture_png(state.rd, tex, raw, mip, is_depth=is_depth)
+    if png is None:
+        fmt_name = tex.format.Name() if hasattr(tex.format, "Name") else ""
+        return _error_response(
+            request_id, -32002, f"format {fmt_name} not supported for remote decode"
+        ), True
+    try:
+        temp_path.write_bytes(png)
+        size = temp_path.stat().st_size
+    except OSError as exc:
+        return _error_response(request_id, -32002, f"failed to write export: {exc}"), True
+    return _result_response(request_id, {"path": str(temp_path), "size": size}), True
+
+
 def _handle_tex_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.is_remote:
-        return _error_response(request_id, -32002, "not supported in remote mode"), True
     if state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
     if state.rd is None:
@@ -87,6 +119,8 @@ def _handle_tex_export(
     if err:
         return _error_response(request_id, -32002, err), True
     temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}.png"
+    if state.is_remote:
+        return _export_remote(request_id, state, tex, tex.resourceId, temp_path, mip)
     controller = state.adapter.controller
     texsave = _make_texsave(state.rd, tex.resourceId, mip)
     success = controller.SaveTexture(texsave, str(temp_path))
@@ -117,7 +151,12 @@ def _handle_tex_raw(
         return _error_response(request_id, -32002, err), True
     controller = state.adapter.controller
     sub = _make_subresource(state.rd)
-    raw_data = controller.GetTextureData(tex.resourceId, sub)
+    try:
+        raw_data = controller.GetTextureData(tex.resourceId, sub)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(request_id, -32002, f"GetTextureData failed: {exc}"), True
+    if not raw_data:
+        return _error_response(request_id, -32002, "no texture data returned"), True
     temp_path = state.temp_dir / f"tex_{res_id}.raw"
     temp_path.write_bytes(raw_data)
     return _result_response(
@@ -129,8 +168,6 @@ def _handle_tex_raw(
 def _handle_rt_export(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.is_remote:
-        return _error_response(request_id, -32002, "not supported in remote mode"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -147,8 +184,14 @@ def _handle_rt_export(
     match = [t for i, t in non_null if i == target_idx]
     if not match:
         return _error_response(request_id, -32001, f"target index {target_idx} out of range"), True
+    resource = match[0].resource
     temp_path = state.temp_dir / f"rt_{eid}_color{target_idx}.png"
-    texsave = _make_texsave(state.rd, match[0].resource)
+    if state.is_remote:
+        tex = state.tex_map.get(int(resource))
+        if tex is None:
+            return _error_response(request_id, -32001, f"target {int(resource)} not found"), True
+        return _export_remote(request_id, state, tex, resource, temp_path, 0)
+    texsave = _make_texsave(state.rd, resource)
     success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
     if not success or not temp_path.exists():
         return _error_response(request_id, -32002, "SaveTexture failed"), True
@@ -161,8 +204,6 @@ def _handle_rt_export(
 def _handle_rt_depth(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.is_remote:
-        return _error_response(request_id, -32002, "not supported in remote mode"), True
     if state.rd is None:
         return _error_response(request_id, -32002, "renderdoc module not available"), True
     if state.temp_dir is None:
@@ -175,6 +216,13 @@ def _handle_rt_depth(
     if int(depth.resource) == 0:
         return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
     temp_path = state.temp_dir / f"rt_{eid}_depth.png"
+    if state.is_remote:
+        tex = state.tex_map.get(int(depth.resource))
+        if tex is None:
+            return _error_response(
+                request_id, -32001, f"depth target {int(depth.resource)} not found"
+            ), True
+        return _export_remote(request_id, state, tex, depth.resource, temp_path, 0, is_depth=True)
     texsave = _make_texsave(state.rd, depth.resource)
     success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
     if not success or not temp_path.exists():

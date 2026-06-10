@@ -22,6 +22,7 @@ __all__ = [
     "require_renderdoc",
     "call",
     "call_binary",
+    "call_with_code",
     "try_call",
     "completion_call",
     "fetch_remote_file",
@@ -140,6 +141,29 @@ def try_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:
     if "error" in response:
         return None
     return cast(dict[str, Any], response.get("result", {}))
+
+
+def call_with_code(method: str, params: dict[str, Any]) -> tuple[dict[str, Any] | None, int | None]:
+    """Send a JSON-RPC request, returning (result, error_code).
+
+    Like try_call() but surfaces the JSON-RPC error code so callers can
+    distinguish a missing resource (-32001) from an unsupported operation
+    (-32002). On success returns (result, None); on any failure returns
+    (None, code) where code is the daemon error code or None when the call
+    never reached the daemon.
+    """
+    try:
+        host, port, token = require_session()
+    except SystemExit:
+        return None, None
+    payload = _request(method, 1, {"_token": token, **params}).to_dict()
+    try:
+        response = send_request(host, port, payload)
+    except (OSError, ValueError):
+        return None, None
+    if "error" in response:
+        return None, response["error"].get("code")
+    return cast(dict[str, Any], response.get("result", {})), None
 
 
 def completion_call(method: str, params: dict[str, Any]) -> dict[str, Any] | None:

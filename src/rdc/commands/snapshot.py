@@ -8,7 +8,13 @@ from pathlib import Path
 
 import click
 
-from rdc.commands._helpers import call, complete_eid, fetch_remote_file, try_call
+from rdc.commands._helpers import (
+    call,
+    call_with_code,
+    complete_eid,
+    fetch_remote_file,
+    try_call,
+)
 from rdc.formatters.json_fmt import write_json
 
 
@@ -39,21 +45,30 @@ def snapshot_cmd(eid: int, output: str, use_json: bool) -> None:
                 (out_dir / f"shader_{stage}.txt").write_text(disasm_resp["disasm"])
                 files.append(f"shader_{stage}.txt")
 
-    # Color targets (stop on first failure)
+    # Color targets: stop when a target is absent (-32001), but skip-and-warn
+    # on a decode failure (-32002, e.g. an unsupported remote format) so one
+    # bad target does not silently truncate the rest of the bundle.
     for i in range(8):
-        result = try_call("rt_export", {"eid": eid, "target": i})
-        if result is None:
-            break
-        data = fetch_remote_file(result["path"])
-        (out_dir / f"color{i}.png").write_bytes(data)
-        files.append(f"color{i}.png")
+        result, code = call_with_code("rt_export", {"eid": eid, "target": i})
+        if result is not None:
+            data = fetch_remote_file(result["path"])
+            (out_dir / f"color{i}.png").write_bytes(data)
+            files.append(f"color{i}.png")
+            continue
+        if code == -32002:
+            click.echo(f"snapshot: skipped color{i} (decode unsupported)", err=True)
+            continue
+        break
 
-    # Depth target
-    depth_result = try_call("rt_depth", {"eid": eid})
-    if depth_result:
+    # Depth target: surface a warning when remote depth decode is unsupported
+    # (e.g. D24S8 or MSAA) instead of silently omitting depth.png.
+    depth_result, depth_code = call_with_code("rt_depth", {"eid": eid})
+    if depth_result is not None:
         data = fetch_remote_file(depth_result["path"])
         (out_dir / "depth.png").write_bytes(data)
         files.append("depth.png")
+    elif depth_code == -32002:
+        click.echo("snapshot: skipped depth (decode unsupported)", err=True)
 
     # Manifest
     manifest = {
