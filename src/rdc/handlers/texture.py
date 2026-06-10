@@ -216,21 +216,26 @@ def _handle_rt_depth(
     if int(depth.resource) == 0:
         return _error_response(request_id, -32001, f"no depth target at eid {eid}"), True
     temp_path = state.temp_dir / f"rt_{eid}_depth.png"
-    if state.is_remote:
-        tex = state.tex_map.get(int(depth.resource))
-        if tex is None:
-            return _error_response(
-                request_id, -32001, f"depth target {int(depth.resource)} not found"
-            ), True
-        return _export_remote(request_id, state, tex, depth.resource, temp_path, 0, is_depth=True)
-    texsave = _make_texsave(state.rd, depth.resource)
-    success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
-    if not success or not temp_path.exists():
-        return _error_response(request_id, -32002, "SaveTexture failed"), True
-    return _result_response(
-        request_id,
-        {"path": str(temp_path), "size": temp_path.stat().st_size},
-    ), True
+    tex = state.tex_map.get(int(depth.resource))
+    if tex is None:
+        return _error_response(
+            request_id, -32001, f"depth target {int(depth.resource)} not found"
+        ), True
+    resp, running = _export_remote(
+        request_id, state, tex, depth.resource, temp_path, 0, is_depth=True
+    )
+    # Combined depth-stencil and MSAA formats decode to None (-32002). Locally,
+    # SaveTexture can still export them (RGBA); remote returns the error as-is.
+    if resp.get("error", {}).get("code") == -32002 and not state.is_remote:
+        texsave = _make_texsave(state.rd, depth.resource)
+        success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
+        if not success or not temp_path.exists():
+            return _error_response(request_id, -32002, "SaveTexture failed"), True
+        return _result_response(
+            request_id,
+            {"path": str(temp_path), "size": temp_path.stat().st_size},
+        ), True
+    return resp, running
 
 
 def _handle_rt_overlay(

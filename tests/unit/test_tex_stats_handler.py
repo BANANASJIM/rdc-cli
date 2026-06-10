@@ -440,6 +440,135 @@ def test_rt_depth_remote_d16_decodes_grayscale(tmp_path: object) -> None:
     assert abs(img.getpixel((1, 0)) - 64) <= 2
 
 
+# ---------------------------------------------------------------------------
+# Local-mode rt_depth: unified GetTextureData decode + SaveTexture fallback
+# ---------------------------------------------------------------------------
+
+
+def _local_depth_state(
+    tex: rd.TextureDescription,
+    raw: bytes,
+    tmp_path: object,
+    *,
+    save_texture: object = None,
+) -> DaemonState:
+    ctrl = rd.MockReplayController()
+    ctrl._textures = [tex]
+    ctrl._texture_data[int(tex.resourceId)] = raw
+    ctrl._pipe_state = rd.MockPipeState(depth_target=rd.Descriptor(resource=tex.resourceId))
+    if save_texture is not None:
+        ctrl.SaveTexture = save_texture  # type: ignore[method-assign]
+    return make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tmp_path=tmp_path,
+        tex_map={int(tex.resourceId): tex},
+        is_remote=False,
+    )
+
+
+def test_rt_depth_local_calls_gettexturedata(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="D32_FLOAT", compByteWidth=4, compCount=1, compType=8)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(305), width=2, height=2, format=fmt)
+    raw = struct.pack("<4f", 0.0, 0.25, 0.75, 1.0)
+
+    def _no_save(texsave: object, path: str) -> bool:
+        raise AssertionError("SaveTexture must not be called for decodable depth")
+
+    state = _local_depth_state(tex, raw, tmp_path, save_texture=_no_save)
+    resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), state)
+    assert "result" in resp
+    img = _read_png(resp["result"]["path"])
+    assert img.mode == "L"
+    assert img.getpixel((0, 0)) == 0
+    assert img.getpixel((1, 1)) == 255
+
+
+def test_rt_depth_local_produces_grayscale_L(tmp_path: object) -> None:  # noqa: N802
+    fmt = rd.ResourceFormat(name="D16", compByteWidth=2, compCount=1, compType=8)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(306), width=2, height=2, format=fmt)
+    raw = struct.pack("<4H", 0, 16384, 49152, 65535)
+    state = _local_depth_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.mode == "L"
+    assert img.getpixel((0, 0)) == 0
+    assert img.getpixel((1, 1)) == 255
+
+
+def test_rt_depth_local_d24s8_fallback_uses_savetexture(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(
+        name="D24S8",
+        compByteWidth=4,
+        compCount=1,
+        compType=8,
+        type=int(rd.ResourceFormatType.D24S8),
+    )
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(307), width=2, height=2, format=fmt)
+    save_calls: list[str] = []
+
+    def _spy(texsave: object, path: str) -> bool:
+        save_calls.append(path)
+        from pathlib import Path
+
+        Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        return True
+
+    state = _local_depth_state(tex, b"\x00" * 8, tmp_path, save_texture=_spy)
+    resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), state)
+    assert "result" in resp
+    assert len(save_calls) == 1
+
+
+def test_rt_depth_remote_d24s8_no_fallback(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(
+        name="D24S8",
+        compByteWidth=4,
+        compCount=1,
+        compType=8,
+        type=int(rd.ResourceFormatType.D24S8),
+    )
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(308), width=2, height=2, format=fmt)
+    depth = rd.Descriptor(resource=tex.resourceId)
+    state = _remote_state(tex, b"\x00" * 8, tmp_path, depth_target=depth)
+
+    def _no_save(texsave: object, path: str) -> bool:
+        raise AssertionError("SaveTexture must not be called in remote mode")
+
+    state.adapter.controller.SaveTexture = _no_save  # type: ignore[union-attr,method-assign]
+    resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_rt_depth_local_remote_byte_identical_d16(tmp_path: object) -> None:
+    from pathlib import Path
+
+    fmt = rd.ResourceFormat(name="D16", compByteWidth=2, compCount=1, compType=8)
+    raw = struct.pack("<4H", 0, 16384, 49152, 65535)
+
+    local_dir = Path(str(tmp_path)) / "local"
+    remote_dir = Path(str(tmp_path)) / "remote"
+    local_dir.mkdir()
+    remote_dir.mkdir()
+
+    tex_l = rd.TextureDescription(resourceId=rd.ResourceId(309), width=2, height=2, format=fmt)
+    local_state = _local_depth_state(tex_l, raw, local_dir)
+    local_resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), local_state)
+
+    tex_r = rd.TextureDescription(resourceId=rd.ResourceId(309), width=2, height=2, format=fmt)
+    remote_state = _remote_state(
+        tex_r, raw, remote_dir, depth_target=rd.Descriptor(resource=tex_r.resourceId)
+    )
+    remote_resp, _ = _handle_request(rpc_request("rt_depth", {"eid": 100}), remote_state)
+
+    with open(local_resp["result"]["path"], "rb") as fh:
+        local_bytes = fh.read()
+    with open(remote_resp["result"]["path"], "rb") as fh:
+        remote_bytes = fh.read()
+    assert local_bytes == remote_bytes
+
+
 def test_tex_export_remote_r16_unorm_scales_by_257(tmp_path: object) -> None:
     # R16 UNorm: 16-bit -> 8-bit via /257. 65535/257 = 255, 32896/257 = 128.
     fmt = rd.ResourceFormat(name="R16_UNORM", compByteWidth=2, compCount=1, compType=2)
