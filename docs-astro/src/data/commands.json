@@ -211,7 +211,7 @@
           "name": "rt",
           "id": "rt",
           "help": "Export render target as PNG.",
-          "usage": "rdc rt [EID] [-o PATH] [--target INTEGER] [--raw] [--overlay CHOICE] [--width INTEGER] [--height INTEGER]"
+          "usage": "rdc rt [EID] [-o PATH] [--target INTEGER] [--depth] [--raw] [--overlay CHOICE] [--width INTEGER] [--height INTEGER]"
         },
         {
           "name": "mesh",
