@@ -194,6 +194,7 @@ class TestFindRenderdocFallback:
         def mock_which(cmd: str):
             return None
 
+        monkeypatch.delenv("RENDERDOC_PYTHON_PATH", raising=False)
         monkeypatch.setattr("rdc.discover._try_import", lambda: None)
         monkeypatch.setattr("rdc.discover._probe_candidate", mock_probe)
         monkeypatch.setattr("rdc.discover._try_import_from", lambda d: real_fake_mod)
@@ -217,6 +218,7 @@ class TestFindRenderdocFallback:
         def mock_which(cmd: str):
             return None
 
+        monkeypatch.delenv("RENDERDOC_PYTHON_PATH", raising=False)
         monkeypatch.setattr("rdc.discover._try_import", lambda: None)
         monkeypatch.setattr(
             "rdc.discover._probe_candidate",
@@ -254,6 +256,7 @@ class TestFindRenderdocFallback:
         def mock_which(cmd: str):
             return None
 
+        monkeypatch.delenv("RENDERDOC_PYTHON_PATH", raising=False)
         monkeypatch.setattr("rdc.discover._try_import", lambda: None)
         monkeypatch.setattr(
             "rdc.discover._probe_candidate",
@@ -280,6 +283,7 @@ class TestFindRenderdocFallback:
         empty_dir = tmp_path / "no-module"
         empty_dir.mkdir()
 
+        monkeypatch.delenv("RENDERDOC_PYTHON_PATH", raising=False)
         monkeypatch.setattr("rdc.discover._try_import", lambda: None)
         monkeypatch.setattr(
             "rdc.discover._probe_candidate",
@@ -291,6 +295,32 @@ class TestFindRenderdocFallback:
 
         assert find_renderdoc() is None
         assert _get_diagnostic() is None
+
+    def test_import_failed_with_env_module_sets_diagnostic(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """An env-path candidate holding a module artifact that fails to import
+        records a diagnostic, even with all other candidate sources empty.
+        """
+        real_dir = tmp_path / "real-rdoc"
+        real_dir.mkdir()
+        (real_dir / "renderdoc.so").write_bytes(b"fake")
+
+        monkeypatch.setenv("RENDERDOC_PYTHON_PATH", str(real_dir))
+        monkeypatch.setattr("rdc.discover._try_import", lambda: None)
+        monkeypatch.setattr(
+            "rdc.discover._probe_candidate",
+            lambda path, timeout=5.0: ProbeOutcome(ProbeResult.IMPORT_FAILED, str(real_dir)),
+        )
+        monkeypatch.setattr("rdc.discover._try_import_from", lambda d: None)
+        monkeypatch.setattr("rdc._platform.renderdoc_search_paths", lambda: [])
+        monkeypatch.setattr("rdc.discover.shutil.which", lambda cmd: None)
+
+        assert find_renderdoc() is None
+        diag = _get_diagnostic()
+        assert diag is not None
+        assert diag.result == ProbeResult.IMPORT_FAILED
+        assert diag.candidate_path == str(real_dir)
 
 
 class TestArmStudioDir:
