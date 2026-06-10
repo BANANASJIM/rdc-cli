@@ -529,11 +529,11 @@ def test_tex_export_remote_uscaled_rejected(tmp_path: object) -> None:
     assert resp["error"]["code"] == -32002
 
 
-def test_tex_export_remote_packed_format_rejected(tmp_path: object) -> None:
-    # R11G11B10 is a packed (non-Regular) format -> reject.
-    fmt = rd.ResourceFormat(
-        name="R11G11B10_FLOAT", compByteWidth=4, compCount=3, compType=1, type=13
-    )
+def test_tex_export_remote_unsupported_packed_format_rejected(tmp_path: object) -> None:
+    # R5G6B5 (type=14) is a still-unsupported packed (non-Regular) format -> reject.
+    # R11G11B10/R9G9B9E5 now decode, so this preserves rejection coverage for a
+    # packed type the change does not handle.
+    fmt = rd.ResourceFormat(name="R5G6B5_UNORM", compByteWidth=2, compCount=3, compType=2, type=14)
     tex = rd.TextureDescription(resourceId=rd.ResourceId(57), width=1, height=1, format=fmt)
     state = _remote_state(tex, bytes(4), tmp_path)
     resp, _ = _handle_request(rpc_request("tex_export", {"id": 57}), state)
@@ -649,6 +649,149 @@ def test_rt_overlay_remote_still_rejected() -> None:
     resp, _ = _handle_request(rpc_request("rt_overlay", {"overlay": "wireframe"}), state)
     assert resp["error"]["code"] == -32002
     assert "remote mode" in resp["error"]["message"]
+
+
+# ---------------------------------------------------------------------------
+# Packed HDR formats: R11G11B10_FLOAT (type=13) and R9G9B9E5_SHAREDEXP (type=16)
+# ---------------------------------------------------------------------------
+
+
+def _r11g11b10_tex(res_id: int, **kw: object) -> rd.TextureDescription:
+    fmt = rd.ResourceFormat(
+        name="R11G11B10_FLOAT", compByteWidth=4, compCount=3, compType=1, type=13
+    )
+    return rd.TextureDescription(resourceId=rd.ResourceId(res_id), format=fmt, **kw)  # type: ignore[arg-type]
+
+
+def _r9g9b9e5_tex(res_id: int, **kw: object) -> rd.TextureDescription:
+    fmt = rd.ResourceFormat(
+        name="R9G9B9E5_SHAREDEXP", compByteWidth=4, compCount=3, compType=1, type=16
+    )
+    return rd.TextureDescription(resourceId=rd.ResourceId(res_id), format=fmt, **kw)  # type: ignore[arg-type]
+
+
+def test_tex_export_remote_r11g11b10_happy_path(tmp_path: object) -> None:
+    # (1.0, 0.5, 0.25): R exp=15 mant=0, G exp=14 mant=0, B exp=13 mant=0.
+    tex = _r11g11b10_tex(110, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0x681C03C0), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 110}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 255  # sRGB(1.0)
+    assert abs(px[1] - 188) <= 2  # sRGB(0.5)
+    assert abs(px[2] - 137) <= 2  # sRGB(0.25)
+    assert px[3] == 255
+
+
+def test_tex_export_remote_r11g11b10_inf_clips_white(tmp_path: object) -> None:
+    tex = _r11g11b10_tex(111, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0xF83E07C0), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 111}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (255, 255, 255, 255)
+
+
+def test_tex_export_remote_r11g11b10_nan_renders_black(tmp_path: object) -> None:
+    tex = _r11g11b10_tex(112, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0xF87E0FC1), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 112}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[:3] == (0, 0, 0)
+    assert px[3] == 255
+
+
+def test_tex_export_remote_r11g11b10_subnormal_tiny(tmp_path: object) -> None:
+    # exp=0 mant=1 for all channels -> ~1.5e-19, sRGB rounds to 0, no error.
+    tex = _r11g11b10_tex(113, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0x00400801), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 113}), state)
+    assert "result" in resp
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (0, 0, 0, 255)
+
+
+def test_tex_export_remote_r11g11b10_wrong_length_rejected(tmp_path: object) -> None:
+    tex = _r11g11b10_tex(114, width=2, height=2)
+    state = _remote_state(tex, b"\x00" * 4, tmp_path)  # should be 16 bytes
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 114}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_tex_export_remote_r11g11b10_msaa_rejected(tmp_path: object) -> None:
+    tex = _r11g11b10_tex(115, width=1, height=1, msSamp=4)
+    state = _remote_state(tex, struct.pack("<I", 0x681C03C0), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 115}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_tex_export_remote_r11g11b10_3d_tiled(tmp_path: object) -> None:
+    tex = _r11g11b10_tex(116, width=1, height=1, depth=2)
+    state = _remote_state(tex, struct.pack("<2I", 0x681C03C0, 0x00000000), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 116}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (1, 2)
+    px0 = img.getpixel((0, 0))
+    assert px0[0] == 255
+    assert abs(px0[1] - 188) <= 2
+    assert abs(px0[2] - 137) <= 2
+    assert img.getpixel((0, 1)) == (0, 0, 0, 255)
+
+
+def test_tex_export_remote_r9g9b9e5_white(tmp_path: object) -> None:
+    # E=24, mant=1 each -> 1.0 each channel.
+    tex = _r9g9b9e5_tex(160, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0xC0040201), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 160}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (255, 255, 255, 255)
+
+
+def test_tex_export_remote_r9g9b9e5_quarter(tmp_path: object) -> None:
+    # E=22, rm=4 gm=2 bm=1 -> 1.0, 0.5, 0.25.
+    tex = _r9g9b9e5_tex(161, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0xB0040404), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 161}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[0] == 255
+    assert abs(px[1] - 188) <= 2
+    assert abs(px[2] - 137) <= 2
+    assert px[3] == 255
+
+
+def test_tex_export_remote_r9g9b9e5_zero_black(tmp_path: object) -> None:
+    tex = _r9g9b9e5_tex(162, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0x00000000), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 162}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (0, 0, 0, 255)
+
+
+def test_tex_export_remote_r9g9b9e5_wrong_length_rejected(tmp_path: object) -> None:
+    tex = _r9g9b9e5_tex(163, width=2, height=2)
+    state = _remote_state(tex, b"\x00" * 4, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 163}), state)
+    assert resp["error"]["code"] == -32002
+
+
+def test_tex_export_remote_r9g9b9e5_3d_tiled(tmp_path: object) -> None:
+    tex = _r9g9b9e5_tex(164, width=1, height=1, depth=2)
+    state = _remote_state(tex, struct.pack("<2I", 0xC0040201, 0x00000000), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 164}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (1, 2)
+    assert img.getpixel((0, 0)) == (255, 255, 255, 255)
+    assert img.getpixel((0, 1)) == (0, 0, 0, 255)
+
+
+def test_tex_export_remote_r9g9b9e5_max_exp_clips_white(tmp_path: object) -> None:
+    # E=31, all mantissas=511 -> each channel = 65408.0 (finite), clips to white.
+    tex = _r9g9b9e5_tex(165, width=1, height=1)
+    state = _remote_state(tex, struct.pack("<I", 0xFFFFFFFF), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 165}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.getpixel((0, 0)) == (255, 255, 255, 255)
 
 
 # ---------------------------------------------------------------------------
