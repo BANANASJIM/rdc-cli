@@ -14,6 +14,7 @@ from mock_renderdoc import (
     Descriptor,
     MockPipeState,
     ResourceDescription,
+    ResourceFormat,
     ResourceId,
     ShaderStage,
     TextureDescription,
@@ -112,7 +113,17 @@ def _build_textures():
             height=512,
             mips=4,
         ),
+        TextureDescription(
+            resourceId=ResourceId(500),
+            width=2,
+            height=2,
+            format=ResourceFormat(name="D16", compByteWidth=2, compCount=1, compType=8),
+        ),
     ]
+
+
+# D16 2x2 depth bytes for ResourceId(500): width*height*compCount*compByteWidth = 8.
+_DEPTH_500_DATA = (0).to_bytes(2, "little") + (65535).to_bytes(2, "little") * 3
 
 
 def _build_buffers():
@@ -157,7 +168,7 @@ def _make_handler_state(tmp_path: Path):
             _assert_has_resource_id(texsave),
             Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100),
         ),
-        GetTextureData=lambda rid, sub: b"\x00\xff" * 512,
+        GetTextureData=lambda rid, sub: _DEPTH_500_DATA if int(rid) == 500 else b"\x00\xff" * 512,
         GetBufferData=lambda rid, offset, length: b"\xab\xcd" * 256,
     )
     return make_daemon_state(

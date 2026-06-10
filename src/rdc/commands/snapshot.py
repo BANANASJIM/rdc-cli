@@ -60,8 +60,9 @@ def snapshot_cmd(eid: int, output: str, use_json: bool) -> None:
             continue
         break
 
-    # Depth target: surface a warning when remote depth decode is unsupported
-    # (e.g. D24S8 or MSAA) instead of silently omitting depth.png.
+    # Depth target: surface a warning when depth decode is unsupported
+    # (combined depth-stencil or MSAA in remote mode) instead of silently
+    # omitting depth.png.
     depth_result, depth_code = call_with_code("rt_depth", {"eid": eid})
     if depth_result is not None:
         data = fetch_remote_file(depth_result["path"])
