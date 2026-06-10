@@ -131,10 +131,19 @@ def texture_cmd(id: int, output: str | None, mip: int, raw: bool) -> None:
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option(
     "--target",
-    default=0,
+    default=None,
     type=int,
     shell_complete=_complete_rt_target,
-    help="Color target index (default 0)",
+    help="Color target index (default 0); mutually exclusive with --depth",
+)
+@click.option(
+    "--depth",
+    is_flag=True,
+    help=(
+        "Export the raw depth attachment texture (/draws/<eid>/targets/depth.png); "
+        "distinct from --overlay depth, which renders RenderDoc's depth overlay "
+        "visualization. Ignored when --overlay is set."
+    ),
 )
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
 @click.option(
@@ -160,7 +169,8 @@ def texture_cmd(id: int, output: str | None, mip: int, raw: bool) -> None:
 def rt_cmd(
     eid: int | None,
     output: str | None,
-    target: int,
+    target: int | None,
+    depth: bool,
     raw: bool,
     overlay: str | None,
     width: int,
@@ -194,7 +204,15 @@ def rt_cmd(
 
     if eid is None:
         raise click.UsageError("EID is required when --overlay is not used")
-    _export_vfs_path(f"/draws/{eid}/targets/color{target}.png", output, raw)
+
+    if depth:
+        if target is not None:
+            raise click.UsageError("--depth and --target are mutually exclusive")
+        _export_vfs_path(f"/draws/{eid}/targets/depth.png", output, raw)
+        return
+
+    color = target if target is not None else 0
+    _export_vfs_path(f"/draws/{eid}/targets/color{color}.png", output, raw)
 
 
 @click.command("buffer")
