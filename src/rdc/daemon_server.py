@@ -556,6 +556,16 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     """
     from rdc.discover import find_renderdoc
 
+    # Normalize a literal localhost host portion to 127.0.0.1: the RenderDoc
+    # remote protocol is IPv4-only, but localhost resolves to ::1 first on
+    # dual-stack hosts, stalling forever. Plain string check leaves protocol
+    # URLs (adb://...), bracketed IPv6, and real hostnames untouched.
+    if remote_url.lower() == "localhost" or remote_url.lower().startswith("localhost:"):
+        remote_url = "127.0.0.1" + remote_url[len("localhost") :]
+        _log.debug(
+            "normalizing 'localhost' -> '127.0.0.1' (RenderDoc remote protocol is IPv4-only)"
+        )
+
     rd = find_renderdoc()
     if rd is None:
         return "failed to import renderdoc module"

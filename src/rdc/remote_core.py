@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from typing import Any
@@ -30,13 +31,36 @@ _PRIVATE_NETS = (
 DEFAULT_PORT = 39920
 
 
+def _normalize_remote_host(host: str) -> str:
+    """Map the literal ``localhost`` (case-insensitive) to ``127.0.0.1``.
+
+    The RenderDoc remote protocol is IPv4-only: ``renderdoccmd remoteserver``
+    binds ``0.0.0.0`` and never listens on ``::1``, but ``localhost`` resolves
+    to ``::1`` first on dual-stack hosts, causing a silent indefinite stall.
+    Everything else (``::1`` literals, IPv6 addresses, real hostnames) is
+    returned unchanged.
+    """
+    if host.lower() == "localhost":
+        logging.getLogger(__name__).debug(
+            "normalizing 'localhost' -> '127.0.0.1' (RenderDoc remote protocol is IPv4-only)"
+        )
+        return "127.0.0.1"
+    return host
+
+
 def is_protocol_url(url: str) -> bool:
     """Return True if url is a device protocol URL (e.g. adb://SERIAL)."""
     return "://" in url
 
 
 def build_conn_url(host: str, port: int) -> str:
-    """Build connection URL, re-bracketing IPv6 addresses."""
+    """Build connection URL, re-bracketing IPv6 addresses.
+
+    Normalizes ``localhost`` here too, so hosts loaded from pre-fix state files
+    (``_resolve_url`` -> ``load_latest_remote_state``) and split-mode daemon
+    handlers cannot escape IPv4 normalization.
+    """
+    host = _normalize_remote_host(host)
     if ":" in host:
         return f"[{host}]:{port}"
     return f"{host}:{port}"
@@ -85,8 +109,8 @@ def parse_url(url: str) -> tuple[str, int]:
             raise ValueError(f"invalid port: {port_str!r}") from None
         if not (1 <= port <= 65535):
             raise ValueError(f"invalid port: {port_str!r}")
-        return host, port
-    return url, DEFAULT_PORT
+        return _normalize_remote_host(host), port
+    return _normalize_remote_host(url), DEFAULT_PORT
 
 
 def connect_remote_server(rd: Any, url: str) -> Any:

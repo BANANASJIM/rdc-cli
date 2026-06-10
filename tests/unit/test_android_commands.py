@@ -322,7 +322,7 @@ class TestGetForwardedPort:
             lambda s, u: 12345,
         )
         CliRunner().invoke(android_setup_cmd, [])
-        rd.CreateRemoteServerConnection.assert_called_once_with("localhost:12345")
+        rd.CreateRemoteServerConnection.assert_called_once_with("127.0.0.1:12345")
 
     def test_setup_falls_back_to_adb_url(
         self,
@@ -560,6 +560,18 @@ class TestAndroidCapture:
             ["com.example.app/.MainActivity", "-o", str(out)],
         )
         assert result.exit_code == 0
+
+    def test_target_control_uses_ipv4(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        mock_rd = self._setup_capture_mocks(monkeypatch)
+        out = tmp_path / "out.rdc"
+        result = CliRunner().invoke(
+            android_capture_cmd,
+            ["com.example.app/.MainActivity", "-o", str(out)],
+        )
+        assert result.exit_code == 0
+        assert mock_rd.CreateTargetControl.call_args[0][0] == "127.0.0.1"
 
     def test_json_output(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         self._setup_capture_mocks(monkeypatch)

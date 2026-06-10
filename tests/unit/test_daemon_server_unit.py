@@ -390,6 +390,44 @@ class TestMatchCaptureGpu:
         assert captured.get("sd") is not None
         assert captured.get("rd") is mock_rd
 
+    def test_remote_replay_normalizes_localhost(self, monkeypatch: Any) -> None:
+        """localhost:PORT reaches CreateRemoteServerConnection as 127.0.0.1:PORT."""
+        import mock_renderdoc as mock_rd
+
+        captured_url: dict[str, str] = {}
+
+        remote = SimpleNamespace(
+            CopyCaptureToRemote=lambda path, cb: path,
+            CopyCaptureFromRemote=lambda path, dst, cb: None,
+            OpenCapture=lambda pref, path, opts, cb: (mock_rd.ResultCode.InternalError, None),
+            ShutdownConnection=lambda: None,
+            Ping=lambda: None,
+        )
+
+        def _create_remote(url: str) -> tuple[Any, Any]:
+            captured_url["url"] = url
+            return mock_rd.ResultCode.Succeeded, remote
+
+        monkeypatch.setattr(mock_rd, "CreateRemoteServerConnection", _create_remote, raising=False)
+        monkeypatch.setattr("rdc.daemon_server._match_capture_gpu", lambda *a, **k: None)
+
+        cap_path = Path("test.rdc")
+        cap_path.write_bytes(b"\x00")
+        try:
+            sys.modules["renderdoc"] = mock_rd  # type: ignore[assignment]
+            try:
+                from rdc.daemon_server import _load_remote_replay
+
+                state = DaemonState(capture=str(cap_path), current_eid=0, token="tok")
+                _load_remote_replay(state, "localhost:39920")
+            finally:
+                sys.modules.pop("renderdoc", None)
+        finally:
+            cap_path.unlink(missing_ok=True)
+
+        assert captured_url["url"] == "127.0.0.1:39920"
+        assert state.remote_url == "127.0.0.1:39920"
+
 
 class TestFix225D3D12ChunkNameAndDeviceId:
     """#225 fix-forward: real chunk name, depth-3 walk, exact DeviceId match.

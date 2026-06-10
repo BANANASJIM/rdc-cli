@@ -97,10 +97,10 @@ def _discover_latest_target(rd: Any, timeout: float = 5.0) -> int:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         latest = 0
-        ident = rd.EnumerateRemoteTargets("localhost", 0)
+        ident = rd.EnumerateRemoteTargets("127.0.0.1", 0)
         while ident != 0:
             latest = ident
-            ident = rd.EnumerateRemoteTargets("localhost", ident)
+            ident = rd.EnumerateRemoteTargets("127.0.0.1", ident)
         if latest != 0:
             return latest
         time.sleep(0.25)
