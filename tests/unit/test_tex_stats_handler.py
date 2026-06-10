@@ -702,7 +702,7 @@ def test_tex_export_remote_r11g11b10_nan_renders_black(tmp_path: object) -> None
 
 
 def test_tex_export_remote_r11g11b10_subnormal_tiny(tmp_path: object) -> None:
-    # exp=0 mant=1 for all channels -> ~1.5e-19, sRGB rounds to 0, no error.
+    # exp=0 mant=1 for all channels -> ~9.5e-7, sRGB rounds to 0, no error.
     tex = _r11g11b10_tex(113, width=1, height=1)
     state = _remote_state(tex, struct.pack("<I", 0x00400801), tmp_path)
     resp, _ = _handle_request(rpc_request("tex_export", {"id": 113}), state)

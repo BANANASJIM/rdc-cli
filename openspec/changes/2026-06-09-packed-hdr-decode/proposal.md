@@ -143,7 +143,7 @@ Notes:
 | Risk | Mitigation |
 |------|------------|
 | Bit-extraction off-by-one | Hand-computed known-value unit tests with exact uint32 words. |
-| numpy `where` for subnormal/normal wrong | Explicit test case for subnormal (exp=0, mant=1) — value must be ~1.5e-19, not zero. |
+| numpy `where` for subnormal/normal wrong | Explicit test case for subnormal (exp=0, mant=1) — value must be ~9.5e-7, not zero. |
 | Inf/NaN leaked to Image.fromarray | `nan_to_num` is applied before clip; verified by existing NaN test pattern on Float path. |
 | Length check wrong (using cc*cbw) | Spec explicitly mandates `* 4`; length test covers wrong-size rejection. |
 | Regression on existing Regular formats | New branches are fully guarded by `fmt.type`; Regular path code is untouched. |
