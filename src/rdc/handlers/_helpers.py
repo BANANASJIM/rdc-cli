@@ -288,6 +288,58 @@ def _decode_dtype(rd: Any, comp_type: int, comp_byte_width: int) -> str | None:
     return table.get((comp_type, comp_byte_width))
 
 
+def _unpack_float_component(exp: Any, mant: Any, mant_bits: int) -> Any:
+    """Decode a no-sign mini-float component to float32 (vectorised).
+
+    exp/mant are uint arrays of the same shape. ``mant_bits`` is the mantissa
+    width (6 for the 11-bit channels, 5 for the 10-bit channel); the exponent is
+    always 5 bits (bias 15, max value 31 reserved for Inf/NaN).
+    """
+    import numpy as np
+
+    scale = float(1 << mant_bits)
+    frac = mant.astype(np.float32) / np.float32(scale)
+    subnormal = frac * np.float32(2.0**-14)
+    normal = (np.float32(1.0) + frac) * np.exp2(exp.astype(np.float32) - np.float32(15))
+    inf_nan = np.where(mant == 0, np.float32(np.inf), np.float32(np.nan))
+    out = np.where(exp == 0, subnormal, normal)
+    out = np.where(exp == 31, inf_nan, out)
+    return out.astype(np.float32)
+
+
+def _unpack_r11g11b10(words: Any) -> Any:
+    """Decode R11G11B10_FLOAT uint32 words to a float32 (N, 3) RGB array.
+
+    R: bits [0:11) (5-bit exp, 6-bit mantissa), G: bits [11:22) (same layout),
+    B: bits [22:32) (5-bit exp, 5-bit mantissa). No sign; exponent bias 15.
+    """
+    import numpy as np
+
+    r = words & np.uint32(0x7FF)
+    g = (words >> np.uint32(11)) & np.uint32(0x7FF)
+    b = (words >> np.uint32(22)) & np.uint32(0x3FF)
+    rv = _unpack_float_component(r >> np.uint32(6), r & np.uint32(0x3F), 6)
+    gv = _unpack_float_component(g >> np.uint32(6), g & np.uint32(0x3F), 6)
+    bv = _unpack_float_component(b >> np.uint32(5), b & np.uint32(0x1F), 5)
+    return np.stack([rv, gv, bv], axis=-1).astype(np.float32)
+
+
+def _unpack_r9g9b9e5(words: Any) -> Any:
+    """Decode R9G9B9E5_SHAREDEXP uint32 words to a float32 (N, 3) RGB array.
+
+    R/G/B 9-bit mantissas at [0:9), [9:18), [18:27); shared 5-bit exponent at
+    [27:32). value = mant * 2^(exp - 24). No reserved exponent, no Inf/NaN.
+    """
+    import numpy as np
+
+    rm = (words & np.uint32(0x1FF)).astype(np.float32)
+    gm = ((words >> np.uint32(9)) & np.uint32(0x1FF)).astype(np.float32)
+    bm = ((words >> np.uint32(18)) & np.uint32(0x1FF)).astype(np.float32)
+    exp = ((words >> np.uint32(27)) & np.uint32(0x1F)).astype(np.float32)
+    scale = np.exp2(exp - np.float32(24))
+    return np.stack([rm * scale, gm * scale, bm * scale], axis=-1).astype(np.float32)
+
+
 def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bool) -> bytes | None:
     """Decode tightly packed GetTextureData bytes into PNG bytes.
 
@@ -323,6 +375,34 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
         return None
 
     fmt = tex.format
+
+    # Packed HDR formats: 4 bytes/pixel, closed-form numpy decode. Non-Regular,
+    # so they must be handled before the Regular gate (which would reject them);
+    # they carry their own MSAA guard and local dimension/length computation.
+    if fmt.type in (rd.ResourceFormatType.R11G11B10, rd.ResourceFormatType.R9G9B9E5):
+        if getattr(tex, "msSamp", 1) > 1:
+            return None
+        width = max(1, tex.width >> mip)
+        height = max(1, tex.height >> mip)
+        depth_lvl = max(1, getattr(tex, "depth", 1) >> mip)
+        if len(raw) != width * height * depth_lvl * 4:
+            return None
+        words = np.frombuffer(raw, dtype=np.dtype("<u4")).reshape((depth_lvl * height, width))
+        flat = words.ravel()
+        if fmt.type == rd.ResourceFormatType.R11G11B10:
+            rgb = _unpack_r11g11b10(flat)
+        else:
+            rgb = _unpack_r9g9b9e5(flat)
+        rgb_img = rgb.reshape((depth_lvl * height, width, 3))
+        sanitized = np.nan_to_num(rgb_img, nan=0.0, posinf=1.0, neginf=0.0)
+        f = np.clip(sanitized, 0.0, 1.0)
+        alpha = np.full((depth_lvl * height, width, 1), 255, np.uint8)
+        rgb8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
+        out = np.concatenate([rgb8, alpha], axis=2)
+        buf = io.BytesIO()
+        Image.fromarray(out, mode="RGBA").save(buf, format="PNG")
+        return buf.getvalue()
+
     if fmt.type != rd.ResourceFormatType.Regular:
         return None
     if getattr(tex, "msSamp", 1) > 1:
