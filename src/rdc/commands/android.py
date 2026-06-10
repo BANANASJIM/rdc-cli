@@ -336,7 +336,7 @@ def android_setup_cmd(serial: str | None, use_json: bool) -> None:
     conn_url = url
     forwarded_port = _get_forwarded_port(serial, url)
     if forwarded_port is not None:
-        conn_url = f"localhost:{forwarded_port}"
+        conn_url = f"127.0.0.1:{forwarded_port}"
 
     try:
         remote = connect_remote_server(rd, conn_url)
@@ -461,7 +461,7 @@ def android_capture_cmd(
     local_port = _forward_target_control(device_serial, port)
 
     # Connect via target control
-    tc = rd.CreateTargetControl("localhost", local_port, "rdc-cli", True)
+    tc = rd.CreateTargetControl("127.0.0.1", local_port, "rdc-cli", True)
     if tc is None:
         click.echo("error: failed to connect to target control", err=True)
         _clear_gpu_debug_layers(device_serial)

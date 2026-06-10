@@ -329,6 +329,20 @@ class TestDiscoverLatestTarget:
         rd = SimpleNamespace(EnumerateRemoteTargets=lambda _host, prev: next(targets))
         assert _discover_latest_target(rd, timeout=1.0) == 42
 
+    def test_enumerate_uses_ipv4_host(self) -> None:
+        from rdc.capture_core import _discover_latest_target
+
+        seen: list[str] = []
+        targets = iter([7, 0])
+
+        def _enum(host: str, prev: int) -> int:
+            seen.append(host)
+            return next(targets)
+
+        rd = SimpleNamespace(EnumerateRemoteTargets=_enum)
+        assert _discover_latest_target(rd, timeout=1.0) == 7
+        assert seen and all(h == "127.0.0.1" for h in seen)
+
 
 class TestIdentZeroFallback:
     """Regression: ExecuteAndInject returns ident=0 but target is discoverable."""

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from rdc.remote_core import (
+    _normalize_remote_host,
     build_conn_url,
     connect_remote_server,
     enumerate_remote_targets,
@@ -19,6 +20,29 @@ from rdc.remote_core import (
 )
 
 
+class TestNormalizeRemoteHost:
+    def test_localhost(self) -> None:
+        assert _normalize_remote_host("localhost") == "127.0.0.1"
+
+    def test_localhost_upper(self) -> None:
+        assert _normalize_remote_host("LOCALHOST") == "127.0.0.1"
+
+    def test_localhost_mixed_case(self) -> None:
+        assert _normalize_remote_host("Localhost") == "127.0.0.1"
+
+    def test_ipv4_unchanged(self) -> None:
+        assert _normalize_remote_host("127.0.0.1") == "127.0.0.1"
+
+    def test_private_ipv4_unchanged(self) -> None:
+        assert _normalize_remote_host("192.168.1.5") == "192.168.1.5"
+
+    def test_ipv6_loopback_unchanged(self) -> None:
+        assert _normalize_remote_host("::1") == "::1"
+
+    def test_hostname_unchanged(self) -> None:
+        assert _normalize_remote_host("myserver.local") == "myserver.local"
+
+
 class TestParseUrl:
     def test_host_only(self) -> None:
         assert parse_url("192.168.1.10") == ("192.168.1.10", 39920)
@@ -27,7 +51,10 @@ class TestParseUrl:
         assert parse_url("192.168.1.10:12345") == ("192.168.1.10", 12345)
 
     def test_localhost(self) -> None:
-        assert parse_url("localhost") == ("localhost", 39920)
+        assert parse_url("localhost") == ("127.0.0.1", 39920)
+
+    def test_localhost_with_port(self) -> None:
+        assert parse_url("localhost:39920") == ("127.0.0.1", 39920)
 
     def test_ipv6_brackets(self) -> None:
         assert parse_url("[::1]:39920") == ("::1", 39920)
@@ -72,14 +99,28 @@ class TestBuildConnUrl:
     def test_ipv4(self) -> None:
         assert build_conn_url("192.168.1.1", 39920) == "192.168.1.1:39920"
 
-    def test_hostname(self) -> None:
-        assert build_conn_url("localhost", 39920) == "localhost:39920"
+    def test_ipv4_localhost_unchanged(self) -> None:
+        assert build_conn_url("127.0.0.1", 39920) == "127.0.0.1:39920"
+
+    def test_localhost_normalized(self) -> None:
+        assert build_conn_url("localhost", 39920) == "127.0.0.1:39920"
 
     def test_ipv6_re_brackets(self) -> None:
         assert build_conn_url("::1", 39920) == "[::1]:39920"
 
     def test_ipv6_long(self) -> None:
         assert build_conn_url("2001:db8::1", 8080) == "[2001:db8::1]:8080"
+
+
+class TestStateKeyConsistency:
+    def test_parsed_localhost_keys_on_ipv4(self) -> None:
+        from rdc.remote_state import _state_path
+
+        host, port = parse_url("localhost:39920")
+        assert (host, port) == ("127.0.0.1", 39920)
+        path = _state_path(host, port)
+        assert path.name == "127.0.0.1_39920.json"
+        assert "localhost" not in str(path)
 
 
 class TestWarnIfPublic:

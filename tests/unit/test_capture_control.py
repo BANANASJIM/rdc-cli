@@ -95,6 +95,39 @@ def test_attach_connection_failed(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "error" in result.output.lower() or "error" in (result.stderr or "").lower()
 
 
+# --- localhost -> 127.0.0.1 normalization (RenderDoc remote protocol is IPv4-only) ---
+
+
+def test_attach_host_default_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
+    tc = _make_mock_tc()
+    rd = _make_mock_rd(tc)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
+
+    result = CliRunner().invoke(attach_cmd, ["12345"])
+    assert result.exit_code == 0
+    assert rd.CreateTargetControl.call_args.args[0] == "127.0.0.1"
+
+
+def test_attach_host_explicit_localhost_normalized(monkeypatch: pytest.MonkeyPatch) -> None:
+    tc = _make_mock_tc()
+    rd = _make_mock_rd(tc)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
+
+    result = CliRunner().invoke(attach_cmd, ["12345", "--host", "LOCALHOST"])
+    assert result.exit_code == 0
+    assert rd.CreateTargetControl.call_args.args[0] == "127.0.0.1"
+
+
+def test_attach_host_non_localhost_passthrough(monkeypatch: pytest.MonkeyPatch) -> None:
+    tc = _make_mock_tc()
+    rd = _make_mock_rd(tc)
+    monkeypatch.setattr("rdc.commands._helpers.find_renderdoc", lambda: rd)
+
+    result = CliRunner().invoke(attach_cmd, ["12345", "--host", "192.168.1.50"])
+    assert result.exit_code == 0
+    assert rd.CreateTargetControl.call_args.args[0] == "192.168.1.50"
+
+
 # --- capture-trigger ---
 
 
