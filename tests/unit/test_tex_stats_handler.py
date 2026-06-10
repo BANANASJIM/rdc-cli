@@ -465,6 +465,20 @@ def test_tex_export_remote_rgba32f_hdr_clip(tmp_path: object) -> None:
     assert px[3] == 255
 
 
+def test_tex_export_remote_float_rgba_alpha_linear(tmp_path: object) -> None:
+    # Float RGBA: RGB gets sRGB OETF, alpha stays LINEAR. alpha 0.5 -> ~128, not ~188.
+    fmt = rd.ResourceFormat(name="R32G32B32A32_FLOAT", compByteWidth=4, compCount=4, compType=1)
+    tex = rd.TextureDescription(resourceId=rd.ResourceId(52), width=1, height=1, format=fmt)
+    raw = np.array([1.0, 1.0, 1.0, 0.5], dtype=np.float32).tobytes()
+    state = _remote_state(tex, raw, tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 52}), state)
+    img = _read_png(resp["result"]["path"])
+    px = img.getpixel((0, 0))
+    assert px[:3] == (255, 255, 255)  # 1.0 -> sRGB -> 255
+    assert abs(px[3] - 128) <= 2  # alpha linear 0.5 -> ~128
+    assert px[3] < 180  # gamma-encoding would give ~188
+
+
 def test_tex_export_remote_snorm_remaps_signed(tmp_path: object) -> None:
     # SNorm normal map: -1 -> 0, 0 -> ~128, +1 -> 255. Read as int8, not uint8.
     fmt = rd.ResourceFormat(name="R8G8B8A8_SNORM", compByteWidth=1, compCount=4, compType=3)

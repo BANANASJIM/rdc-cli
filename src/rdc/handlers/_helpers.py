@@ -356,7 +356,12 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
     if ct == int(rd.CompType.Float):
         sanitized = np.nan_to_num(arr.astype(np.float32), nan=0.0, posinf=1.0, neginf=0.0)
         f = np.clip(sanitized, 0.0, 1.0)
-        rgba8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
+        if cc == 4:
+            rgb8 = (_srgb_encode(f[:, :, :3]) * 255.0).round().astype(np.uint8)
+            a8 = (f[:, :, 3:4] * 255.0).round().astype(np.uint8)
+            rgba8 = np.concatenate([rgb8, a8], axis=2)
+        else:
+            rgba8 = (_srgb_encode(f) * 255.0).round().astype(np.uint8)
     elif ct == int(rd.CompType.SNorm):
         # [-1, 1] -> [0, 1]; divisor is the signed-int max for the width.
         denom = float(np.iinfo(np.dtype(dtype_name)).max)

@@ -151,7 +151,10 @@ def _handle_tex_raw(
         return _error_response(request_id, -32002, err), True
     controller = state.adapter.controller
     sub = _make_subresource(state.rd)
-    raw_data = controller.GetTextureData(tex.resourceId, sub)
+    try:
+        raw_data = controller.GetTextureData(tex.resourceId, sub)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(request_id, -32002, f"GetTextureData failed: {exc}"), True
     if not raw_data:
         return _error_response(request_id, -32002, "no texture data returned"), True
     temp_path = state.temp_dir / f"tex_{res_id}.raw"
