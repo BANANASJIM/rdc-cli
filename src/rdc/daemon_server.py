@@ -72,6 +72,7 @@ __all__ = [
     "_seek_replay",
     "_set_frame_event",
     "_start_ping_thread",
+    "cleanup_state",
     "_stop_ping_thread",
     "main",
     "run_server",
@@ -488,6 +489,55 @@ def _stop_ping_thread(state: DaemonState) -> None:
         state._ping_thread.join(timeout=5.0)
 
 
+def cleanup_state(state: DaemonState) -> None:
+    """Release all replay resources held by *state*.
+
+    Shared teardown for both the explicit ``shutdown`` RPC and the
+    idle-timeout exit path, so a daemon that times out still closes the
+    remote replay session (CloseCapture + ShutdownConnection) instead of
+    leaking it on the remoteserver. Every step is best-effort.
+    """
+    if state.replay_output is not None:
+        try:
+            state.replay_output.Shutdown()
+        except Exception:  # noqa: BLE001
+            pass
+        state.replay_output = None
+    if state.adapter is not None:
+        controller = state.adapter.controller
+        try:
+            for rid_obj in state.shader_replacements.values():
+                controller.RemoveReplacement(rid_obj)
+            for rid_obj in state.built_shaders.values():
+                controller.FreeTargetResource(rid_obj)
+        except Exception:  # noqa: BLE001
+            pass
+        state.shader_replacements.clear()
+        state.built_shaders.clear()
+    _cleanup_temp(state)
+    state.temp_dir = None
+    _cleanup_temp_capture(state)
+    if state.is_remote:
+        _stop_ping_thread(state)
+        if state.remote is not None and state.adapter is not None:
+            try:
+                state.remote.CloseCapture(state.adapter.controller)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                state.remote.ShutdownConnection()
+            except Exception:  # noqa: BLE001
+                pass
+    elif state.adapter is not None:
+        state.adapter.shutdown()
+    if state.cap is not None:
+        try:
+            state.cap.Shutdown()
+        except Exception:  # noqa: BLE001
+            pass
+        state.cap = None
+
+
 def _cleanup_temp_capture(state: DaemonState) -> None:
     """Remove temp metadata directory created for remote replay, if any."""
     if not state.local_capture_is_temp:
@@ -678,9 +728,11 @@ def run_server(  # pragma: no cover
         server.settimeout(1.0)
 
         running = True
+        idle_exit = False
         last_activity = time.time()
         while running:
             if idle_timeout_s > 0 and time.time() - last_activity > idle_timeout_s:
+                idle_exit = True
                 break
 
             try:
@@ -734,6 +786,12 @@ def run_server(  # pragma: no cover
                 except OSError:
                     pass
                 last_activity = time.time()
+
+    # The shutdown RPC runs cleanup via _handle_shutdown before exiting the
+    # loop; an idle-timeout exit must release replay resources here so the
+    # remote replay session is not leaked on the remoteserver.
+    if idle_exit:
+        cleanup_state(state)
 
 
 def main() -> None:  # pragma: no cover

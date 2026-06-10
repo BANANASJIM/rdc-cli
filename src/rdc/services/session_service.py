@@ -6,6 +6,7 @@ import secrets
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -69,13 +70,55 @@ def start_daemon(
         cmd += ["--remote-url", remote_url]
     elif not _renderdoc_available():
         cmd.append("--no-replay")
-    return subprocess.Popen(
+    # Redirect daemon stderr to a temp file rather than a PIPE: during remote
+    # replay the daemon's verbose upload logging would fill the OS pipe buffer
+    # and block before serving its first ping if no one drains it, which deadlocks
+    # wait_for_ping. A file has no buffer limit and we read its tail on failure.
+    stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
+        mode="w+", prefix="rdc-daemon-", suffix=".stderr", delete=False
+    )
+    proc = subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stderr=stderr_file,
         text=True,
         **_platform.popen_flags(),
     )
+    proc._rdc_stderr_path = stderr_file.name  # type: ignore[attr-defined]
+    stderr_file.close()
+    return proc
+
+
+def _read_daemon_stderr(proc: subprocess.Popen[str]) -> str:
+    """Return the tail of the daemon's redirected stderr, then remove the file."""
+    path = getattr(proc, "_rdc_stderr_path", None)
+    if not path:
+        return ""
+    try:
+        text = Path(path).read_text(errors="replace")
+    except OSError:
+        return ""
+    finally:
+        try:
+            Path(path).unlink()
+        except OSError:
+            pass
+    return "\n".join(text.splitlines()[-20:]).strip()
+
+
+def _discard_daemon_stderr(proc: subprocess.Popen[str]) -> None:
+    """Best-effort removal of the daemon's stderr temp file after a successful start.
+
+    On POSIX the daemon keeps writing to the now-unlinked inode; on Windows the
+    file is still open so unlink may fail and is silently ignored (the OS reclaims
+    it on process exit).
+    """
+    path = getattr(proc, "_rdc_stderr_path", None)
+    if path:
+        try:
+            Path(path).unlink()
+        except OSError:
+            pass
 
 
 def wait_for_ping(
@@ -159,16 +202,17 @@ def open_session(
             break
         proc.terminate()
         try:
-            _, stderr = proc.communicate(timeout=5)
+            proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
-            stderr = ""
-        if stderr and stderr.strip():
-            detail = stderr.strip()
+        stderr = _read_daemon_stderr(proc)
+        if stderr:
+            detail = stderr
     else:
         return False, f"error: daemon failed to start ({detail}) -- hint: run 'rdc doctor'"
 
+    _discard_daemon_stderr(proc)
     create_session(
         capture=str(capture),
         host=host,
@@ -422,15 +466,16 @@ def listen_open_session(
     if not ok:
         proc.terminate()
         try:
-            _, stderr = proc.communicate(timeout=5)
+            proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
-            stderr = ""
-        if stderr and stderr.strip():
-            detail = stderr.strip()
+        stderr = _read_daemon_stderr(proc)
+        if stderr:
+            detail = stderr
         return False, f"error: daemon failed to start ({detail}) -- hint: run 'rdc doctor'"
 
+    _discard_daemon_stderr(proc)
     create_session(
         capture=capture,
         host=connect_host,

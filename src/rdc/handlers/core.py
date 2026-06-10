@@ -82,52 +82,9 @@ def _handle_count(
 def _handle_shutdown(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
-    if state.replay_output is not None:
-        try:
-            state.replay_output.Shutdown()
-        except Exception:  # noqa: BLE001
-            pass
-        state.replay_output = None
-    if state.adapter is not None:
-        controller = state.adapter.controller
-        try:
-            for rid_obj in state.shader_replacements.values():
-                controller.RemoveReplacement(rid_obj)
-            for rid_obj in state.built_shaders.values():
-                controller.FreeTargetResource(rid_obj)
-        except Exception:  # noqa: BLE001
-            pass
-        state.shader_replacements.clear()
-        state.built_shaders.clear()
-    if state.temp_dir is not None:
-        import shutil
+    from rdc.daemon_server import cleanup_state  # noqa: PLC0415
 
-        shutil.rmtree(state.temp_dir, ignore_errors=True)
-    if state.local_capture_is_temp and state.local_capture_path:
-        import shutil
-        from pathlib import Path
-
-        shutil.rmtree(str(Path(state.local_capture_path).parent), ignore_errors=True)
-        state.local_capture_is_temp = False
-    if state.is_remote:
-        if state._ping_stop is not None:
-            state._ping_stop.set()
-        if state._ping_thread is not None:
-            state._ping_thread.join(timeout=5.0)
-        if state.remote is not None and state.adapter is not None:
-            try:
-                state.remote.CloseCapture(state.adapter.controller)
-            except Exception:  # noqa: BLE001
-                pass
-            try:
-                state.remote.ShutdownConnection()
-            except Exception:  # noqa: BLE001
-                pass
-    else:
-        if state.adapter is not None:
-            state.adapter.shutdown()
-    if state.cap is not None:
-        state.cap.Shutdown()
+    cleanup_state(state)
     return _result_response(request_id, {"ok": True}), False
 
 

@@ -150,37 +150,52 @@ class TestFix2ZombieCleanup:
         mock_ping: MagicMock,
         mock_check: MagicMock,
     ) -> None:
-        """TC-2.1: proc.wait() called after communicate raises TimeoutExpired."""
+        """TC-2.1: a hung terminate triggers kill()+wait() zombie cleanup."""
         from rdc.services.session_service import open_session
 
         mock_proc = MagicMock()
-        mock_proc.communicate.side_effect = subprocess.TimeoutExpired(cmd="rdc", timeout=5)
+
+        # wait(timeout=5) hangs on every attempt; the bare kill-path wait() returns.
+        def _wait(*_a: object, **kw: object) -> int:
+            if kw.get("timeout") is not None:
+                raise subprocess.TimeoutExpired(cmd="rdc", timeout=5)
+            return 0
+
+        mock_proc.wait.side_effect = _wait
         mock_start.return_value = mock_proc
 
         ok, msg = open_session(Path("test.rdc"))
         assert not ok
-        assert mock_proc.wait.call_count >= 1
+        assert mock_proc.kill.call_count >= 1
+        assert mock_proc.wait.call_count >= 2
 
     @patch("rdc.services.session_service._check_existing_session", return_value=(False, None))
     @patch("rdc.services.session_service.wait_for_ping", return_value=(False, "timeout"))
     @patch("rdc.services.session_service.start_daemon")
-    def test_normal_communicate_no_extra_wait(
+    def test_normal_failure_surfaces_stderr(
         self,
         mock_start: MagicMock,
         mock_ping: MagicMock,
         mock_check: MagicMock,
+        tmp_path: Path,
     ) -> None:
-        """TC-2.2: normal communicate path does not call proc.wait()."""
+        """TC-2.2: a clean (non-hung) daemon exit surfaces its stderr tail."""
         from rdc.services.session_service import open_session
 
+        stderr_path = tmp_path / "daemon.stderr"
         mock_proc = MagicMock()
-        mock_proc.communicate.return_value = ("", "some error\n")
-        mock_start.return_value = mock_proc
+        mock_proc.wait.return_value = 0
+        mock_proc._rdc_stderr_path = str(stderr_path)
+
+        def _start(*_a: object, **_kw: object) -> MagicMock:
+            stderr_path.write_text("some error\n")
+            return mock_proc
+
+        mock_start.side_effect = _start
 
         ok, msg = open_session(Path("test.rdc"))
         assert not ok
         assert "some error" in msg
-        assert mock_proc.wait.call_count == 0
 
 
 # ---------------------------------------------------------------------------

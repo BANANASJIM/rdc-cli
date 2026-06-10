@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import inspect
+import subprocess
+import sys
 import time
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -128,15 +130,21 @@ def test_open_session_reports_stderr_on_failure(
     monkeypatch.setattr(session_service, "load_session", lambda: None)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
+    stderr_path = tmp_path / "daemon.stderr"
     mock_proc = MagicMock()
     mock_proc.poll.return_value = 1
     mock_proc.returncode = 1
     mock_proc.pid = 999
     mock_proc.kill.return_value = None
-    mock_proc.communicate.return_value = ("", "some error msg\n")
+    mock_proc._rdc_stderr_path = str(stderr_path)
+
+    def _start(*_a: object, **_kw: object) -> MagicMock:
+        # Each spawn writes a fresh stderr file, as real start_daemon does.
+        stderr_path.write_text("some error msg\n")
+        return mock_proc
 
     detail = (False, "process exited: exit code 1")
-    monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
+    monkeypatch.setattr(session_service, "start_daemon", _start)
     monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: detail)
 
     ok, msg = session_service.open_session(Path("test.rdc"))
@@ -151,12 +159,14 @@ def test_open_session_failure_with_empty_stderr(
     monkeypatch.setattr(session_service, "load_session", lambda: None)
     monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
 
+    stderr_path = tmp_path / "daemon.stderr"
+    stderr_path.write_text("")
     mock_proc = MagicMock()
     mock_proc.poll.return_value = 1
     mock_proc.returncode = 1
     mock_proc.pid = 999
     mock_proc.kill.return_value = None
-    mock_proc.communicate.return_value = ("", "")
+    mock_proc._rdc_stderr_path = str(stderr_path)
 
     detail = (False, "process exited: exit code 1")
     monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
@@ -235,7 +245,7 @@ def test_open_session_retries_on_port_conflict(
     mock_proc = MagicMock()
     mock_proc.pid = 999
     mock_proc.kill.return_value = None
-    mock_proc.communicate.return_value = ("", "")
+    mock_proc._rdc_stderr_path = None
 
     monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
 
@@ -262,7 +272,7 @@ def test_open_session_all_retries_fail(monkeypatch: pytest.MonkeyPatch, tmp_path
     mock_proc = MagicMock()
     mock_proc.pid = 999
     mock_proc.kill.return_value = None
-    mock_proc.communicate.return_value = ("", "")
+    mock_proc._rdc_stderr_path = None
 
     monkeypatch.setattr(session_service, "start_daemon", lambda *a, **kw: mock_proc)
     monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (False, "port in use"))
@@ -381,3 +391,68 @@ def test_close_session_tree_kill_on_hang(monkeypatch: pytest.MonkeyPatch, tmp_pa
     ok, msg = session_service.close_session()
     assert ok is True
     assert 888 in tree_killed
+
+
+# ---------------------------------------------------------------------------
+# Regression: daemon stderr must never deadlock startup (#47 PIPE regression)
+# ---------------------------------------------------------------------------
+
+# A child that floods stderr with >128KB then sleeps, never serving a ping.
+# Mirrors a remote daemon whose verbose upload logging would fill a PIPE and
+# block before its first ping if stderr were not drained.
+_FLOOD_CHILD = (
+    "import sys, time;"
+    "sys.stderr.write('uploading: 0%\\n' * 12000);"
+    "sys.stderr.flush();"
+    "time.sleep(30)"
+)
+
+
+def test_open_session_does_not_hang_on_flooded_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """open_session must return promptly even when the daemon floods stderr.
+
+    With the old stderr=PIPE + undrained wait_for_ping, the child blocks on a
+    full pipe and the ping never comes, so wait_for_ping spins for the whole
+    timeout while the pipe stays full. This asserts the call returns well inside
+    the child's 30s sleep and that the flooded stderr tail is still surfaced.
+    """
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
+    monkeypatch.setenv("RDC_SESSION", "flood")
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    spawned: list[subprocess.Popen[str]] = []
+    real_popen = subprocess.Popen
+
+    def _flood_start(*_a: object, **_kw: object) -> subprocess.Popen[str]:
+        import tempfile  # noqa: PLC0415
+
+        stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
+            mode="w+", prefix="rdc-daemon-", suffix=".stderr", delete=False
+        )
+        proc = real_popen(
+            [sys.executable, "-c", _FLOOD_CHILD],
+            stdout=subprocess.DEVNULL,
+            stderr=stderr_file,
+            text=True,
+        )
+        proc._rdc_stderr_path = stderr_file.name  # type: ignore[attr-defined]
+        stderr_file.close()
+        spawned.append(proc)
+        return proc
+
+    monkeypatch.setattr(session_service, "start_daemon", _flood_start)
+
+    start = time.monotonic()
+    ok, msg = session_service.open_session(Path("flood.rdc"), timeout=2.0)
+    elapsed = time.monotonic() - start
+
+    for proc in spawned:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+    assert ok is False, msg
+    assert elapsed < 15.0, f"open_session hung ({elapsed:.1f}s) -- stderr pipe deadlock"
+    assert "uploading" in msg, f"daemon stderr not surfaced: {msg!r}"
