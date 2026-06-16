@@ -7,3 +7,5 @@ select = ["E", "W", "F", "I", "N", "UP", "B"]
 [lint.per-file-ignores]
 # Mock renderdoc module mirrors RenderDoc's CamelCase API names
 "tests/mocks/mock_renderdoc.py" = ["N802", "N803", "N815"]
+# Method-surface stubs mirror RenderDoc's CamelCase API names
+"tests/integration/test_mock_api_sync.py" = ["N802"]
