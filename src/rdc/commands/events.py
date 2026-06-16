@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import click
 
 from rdc.commands._helpers import call, complete_eid, complete_pass_name
-from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.json_fmt import write_json
 from rdc.formatters.kv import write_kv
+from rdc.formatters.options import list_output_options, render_list
 from rdc.formatters.tsv import write_footer, write_tsv
 
 
@@ -18,10 +18,7 @@ from rdc.formatters.tsv import write_footer, write_tsv
 @click.option("--filter", "pattern", default=None, help="Filter by name glob")
 @click.option("--limit", type=int, default=None, help="Max rows")
 @click.option("--range", "eid_range", default=None, help="EID range N:M")
-@click.option("--no-header", is_flag=True, help="Omit TSV header")
-@click.option("--json", "use_json", is_flag=True, help="JSON output")
-@click.option("--jsonl", "use_jsonl", is_flag=True, help="JSONL output")
-@click.option("-q", "--quiet", is_flag=True, help="Only EID column")
+@list_output_options
 def events_cmd(
     event_type: str | None,
     pattern: str | None,
@@ -44,19 +41,19 @@ def events_cmd(
         params["range"] = eid_range
     result = call("events", params)
     rows_data = result.get("events", [])
-    if use_json:
-        write_json(rows_data)
-        return
-    if use_jsonl:
-        write_jsonl(rows_data)
-        return
-    if quiet:
-        for r in rows_data:
-            sys.stdout.write(str(r["eid"]) + "\n")
-        return
-    header = ["EID", "TYPE", "NAME"]
-    rows = [[r["eid"], r["type"], r["name"]] for r in rows_data]
-    write_tsv(rows, header=header, no_header=no_header)
+
+    def _table() -> None:
+        rows = [[r["eid"], r["type"], r["name"]] for r in rows_data]
+        write_tsv(rows, header=["EID", "TYPE", "NAME"], no_header=no_header)
+
+    render_list(
+        rows_data,
+        use_json=use_json,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        table=_table,
+    )
 
 
 @click.command("draws")
@@ -69,10 +66,7 @@ def events_cmd(
 )
 @click.option("--sort", "sort_field", default=None, help="Sort field")
 @click.option("--limit", type=int, default=None, help="Max rows")
-@click.option("--no-header", is_flag=True, help="Omit TSV header")
-@click.option("--json", "use_json", is_flag=True, help="JSON output")
-@click.option("--jsonl", "use_jsonl", is_flag=True, help="JSONL output")
-@click.option("-q", "--quiet", is_flag=True, help="Only EID column")
+@list_output_options
 def draws_cmd(
     pass_name: str | None,
     sort_field: str | None,
@@ -93,31 +87,32 @@ def draws_cmd(
     result = call("draws", params)
     rows_data = result.get("draws", [])
     summary = result.get("summary", "")
-    if use_json:
-        write_json(rows_data)
-        return
-    if use_jsonl:
-        write_jsonl(rows_data)
-        return
-    if quiet:
-        for r in rows_data:
-            sys.stdout.write(str(r["eid"]) + "\n")
-        return
-    header = ["EID", "TYPE", "TRIANGLES", "INSTANCES", "PASS", "MARKER"]
-    rows = [
-        [
-            r["eid"],
-            r["type"],
-            r["triangles"],
-            r["instances"],
-            r.get("pass", "-"),
-            r.get("marker", "-"),
+
+    def _table() -> None:
+        header = ["EID", "TYPE", "TRIANGLES", "INSTANCES", "PASS", "MARKER"]
+        rows = [
+            [
+                r["eid"],
+                r["type"],
+                r["triangles"],
+                r["instances"],
+                r.get("pass", "-"),
+                r.get("marker", "-"),
+            ]
+            for r in rows_data
         ]
-        for r in rows_data
-    ]
-    write_tsv(rows, header=header, no_header=no_header)
-    if summary:
-        write_footer(summary)
+        write_tsv(rows, header=header, no_header=no_header)
+        if summary:
+            write_footer(summary)
+
+    render_list(
+        rows_data,
+        use_json=use_json,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        table=_table,
+    )
 
 
 @click.command("event")

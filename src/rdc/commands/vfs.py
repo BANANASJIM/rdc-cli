@@ -16,8 +16,9 @@ import click
 from click.shell_completion import CompletionItem
 
 from rdc.commands._helpers import call, fetch_remote_file
-from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.json_fmt import write_json
 from rdc.formatters.kv import format_kv
+from rdc.formatters.options import render_list
 from rdc.session_state import load_session as _load_session
 from rdc.vfs.formatter import render_ls, render_ls_long, render_tree_root
 from rdc.vfs.router import resolve_path
@@ -197,14 +198,19 @@ def ls_cmd(
         return
 
     if use_long and result.get("long"):
-        if use_jsonl:
-            write_jsonl(children)
-        elif quiet:
-            for child in children:
-                sys.stdout.write(str(child.get("name", "")) + "\n")
-        else:
+
+        def _table() -> None:
             columns = result.get("columns", [])
             click.echo(render_ls_long(children, columns, no_header=no_header))
+
+        render_list(
+            children,
+            use_json=False,
+            use_jsonl=use_jsonl,
+            quiet=quiet,
+            quiet_key="name",
+            table=_table,
+        )
     else:
         click.echo(render_ls(children, classify=classify))
 

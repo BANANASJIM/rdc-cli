@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import click
@@ -14,9 +13,9 @@ from rdc.commands._helpers import (
     complete_pass_identifier,
     completion_call,
 )
-from rdc.formatters.json_fmt import write_json, write_jsonl
+from rdc.formatters.json_fmt import write_json
 from rdc.formatters.kv import format_kv
-from rdc.formatters.options import list_output_options
+from rdc.formatters.options import list_output_options, render_list
 from rdc.formatters.tsv import format_row, write_tsv
 
 
@@ -90,7 +89,6 @@ def _complete_resource_id(
 
 
 @click.command("resources")
-@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @click.option(
     "--type",
     "type_filter",
@@ -114,11 +112,11 @@ def _complete_resource_id(
 )
 @list_output_options
 def resources_cmd(  # noqa: PLR0913
-    use_json: bool,
     type_filter: str | None,
     name_filter: str | None,
     sort: str,
     no_header: bool,
+    use_json: bool,
     use_jsonl: bool,
     quiet: bool,
 ) -> None:
@@ -132,16 +130,19 @@ def resources_cmd(  # noqa: PLR0913
         params["sort"] = sort
     result = call("resources", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
-    if use_json:
-        write_json(rows)
-    elif use_jsonl:
-        write_jsonl(rows)
-    elif quiet:
-        for r in rows:
-            sys.stdout.write(str(r.get("id", "")) + "\n")
-    else:
+
+    def _table() -> None:
         tsv_rows = [[r.get("id", "-"), r.get("type", "-"), r.get("name", "-")] for r in rows]
         write_tsv(tsv_rows, header=["ID", "TYPE", "NAME"], no_header=no_header)
+
+    render_list(
+        rows,
+        use_json=use_json,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="id",
+        table=_table,
+    )
 
 
 @click.command("resource")
@@ -161,7 +162,6 @@ def resource_cmd(resid: int, use_json: bool) -> None:
 
 
 @click.command("passes")
-@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @click.option("--deps", is_flag=True, default=False, help="Show pass dependency DAG.")
 @click.option("--dot", is_flag=True, default=False, help="Graphviz DOT output (requires --deps).")
 @click.option(
@@ -204,12 +204,8 @@ def passes_cmd(  # noqa: PLR0913
         return
 
     passes = tree.get("passes", [])
-    if use_jsonl:
-        write_jsonl(passes)
-    elif quiet:
-        for p in passes:
-            sys.stdout.write(str(p.get("name", "")) + "\n")
-    else:
+
+    def _table() -> None:
         header = ["NAME", "DRAWS", "DISPATCHES", "TRIANGLES", "BEGIN_EID", "END_EID"]
         tsv_rows = [
             [
@@ -223,6 +219,15 @@ def passes_cmd(  # noqa: PLR0913
             for p in passes
         ]
         write_tsv(tsv_rows, header=header, no_header=no_header)
+
+    render_list(
+        passes,
+        use_json=False,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="name",
+        table=_table,
+    )
 
 
 def _passes_deps(use_json: bool, dot: bool, graph: bool, table: bool) -> None:

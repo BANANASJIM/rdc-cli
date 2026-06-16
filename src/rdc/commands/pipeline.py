@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,8 +9,8 @@ import click
 from click.shell_completion import CompletionItem
 
 from rdc.commands._helpers import call, complete_eid
-from rdc.formatters.json_fmt import write_json, write_jsonl
-from rdc.formatters.options import list_output_options
+from rdc.formatters.json_fmt import write_json
+from rdc.formatters.options import list_output_options, render_list
 from rdc.formatters.tsv import format_row, write_tsv
 from rdc.services.query_service import STAGE_MAP
 
@@ -125,7 +124,6 @@ def pipeline_cmd(eid: int | None, section: str | None, use_json: bool) -> None:
 @click.argument("eid", required=False, type=int, shell_complete=complete_eid)
 @click.option("--binding", "binding_index", type=int, help="Filter by binding index.")
 @click.option("--set", "set_index", type=int, help="Filter by descriptor set index.")
-@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @list_output_options
 def bindings_cmd(
     eid: int | None,
@@ -150,14 +148,8 @@ def bindings_cmd(
 
     result = call("bindings", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
-    if use_json:
-        write_json(rows)
-    elif use_jsonl:
-        write_jsonl(rows)
-    elif quiet:
-        for r in rows:
-            sys.stdout.write(str(r.get("eid", "")) + "\n")
-    else:
+
+    def _table() -> None:
         tsv_rows = [
             [
                 r.get("eid", "-"),
@@ -171,6 +163,15 @@ def bindings_cmd(
         ]
         hdr = ["EID", "STAGE", "KIND", "SET", "SLOT", "NAME"]
         write_tsv(tsv_rows, header=hdr, no_header=no_header)
+
+    render_list(
+        rows,
+        use_json=use_json,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        table=_table,
+    )
 
 
 @click.command("shader")
@@ -429,7 +430,6 @@ def _parse_shader_positionals(
     default="name",
     help="Sort order.",
 )
-@click.option("--json", "use_json", is_flag=True, default=False, help="Output JSON.")
 @list_output_options
 def shaders_cmd(
     stage_filter: str | None,
@@ -451,13 +451,16 @@ def shaders_cmd(
 
     result = call("shaders", params)
     rows: list[dict[str, Any]] = result.get("rows", [])
-    if use_json:
-        write_json(rows)
-    elif use_jsonl:
-        write_jsonl(rows)
-    elif quiet:
-        for r in rows:
-            sys.stdout.write(str(r.get("shader", "")) + "\n")
-    else:
+
+    def _table() -> None:
         tsv_rows = [[r.get("shader", "-"), r.get("stages", "-"), r.get("uses", 0)] for r in rows]
         write_tsv(tsv_rows, header=["SHADER", "STAGES", "USES"], no_header=no_header)
+
+    render_list(
+        rows,
+        use_json=use_json,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="shader",
+        table=_table,
+    )

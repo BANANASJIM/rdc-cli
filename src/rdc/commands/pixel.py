@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import click
 
 from rdc.commands._helpers import call, complete_eid
 from rdc.commands.vfs import _fmt_pixel_mod
-from rdc.formatters.json_fmt import write_json, write_jsonl
-from rdc.formatters.options import list_output_options
+from rdc.formatters.json_fmt import write_json
+from rdc.formatters.options import list_output_options, render_list
 
 
 @click.command("pixel")
@@ -19,7 +18,6 @@ from rdc.formatters.options import list_output_options
 @click.argument("eid", required=False, type=int, shell_complete=complete_eid)
 @click.option("--target", default=0, type=int, help="Color target index (default 0)")
 @click.option("--sample", default=0, type=int, help="MSAA sample index (default 0)")
-@click.option("--json", "use_json", is_flag=True, help="JSON output")
 @list_output_options
 def pixel_cmd(
     x: int,
@@ -45,17 +43,17 @@ def pixel_cmd(
 
     modifications = result.get("modifications", [])
 
-    if use_jsonl:
-        write_jsonl(modifications)
-        return
-
-    if quiet:
+    def _table() -> None:
+        if not no_header:
+            click.echo("EID\tFRAG\tDEPTH\tPASSED\tFLAGS")
         for m in modifications:
-            sys.stdout.write(str(m["eid"]) + "\n")
-        return
+            click.echo(_fmt_pixel_mod(m))
 
-    if not no_header:
-        click.echo("EID\tFRAG\tDEPTH\tPASSED\tFLAGS")
-
-    for m in modifications:
-        click.echo(_fmt_pixel_mod(m))
+    render_list(
+        modifications,
+        use_json=False,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        table=_table,
+    )

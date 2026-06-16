@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import click
 from click.shell_completion import CompletionItem
 
 from rdc.commands._helpers import _sort_numeric_like, call, completion_call
-from rdc.formatters.json_fmt import write_json, write_jsonl
-from rdc.formatters.options import list_output_options
+from rdc.formatters.json_fmt import write_json
+from rdc.formatters.options import list_output_options, render_list
 from rdc.formatters.tsv import write_tsv
 
 
@@ -94,7 +93,6 @@ def _complete_usage_kind(
     shell_complete=_complete_usage_kind,
     help="Filter by usage type.",
 )
-@click.option("--json", "use_json", is_flag=True, help="JSON output.")
 @list_output_options
 def usage_cmd(
     resource_id: int | None,
@@ -122,14 +120,19 @@ def usage_cmd(
             write_json(result)
             return
         rows = result.get("rows", [])
-        if use_jsonl:
-            write_jsonl(rows)
-        elif quiet:
-            for r in rows:
-                sys.stdout.write(str(r["id"]) + "\n")
-        else:
+
+        def _all_table() -> None:
             tsv_rows = [[r["id"], r["name"], r["eid"], r["usage"]] for r in rows]
             write_tsv(tsv_rows, header=["ID", "NAME", "EID", "USAGE"], no_header=no_header)
+
+        render_list(
+            rows,
+            use_json=False,
+            use_jsonl=use_jsonl,
+            quiet=quiet,
+            quiet_key="id",
+            table=_all_table,
+        )
         return
 
     if resource_id is None:
@@ -141,11 +144,16 @@ def usage_cmd(
         write_json(result)
         return
     entries = result.get("entries", [])
-    if use_jsonl:
-        write_jsonl(entries)
-    elif quiet:
-        for entry in entries:
-            sys.stdout.write(str(entry["eid"]) + "\n")
-    else:
+
+    def _entries_table() -> None:
         tsv_rows = [[entry["eid"], entry["usage"]] for entry in entries]
         write_tsv(tsv_rows, header=["EID", "USAGE"], no_header=no_header)
+
+    render_list(
+        entries,
+        use_json=False,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        table=_entries_table,
+    )
