@@ -410,7 +410,13 @@ def _handle_stats(
     largest = largest[:5]
 
     return _result_response(
-        request_id, {"per_pass": per_pass, "top_draws": top_draws, "largest_resources": largest}
+        request_id,
+        {
+            "per_pass": per_pass,
+            "top_draws": top_draws,
+            "largest_resources": largest,
+            "event_count": state.max_eid,
+        },
     ), True
 
 

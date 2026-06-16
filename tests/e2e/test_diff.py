@@ -8,6 +8,7 @@ available.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -129,3 +130,27 @@ class TestDiffVkcubeVsTriangle:
         assert "STATUS" in combined or "status" in combined.lower()
         assert "NAME" in combined or "name" in combined.lower()
         assert "TYPE" in combined or "type" in combined.lower()
+
+    def test_summary_events_delta_nonzero(self, vkcube_session: str) -> None:
+        """``rdc diff VKCUBE HELLO_TRIANGLE`` summary reports a real, non-zero events delta.
+
+        Two captures with different event spans must not show ``events: N -> N (=)``.
+        Regression for the stats RPC omitting event_count (summary events stuck at 0->0).
+        """
+        r = rdc(
+            "diff",
+            str(VKCUBE),
+            str(HELLO_TRIANGLE),
+            "--json",
+            session=vkcube_session,
+        )
+        assert r.returncode == 1, (
+            f"Expected exit 1 (captures differ):\nstdout: {r.stdout}\nstderr: {r.stderr}"
+        )
+        data = json.loads(r.stdout)
+        events = data["events"]
+        assert events["a"] > 0
+        assert events["b"] > 0
+        assert events["a"] != events["b"]
+        assert events["delta"] == events["b"] - events["a"]
+        assert events["delta"] != 0
