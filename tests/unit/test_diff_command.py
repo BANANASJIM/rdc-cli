@@ -51,9 +51,17 @@ def _stats_resp(
     per_pass: list[dict[str, object]] | None = None,
     event_count: int = 100,
 ) -> dict[str, Any]:
+    """Mirror the real stats RPC envelope (handlers.query._handle_stats)."""
     if per_pass is None:
         per_pass = [{"name": "GBuffer", "draws": 10, "triangles": 5000, "dispatches": 0}]
-    return {"result": {"per_pass": per_pass, "event_count": event_count, "top_draws": []}}
+    return {
+        "result": {
+            "per_pass": per_pass,
+            "top_draws": [],
+            "largest_resources": [],
+            "event_count": event_count,
+        }
+    }
 
 
 def _resources_resp(
@@ -505,6 +513,27 @@ class TestDiffSummaryCLI:
         result = CliRunner().invoke(diff_cmd, [str(a), str(b)])
         assert result.exit_code == 1
         assert "draws:" in result.output
+
+    def test_summary_events_differ_exit_1(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """C-21: identical draws/passes/resources but differing event spans exits 1.
+
+        Regression for the permanently 0->0 events row: the stats RPC must carry a real
+        event_count so the summary surfaces a non-zero events delta.
+        """
+        a, b = tmp_path / "a.rdc", tmp_path / "b.rdc"
+        a.touch()
+        b.touch()
+        per_pass = [{"name": "GBuffer", "draws": 10, "triangles": 5000, "dispatches": 0}]
+        sa = _stats_resp(per_pass, event_count=100)
+        sb = _stats_resp(per_pass, event_count=150)
+        _patch_summary(monkeypatch, sa, sb)
+        result = CliRunner().invoke(diff_cmd, [str(a), str(b)])
+        assert result.exit_code == 1
+        assert "events:" in result.output
+        assert "100 -> 150" in result.output
+        assert "(+50)" in result.output
 
     def test_summary_json(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """C-19: no flag --json produces valid JSON with four keys."""
