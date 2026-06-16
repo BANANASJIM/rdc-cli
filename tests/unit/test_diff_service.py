@@ -8,7 +8,6 @@ from rdc.services import diff_service
 from rdc.services.diff_service import (
     DiffContext,
     query_both,
-    query_both_sync,
     start_diff_session,
     stop_diff_session,
 )
@@ -360,40 +359,3 @@ def test_query_both_both_fail(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ra is None
     assert rb is None
     assert err != ""
-
-
-# ---------------------------------------------------------------------------
-# #22–23  query_both_sync
-# ---------------------------------------------------------------------------
-
-
-def test_query_both_sync_ordering(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_send(host: str, port: int, payload: dict, **kw: object) -> dict:
-        method = payload["method"]
-        return {"result": {"method": method, "port": port}}
-
-    monkeypatch.setattr(diff_service, "send_request", mock_send)
-
-    calls = [("m1", {"x": 1}), ("m2", {"x": 2})]
-    ra_list, rb_list, err = query_both_sync(_make_ctx(), calls)
-    assert err == ""
-    assert ra_list[0] is not None and ra_list[0]["result"]["method"] == "m1"
-    assert ra_list[1] is not None and ra_list[1]["result"]["method"] == "m2"
-    assert rb_list[0] is not None and rb_list[0]["result"]["method"] == "m1"
-    assert rb_list[1] is not None and rb_list[1]["result"]["method"] == "m2"
-
-
-def test_query_both_sync_partial_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_send(host: str, port: int, payload: dict, **kw: object) -> dict:
-        if port == 5000 and payload["method"] == "m2":
-            raise ConnectionRefusedError
-        return {"result": {"ok": True}}
-
-    monkeypatch.setattr(diff_service, "send_request", mock_send)
-
-    calls = [("m1", {}), ("m2", {})]
-    ra_list, rb_list, err = query_both_sync(_make_ctx(), calls)
-    assert ra_list[0] is not None
-    assert ra_list[1] is None
-    assert rb_list[0] is not None
-    assert rb_list[1] is not None
