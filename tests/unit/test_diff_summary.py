@@ -8,7 +8,13 @@ from rdc.diff.summary import SummaryRow, diff_summary, render_json, render_text
 
 
 def _stats(per_pass: list[dict[str, object]], event_count: int = 0) -> dict[str, object]:
-    return {"per_pass": per_pass, "event_count": event_count}
+    """Mirror the real stats RPC result shape (handlers.query._handle_stats)."""
+    return {
+        "per_pass": per_pass,
+        "top_draws": [],
+        "largest_resources": [],
+        "event_count": event_count,
+    }
 
 
 def _pass(
@@ -67,6 +73,18 @@ class TestDiffSummary:
         rows = diff_summary(s, s, 0, 0)
         assert all(r.delta == 0 for r in rows)
         assert all(r.value_a == 0 and r.value_b == 0 for r in rows)
+
+    def test_event_count_delta_when_spans_differ(self) -> None:
+        """S-15: identical draws/passes/resources but differing event spans yield events delta."""
+        sa = _stats([_pass(draws=10)], event_count=100)
+        sb = _stats([_pass(draws=10)], event_count=150)
+        rows = diff_summary(sa, sb, 5, 5)
+        events_row = next(r for r in rows if r.category == "events")
+        assert events_row.value_a == 100
+        assert events_row.value_b == 150
+        assert events_row.delta == 50
+        # only the events category changed
+        assert sum(1 for r in rows if r.delta != 0) == 1
 
 
 # ---------------------------------------------------------------------------
