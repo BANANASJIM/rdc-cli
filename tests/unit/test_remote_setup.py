@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import socket
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -17,11 +16,6 @@ from rdc.commands.remote import (
     _tcp_probe,
     remote_setup_cmd,
 )
-
-
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def _stderr_spy(monkeypatch: pytest.MonkeyPatch) -> list[str]:

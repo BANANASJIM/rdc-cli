@@ -38,7 +38,6 @@ def _make_session(
 
 
 def _setup_no_replay(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     monkeypatch.setattr("rdc.services.session_service._renderdoc_available", lambda: False)
 

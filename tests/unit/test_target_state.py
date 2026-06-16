@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from rdc.target_state import (
     TargetControlState,
     delete_target_state,
@@ -21,11 +19,6 @@ _SAMPLE = TargetControlState(
     api="Vulkan",
     connected_at=1700000000.0,
 )
-
-
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def test_save_load() -> None:

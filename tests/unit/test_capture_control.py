@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -17,11 +16,6 @@ from rdc.commands.capture_control import (
     capture_trigger_cmd,
 )
 from rdc.target_state import TargetControlState, save_target_state
-
-
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def _make_mock_tc(

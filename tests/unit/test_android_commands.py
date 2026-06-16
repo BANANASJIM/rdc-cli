@@ -32,11 +32,6 @@ from rdc.remote_state import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
-
-
 def _mock_rd_android(
     monkeypatch: pytest.MonkeyPatch,
     devices: list[str] | None = None,
