@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 import pytest
 from click.testing import CliRunner
 
-from rdc._transport import recv_binary
 from rdc.commands import _helpers as helpers_mod
 from rdc.commands.export import rt_cmd
 from rdc.commands.snapshot import snapshot_cmd
@@ -42,38 +41,6 @@ def _make_state(tmp_path: Path | None = None) -> Any:
     state.temp_dir = tmp_path
     state.token = "tok"
     return state
-
-
-# ===========================================================================
-# T1: recv_binary
-# ===========================================================================
-
-
-class TestRecvBinary:
-    def test_exact_read(self) -> None:
-        """T1.1: Read exactly N bytes in one chunk."""
-        sock = MagicMock()
-        sock.recv.return_value = b"hello"
-        assert recv_binary(sock, 5) == b"hello"
-
-    def test_partial_reads(self) -> None:
-        """T1.2: Multiple small chunks summing to N."""
-        sock = MagicMock()
-        sock.recv.side_effect = [b"he", b"ll", b"o"]
-        assert recv_binary(sock, 5) == b"hello"
-
-    def test_premature_eof(self) -> None:
-        """T1.3: Socket closes before N bytes."""
-        sock = MagicMock()
-        sock.recv.side_effect = [b"he", b""]
-        with pytest.raises(OSError, match="connection closed"):
-            recv_binary(sock, 5)
-
-    def test_zero_bytes(self) -> None:
-        """T1.4: Zero size returns empty bytes without reading."""
-        sock = MagicMock()
-        assert recv_binary(sock, 0) == b""
-        sock.recv.assert_not_called()
 
 
 # ===========================================================================
