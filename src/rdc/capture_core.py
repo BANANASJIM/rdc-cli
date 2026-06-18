@@ -118,6 +118,35 @@ def _get_pid_for_ident(rd: Any, ident: int) -> int:
         tc.Shutdown()
 
 
+def _make_env_mod(rd: Any, name: str, value: str) -> Any:
+    """Create a RenderDoc EnvironmentModification with Set/NoSep semantics."""
+    mod = rd.EnvironmentModification()
+    mod.name = name
+    mod.value = value
+    mod.mod = rd.EnvMod.Set
+    mod.sep = rd.EnvSep.NoSep
+    return mod
+
+
+def _build_launch_env(rd: Any) -> list[Any]:
+    """Build environment modifications for a reliable local capture launch."""
+    if sys.platform != "win32":
+        return []
+
+    module_path = getattr(rd, "__file__", None)
+    if not module_path:
+        return []
+
+    renderdoc_dir = Path(module_path).resolve().parent
+    if not (renderdoc_dir / "renderdoc.json").is_file():
+        return []
+
+    return [
+        _make_env_mod(rd, "ENABLE_VULKAN_RENDERDOC_CAPTURE", "1"),
+        _make_env_mod(rd, "VK_IMPLICIT_LAYER_PATH", str(renderdoc_dir)),
+    ]
+
+
 def _inject_failure_hint() -> str:
     if sys.platform == "darwin":
         return (
@@ -187,7 +216,8 @@ def execute_and_capture(
         app = str(app_path.resolve())
 
     _inj_hint = _inject_failure_hint()
-    result = rd.ExecuteAndInject(app, workdir or "", args, [], output, opts, wait_for_exit)
+    env_mods = _build_launch_env(rd)
+    result = rd.ExecuteAndInject(app, workdir or "", args, env_mods, output, opts, wait_for_exit)
     if result.result != 0:
         return CaptureResult(error=f"inject failed (code {result.result}) -- hint: {_inj_hint}")
 
