@@ -26,10 +26,10 @@ Follow this session lifecycle for any capture analysis task:
    - Split thin-client: `rdc open --connect host:port --token TOKEN`
    - Android device: `rdc open capture.rdc --android [--serial SERIAL]`
 2. **Inspect** metadata: `rdc info`, `rdc stats`, `rdc events`
-3. **Navigate** the VFS: `rdc ls /`, `rdc ls /textures`, `rdc cat /pipelines/0`
+3. **Navigate** the VFS: `rdc ls /`, `rdc ls /textures`, `rdc cat /draws/0/pipeline/summary`
 4. **Analyze** specifics: `rdc shaders`, `rdc pipeline`, `rdc resources`, `rdc bindings`
-5. **Debug** shaders: `rdc debug pixel X Y`, `rdc debug vertex EID VTXID`, `rdc debug thread EID GX GY GZ`
-6. **Export** data: `rdc texture EID -o out.png`, `rdc rt EID`, `rdc buffer EID -o buf.bin`, `rdc log`
+5. **Debug** shaders: `rdc debug pixel EID X Y`, `rdc debug vertex EID VTXID`, `rdc debug thread EID GX GY GZ`
+6. **Export** data: `rdc texture ID -o out.png`, `rdc rt EID`, `rdc buffer ID -o buf.bin`, `rdc cbuffer EID --stage ps --binding 0`, `rdc log`
 7. **Close** the session: `rdc close`
 
 ### Session Management
@@ -118,15 +118,16 @@ rdc draws --pass "GBuffer" --json
 ### Trace a pixel
 
 ```bash
-rdc debug pixel 512 384
-rdc debug pixel 512 384 --json    # structured output
-rdc debug pixel 512 384 --trace   # full step-by-step trace
+rdc debug pixel 1024 512 384            # EID first, then X Y
+rdc debug pixel 1024 512 384 --json     # structured output
+rdc debug pixel 1024 512 384 --trace    # full step-by-step trace
 ```
 
 ### Search shaders by name or source
 
 ```bash
-rdc search "main" --type shader
+rdc search "main"                  # regex search over shader disassembly
+rdc search "Sample" --stage ps -C 2
 rdc shaders --name "GBuffer*"
 ```
 
@@ -134,7 +135,15 @@ rdc shaders --name "GBuffer*"
 
 ```bash
 rdc rt EID -o output.png
-rdc texture EID --format png -o tex.png
+rdc rt EID --depth -o depth.png      # export the raw depth attachment
+rdc texture ID -o tex.png            # export a texture by resource ID (PNG)
+```
+
+### Decode a constant buffer
+
+```bash
+rdc cbuffer EID --stage ps --binding 0           # decode to JSON
+rdc cbuffer EID --stage vs --binding 0 --raw -o cbuffer.bin
 ```
 
 ### Browse VFS paths
@@ -142,7 +151,8 @@ rdc texture EID --format png -o tex.png
 ```bash
 rdc ls /
 rdc ls /textures -l
-rdc tree /pipelines --depth 2
+rdc tree /draws/42/pipeline --depth 2     # pipeline state lives under /draws/<eid>/pipeline/
+rdc cat /draws/42/pipeline/summary
 rdc cat /events/42
 ```
 
@@ -168,11 +178,11 @@ rdc-cli provides assertion commands that exit non-zero on failure, designed for 
 
 | Command | Purpose |
 |---------|---------|
-| `rdc assert-pixel X Y --expect R,G,B,A` | Assert pixel color at coordinates |
+| `rdc assert-pixel EID X Y --expect "R G B A"` | Assert pixel RGBA (4 space-separated floats) at EID/coordinates |
 | `rdc assert-clean` | Assert no validation errors in capture |
-| `rdc assert-count --type DrawIndexed --min N` | Assert minimum draw call count |
-| `rdc assert-state FIELD VALUE` | Assert pipeline state field matches value |
-| `rdc assert-image EID --ref reference.png` | Assert render target matches reference image |
+| `rdc assert-count <what> --expect N [--op CHOICE]` | Assert a capture metric (e.g. `draws`) satisfies a comparison |
+| `rdc assert-state EID KEY-PATH --expect VALUE` | Assert pipeline state value at EID matches expected |
+| `rdc assert-image EXPECTED ACTUAL [--threshold FLOAT]` | Compare two image files pixel-by-pixel |
 
 Example CI script:
 
@@ -181,8 +191,8 @@ Example CI script:
 set -e
 rdc open test_capture.rdc
 rdc assert-clean
-rdc assert-count --type DrawIndexed --min 10
-rdc assert-pixel 256 256 --expect 1.0,0.0,0.0,1.0
+rdc assert-count draws --expect 10 --op ge
+rdc assert-pixel 1024 256 256 --expect "1.0 0.0 0.0 1.0"
 rdc close
 ```
 
@@ -191,13 +201,13 @@ rdc close
 Modify and replay shaders without recompiling the application:
 
 ```bash
-rdc shader-encodings EID          # list available encodings
-rdc shader EID --source > s.frag  # extract shader source
+rdc shader-encodings                       # list available encodings
+rdc shader EID ps --source > s.frag        # extract shader source
 # ... edit s.frag ...
-rdc shader-build s.frag --encoding glsl  # compile edited shader
-rdc shader-replace EID s.frag     # hot-swap into capture
-rdc shader-restore EID            # revert single shader
-rdc shader-restore-all            # revert all modifications
+rdc shader-build s.frag --stage ps         # compile; prints the built shader ID
+rdc shader-replace EID ps --with <ID>      # hot-swap built shader ID into capture
+rdc shader-restore EID ps                  # revert single shader (STAGE required)
+rdc shader-restore-all                     # revert all modifications
 ```
 
 ## Remote Capture Workflow
@@ -244,6 +254,7 @@ Common failure categories (conceptual, not literal error strings — map from th
 - **version mismatch** — host and target RenderDoc versions differ. Re-run `rdc setup-renderdoc` or `rdc setup-renderdoc --android` to align.
 - **inject failed / ident=0** — injection blocked (Android EMUI, macOS SIP, Windows privilege). Run `rdc doctor` and check the platform-specific detail.
 - **OpenCapture unsupported** — local GPU can't replay the capture's API surface; switch to `--proxy` or `--android` remote replay.
+- **duplicate Vulkan layer** — `rdc doctor` warns when more than one `VK_LAYER_RENDERDOC_Capture` Vulkan layer is registered (a system-installed RenderDoc plus the rdc-managed one create a split-brain). The loader then picks one non-deterministically and capture can silently time out; unregister the extra manifest so only one remains.
 - **not loaded / no session** — forgot `rdc open`; use `rdc status` to inspect.
 
 For long operations (large capture transfers, remote replay init), the CLI has limited progress feedback — this is a known UX gap, not a hang. Wait up to the `--timeout` value before concluding failure.

@@ -451,6 +451,9 @@ rdc pipeline</code></pre>
   <pre><code># Local mode (default)
 rdc open capture.rdc
 
+# Force a specific replay GPU on a multi-GPU host
+rdc open capture.rdc --gpu INDEX|NAME|DEVICEID
+
 # Proxy mode
 rdc open capture.rdc --proxy HOST[:PORT]|adb://SERIAL
 
@@ -475,6 +478,8 @@ rdc remote capture APP [-o OUTPUT]</code></pre>
     <li><code>--android</code> is mutually exclusive with <code>--proxy</code>, <code>--connect</code>, and <code>--listen</code>.</li>
     <li><code>--listen</code> can be combined with <code>--proxy</code> for Split+Proxy setups.</li>
     <li>For <code>rdc open</code>, <code>--remote</code> is a deprecated alias for <code>--proxy</code> (hidden, shows deprecation warning).</li>
+    <li><code>--gpu INDEX|NAME|DEVICEID</code> forces the replay GPU on a multi-GPU host, by 0-based index, name substring, or device ID (overrides auto-selection).</li>
+    <li>Remote and <code>--proxy</code> hosts given as <code>localhost</code> are auto-normalized to <code>127.0.0.1</code>, because <code>renderdoccmd</code> remoteserver is IPv4-only.</li>
     <li>The daemon has a 30-minute idle timeout by default. Any command resets the timer.</li>
     <li>IPv6 is not currently supported (<code>HOST:PORT</code> parsing uses <code>rsplit(":", 1)</code>).</li>
   </ul>

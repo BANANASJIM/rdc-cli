@@ -108,7 +108,11 @@ export RENDERDOC_PYTHON_PATH=$PWD/build/lib</code></pre>
   <pre><code>rdc doctor</code></pre>
   <p>
     This checks renderdoc module availability, Python version compatibility,
-    and system configuration.
+    and system configuration. It also warns when more than one
+    <code>VK_LAYER_RENDERDOC_Capture</code> Vulkan layer is registered (a
+    system-installed RenderDoc plus the rdc-managed one create a split-brain
+    where the loader picks one non-deterministically and capture can silently
+    time out).
   </p>
 
   <h2>Shell Completions</h2>
