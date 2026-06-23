@@ -119,8 +119,12 @@ class TestStateKeyConsistency:
         host, port = parse_url("localhost:39920")
         assert (host, port) == ("127.0.0.1", 39920)
         path = _state_path(host, port)
+        # The state-file key must use the normalized IPv4, never "localhost".
+        # (Assert on the relative key, not the absolute path, since the isolated
+        # data dir lives under a per-test tmp directory whose name may itself
+        # contain "localhost".)
         assert path.name == "127.0.0.1_39920.json"
-        assert "localhost" not in str(path)
+        assert "localhost" not in path.parent.name
 
 
 class TestWarnIfPublic:

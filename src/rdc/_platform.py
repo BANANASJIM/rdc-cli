@@ -30,7 +30,14 @@ def join_cmdline(args: list[str]) -> str:
 
 
 def data_dir() -> Path:
-    """Return the per-user data directory for rdc."""
+    """Return the per-user data directory for rdc.
+
+    Honours the ``RDC_DATA_DIR`` environment override (mirrors ``RDC_SESSION``);
+    when unset, falls back to the per-user home-based default.
+    """
+    override = os.environ.get("RDC_DATA_DIR")
+    if override:
+        return Path(override)
     if _WIN:
         base = os.environ.get("LOCALAPPDATA", str(Path.home()))
         return Path(base) / "rdc"

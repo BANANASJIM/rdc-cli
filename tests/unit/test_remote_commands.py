@@ -22,11 +22,6 @@ from rdc.commands.remote import (
 from rdc.remote_state import RemoteServerState, save_remote_state
 
 
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
-
-
 def _mock_rd(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Provide a mock renderdoc module and patch find_renderdoc."""
     rd = MagicMock()

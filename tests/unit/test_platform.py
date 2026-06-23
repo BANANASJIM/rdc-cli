@@ -34,15 +34,76 @@ pytestmark = pytest.mark.skipif(os.name == "nt", reason="Unix-only _platform tes
 
 class TestDataDir:
     def test_returns_home_dot_rdc(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        """TP-W1-001: Unix data_dir is ~/.rdc."""
+        """TP-W1-001: Unix data_dir is ~/.rdc when no override is set."""
+        monkeypatch.delenv("RDC_DATA_DIR", raising=False)
         monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
         assert data_dir() == tmp_path / ".rdc"
 
     def test_no_side_effects(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """TP-W1-002: data_dir does not create the directory."""
+        monkeypatch.delenv("RDC_DATA_DIR", raising=False)
         monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
         result = data_dir()
         assert not result.exists()
+
+    def test_env_override_returns_custom_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """RDC_DATA_DIR override wins over the home-based default."""
+        custom = tmp_path / "custom-data"
+        monkeypatch.setenv("RDC_DATA_DIR", str(custom))
+        # Even with a different home, the override must take precedence.
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path / "elsewhere"))
+        assert data_dir() == custom
+
+    def test_env_override_ignored_when_empty(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """An empty RDC_DATA_DIR falls back to the home-based default."""
+        monkeypatch.setenv("RDC_DATA_DIR", "")
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
+        assert data_dir() == tmp_path / ".rdc"
+
+    def test_env_override_isolates_session_roundtrip(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """With RDC_DATA_DIR set, a session save/load round-trip writes nothing under home.
+
+        Regression: prior to the override seam, session_state always resolved
+        ``Path.home()/.rdc`` with no way to redirect a subprocess; this asserts
+        the override fully redirects both the write and the read.
+        """
+        from rdc.session_state import SessionState, load_session, save_session
+
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        data = tmp_path / "isolated"
+        # Restore the genuine data_dir so the env seam (not the conftest patch)
+        # is what redirects session_state's reads and writes.
+        monkeypatch.setattr("rdc._platform.data_dir", data_dir)
+        monkeypatch.setenv("RDC_DATA_DIR", str(data))
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: fake_home))
+        monkeypatch.delenv("RDC_SESSION", raising=False)
+
+        state = SessionState(
+            capture="/tmp/x.rdc",
+            current_eid=7,
+            opened_at="2026-01-01T00:00:00+00:00",
+            host="127.0.0.1",
+            port=4321,
+            token="tok",
+            pid=4242,
+        )
+        save_session(state)
+
+        loaded = load_session()
+        assert loaded is not None
+        assert loaded.capture == "/tmp/x.rdc"
+        assert loaded.current_eid == 7
+        assert (data / "sessions" / "default.json").exists()
+        # Nothing must have leaked under the faked home directory.
+        assert not list(fake_home.rglob("*.json"))
+        assert not (fake_home / ".rdc").exists()
 
 
 # ── Group B: terminate_process() ─────────────────────────────────────

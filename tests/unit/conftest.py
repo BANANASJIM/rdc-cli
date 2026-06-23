@@ -13,6 +13,19 @@ from rdc.adapter import RenderDocAdapter
 from rdc.daemon_server import DaemonState
 
 
+@pytest.fixture(autouse=True)
+def _isolate_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Isolate every unit test's rdc data dir to a per-test tmp directory.
+
+    Sets ``RDC_DATA_DIR`` (so any subprocess inherits the override) and patches
+    ``rdc._platform.data_dir`` (so in-process callers resolve the same path),
+    guaranteeing tests never read or write the developer's real ``~/.rdc``.
+    """
+    data = tmp_path / ".rdc"
+    monkeypatch.setenv("RDC_DATA_DIR", str(data))
+    monkeypatch.setattr("rdc._platform.data_dir", lambda: data)
+
+
 def rpc_request(
     method: str,
     params: dict[str, Any] | None = None,

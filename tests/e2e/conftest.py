@@ -6,12 +6,14 @@ a working renderdoc installation (GPU marker applied automatically).
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
 from collections.abc import Generator
 from pathlib import Path
 
+import e2e_helpers
 import pytest
 from e2e_helpers import (
     DYNAMIC_RENDERING,
@@ -25,12 +27,45 @@ from e2e_helpers import (
     self_capture,
 )
 
+from rdc import _platform
+
 # ---------------------------------------------------------------------------
 # Session-scoped fixtures
 # ---------------------------------------------------------------------------
 
 _log = logging.getLogger(__name__)
 _DISCOVER_SESSION = "e2e_discover"
+
+
+def _reap_daemons(data_dir: Path) -> None:
+    """Terminate any daemons still recorded under *data_dir* (best effort)."""
+    for session_file in data_dir.glob("sessions/*.json"):
+        try:
+            pid = int(json.loads(session_file.read_text()).get("pid", 0))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            continue
+        if pid > 0 and _platform.is_pid_alive(pid):
+            _platform.terminate_process_tree(pid)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_e2e_data_dir(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Generator[Path, None, None]:
+    """Redirect every e2e CLI subprocess to a session-scoped tmp data dir.
+
+    Sets ``RDC_DATA_DIR`` for all ``rdc`` subprocesses so the real CLI never
+    writes the developer's ~/.rdc, and reaps any surviving daemons on teardown.
+    Scope is session (not function): an e2e daemon is shared across a module's
+    tests, so per-test isolation would tear shared sessions down mid-run.
+    """
+    data_dir = tmp_path_factory.mktemp("e2e_data") / ".rdc"
+    e2e_helpers.SUBPROCESS_ENV["RDC_DATA_DIR"] = str(data_dir)
+    try:
+        yield data_dir
+    finally:
+        _reap_daemons(data_dir)
+        e2e_helpers.SUBPROCESS_ENV.pop("RDC_DATA_DIR", None)
 
 
 @pytest.fixture(scope="session")
@@ -56,10 +91,9 @@ def captured_rdc(tmp_path_factory: pytest.TempPathFactory) -> Generator[Path, No
 def capture_meta(captured_rdc: Path) -> CaptureMetadata:
     """Open capture, discover all IDs dynamically, close session."""
     session = f"{_DISCOVER_SESSION}_{uuid.uuid4().hex[:8]}"
-    r = rdc("open", str(captured_rdc), session=session)
-    assert r.returncode == 0, f"Failed to open capture for discovery: {r.stderr}"
-
     try:
+        r = rdc("open", str(captured_rdc), session=session)
+        assert r.returncode == 0, f"Failed to open capture for discovery: {r.stderr}"
         return _discover_metadata(session)
     finally:
         rdc("close", session=session)
@@ -71,8 +105,10 @@ def can_replay_prerecorded() -> bool:
     if not VKCUBE.exists():
         return False
     name = f"e2e_probe_{uuid.uuid4().hex[:8]}"
-    r = rdc("open", str(VKCUBE), session=name)
-    rdc("close", session=name)
+    try:
+        r = rdc("open", str(VKCUBE), session=name)
+    finally:
+        rdc("close", session=name)
     return r.returncode == 0
 
 
@@ -212,10 +248,12 @@ def _discover_metadata(session: str) -> CaptureMetadata:
 def vkcube_session(captured_rdc: Path) -> Generator[str, None, None]:
     """Open captured .rdc and yield session name; close on teardown."""
     name = f"e2e_vkcube_{uuid.uuid4().hex[:8]}"
-    r = rdc("open", str(captured_rdc), session=name)
-    assert r.returncode == 0, f"Failed to open capture: {r.stderr}"
-    yield name
-    rdc("close", session=name)
+    try:
+        r = rdc("open", str(captured_rdc), session=name)
+        assert r.returncode == 0, f"Failed to open capture: {r.stderr}"
+        yield name
+    finally:
+        rdc("close", session=name)
 
 
 @pytest.fixture(scope="module")
@@ -230,8 +268,10 @@ def dynamic_session() -> Generator[str, None, None]:
     r = rdc("open", str(DYNAMIC_RENDERING), session=name)
     if r.returncode != 0:
         pytest.skip(f"dynamic_rendering.rdc failed to open (GPU mismatch?): {r.stderr}")
-    yield name
-    rdc("close", session=name)
+    try:
+        yield name
+    finally:
+        rdc("close", session=name)
 
 
 @pytest.fixture(scope="module")
@@ -246,8 +286,10 @@ def oit_session() -> Generator[str, None, None]:
     r = rdc("open", str(OIT_DEPTH_PEELING), session=name)
     if r.returncode != 0:
         pytest.skip(f"oit_depth_peeling.rdc failed to open (GPU mismatch?): {r.stderr}")
-    yield name
-    rdc("close", session=name)
+    try:
+        yield name
+    finally:
+        rdc("close", session=name)
 
 
 @pytest.fixture(scope="session")
