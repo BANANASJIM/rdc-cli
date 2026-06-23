@@ -7,6 +7,7 @@ callers never need ``sys.platform`` checks themselves.
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -16,6 +17,16 @@ from typing import Any
 
 _WIN: bool = sys.platform == "win32"
 _MAC: bool = sys.platform == "darwin"
+
+
+def join_cmdline(args: list[str]) -> str:
+    """Join *args* into a single command-line string, platform-appropriately.
+
+    On Windows, uses subprocess.list2cmdline so that CommandLineToArgvW
+    parses it correctly (double-quote wrapping, backslash escaping).
+    On POSIX, uses shlex.join (single-quote wrapping).
+    """
+    return subprocess.list2cmdline(args) if _WIN else shlex.join(args)
 
 
 def data_dir() -> Path:
