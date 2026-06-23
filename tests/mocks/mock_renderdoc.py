@@ -415,6 +415,26 @@ class SectionFlags(IntFlag):
     ZstdCompressed = 4
 
 
+class EnvMod(IntEnum):
+    Set = 0
+    Add = 1
+
+
+class EnvSep(IntEnum):
+    Platform = 0
+    SemiColon = 1
+    Colon = 2
+    NoSep = 3
+
+
+@dataclass
+class EnvironmentModification:
+    name: str = ""
+    value: str = ""
+    mod: EnvMod = EnvMod.Set
+    sep: EnvSep = EnvSep.NoSep
+
+
 @dataclass
 class CounterValue:
     d: float = 0.0
