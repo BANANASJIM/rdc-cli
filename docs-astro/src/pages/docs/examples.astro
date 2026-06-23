@@ -52,7 +52,9 @@ rdc draws --no-header
 
 {"# Quiet — IDs only, great for xargs loops"}
 rdc draws -q
-{"# → 11\n14\n19"}
+{"# → 11"}
+{"#   14"}
+{"#   19"}
 
 {"# Combine: export all draw render targets"}
 for eid in $(rdc draws -q); do
@@ -171,7 +173,9 @@ rdc snapshot 142 -o ./snapshot/
 {"# Individual exports"}
 rdc texture 5 -o albedo.png             {"# specific texture"}
 rdc buffer 3 -o vertex_data.bin         {"# raw buffer data"}
-rdc mesh 142 -o geometry.obj            {"# post-transform mesh"}</code></pre>
+rdc mesh 142 -o geometry.obj            {"# post-transform mesh"}
+rdc rt 142 --depth -o depth.png         {"# raw depth attachment"}
+rdc cbuffer 142 --stage ps --binding 0  {"# decode constant buffer to JSON"}</code></pre>
 
   <h2 id="shell-pipelines">Shell Pipeline Power</h2>
 
@@ -282,12 +286,6 @@ rdc passes --json | jq '.[] | select(.load_ops[]? == "Clear" and .store_ops[]? =
 
   <pre><code>{"# Per-pass reads/writes/load/store table"}
 rdc passes --deps --table
-
-{"# TBR/mobile: identify passes that switch render targets frequently"}
-rdc passes --switches
-
-{"# Passes with RT_SWITCHES > 2 (high bandwidth pressure on tile-based GPUs)"}
-rdc passes --switches --json | jq '.[] | select(.rt_switches > 2) | {"{ name, rt_switches }"}'
 
 {"# Full dependency graph as DOT (render with Graphviz)"}
 rdc passes --deps --dot | dot -Tsvg -o passes.svg</code></pre>
