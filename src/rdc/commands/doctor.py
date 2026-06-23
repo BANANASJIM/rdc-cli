@@ -241,23 +241,23 @@ def _check_win_renderdoc_install() -> CheckResult:
     )
 
 
-def _check_win_vulkan_layer() -> CheckResult:
-    """Check Vulkan implicit layer JSON and registry for capture support."""
-    if sys.platform != "win32":
-        return CheckResult("win-vulkan-layer", True, "n/a")
+_RENDERDOC_LAYER_NAME = "VK_LAYER_RENDERDOC_Capture"
 
+
+def _enumerate_implicit_layers() -> list[Path]:
+    """Return all renderdoc implicit-layer manifest paths from HKLM+HKCU."""
     import winreg  # noqa: PLC0415
 
-    # 1. Collect all renderdoc layer entries from registry
     reg_path = r"SOFTWARE\Khronos\Vulkan\ImplicitLayers"
     candidates: list[Path] = []
-    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+    hives = (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE)  # type: ignore[attr-defined,unused-ignore]
+    for hive in hives:
         try:
-            with winreg.OpenKey(hive, reg_path) as key:
+            with winreg.OpenKey(hive, reg_path) as key:  # type: ignore[attr-defined,unused-ignore]
                 i = 0
                 while True:
                     try:
-                        name, _val, _typ = winreg.EnumValue(key, i)
+                        name, _val, _typ = winreg.EnumValue(key, i)  # type: ignore[attr-defined,unused-ignore]
                         if "renderdoc" in name.lower():
                             candidates.append(Path(name))
                     except OSError:
@@ -265,7 +265,25 @@ def _check_win_vulkan_layer() -> CheckResult:
                     i += 1
         except OSError:
             continue
+    return candidates
 
+
+def _read_layer_manifest(path: Path) -> dict[str, Any]:
+    """Read a Vulkan layer manifest's ``layer`` object, empty dict on failure."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        layer = data.get("layer", {})
+        return layer if isinstance(layer, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _check_win_vulkan_layer() -> CheckResult:
+    """Check Vulkan implicit layer JSON and registry for capture support."""
+    if sys.platform != "win32":
+        return CheckResult("win-vulkan-layer", True, "n/a")
+
+    candidates = _enumerate_implicit_layers()
     if not candidates:
         return CheckResult(
             "win-vulkan-layer",
@@ -274,7 +292,33 @@ def _check_win_vulkan_layer() -> CheckResult:
             " -- register renderdoc.json in HKCU\\SOFTWARE\\Khronos\\Vulkan\\ImplicitLayers",
         )
 
-    # 2. Find first candidate whose JSON file exists
+    # Detect the system + rdc split-brain: two layers sharing the same name make the
+    # Vulkan loader pick one non-deterministically and capture silently times out.
+    # Dedup by resolved path so one manifest registered under both hives isn't double-counted.
+    duplicates: list[Path] = []
+    seen: set[Path] = set()
+    for p in candidates:
+        if _read_layer_manifest(p).get("name") != _RENDERDOC_LAYER_NAME:
+            continue
+        resolved = p.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            duplicates.append(p)
+    if len(duplicates) > 1:
+        lines = []
+        for p in duplicates:
+            layer = _read_layer_manifest(p)
+            dll = (p.parent / layer.get("library_path", "")).resolve()
+            ver = layer.get("implementation_version", "?")
+            lines.append(f"{p} -> {dll} (v{ver})")
+        return CheckResult(
+            "win-vulkan-layer",
+            False,
+            f"{len(duplicates)} '{_RENDERDOC_LAYER_NAME}' layers registered "
+            "(capture is ambiguous): " + "; ".join(lines),
+        )
+
+    # Single layer: find first candidate whose JSON file exists and validate its DLL
     layer_json_path = next((p for p in candidates if p.is_file()), None)
     if layer_json_path is None:
         return CheckResult(
@@ -283,20 +327,15 @@ def _check_win_vulkan_layer() -> CheckResult:
             f"registry points to {candidates[0]} but file not found",
         )
 
-    # 3. Validate layer JSON references renderdoc.dll that exists
-    try:
-        data = json.loads(layer_json_path.read_text(encoding="utf-8"))
-        lib_path = data.get("layer", {}).get("library_path", "")
-        if lib_path:
-            dll = (layer_json_path.parent / lib_path).resolve()
-            if not dll.is_file():
-                return CheckResult(
-                    "win-vulkan-layer",
-                    False,
-                    f"layer JSON references {lib_path} but {dll} not found",
-                )
-    except Exception:  # noqa: BLE001
-        pass
+    lib_path = _read_layer_manifest(layer_json_path).get("library_path", "")
+    if lib_path:
+        dll = (layer_json_path.parent / lib_path).resolve()
+        if not dll.is_file():
+            return CheckResult(
+                "win-vulkan-layer",
+                False,
+                f"layer JSON references {lib_path} but {dll} not found",
+            )
 
     return CheckResult("win-vulkan-layer", True, f"registered at {layer_json_path}")
 
