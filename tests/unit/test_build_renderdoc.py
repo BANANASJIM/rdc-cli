@@ -522,6 +522,23 @@ def test_main_windows_uses_msbuild(tmp_path: Path) -> None:
     mock_msb.assert_called_once()
 
 
+def test_main_windows_forwards_version_to_vulkan_layer(tmp_path: Path) -> None:
+    with (
+        patch("rdc._build_renderdoc._platform", return_value="windows"),
+        patch("rdc._build_renderdoc._artifacts_present", return_value=False),
+        patch("rdc._build_renderdoc.default_install_dir", return_value=tmp_path / "install"),
+        patch("rdc._build_renderdoc.check_prerequisites"),
+        patch("rdc._build_renderdoc.verify_tool_versions"),
+        patch("rdc._build_renderdoc.clone_renderdoc"),
+        patch("rdc._build_renderdoc._prepare_win_python", return_value=Path("C:/prefix")),
+        patch("rdc._build_renderdoc._run_msbuild"),
+        patch("rdc._build_renderdoc.copy_artifacts"),
+        patch("rdc._build_renderdoc._install_vulkan_layer") as mock_layer,
+    ):
+        br.main(["--version", "v1.44"])
+    assert mock_layer.call_args[0][2] == "v1.44"
+
+
 # ---------------------------------------------------------------------------
 # MSBuild (Windows)
 # ---------------------------------------------------------------------------
@@ -748,37 +765,107 @@ def test_prepare_win_python_props_already_patched(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _fake_winreg() -> MagicMock:
+    """Mock winreg for the registry registration side-effect (we run on Linux)."""
+    fake = MagicMock()
+    fake_key = MagicMock()
+    fake_key.__enter__ = lambda self: self
+    fake_key.__exit__ = MagicMock(return_value=False)
+    fake.CreateKey.return_value = fake_key
+    fake.HKEY_CURRENT_USER = 0x80000001
+    fake.REG_DWORD = 4
+    return fake
+
+
+def _write_layer_template(build_dir: Path, content: str) -> None:
+    vk_dir = build_dir / "renderdoc" / "renderdoc" / "driver" / "vulkan"
+    vk_dir.mkdir(parents=True)
+    (vk_dir / "renderdoc.json").write_text(content, encoding="utf-8")
+
+
+def test_parse_version() -> None:
+    assert br._parse_version("v1.41") == (1, 41)
+    assert br._parse_version("1.44") == (1, 44)
+
+
 def test_install_vulkan_layer_copies_json_and_patches_library_path(tmp_path: Path) -> None:
-    """Layer JSON is copied with library_path rewritten to .\\renderdoc.dll."""
+    """Clean fixture (library_path only) stays green and gets a full substitution."""
     import json
 
     install_dir = tmp_path / "install"
     install_dir.mkdir()
     build_dir = tmp_path / "build"
-    vk_dir = build_dir / "renderdoc" / "renderdoc" / "driver" / "vulkan"
-    vk_dir.mkdir(parents=True)
-    layer_src = vk_dir / "renderdoc.json"
-    layer_src.write_text(
+    _write_layer_template(
+        build_dir,
         json.dumps({"layer": {"library_path": "/usr/local/lib/librenderdoc.so"}}),
-        encoding="utf-8",
     )
 
-    # Mock winreg since we may be on Linux
-    fake_winreg = MagicMock()
-    fake_key = MagicMock()
-    fake_key.__enter__ = lambda self: self
-    fake_key.__exit__ = MagicMock(return_value=False)
-    fake_winreg.CreateKey.return_value = fake_key
-    fake_winreg.HKEY_CURRENT_USER = 0x80000001
-    fake_winreg.REG_DWORD = 4
-
-    with patch.dict("sys.modules", {"winreg": fake_winreg}):
+    with patch.dict("sys.modules", {"winreg": _fake_winreg()}):
         br._install_vulkan_layer(install_dir, build_dir)
 
     dst = install_dir / "renderdoc.json"
     assert dst.is_file()
     data = json.loads(dst.read_text(encoding="utf-8"))
     assert data["layer"]["library_path"] == ".\\renderdoc.dll"
+
+
+def test_install_vulkan_layer_substitutes_template_vars(tmp_path: Path) -> None:
+    """Real-template placeholders are all substituted to canonical values."""
+    import json
+
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    build_dir = tmp_path / "build"
+    # Mirrors the real upstream template that ships unsubstituted on Windows.
+    _write_layer_template(
+        build_dir,
+        json.dumps(
+            {
+                "layer": {
+                    "name": "@VULKAN_LAYER_NAME@",
+                    "library_path": "@VULKAN_LAYER_MODULE_PATH@",
+                    "implementation_version": "@RENDERDOC_VERSION_MINOR@",
+                    "enable_environment": {"@VULKAN_ENABLE_VAR@": "1"},
+                    "disable_environment": {
+                        "DISABLE_VULKAN_RENDERDOC_CAPTURE_"
+                        "@RENDERDOC_VERSION_MAJOR@_@RENDERDOC_VERSION_MINOR@": "1"
+                    },
+                }
+            }
+        ),
+    )
+
+    with patch.dict("sys.modules", {"winreg": _fake_winreg()}):
+        br._install_vulkan_layer(install_dir, build_dir, "v1.41")
+
+    dst = install_dir / "renderdoc.json"
+    serialized = dst.read_text(encoding="utf-8")
+    assert "@" not in serialized
+    layer = json.loads(serialized)["layer"]
+    assert layer["name"] == "VK_LAYER_RENDERDOC_Capture"
+    assert layer["library_path"] == ".\\renderdoc.dll"
+    assert layer["implementation_version"] == "41"
+    assert layer["enable_environment"] == {"ENABLE_VULKAN_RENDERDOC_CAPTURE": "1"}
+    assert layer["disable_environment"] == {"DISABLE_VULKAN_RENDERDOC_CAPTURE_1_41": "1"}
+
+
+def test_install_vulkan_layer_guards_unsubstituted_placeholder(tmp_path: Path) -> None:
+    """A stray placeholder field not handled by the substitution raises loudly."""
+    import json
+
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    build_dir = tmp_path / "build"
+    _write_layer_template(
+        build_dir,
+        json.dumps({"layer": {"library_path": "x", "description": "@SOME_NEW_VAR@"}}),
+    )
+
+    with (
+        patch.dict("sys.modules", {"winreg": _fake_winreg()}),
+        pytest.raises(RuntimeError, match="unsubstituted template vars"),
+    ):
+        br._install_vulkan_layer(install_dir, build_dir, "v1.41")
 
 
 def test_install_vulkan_layer_skips_when_no_json(tmp_path: Path) -> None:
