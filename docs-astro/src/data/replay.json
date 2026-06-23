@@ -6,19 +6,19 @@
     },
     {
       "cmd": "rdc info",
-      "output": "capture:      hello_triangle.rdc\napi:          Vulkan\nevent_count:  14\ndriver:       NVIDIA 565.57.01"
+      "output": "Capture:        hello_triangle.rdc\nAPI:            Vulkan\nEvents:         6\nDraw Calls:     1 (0 indexed, 1 non-indexed, 0 dispatches)\nClears:         0\nCopies:         0"
     },
     {
       "cmd": "rdc draws",
-      "output": "EID\tMARKER\tTRIANGLES\n11\tDrawIndexed\t1"
+      "output": "EID\tTYPE\tTRIANGLES\tINSTANCES\tPASS\tMARKER\n11\tDraw\t12\t1\tColour Pass #1 (1 Target + Depth)\t-"
     },
     {
       "cmd": "rdc pipeline 11",
-      "output": "type:       Graphics\ngfx_pipe:   51\ntopology:   TriangleList\nvs_shader:  111\nps_shader:  112"
+      "output": "EID\tAPI\tTOPOLOGY\tGFX_PIPE\tCOMP_PIPE\n11\tVulkan\tTriangleList\t114\t0"
     },
     {
       "cmd": "rdc search \"main\"",
-      "output": "SHADER\tSTAGE\tLINE\tCONTENT\n111\tvs\t3\tvoid main() {\n112\tps\t4\tvoid main() {"
+      "output": "shader:111[vs]:12:EntryPoint(Vertex, main, \"main\", {\nshader:111[vs]:43:void main() {\nshader:112[ps]:12:EntryPoint(Fragment, main, \"main\", {\nshader:112[ps]:18:ExecutionMode(main, OriginUpperLeft);\nshader:112[ps]:32:void main() {"
     },
     {
       "cmd": "rdc close",
@@ -32,23 +32,23 @@
     },
     {
       "cmd": "rdc tree / --depth 1",
-      "output": "/\n  draws/\n  passes/\n  resources/\n  shaders/\n  info\n  log\n  stats"
+      "output": "//\n|-- capabilities\n|-- info\n|-- stats\n|-- log\n|-- events/\n|-- draws/\n|-- passes/\n|-- resources/\n|-- textures/\n|-- buffers/\n|-- shaders/\n|-- counters/\n\\-- current@"
     },
     {
       "cmd": "rdc ls /draws/11",
-      "output": "NAME\tKIND\npipeline/\tdir\nshader/\tdir\ncbuffer/\tdir\nvbuffer\tleaf\nibuffer\tleaf\ndescriptors\tleaf"
+      "output": "pipeline\nshader\nbindings\ntargets\npostvs\ncbuffer\nvbuffer\nibuffer\ndescriptors\npixel"
     },
     {
       "cmd": "rdc cat /draws/11/pipeline/topology",
-      "output": "TriangleList"
+      "output": "eid:      11\ntopology: TriangleList"
     },
     {
       "cmd": "rdc resources -q | wc -l",
-      "output": "6"
+      "output": "46"
     },
     {
       "cmd": "rdc draws --json | jq \".[0].triangles\"",
-      "output": "1"
+      "output": "12"
     },
     {
       "cmd": "rdc close",
@@ -62,19 +62,19 @@
     },
     {
       "cmd": "rdc pick-pixel 300 300 11",
-      "output": "r=0.0000  g=0.5000  b=0.0000  a=1.0000"
+      "output": "r=0.3373  g=0.3373  b=0.3373  a=0.5216"
     },
     {
       "cmd": "rdc pixel 300 300 11",
-      "output": "EID\tTEST\tR\tG\tB\tA\n11\tPassed\t0.0000\t0.5000\t0.0000\t1.0000"
+      "output": "EID\tFRAG\tDEPTH\tPASSED\tFLAGS\n6\t0\t-\tyes\t-\n11\t0\t0.9581\tyes\t-"
     },
     {
       "cmd": "rdc debug pixel 11 300 300",
-      "output": "result: r=0.0000 g=0.5000 b=0.0000 a=1.0000\nshader: 112 (ps)"
+      "output": "stage:   ps\neid:     11\nsteps:   80\ninputs:  _99 = [-107374176.0 -107374176.0 -107374176.0 -107374176.0]\noutputs:  = [0.0]"
     },
     {
       "cmd": "rdc debug pixel 11 300 300 --trace",
-      "output": "STEP\tLINE\tINST\tVAR\tVALUE\n0\t4\t0\tcolor\t(0.0, 1.0, 0.0, 1.0)\n1\t5\t1\toutColor\t(0.0, 0.5, 0.0, 1.0)"
+      "output": "STEP\tINSTR\tFILE\tLINE\tVAR\tTYPE\tVALUE\n0\t78\t-\t0\t_99\tfloat\t-107374176.0 -107374176.0 -107374176.0 -107374176.0\n1\t79\t-\t0\t_79\tfloat\t-0.015102430246770382 -0.3927634656429291 4.36358118057251\n2\t80\t-\t0\t_80\tfloat\t0.01510667521506548 -8.669495582580566e-05 0.0010061264038085938\n3\t81\t-\t0\t\tfloat\t0.0\n3\t81\t-\t0\t_76\tfloat\t0.01510667521506548 -8.669495582580566e-05 0.0010061264038085938\n4\t82\t-\t0\t\tfloat\t0.0\n4\t82\t-\t0\t_82\tfloat\t-0.015102430246770382 -0.3927634656429291 4.36358118057251\n... (138 more)"
     },
     {
       "cmd": "rdc close",
@@ -88,15 +88,15 @@
     },
     {
       "cmd": "rdc draws --json",
-      "output": "[{\"eid\": 11, \"marker\": \"DrawIndexed\", \"triangles\": 1}]"
+      "output": "[\n  {\n    \"eid\": 11,\n    \"type\": \"Draw\",\n    \"triangles\": 12,\n    \"instances\": 1,\n    \"pass\": \"Colour Pass #1 (1 Target + Depth)\",\n    \"marker\": \"-\"\n  }\n]"
     },
     {
       "cmd": "rdc assert-count draws --expect 1 --op eq",
-      "output": "PASS: draws == 1"
+      "output": "pass: draws = 1 (expected eq 1)"
     },
     {
       "cmd": "rdc assert-count events --expect 5 --op ge",
-      "output": "PASS: events >= 5 (actual: 14)"
+      "output": "pass: events = 6 (expected ge 5)"
     },
     {
       "cmd": "rdc close",
@@ -106,11 +106,11 @@
   [
     {
       "cmd": "rdc diff before.rdc after.rdc --draws",
-      "output": "--- before.rdc draws\n+++ after.rdc draws\n  DrawIndexed(11): 1 tri\n+ DrawIndexed(14): 256 tri"
+      "output": "STATUS\tEID_A\tEID_B\tMARKER\tTYPE\tTRI_A\tTRI_B\tINST_A\tINST_B\tCONFIDENCE\n=\t11\t11\t-\tDraw\t12\t12\t1\t1\tmedium"
     },
     {
       "cmd": "rdc diff before.rdc after.rdc --stats",
-      "output": "METRIC\tBEFORE\tAFTER\tDELTA\ndraws\t1\t2\t+1\ntriangles\t1\t257\t+256\nresources\t6\t8\t+2"
+      "output": "STATUS\tPASS\tDRAWS_A\tDRAWS_B\tDRAWS_DELTA\tTRI_A\tTRI_B\tTRI_DELTA\tDISP_A\tDISP_B\tDISP_DELTA\n=\tvkCmdBeginRenderPass(C=Clear, D=Clear)\t1\t1\t0\t12\t12\t0\t0\t0\t0"
     }
   ]
 ]
