@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
 from typing import Any
 
 import click
@@ -17,11 +16,6 @@ from rdc.commands.remote import (
     remote_status_cmd,
 )
 from rdc.remote_state import RemoteServerState, save_remote_state
-
-
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
 
 
 def _stderr_spy(monkeypatch: pytest.MonkeyPatch) -> list[str]:

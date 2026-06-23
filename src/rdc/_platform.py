@@ -7,6 +7,7 @@ callers never need ``sys.platform`` checks themselves.
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -18,8 +19,25 @@ _WIN: bool = sys.platform == "win32"
 _MAC: bool = sys.platform == "darwin"
 
 
+def join_cmdline(args: list[str]) -> str:
+    """Join *args* into a single command-line string, platform-appropriately.
+
+    On Windows, uses subprocess.list2cmdline so that CommandLineToArgvW
+    parses it correctly (double-quote wrapping, backslash escaping).
+    On POSIX, uses shlex.join (single-quote wrapping).
+    """
+    return subprocess.list2cmdline(args) if _WIN else shlex.join(args)
+
+
 def data_dir() -> Path:
-    """Return the per-user data directory for rdc."""
+    """Return the per-user data directory for rdc.
+
+    Honours the ``RDC_DATA_DIR`` environment override (mirrors ``RDC_SESSION``);
+    when unset, falls back to the per-user home-based default.
+    """
+    override = os.environ.get("RDC_DATA_DIR")
+    if override:
+        return Path(override)
     if _WIN:
         base = os.environ.get("LOCALAPPDATA", str(Path.home()))
         return Path(base) / "rdc"

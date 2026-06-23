@@ -18,11 +18,6 @@ from rdc.remote_state import (
 _SAMPLE = RemoteServerState(host="192.168.1.10", port=39920, connected_at=1700000000.0)
 
 
-@pytest.fixture(autouse=True)
-def _isolate_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
-
-
 def test_save_and_load_round_trip() -> None:
     save_remote_state(_SAMPLE)
     loaded = load_remote_state("192.168.1.10", 39920)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 from pathlib import Path
@@ -15,6 +16,7 @@ from rdc._platform import (
     find_pid_by_port,
     install_shutdown_signal,
     is_pid_alive,
+    join_cmdline,
     popen_flags,
     renderdoc_search_paths,
     renderdoccmd_search_paths,
@@ -32,15 +34,76 @@ pytestmark = pytest.mark.skipif(os.name == "nt", reason="Unix-only _platform tes
 
 class TestDataDir:
     def test_returns_home_dot_rdc(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        """TP-W1-001: Unix data_dir is ~/.rdc."""
+        """TP-W1-001: Unix data_dir is ~/.rdc when no override is set."""
+        monkeypatch.delenv("RDC_DATA_DIR", raising=False)
         monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
         assert data_dir() == tmp_path / ".rdc"
 
     def test_no_side_effects(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         """TP-W1-002: data_dir does not create the directory."""
+        monkeypatch.delenv("RDC_DATA_DIR", raising=False)
         monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
         result = data_dir()
         assert not result.exists()
+
+    def test_env_override_returns_custom_dir(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """RDC_DATA_DIR override wins over the home-based default."""
+        custom = tmp_path / "custom-data"
+        monkeypatch.setenv("RDC_DATA_DIR", str(custom))
+        # Even with a different home, the override must take precedence.
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path / "elsewhere"))
+        assert data_dir() == custom
+
+    def test_env_override_ignored_when_empty(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """An empty RDC_DATA_DIR falls back to the home-based default."""
+        monkeypatch.setenv("RDC_DATA_DIR", "")
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: tmp_path))
+        assert data_dir() == tmp_path / ".rdc"
+
+    def test_env_override_isolates_session_roundtrip(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """With RDC_DATA_DIR set, a session save/load round-trip writes nothing under home.
+
+        Regression: prior to the override seam, session_state always resolved
+        ``Path.home()/.rdc`` with no way to redirect a subprocess; this asserts
+        the override fully redirects both the write and the read.
+        """
+        from rdc.session_state import SessionState, load_session, save_session
+
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        data = tmp_path / "isolated"
+        # Restore the genuine data_dir so the env seam (not the conftest patch)
+        # is what redirects session_state's reads and writes.
+        monkeypatch.setattr("rdc._platform.data_dir", data_dir)
+        monkeypatch.setenv("RDC_DATA_DIR", str(data))
+        monkeypatch.setattr("rdc._platform.Path.home", staticmethod(lambda: fake_home))
+        monkeypatch.delenv("RDC_SESSION", raising=False)
+
+        state = SessionState(
+            capture="/tmp/x.rdc",
+            current_eid=7,
+            opened_at="2026-01-01T00:00:00+00:00",
+            host="127.0.0.1",
+            port=4321,
+            token="tok",
+            pid=4242,
+        )
+        save_session(state)
+
+        loaded = load_session()
+        assert loaded is not None
+        assert loaded.capture == "/tmp/x.rdc"
+        assert loaded.current_eid == 7
+        assert (data / "sessions" / "default.json").exists()
+        # Nothing must have leaked under the faked home directory.
+        assert not list(fake_home.rglob("*.json"))
+        assert not (fake_home / ".rdc").exists()
 
 
 # ── Group B: terminate_process() ─────────────────────────────────────
@@ -593,3 +656,54 @@ class TestFindPidByPort:
 
         monkeypatch.setattr("rdc._platform.subprocess.run", _raise)
         assert find_pid_by_port(9999) == 0
+
+
+# ── Group L: join_cmdline() ──────────────────────────────────────────
+
+
+class TestJoinCmdline:
+    """Issue #257: platform-appropriate cmdline quoting for child app args."""
+
+    # POSIX branch
+
+    def test_posix_simple(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POSIX branch: single simple arg matches shlex.join."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        assert join_cmdline(["myapp"]) == shlex.join(["myapp"])
+
+    def test_posix_arg_with_spaces(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POSIX branch: arg with spaces is single-quoted by shlex.join."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = join_cmdline(["my app"])
+        assert result == shlex.join(["my app"])
+        assert "'" in result
+
+    def test_posix_multi_with_backslash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POSIX branch: multiple args including Windows-style path."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        args = ["myapp.exe", r"D:\path\script.das"]
+        assert join_cmdline(args) == shlex.join(args)
+
+    # Windows branch
+
+    def test_windows_backslash_path_not_single_quoted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Windows branch: backslash path is not wrapped in single quotes."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        result = join_cmdline([r"D:\path\script.das"])
+        assert "'" not in result
+        assert result == subprocess.list2cmdline([r"D:\path\script.das"])
+
+    def test_windows_arg_with_spaces_double_quoted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Windows branch: arg with spaces is double-quoted by list2cmdline."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        result = join_cmdline(["my app"])
+        assert result == subprocess.list2cmdline(["my app"])
+        assert '"' in result
+
+    def test_windows_multi_matches_list2cmdline(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Windows branch: multiple args produce same output as list2cmdline."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        args = ["myapp.exe", r"D:\path\script.das", "arg with space"]
+        assert join_cmdline(args) == subprocess.list2cmdline(args)

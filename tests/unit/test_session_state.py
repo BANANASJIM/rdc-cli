@@ -97,25 +97,21 @@ def test_is_pid_alive_no_proc_darwin(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_session_path_reads_env_var(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "foo")
     assert session_path() == tmp_path / ".rdc" / "sessions" / "foo.json"
 
 
 def test_session_path_default_no_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.delenv("RDC_SESSION", raising=False)
     assert session_path() == tmp_path / ".rdc" / "sessions" / "default.json"
 
 
 def test_session_path_default_empty_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "")
     assert session_path() == tmp_path / ".rdc" / "sessions" / "default.json"
 
 
 def test_session_path_rejects_traversal(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("rdc._platform.data_dir", lambda: tmp_path / ".rdc")
     monkeypatch.setenv("RDC_SESSION", "../../etc/evil")
     assert session_path() == tmp_path / ".rdc" / "sessions" / "default.json"
 

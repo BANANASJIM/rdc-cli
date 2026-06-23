@@ -50,6 +50,16 @@ VKCUBE_VALIDATION = FIXTURES_DIR / "vkcube_validation.rdc"
 
 VKCUBE_BIN: str | None = os.environ.get("VKCUBE_BIN") or shutil.which("vkcube")
 
+# Extra environment merged into every CLI subprocess. The session-scoped
+# isolation fixture in conftest.py populates this with ``RDC_DATA_DIR`` so the
+# real CLI never touches the developer's ~/.rdc or leaks live daemons.
+SUBPROCESS_ENV: dict[str, str] = {}
+
+
+def _subprocess_env() -> dict[str, str]:
+    """Return the full environment for a CLI subprocess (os.environ + overrides)."""
+    return {**os.environ, **SUBPROCESS_ENV}
+
 
 def self_capture(vkcube_path: str, output: Path, timeout: int = 60) -> Path:
     """Run ``rdc capture`` against *vkcube_path* and return the .rdc path."""
@@ -58,6 +68,7 @@ def self_capture(vkcube_path: str, output: Path, timeout: int = 60) -> Path:
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=_subprocess_env(),
     )
     if r.returncode != 0:
         raise RuntimeError(f"self_capture failed (exit {r.returncode}):\n{r.stderr}")
@@ -84,6 +95,7 @@ def rdc(
         capture_output=True,
         text=True,
         timeout=timeout,
+        env=_subprocess_env(),
     )
 
 

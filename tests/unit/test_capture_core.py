@@ -40,12 +40,13 @@ def _make_mock_rd(
         app: str,
         working_dir: str,
         cmd_line: str,
-        env_list: list[str],
+        env_list: list[Any],
         capturefile: str,
         opts: Any,
         wait_for_exit: bool = False,
     ) -> mock_rd.ExecuteResult:
         calls["inject"].append((app, working_dir, cmd_line, capturefile))
+        calls.setdefault("env_list", []).append(env_list)
         return mock_rd.ExecuteResult(result=inject_result, ident=inject_ident)
 
     def fake_create_tc(
@@ -59,6 +60,9 @@ def _make_mock_rd(
         CreateTargetControl=fake_create_tc,
         GetDefaultCaptureOptions=mock_rd.GetDefaultCaptureOptions,
         CaptureOptions=mock_rd.CaptureOptions,
+        EnvironmentModification=mock_rd.EnvironmentModification,
+        EnvMod=mock_rd.EnvMod,
+        EnvSep=mock_rd.EnvSep,
         _calls=calls,
         _tc=tc,
     )
@@ -465,3 +469,141 @@ class TestInjectFailureHint:
         assert "AppArmor" in hint
         assert "SELinux" in hint
         assert "hook-children" in hint
+
+
+class TestMakeEnvMod:
+    def test_name_and_value_set(self) -> None:
+        from rdc.capture_core import _make_env_mod
+
+        rd = SimpleNamespace(
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        mod = _make_env_mod(rd, "MY_VAR", "hello")
+        assert mod.name == "MY_VAR"
+        assert mod.value == "hello"
+
+    def test_mod_is_set(self) -> None:
+        from rdc.capture_core import _make_env_mod
+
+        rd = SimpleNamespace(
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        mod = _make_env_mod(rd, "X", "1")
+        assert mod.mod is rd.EnvMod.Set
+
+    def test_sep_is_nosep(self) -> None:
+        from rdc.capture_core import _make_env_mod
+
+        rd = SimpleNamespace(
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        mod = _make_env_mod(rd, "X", "1")
+        assert mod.sep is rd.EnvSep.NoSep
+
+
+class TestBuildLaunchEnv:
+    def test_non_win32_returns_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import _build_launch_env
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "linux")
+        rd = SimpleNamespace(
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        assert _build_launch_env(rd) == []
+
+    def test_win32_no_file_attr_returns_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import _build_launch_env
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "win32")
+        rd = SimpleNamespace(
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        # No __file__ attribute
+        assert _build_launch_env(rd) == []
+
+    def test_win32_missing_renderdoc_json_returns_empty(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        from rdc.capture_core import _build_launch_env
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "win32")
+        module_file = tmp_path / "renderdoc.pyd"
+        module_file.touch()
+        rd = SimpleNamespace(
+            __file__=str(module_file),
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        # No renderdoc.json sibling
+        assert _build_launch_env(rd) == []
+
+    def test_win32_with_renderdoc_json_returns_two_mods(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        from rdc.capture_core import _build_launch_env
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "win32")
+        module_file = tmp_path / "renderdoc.pyd"
+        module_file.touch()
+        (tmp_path / "renderdoc.json").write_text("{}")
+        rd = SimpleNamespace(
+            __file__=str(module_file),
+            EnvironmentModification=mock_rd.EnvironmentModification,
+            EnvMod=mock_rd.EnvMod,
+            EnvSep=mock_rd.EnvSep,
+        )
+        mods = _build_launch_env(rd)
+        assert len(mods) == 2
+        names = [m.name for m in mods]
+        assert "ENABLE_VULKAN_RENDERDOC_CAPTURE" in names
+        assert "VK_IMPLICIT_LAYER_PATH" in names
+        vk_mod = next(m for m in mods if m.name == "VK_IMPLICIT_LAYER_PATH")
+        assert vk_mod.value == str(tmp_path.resolve())
+
+
+class TestExecuteAndCaptureEnvWiring:
+    def _cap_msg(self) -> mock_rd.TargetControlMessage:
+        new_cap = mock_rd.NewCaptureData(
+            path="/tmp/cap.rdc", frameNumber=0, byteSize=4096, api="Vulkan", local=True
+        )
+        return mock_rd.TargetControlMessage(
+            type=mock_rd.TargetControlMessageType.NewCapture, newCapture=new_cap
+        )
+
+    def test_win32_with_renderdoc_json_passes_nonempty_env(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "win32")
+        module_file = tmp_path / "renderdoc.pyd"
+        module_file.touch()
+        (tmp_path / "renderdoc.json").write_text("{}")
+
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+        rd.__file__ = str(module_file)
+
+        execute_and_capture(rd, "/usr/bin/app", output="/tmp/cap.rdc")
+        env_lists = rd._calls.get("env_list", [])
+        assert env_lists and len(env_lists[0]) == 2
+
+    def test_non_win32_passes_empty_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from rdc.capture_core import execute_and_capture
+
+        monkeypatch.setattr("rdc.capture_core.sys.platform", "linux")
+        rd = _make_mock_rd(messages=[self._cap_msg()])
+
+        execute_and_capture(rd, "/usr/bin/app", output="/tmp/cap.rdc")
+        env_lists = rd._calls.get("env_list", [])
+        assert env_lists and env_lists[0] == []

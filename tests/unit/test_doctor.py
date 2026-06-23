@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -21,6 +22,7 @@ from rdc.commands.doctor import (
     _check_win_renderdoc_install,
     _check_win_vs_build_tools,
     _check_win_vulkan_layer,
+    _enumerate_implicit_layers,
     _import_renderdoc,
     _make_build_hint,
     doctor_cmd,
@@ -882,3 +884,115 @@ class TestCheckWinVulkanLayer:
         result = _check_win_vulkan_layer()
         assert result.ok is True
         assert "registered" in result.detail
+
+
+# ── Vulkan layer check (cross-platform, mocked winreg) ───────────────
+
+
+def _make_fake_winreg(values: dict[int, list[str]]) -> object:
+    """Build a fake winreg whose ImplicitLayers values come from *values* per-hive."""
+
+    class _FakeKey:
+        def __init__(self, hive: int) -> None:
+            self._values = list(values.get(hive, []))
+
+        def __enter__(self) -> _FakeKey:
+            return self
+
+        def __exit__(self, *a: object) -> None:
+            pass
+
+    fake = SimpleNamespace(HKEY_CURRENT_USER=0x80000001, HKEY_LOCAL_MACHINE=0x80000002, REG_DWORD=4)
+
+    def _open_key(hive: int, path: str) -> _FakeKey:
+        if hive not in values:
+            raise OSError("no such key")
+        return _FakeKey(hive)
+
+    def _enum_value(key: _FakeKey, i: int) -> tuple[str, int, int]:
+        if i >= len(key._values):
+            raise OSError("done")
+        return (key._values[i], 0, 4)
+
+    fake.OpenKey = _open_key  # type: ignore[attr-defined]
+    fake.EnumValue = _enum_value  # type: ignore[attr-defined]
+    return fake
+
+
+def _write_manifest(path: Path, name: str, dll_name: str = "renderdoc.dll") -> None:
+    # Forward-slash library_path resolves on both POSIX (test host) and Windows.
+    (path.parent / dll_name).write_bytes(b"\x00")
+    path.write_text(
+        f'{{"layer":{{"name":"{name}","library_path":"./{dll_name}",'
+        f'"implementation_version":"41"}}}}',
+        encoding="utf-8",
+    )
+
+
+def test_vulkan_layer_warns_on_duplicate(tmp_path: Path) -> None:
+    """Two registered layers sharing VK_LAYER_RENDERDOC_Capture is reported as FAIL."""
+    sys_json = tmp_path / "system" / "renderdoc.json"
+    rdc_json = tmp_path / "rdc" / "renderdoc.json"
+    sys_json.parent.mkdir()
+    rdc_json.parent.mkdir()
+    _write_manifest(sys_json, "VK_LAYER_RENDERDOC_Capture", "system_renderdoc.dll")
+    _write_manifest(rdc_json, "VK_LAYER_RENDERDOC_Capture", "renderdoc.dll")
+
+    fake = _make_fake_winreg({0x80000002: [str(sys_json)], 0x80000001: [str(rdc_json)]})
+    with (
+        patch.object(sys, "platform", "win32"),
+        patch.dict("sys.modules", {"winreg": fake}),
+    ):
+        result = _check_win_vulkan_layer()
+
+    assert result.ok is False
+    assert "2 'VK_LAYER_RENDERDOC_Capture' layers" in result.detail
+    assert str(sys_json) in result.detail
+    assert str(rdc_json) in result.detail
+
+
+def test_vulkan_layer_ok_on_single(tmp_path: Path) -> None:
+    """A single registered renderdoc layer stays green."""
+    rdc_json = tmp_path / "rdc" / "renderdoc.json"
+    rdc_json.parent.mkdir()
+    _write_manifest(rdc_json, "VK_LAYER_RENDERDOC_Capture")
+
+    fake = _make_fake_winreg({0x80000001: [str(rdc_json)]})
+    with (
+        patch.object(sys, "platform", "win32"),
+        patch.dict("sys.modules", {"winreg": fake}),
+    ):
+        result = _check_win_vulkan_layer()
+
+    assert result.ok is True
+    assert f"registered at {rdc_json}" == result.detail
+
+
+def test_vulkan_layer_same_manifest_both_hives_not_duplicate(tmp_path: Path) -> None:
+    """One manifest registered under both hives is a single layer, not a duplicate."""
+    rdc_json = tmp_path / "rdc" / "renderdoc.json"
+    rdc_json.parent.mkdir()
+    _write_manifest(rdc_json, "VK_LAYER_RENDERDOC_Capture")
+
+    fake = _make_fake_winreg({0x80000001: [str(rdc_json)], 0x80000002: [str(rdc_json)]})
+    with (
+        patch.object(sys, "platform", "win32"),
+        patch.dict("sys.modules", {"winreg": fake}),
+    ):
+        result = _check_win_vulkan_layer()
+
+    assert result.ok is True
+    assert f"registered at {rdc_json}" == result.detail
+
+
+def test_enumerate_implicit_layers_both_hives(tmp_path: Path) -> None:
+    """_enumerate_implicit_layers collects renderdoc entries from HKLM and HKCU."""
+    a = str(tmp_path / "a" / "renderdoc.json")
+    b = str(tmp_path / "b" / "renderdoc.json")
+    fake = _make_fake_winreg({0x80000001: [a, "C:/other/foo.json"], 0x80000002: [b]})
+    with patch.dict("sys.modules", {"winreg": fake}):
+        layers = _enumerate_implicit_layers()
+
+    assert Path(a) in layers
+    assert Path(b) in layers
+    assert Path("C:/other/foo.json") not in layers
