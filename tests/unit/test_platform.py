@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 from pathlib import Path
@@ -15,6 +16,7 @@ from rdc._platform import (
     find_pid_by_port,
     install_shutdown_signal,
     is_pid_alive,
+    join_cmdline,
     popen_flags,
     renderdoc_search_paths,
     renderdoccmd_search_paths,
@@ -654,3 +656,54 @@ class TestFindPidByPort:
 
         monkeypatch.setattr("rdc._platform.subprocess.run", _raise)
         assert find_pid_by_port(9999) == 0
+
+
+# ── Group L: join_cmdline() ──────────────────────────────────────────
+
+
+class TestJoinCmdline:
+    """Issue #257: platform-appropriate cmdline quoting for child app args."""
+
+    # POSIX branch
+
+    def test_posix_simple(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POSIX branch: single simple arg matches shlex.join."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        assert join_cmdline(["myapp"]) == shlex.join(["myapp"])
+
+    def test_posix_arg_with_spaces(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POSIX branch: arg with spaces is single-quoted by shlex.join."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        result = join_cmdline(["my app"])
+        assert result == shlex.join(["my app"])
+        assert "'" in result
+
+    def test_posix_multi_with_backslash(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POSIX branch: multiple args including Windows-style path."""
+        monkeypatch.setattr("rdc._platform._WIN", False)
+        args = ["myapp.exe", r"D:\path\script.das"]
+        assert join_cmdline(args) == shlex.join(args)
+
+    # Windows branch
+
+    def test_windows_backslash_path_not_single_quoted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Windows branch: backslash path is not wrapped in single quotes."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        result = join_cmdline([r"D:\path\script.das"])
+        assert "'" not in result
+        assert result == subprocess.list2cmdline([r"D:\path\script.das"])
+
+    def test_windows_arg_with_spaces_double_quoted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Windows branch: arg with spaces is double-quoted by list2cmdline."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        result = join_cmdline(["my app"])
+        assert result == subprocess.list2cmdline(["my app"])
+        assert '"' in result
+
+    def test_windows_multi_matches_list2cmdline(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Windows branch: multiple args produce same output as list2cmdline."""
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        args = ["myapp.exe", r"D:\path\script.das", "arg with space"]
+        assert join_cmdline(args) == subprocess.list2cmdline(args)
