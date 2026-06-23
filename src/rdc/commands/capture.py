@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 import shutil
 import subprocess
 import sys
@@ -134,7 +133,7 @@ def capture_cmd(
         result = execute_and_capture(
             rd,
             executable,
-            args=shlex.join(app_args),
+            args=_platform.join_cmdline(app_args),
             workdir="",
             output=output_path,
             opts=cap_opts,
@@ -169,7 +168,7 @@ def _run_split_capture(
 ) -> None:
     payload = {
         "app": executable,
-        "args": shlex.join(app_args),
+        "args": _platform.join_cmdline(app_args),
         "output": output_path,
         "opts": opts,
         "frame": frame,
