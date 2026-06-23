@@ -58,7 +58,7 @@
           "name": "stats",
           "id": "stats",
           "help": "Show per-pass breakdown, top draws, largest resources.",
-          "usage": "rdc stats [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc stats [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "events",
@@ -88,13 +88,13 @@
           "name": "log",
           "id": "log",
           "help": "Show debug/validation messages from the capture.",
-          "usage": "rdc log [--level CHOICE] [--eid INTEGER] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc log [--level CHOICE] [--eid INTEGER] [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "counters",
           "id": "counters",
           "help": "Query GPU performance counters.",
-          "usage": "rdc counters [--list] [--eid INTEGER] [--name TEXT] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc counters [--list] [--eid INTEGER] [--name TEXT] [--no-header] [--json] [--jsonl] [-q]"
         }
       ]
     },
@@ -113,7 +113,7 @@
           "name": "bindings",
           "id": "bindings",
           "help": "Show bound resources per shader stage.",
-          "usage": "rdc bindings [EID] [--binding INTEGER] [--set INTEGER] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc bindings [EID] [--binding INTEGER] [--set INTEGER] [--no-header] [--json] [--jsonl] [-q]"
         }
       ]
     },
@@ -126,7 +126,7 @@
           "name": "resources",
           "id": "resources",
           "help": "List all resources.",
-          "usage": "rdc resources [--json] [--type TEXT] [--name TEXT] [--sort CHOICE] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc resources [--type TEXT] [--name TEXT] [--sort CHOICE] [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "resource",
@@ -138,7 +138,7 @@
           "name": "usage",
           "id": "usage",
           "help": "Show resource usage (which events read/write a resource).",
-          "usage": "rdc usage [RESOURCE-ID] [--all] [--type TEXT] [--usage TEXT] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc usage [RESOURCE-ID] [--all] [--type TEXT] [--usage TEXT] [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "shader",
@@ -150,7 +150,7 @@
           "name": "shaders",
           "id": "shaders",
           "help": "List unique shaders in capture.",
-          "usage": "rdc shaders [--stage CHOICE] [--sort CHOICE] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc shaders [--stage CHOICE] [--sort CHOICE] [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "shader-map",
@@ -168,7 +168,7 @@
           "name": "passes",
           "id": "passes",
           "help": "List render passes.",
-          "usage": "rdc passes [--json] [--deps] [--dot] [--graph] [--table] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc passes [--deps] [--dot] [--graph] [--table] [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "pass",
@@ -236,7 +236,7 @@
           "name": "pixel",
           "id": "pixel",
           "help": "Query pixel history at (X, Y) for the current or specified event.",
-          "usage": "rdc pixel <X> <Y> [EID] [--target INTEGER] [--sample INTEGER] [--json] [--no-header] [--jsonl] [-q]"
+          "usage": "rdc pixel <X> <Y> [EID] [--target INTEGER] [--sample INTEGER] [--no-header] [--json] [--jsonl] [-q]"
         },
         {
           "name": "pick-pixel",

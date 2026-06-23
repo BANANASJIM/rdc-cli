@@ -10,7 +10,7 @@ import click
 from rdc.commands._helpers import call, complete_eid
 from rdc.formatters.json_fmt import write_json, write_jsonl
 from rdc.formatters.kv import write_kv
-from rdc.formatters.options import list_output_options
+from rdc.formatters.options import list_output_options, render_list
 from rdc.formatters.tsv import write_tsv
 
 
@@ -26,7 +26,6 @@ def info_cmd(use_json: bool) -> None:
 
 
 @click.command("stats")
-@click.option("--json", "use_json", is_flag=True, help="JSON output")
 @list_output_options
 def stats_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> None:
     """Show per-pass breakdown, top draws, largest resources."""
@@ -101,7 +100,6 @@ def stats_cmd(use_json: bool, no_header: bool, use_jsonl: bool, quiet: bool) -> 
     shell_complete=complete_eid,
     help="Filter by event ID.",
 )
-@click.option("--json", "use_json", is_flag=True, help="JSON output")
 @list_output_options
 def log_cmd(
     level: str | None,
@@ -119,24 +117,23 @@ def log_cmd(
         rpc_params["eid"] = eid
     result = call("log", rpc_params)
     messages = result.get("messages", [])
-    if use_json:
-        write_json(messages)
-        return
 
-    if use_jsonl:
-        write_jsonl(messages)
-        return
+    def _table() -> None:
+        def _sanitize(text: str) -> str:
+            return text.replace("\t", " ").replace("\n", " ")
 
-    if quiet:
-        for m in messages:
-            sys.stdout.write(str(m.get("eid", 0)) + "\n")
-        return
+        rows = [
+            [m.get("level", "-"), m.get("eid", 0), _sanitize(str(m.get("message", "-")))]
+            for m in messages
+        ]
+        write_tsv(rows, header=["LEVEL", "EID", "MESSAGE"], no_header=no_header)
 
-    def _sanitize(text: str) -> str:
-        return text.replace("\t", " ").replace("\n", " ")
-
-    rows = [
-        [m.get("level", "-"), m.get("eid", 0), _sanitize(str(m.get("message", "-")))]
-        for m in messages
-    ]
-    write_tsv(rows, header=["LEVEL", "EID", "MESSAGE"], no_header=no_header)
+    render_list(
+        messages,
+        use_json=use_json,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        quiet_default=0,
+        table=_table,
+    )

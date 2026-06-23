@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 import click
 
 from rdc.commands._helpers import call, complete_eid
-from rdc.formatters.json_fmt import write_json, write_jsonl
-from rdc.formatters.options import list_output_options
+from rdc.formatters.json_fmt import write_json
+from rdc.formatters.options import list_output_options, render_list
 from rdc.formatters.tsv import write_tsv
 
 
@@ -23,7 +22,6 @@ from rdc.formatters.tsv import write_tsv
     help="Filter to specific event ID.",
 )
 @click.option("--name", "name_filter", default=None, help="Filter counters by name substring.")
-@click.option("--json", "use_json", is_flag=True, help="JSON output.")
 @list_output_options
 def counters_cmd(
     show_list: bool,
@@ -45,15 +43,20 @@ def counters_cmd(
             write_json(result)
             return
         counters = result.get("counters", [])
-        if use_jsonl:
-            write_jsonl(counters)
-        elif quiet:
-            for c in counters:
-                sys.stdout.write(str(c["id"]) + "\n")
-        else:
+
+        def _list_table() -> None:
             tsv_rows = [[c["id"], c["name"], c["unit"], c["type"], c["category"]] for c in counters]
             hdr = ["ID", "NAME", "UNIT", "TYPE", "CATEGORY"]
             write_tsv(tsv_rows, header=hdr, no_header=no_header)
+
+        render_list(
+            counters,
+            use_json=False,
+            use_jsonl=use_jsonl,
+            quiet=quiet,
+            quiet_key="id",
+            table=_list_table,
+        )
         return
 
     params: dict[str, Any] = {}
@@ -66,11 +69,16 @@ def counters_cmd(
         write_json(result)
         return
     rows = result.get("rows", [])
-    if use_jsonl:
-        write_jsonl(rows)
-    elif quiet:
-        for r in rows:
-            sys.stdout.write(str(r["eid"]) + "\n")
-    else:
+
+    def _fetch_table() -> None:
         tsv_rows = [[r["eid"], r["counter"], r["value"], r["unit"]] for r in rows]
         write_tsv(tsv_rows, header=["EID", "COUNTER", "VALUE", "UNIT"], no_header=no_header)
+
+    render_list(
+        rows,
+        use_json=False,
+        use_jsonl=use_jsonl,
+        quiet=quiet,
+        quiet_key="eid",
+        table=_fetch_table,
+    )
