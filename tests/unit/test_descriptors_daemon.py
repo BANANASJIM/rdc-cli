@@ -262,3 +262,57 @@ def test_descriptors_binding_fallback_without_locations() -> None:
     d = resp["result"]["descriptors"][0]
     assert d["binding"] == ""
     assert d["resource_id"] == 371
+
+
+def test_descriptors_filters() -> None:
+    """stage/type/binding filters narrow the returned descriptors."""
+    pipe = MockPipeState()
+    pipe._reflections[ShaderStage.Pixel] = ShaderReflection(
+        readOnlyResources=[ShaderResource(name="g_textures", fixedBindNumber=0)],
+    )
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Vertex, type=DescriptorType.ConstantBuffer, index=0
+            ),
+            descriptor=Descriptor(resource=ResourceId(1)),
+        ),
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=46
+            ),
+            descriptor=Descriptor(resource=ResourceId(371)),
+        ),
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=47
+            ),
+            descriptor=Descriptor(resource=ResourceId(379)),
+        ),
+    ]
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: [],
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: SimpleNamespace(chunks=[]),
+        GetPipelineState=lambda: pipe,
+        GetTextures=lambda: [],
+        GetBuffers=lambda: [],
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+        GetDescriptorLocations=lambda store, ranges: [
+            rd.DescriptorLogicalLocation(fixedBindNumber=0, logicalBindName="0") for _ in ranges
+        ],
+    )
+    state = make_daemon_state(ctrl=ctrl, token="test-token", rd=rd)  # type: ignore[arg-type]
+
+    by_stage = _call(state, "descriptors", eid=0, stage="ps")["result"]["descriptors"]
+    assert len(by_stage) == 2
+    assert all(d["stage"] == "Pixel" for d in by_stage)
+
+    by_type = _call(state, "descriptors", eid=0, type="image")["result"]["descriptors"]
+    assert all(d["type"] == "Image" for d in by_type)
+
+    by_binding = _call(state, "descriptors", eid=0, binding="g_textures")["result"]["descriptors"]
+    assert len(by_binding) == 2

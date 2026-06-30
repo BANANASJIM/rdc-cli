@@ -69,6 +69,19 @@ def _refl_bucket(type_name: str) -> str:
     return "ro"
 
 
+def _descriptor_filters(params: dict[str, Any]) -> tuple[int | None, str | None, str | None]:
+    """Parse stage/type/binding filter params (stage as a STAGE_MAP value)."""
+    from rdc.services.query_service import STAGE_MAP
+
+    stage = params.get("stage")
+    want_stage = STAGE_MAP.get(str(stage).lower()) if stage is not None else None
+    type_filter = params.get("type")
+    type_lower = str(type_filter).lower() if type_filter is not None else None
+    binding = params.get("binding")
+    bind_lower = str(binding).lower() if binding is not None else None
+    return want_stage, type_lower, bind_lower
+
+
 def _handle_descriptors(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -81,12 +94,17 @@ def _handle_descriptors(
     used = pipe_state.GetAllUsedDescriptors(True)
     bind_maps = _reflection_binding_maps(pipe_state)
     loc_map = _descriptor_locations(state, used)
+    want_stage, type_lower, bind_lower = _descriptor_filters(params)
     desc_rows: list[dict[str, Any]] = []
     for ud in used:
         acc = ud.access
+        if want_stage is not None and int(acc.stage) != want_stage:
+            continue
         desc = ud.descriptor
         stage_name = _enum_name(acc.stage)
         type_name = _enum_name(acc.type)
+        if type_lower is not None and type_name.lower() != type_lower:
+            continue
         fmt = getattr(desc, "format", None)
         fmt_name = fmt.Name() if fmt and hasattr(fmt, "Name") else str(fmt) if fmt else ""
         res_id = int(desc.resource)
@@ -108,6 +126,12 @@ def _handle_descriptors(
             name, bset = stage_buckets[_refl_bucket(type_name)].get(bind_num, ("", None))
         d_row["binding"] = name or logical
         d_row["set"] = bset if bset is not None else acc.index
+        if bind_lower is not None:
+            candidates = {str(d_row["binding"]).lower()}
+            if bind_num is not None:
+                candidates.add(str(bind_num).lower())
+            if bind_lower not in candidates:
+                continue
         d_row["resource_name"] = state.res_names.get(res_id, "")
         tex = state.tex_map.get(res_id)
         if tex is not None:

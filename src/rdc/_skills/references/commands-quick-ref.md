@@ -424,6 +424,28 @@ Debug vertex shader for vertex VTX_ID at event EID.
 | `--json` | JSON output | flag |  |
 | `--no-header` | Suppress TSV header row | flag |  |
 
+## `rdc descriptors`
+
+Show the descriptors a draw actually used, resolved to resources.
+
+**Arguments:**
+
+| Name | Type | Required |
+|------|------|----------|
+| `eid` | integer | no |
+
+**Options:**
+
+| Flag | Help | Type | Default |
+|------|------|------|---------|
+| `--stage` | Filter by shader stage. | choice |  |
+| `--type` | Filter by descriptor type (case-insensitive). | text |  |
+| `--binding` | Filter by binding name or number. | text |  |
+| `--no-header` | Omit TSV header | flag |  |
+| `--json` | JSON output | flag |  |
+| `--jsonl` | JSONL output | flag |  |
+| `-q, --quiet` | Print primary key column only | flag |  |
+
 ## `rdc diff`
 
 Compare two RenderDoc captures side-by-side.
