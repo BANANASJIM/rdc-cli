@@ -246,15 +246,12 @@ class TestResourcesCLI:
     def _patch(self, monkeypatch: pytest.MonkeyPatch, rows: list[dict[str, Any]]) -> None:
         _patch_resources(monkeypatch, {"rows": rows})
 
-    def test_no_options_three_column_header(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_options_header(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._patch(monkeypatch, self._BASE_ROWS)
         result = CliRunner().invoke(resources_cmd, [])
         assert result.exit_code == 0
-        assert "ID" in result.output
-        assert "TYPE" in result.output
-        assert "NAME" in result.output
-        for ghost in ("WIDTH", "HEIGHT", "DEPTH", "FORMAT"):
-            assert ghost not in result.output
+        for col in ("ID", "TYPE", "NAME", "WIDTH", "HEIGHT", "FORMAT", "SIZE"):
+            assert col in result.output
 
     def test_type_option_forwarded(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import rdc.commands._helpers as mod

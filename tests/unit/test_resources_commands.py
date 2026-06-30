@@ -24,6 +24,30 @@ def test_resources_tsv(monkeypatch) -> None:
     assert "Texture" in result.output
 
 
+def test_resources_enriched_columns(monkeypatch) -> None:
+    patch_cli_session(
+        monkeypatch,
+        {
+            "rows": [
+                {
+                    "id": 371,
+                    "type": "Texture",
+                    "name": "2D Image 371",
+                    "width": 512,
+                    "height": 512,
+                    "format": "BC1_SRGB",
+                    "size": 174776,
+                }
+            ]
+        },
+    )
+    result = CliRunner().invoke(resources_cmd, [])
+    assert result.exit_code == 0
+    assert "ID\tTYPE\tNAME\tWIDTH\tHEIGHT\tFORMAT\tSIZE" in result.output
+    assert "512" in result.output
+    assert "BC1_SRGB" in result.output
+
+
 def test_resources_json(monkeypatch) -> None:
     patch_cli_session(
         monkeypatch,
