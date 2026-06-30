@@ -964,6 +964,26 @@ class UsedDescriptor:
 
 
 @dataclass
+class DescriptorLogicalLocation:
+    """Mock for DescriptorLogicalLocation from GetDescriptorLocations."""
+
+    fixedBindNumber: int = 0
+    logicalBindName: str = ""
+    category: int = 0
+    stageMask: int = 0
+
+
+class DescriptorRange:
+    """Mock for DescriptorRange, constructible from a DescriptorAccess."""
+
+    def __init__(self, access: DescriptorAccess | None = None) -> None:
+        self.offset = access.index if access is not None else 0
+        self.count = 1
+        self.descriptorSize = 0
+        self.type = access.type if access is not None else DescriptorType.ConstantBuffer
+
+
+@dataclass
 class MeshFormat:
     allowRestart: bool = False
     baseVertex: int = 0
