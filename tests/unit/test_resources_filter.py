@@ -347,3 +347,41 @@ class TestResourcesRegressionNoSession:
         monkeypatch.setattr(mod, "load_session", lambda: None)
         result = CliRunner().invoke(resources_cmd, [])
         assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# TestResourceEnrichment — dimensions/format/size enrichment
+# ---------------------------------------------------------------------------
+
+
+def _tex(width: int, height: int, fmt: str, size: int) -> Any:
+    return SimpleNamespace(
+        width=width, height=height, format=SimpleNamespace(Name=lambda: fmt), byteSize=size
+    )
+
+
+class TestResourceEnrichment:
+    def test_resource_detail_enriched_with_dims(self) -> None:
+        state = _state_with_resources([_make_res(371, "2D Image 371", "Texture")])
+        state.tex_map = {371: _tex(512, 512, "BC1_SRGB", 174776)}
+        resp, _ = _handle_request(rpc_request("resource", {"id": 371}), state)
+        r = resp["result"]["resource"]
+        assert r["width"] == 512
+        assert r["height"] == 512
+        assert r["format"] == "BC1_SRGB"
+        assert r["size"] == 174776
+
+    def test_resources_list_enriched_with_dims(self) -> None:
+        state = _state_with_resources([_make_res(371, "2D Image 371", "Texture")])
+        state.tex_map = {371: _tex(512, 512, "BC1_SRGB", 174776)}
+        resp, _ = _handle_request(rpc_request("resources"), state)
+        row = resp["result"]["rows"][0]
+        assert row["width"] == 512
+        assert row["format"] == "BC1_SRGB"
+        assert row["size"] == 174776
+
+    def test_buffer_resource_gets_size(self) -> None:
+        state = _state_with_resources([_make_res(99, "vtx buffer", "Buffer")])
+        state.buf_map = {99: SimpleNamespace(length=4096)}
+        resp, _ = _handle_request(rpc_request("resource", {"id": 99}), state)
+        assert resp["result"]["resource"]["size"] == 4096
