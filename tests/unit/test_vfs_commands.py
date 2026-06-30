@@ -380,6 +380,7 @@ def test_cat_descriptors(monkeypatch) -> None:
                         "resource_id": 371,
                         "resource_name": "2D Image 371",
                         "format": "BC1_SRGB",
+                        "byte_size": 0,
                         "width": 512,
                         "height": 512,
                     },
@@ -395,11 +396,12 @@ def test_cat_descriptors(monkeypatch) -> None:
     result = CliRunner().invoke(cat_cmd, ["/draws/5/descriptors"])
     assert result.exit_code == 0
     lines = result.output.strip().split("\n")
+    # Original columns kept in place (cut -f compatible); new columns appended on the right.
     assert lines[0] == (
-        "STAGE\tBINDING\tTYPE\tSET\tARRAY_EL\tRESOURCE\tRES_NAME\tFORMAT\tWIDTH\tHEIGHT"
+        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\tBINDING\tSET\tRES_NAME\tWIDTH\tHEIGHT"
     )
     assert len(lines) == 3
-    assert lines[1].startswith("Vertex\tg_push\tConstantBuffer\t0\t0\t42")
+    assert lines[1].startswith("Vertex\tConstantBuffer\t0\t0\t42\t\t256\tg_push")
     assert "g_textures" in lines[2]
     assert "512" in lines[2]
 
@@ -421,7 +423,7 @@ def test_cat_descriptors_empty(monkeypatch) -> None:
     assert result.exit_code == 0
     lines = result.output.strip().split("\n")
     assert lines[0] == (
-        "STAGE\tBINDING\tTYPE\tSET\tARRAY_EL\tRESOURCE\tRES_NAME\tFORMAT\tWIDTH\tHEIGHT"
+        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\tBINDING\tSET\tRES_NAME\tWIDTH\tHEIGHT"
     )
     assert len(lines) == 1
 
