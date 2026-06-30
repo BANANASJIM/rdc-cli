@@ -17,62 +17,53 @@ if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
 
 
-def _bind_bucket(items: Any) -> dict[int, tuple[str, int]]:
-    return {
-        getattr(r, "fixedBindNumber", 0): (r.name, getattr(r, "fixedBindSetOrSpace", 0))
-        for r in items
-    }
+def _reflection_resources(pipe_state: Any) -> dict[int, dict[str, list[Any]]]:
+    """Per-stage reflection resources by category, keyed by stage value.
 
-
-def _reflection_binding_maps(pipe_state: Any) -> dict[int, dict[str, dict[int, tuple[str, int]]]]:
-    """Per-stage {bucket: {bind_number: (name, set)}} from reflection, keyed by stage value."""
+    Correlation uses ``DescriptorAccess.index``, which renderdoc documents as the index into
+    the shader's reflection list for that descriptor type. It is therefore per (set, binding)
+    and never collides across descriptor sets/spaces, unlike a ``fixedBindNumber`` join.
+    """
     from rdc.services.query_service import STAGE_MAP
 
-    maps: dict[int, dict[str, dict[int, tuple[str, int]]]] = {}
+    out: dict[int, dict[str, list[Any]]] = {}
     for stage_val in STAGE_MAP.values():
         refl = pipe_state.GetShaderReflection(stage_val)
         if refl is None:
             continue
-        maps[stage_val] = {
-            "ro": _bind_bucket(getattr(refl, "readOnlyResources", [])),
-            "rw": _bind_bucket(getattr(refl, "readWriteResources", [])),
-            "cb": _bind_bucket(getattr(refl, "constantBlocks", [])),
+        out[stage_val] = {
+            "ro": list(getattr(refl, "readOnlyResources", [])),
+            "rw": list(getattr(refl, "readWriteResources", [])),
+            "cb": list(getattr(refl, "constantBlocks", [])),
+            "sampler": list(getattr(refl, "samplers", [])),
         }
-    return maps
+    return out
 
 
-def _descriptor_locations(state: DaemonState, used: list[Any]) -> list[Any]:
-    """Logical locations aligned positionally with ``used`` (one per descriptor, or None).
-
-    Positional rather than id()-keyed: the renderdoc bindings hand back a fresh proxy on
-    every ``ud.access``, so object identity is not stable across iterations.
-    """
-    assert state.adapter is not None
-    get_locs = getattr(state.adapter.controller, "GetDescriptorLocations", None)
-    locs: list[Any] = [None] * len(used)
-    if get_locs is None or not hasattr(state.rd, "DescriptorRange"):
-        return locs
-    by_store: dict[int, list[int]] = {}
-    for i, ud in enumerate(used):
-        by_store.setdefault(int(ud.access.descriptorStore), []).append(i)
-    for idxs in by_store.values():
-        store = used[idxs[0]].access.descriptorStore
-        try:
-            result = get_locs(store, [state.rd.DescriptorRange(used[i].access) for i in idxs])
-        except Exception:  # noqa: BLE001
-            continue
-        for j, i in enumerate(idxs):
-            if j < len(result):
-                locs[i] = result[j]
-    return locs
-
-
-def _refl_bucket(type_name: str) -> str:
+def _refl_category(type_name: str) -> str:
     if type_name == "ConstantBuffer":
         return "cb"
     if type_name.startswith("ReadWrite"):
         return "rw"
+    if type_name == "Sampler":
+        return "sampler"
     return "ro"
+
+
+def _resolve_binding(
+    refl_map: dict[int, dict[str, list[Any]]], acc: Any, type_name: str
+) -> tuple[str, int | None, int | None]:
+    """Resolve (name, set, bind_number) for a used descriptor via its reflection index."""
+    arr = refl_map.get(int(acc.stage), {}).get(_refl_category(type_name), [])
+    idx = acc.index
+    if 0 <= idx < len(arr):
+        r = arr[idx]
+        return (
+            getattr(r, "name", ""),
+            getattr(r, "fixedBindSetOrSpace", None),
+            getattr(r, "fixedBindNumber", None),
+        )
+    return "", None, None
 
 
 def _descriptor_filters(params: dict[str, Any]) -> tuple[int | None, str | None, str | None]:
@@ -97,12 +88,11 @@ def _handle_descriptors(
         return exc.response, True
     if not hasattr(pipe_state, "GetAllUsedDescriptors"):
         return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
-    used = list(pipe_state.GetAllUsedDescriptors(True))
-    bind_maps = _reflection_binding_maps(pipe_state)
-    loc_list = _descriptor_locations(state, used)
+    used = pipe_state.GetAllUsedDescriptors(True)
+    refl_map = _reflection_resources(pipe_state)
     want_stage, type_lower, bind_lower = _descriptor_filters(params)
     desc_rows: list[dict[str, Any]] = []
-    for i, ud in enumerate(used):
+    for ud in used:
         acc = ud.access
         if want_stage is not None and int(acc.stage) != want_stage:
             continue
@@ -123,19 +113,13 @@ def _handle_descriptors(
             "format": fmt_name,
             "byte_size": getattr(desc, "byteSize", 0),
         }
-        loc = loc_list[i]
-        logical = getattr(loc, "logicalBindName", "") if loc is not None else ""
-        bind_num = getattr(loc, "fixedBindNumber", None) if loc is not None else None
-        name, bset = "", None
-        stage_buckets = bind_maps.get(int(acc.stage))
-        if stage_buckets is not None and bind_num is not None:
-            name, bset = stage_buckets[_refl_bucket(type_name)].get(bind_num, ("", None))
-        d_row["binding"] = name or logical
-        d_row["set"] = bset if bset is not None else acc.index
+        name, bset, bnum = _resolve_binding(refl_map, acc, type_name)
+        d_row["binding"] = name
+        d_row["set"] = bset if bset is not None else "-"
         if bind_lower is not None:
-            candidates = {str(d_row["binding"]).lower()}
-            if bind_num is not None:
-                candidates.add(str(bind_num).lower())
+            candidates = {name.lower()}
+            if bnum is not None:
+                candidates.add(str(bnum).lower())
             if bind_lower not in candidates:
                 continue
         d_row["resource_name"] = state.res_names.get(res_id, "")
