@@ -17,6 +17,58 @@ if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
 
 
+def _bind_bucket(items: Any) -> dict[int, tuple[str, int]]:
+    return {
+        getattr(r, "fixedBindNumber", 0): (r.name, getattr(r, "fixedBindSetOrSpace", 0))
+        for r in items
+    }
+
+
+def _reflection_binding_maps(pipe_state: Any) -> dict[int, dict[str, dict[int, tuple[str, int]]]]:
+    """Per-stage {bucket: {bind_number: (name, set)}} from reflection, keyed by stage value."""
+    from rdc.services.query_service import STAGE_MAP
+
+    maps: dict[int, dict[str, dict[int, tuple[str, int]]]] = {}
+    for stage_val in STAGE_MAP.values():
+        refl = pipe_state.GetShaderReflection(stage_val)
+        if refl is None:
+            continue
+        maps[stage_val] = {
+            "ro": _bind_bucket(getattr(refl, "readOnlyResources", [])),
+            "rw": _bind_bucket(getattr(refl, "readWriteResources", [])),
+            "cb": _bind_bucket(getattr(refl, "constantBlocks", [])),
+        }
+    return maps
+
+
+def _descriptor_locations(state: DaemonState, used: Any) -> dict[int, Any]:
+    """Map id(access) -> logical location via GetDescriptorLocations, batched per store."""
+    assert state.adapter is not None
+    get_locs = getattr(state.adapter.controller, "GetDescriptorLocations", None)
+    if get_locs is None or not hasattr(state.rd, "DescriptorRange"):
+        return {}
+    by_store: dict[Any, list[Any]] = {}
+    for ud in used:
+        by_store.setdefault(ud.access.descriptorStore, []).append(ud.access)
+    out: dict[int, Any] = {}
+    for store, accesses in by_store.items():
+        try:
+            locs = get_locs(store, [state.rd.DescriptorRange(a) for a in accesses])
+        except Exception:  # noqa: BLE001
+            continue
+        for access, loc in zip(accesses, locs, strict=False):
+            out[id(access)] = loc
+    return out
+
+
+def _refl_bucket(type_name: str) -> str:
+    if type_name == "ConstantBuffer":
+        return "cb"
+    if type_name.startswith("ReadWrite"):
+        return "rw"
+    return "ro"
+
+
 def _handle_descriptors(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -27,6 +79,8 @@ def _handle_descriptors(
     if not hasattr(pipe_state, "GetAllUsedDescriptors"):
         return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
     used = pipe_state.GetAllUsedDescriptors(True)
+    bind_maps = _reflection_binding_maps(pipe_state)
+    loc_map = _descriptor_locations(state, used)
     desc_rows: list[dict[str, Any]] = []
     for ud in used:
         acc = ud.access
@@ -35,15 +89,30 @@ def _handle_descriptors(
         type_name = _enum_name(acc.type)
         fmt = getattr(desc, "format", None)
         fmt_name = fmt.Name() if fmt and hasattr(fmt, "Name") else str(fmt) if fmt else ""
+        res_id = int(desc.resource)
         d_row: dict[str, Any] = {
             "stage": stage_name,
             "type": type_name,
             "index": acc.index,
             "array_element": acc.arrayElement,
-            "resource_id": int(desc.resource),
+            "resource_id": res_id,
             "format": fmt_name,
             "byte_size": getattr(desc, "byteSize", 0),
         }
+        loc = loc_map.get(id(acc))
+        logical = getattr(loc, "logicalBindName", "") if loc is not None else ""
+        bind_num = getattr(loc, "fixedBindNumber", None) if loc is not None else None
+        name, bset = "", None
+        stage_buckets = bind_maps.get(int(acc.stage))
+        if stage_buckets is not None and bind_num is not None:
+            name, bset = stage_buckets[_refl_bucket(type_name)].get(bind_num, ("", None))
+        d_row["binding"] = name or logical
+        d_row["set"] = bset if bset is not None else acc.index
+        d_row["resource_name"] = state.res_names.get(res_id, "")
+        tex = state.tex_map.get(res_id)
+        if tex is not None:
+            d_row["width"] = tex.width
+            d_row["height"] = tex.height
         if type_name in ("Sampler", "ImageSampler"):
             s = getattr(ud, "sampler", None)
             if s is not None:

@@ -15,6 +15,8 @@ from mock_renderdoc import (
     MockPipeState,
     ResourceId,
     SamplerDescriptor,
+    ShaderReflection,
+    ShaderResource,
     ShaderStage,
     UsedDescriptor,
 )
@@ -191,3 +193,72 @@ def test_descriptors_eid_out_of_range() -> None:
     state = _make_state_with_pipe(pipe, max_eid=10)
     resp = _call(state, "descriptors", eid=999)
     assert resp["error"]["code"] == -32002
+
+
+def _ps_with_textures_binding() -> MockPipeState:
+    pipe = MockPipeState()
+    pipe._reflections[ShaderStage.Pixel] = ShaderReflection(
+        readOnlyResources=[
+            ShaderResource(name="g_textures", fixedBindNumber=0, fixedBindSetOrSpace=0)
+        ],
+    )
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel,
+                type=DescriptorType.Image,
+                index=0,
+                arrayElement=46,
+            ),
+            descriptor=Descriptor(resource=ResourceId(371), byteSize=0),
+        ),
+    ]
+    return pipe
+
+
+def test_descriptors_binding_name_correlation() -> None:
+    """A used image element is correlated to its reflection binding name and resource."""
+    pipe = _ps_with_textures_binding()
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: [],
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: SimpleNamespace(chunks=[]),
+        GetPipelineState=lambda: pipe,
+        GetTextures=lambda: [],
+        GetBuffers=lambda: [],
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+        GetDescriptorLocations=lambda store, ranges: [
+            rd.DescriptorLogicalLocation(fixedBindNumber=0, logicalBindName="0[46]") for _ in ranges
+        ],
+    )
+    state = make_daemon_state(ctrl=ctrl, token="test-token", rd=rd)  # type: ignore[arg-type]
+    state.res_names = {371: "2D Image 371"}
+    state.tex_map = {
+        371: SimpleNamespace(
+            width=512, height=512, format=SimpleNamespace(Name=lambda: "BC1_SRGB"), byteSize=174776
+        )
+    }
+    resp = _call(state, "descriptors", eid=16)
+
+    d = resp["result"]["descriptors"][0]
+    assert d["binding"] == "g_textures"
+    assert d["set"] == 0
+    assert d["array_element"] == 46
+    assert d["resource_id"] == 371
+    assert d["resource_name"] == "2D Image 371"
+    assert d["width"] == 512
+    assert d["height"] == 512
+
+
+def test_descriptors_binding_fallback_without_locations() -> None:
+    """Without GetDescriptorLocations the binding is empty but the row is intact."""
+    pipe = _ps_with_textures_binding()
+    state = _make_state_with_pipe(pipe)
+    resp = _call(state, "descriptors", eid=16)
+
+    d = resp["result"]["descriptors"][0]
+    assert d["binding"] == ""
+    assert d["resource_id"] == 371
