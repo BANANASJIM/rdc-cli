@@ -264,6 +264,59 @@ def test_descriptors_binding_fallback_without_locations() -> None:
     assert d["resource_id"] == 371
 
 
+def test_descriptors_locations_aligned_per_descriptor() -> None:
+    """Each descriptor keeps its own location (positional alignment, not id-keyed)."""
+    pipe = MockPipeState()
+    pipe._reflections[ShaderStage.Pixel] = ShaderReflection(
+        readOnlyResources=[ShaderResource(name="g_textures", fixedBindNumber=0)],
+        readWriteResources=[ShaderResource(name="g_ssbos", fixedBindNumber=1)],
+    )
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=46
+            ),
+            descriptor=Descriptor(resource=ResourceId(371)),
+        ),
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel,
+                type=DescriptorType.ReadWriteBuffer,
+                index=0,
+                arrayElement=90,
+            ),
+            descriptor=Descriptor(resource=ResourceId(669)),
+        ),
+    ]
+
+    def locations(store: object, ranges: list) -> list:
+        out = []
+        for r in ranges:
+            fbn = 0 if r.type == DescriptorType.Image else 1
+            out.append(rd.DescriptorLogicalLocation(fixedBindNumber=fbn, logicalBindName=str(fbn)))
+        return out
+
+    ctrl = SimpleNamespace(
+        GetRootActions=lambda: [],
+        GetResources=lambda: [],
+        GetAPIProperties=lambda: SimpleNamespace(pipelineType="Vulkan"),
+        SetFrameEvent=lambda eid, force: None,
+        GetStructuredFile=lambda: SimpleNamespace(chunks=[]),
+        GetPipelineState=lambda: pipe,
+        GetTextures=lambda: [],
+        GetBuffers=lambda: [],
+        GetDebugMessages=lambda: [],
+        Shutdown=lambda: None,
+        GetDescriptorLocations=locations,
+    )
+    state = make_daemon_state(ctrl=ctrl, token="test-token", rd=rd)  # type: ignore[arg-type]
+
+    rows = _call(state, "descriptors", eid=0)["result"]["descriptors"]
+    by_res = {d["resource_id"]: d["binding"] for d in rows}
+    assert by_res[371] == "g_textures"
+    assert by_res[669] == "g_ssbos"
+
+
 def test_descriptors_filters() -> None:
     """stage/type/binding filters narrow the returned descriptors."""
     pipe = MockPipeState()

@@ -41,24 +41,30 @@ def _reflection_binding_maps(pipe_state: Any) -> dict[int, dict[str, dict[int, t
     return maps
 
 
-def _descriptor_locations(state: DaemonState, used: Any) -> dict[int, Any]:
-    """Map id(access) -> logical location via GetDescriptorLocations, batched per store."""
+def _descriptor_locations(state: DaemonState, used: list[Any]) -> list[Any]:
+    """Logical locations aligned positionally with ``used`` (one per descriptor, or None).
+
+    Positional rather than id()-keyed: the renderdoc bindings hand back a fresh proxy on
+    every ``ud.access``, so object identity is not stable across iterations.
+    """
     assert state.adapter is not None
     get_locs = getattr(state.adapter.controller, "GetDescriptorLocations", None)
+    locs: list[Any] = [None] * len(used)
     if get_locs is None or not hasattr(state.rd, "DescriptorRange"):
-        return {}
-    by_store: dict[Any, list[Any]] = {}
-    for ud in used:
-        by_store.setdefault(ud.access.descriptorStore, []).append(ud.access)
-    out: dict[int, Any] = {}
-    for store, accesses in by_store.items():
+        return locs
+    by_store: dict[int, list[int]] = {}
+    for i, ud in enumerate(used):
+        by_store.setdefault(int(ud.access.descriptorStore), []).append(i)
+    for idxs in by_store.values():
+        store = used[idxs[0]].access.descriptorStore
         try:
-            locs = get_locs(store, [state.rd.DescriptorRange(a) for a in accesses])
+            result = get_locs(store, [state.rd.DescriptorRange(used[i].access) for i in idxs])
         except Exception:  # noqa: BLE001
             continue
-        for access, loc in zip(accesses, locs, strict=False):
-            out[id(access)] = loc
-    return out
+        for j, i in enumerate(idxs):
+            if j < len(result):
+                locs[i] = result[j]
+    return locs
 
 
 def _refl_bucket(type_name: str) -> str:
@@ -91,12 +97,12 @@ def _handle_descriptors(
         return exc.response, True
     if not hasattr(pipe_state, "GetAllUsedDescriptors"):
         return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
-    used = pipe_state.GetAllUsedDescriptors(True)
+    used = list(pipe_state.GetAllUsedDescriptors(True))
     bind_maps = _reflection_binding_maps(pipe_state)
-    loc_map = _descriptor_locations(state, used)
+    loc_list = _descriptor_locations(state, used)
     want_stage, type_lower, bind_lower = _descriptor_filters(params)
     desc_rows: list[dict[str, Any]] = []
-    for ud in used:
+    for i, ud in enumerate(used):
         acc = ud.access
         if want_stage is not None and int(acc.stage) != want_stage:
             continue
@@ -117,7 +123,7 @@ def _handle_descriptors(
             "format": fmt_name,
             "byte_size": getattr(desc, "byteSize", 0),
         }
-        loc = loc_map.get(id(acc))
+        loc = loc_list[i]
         logical = getattr(loc, "logicalBindName", "") if loc is not None else ""
         bind_num = getattr(loc, "fixedBindNumber", None) if loc is not None else None
         name, bset = "", None
