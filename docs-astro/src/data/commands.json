@@ -114,6 +114,12 @@
           "id": "bindings",
           "help": "Show bound resources per shader stage.",
           "usage": "rdc bindings [EID] [--binding INTEGER] [--set INTEGER] [--no-header] [--json] [--jsonl] [-q]"
+        },
+        {
+          "name": "descriptors",
+          "id": "descriptors",
+          "help": "Show the descriptors a draw actually used, resolved to resources.",
+          "usage": "rdc descriptors [EID] [--stage CHOICE] [--type TEXT] [--binding TEXT] [--no-header] [--json] [--jsonl] [-q]"
         }
       ]
     },

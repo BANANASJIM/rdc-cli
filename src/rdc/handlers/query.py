@@ -158,6 +158,23 @@ def _handle_shaders(
     return _result_response(request_id, {"rows": rows}), True
 
 
+def enrich_resource_row(row: dict[str, Any], state: DaemonState) -> dict[str, Any]:
+    """Merge texture/buffer dimensions and size into a base resource row."""
+    rid = int(row.get("id", 0))
+    tex = state.tex_map.get(rid)
+    if tex is not None:
+        fmt = getattr(tex, "format", None)
+        row["width"] = tex.width
+        row["height"] = tex.height
+        row["format"] = fmt.Name() if fmt is not None and hasattr(fmt, "Name") else ""
+        row["size"] = getattr(tex, "byteSize", 0)
+        return row
+    buf = state.buf_map.get(rid)
+    if buf is not None:
+        row["size"] = getattr(buf, "length", getattr(buf, "byteSize", 0))
+    return row
+
+
 def _handle_resources(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -175,6 +192,7 @@ def _handle_resources(
         rows = [r for r in rows if name_lower in r["name"].lower()]
     if sort_by in ("name", "type"):
         rows.sort(key=lambda r: r[sort_by].lower())
+    rows = [enrich_resource_row(r, state) for r in rows]
     return _result_response(request_id, {"rows": rows}), True
 
 
@@ -188,7 +206,7 @@ def _handle_resource(
     detail = get_resource_detail(state.adapter, resid)
     if detail is None:
         return _error_response(request_id, -32001, "resource not found"), True
-    return _result_response(request_id, {"resource": detail}), True
+    return _result_response(request_id, {"resource": enrich_resource_row(detail, state)}), True
 
 
 def _handle_passes(

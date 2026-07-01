@@ -17,6 +17,68 @@ if TYPE_CHECKING:
     from rdc.daemon_server import DaemonState
 
 
+def _reflection_resources(pipe_state: Any) -> dict[int, dict[str, list[Any]]]:
+    """Per-stage reflection resources by category, keyed by stage value.
+
+    Correlation uses ``DescriptorAccess.index``, which renderdoc documents as the index into
+    the shader's reflection list for that descriptor type. It is therefore per (set, binding)
+    and never collides across descriptor sets/spaces, unlike a ``fixedBindNumber`` join.
+    """
+    from rdc.services.query_service import STAGE_MAP
+
+    out: dict[int, dict[str, list[Any]]] = {}
+    for stage_val in STAGE_MAP.values():
+        refl = pipe_state.GetShaderReflection(stage_val)
+        if refl is None:
+            continue
+        out[stage_val] = {
+            "ro": list(getattr(refl, "readOnlyResources", [])),
+            "rw": list(getattr(refl, "readWriteResources", [])),
+            "cb": list(getattr(refl, "constantBlocks", [])),
+            "sampler": list(getattr(refl, "samplers", [])),
+        }
+    return out
+
+
+def _refl_category(type_name: str) -> str:
+    if type_name == "ConstantBuffer":
+        return "cb"
+    if type_name.startswith("ReadWrite"):
+        return "rw"
+    if type_name == "Sampler":
+        return "sampler"
+    return "ro"
+
+
+def _resolve_binding(
+    refl_map: dict[int, dict[str, list[Any]]], acc: Any, type_name: str
+) -> tuple[str, int | None, int | None]:
+    """Resolve (name, set, bind_number) for a used descriptor via its reflection index."""
+    arr = refl_map.get(int(acc.stage), {}).get(_refl_category(type_name), [])
+    idx = acc.index
+    if 0 <= idx < len(arr):
+        r = arr[idx]
+        return (
+            getattr(r, "name", ""),
+            getattr(r, "fixedBindSetOrSpace", None),
+            getattr(r, "fixedBindNumber", None),
+        )
+    return "", None, None
+
+
+def _descriptor_filters(params: dict[str, Any]) -> tuple[int | None, str | None, str | None]:
+    """Parse stage/type/binding filter params (stage as a STAGE_MAP value)."""
+    from rdc.services.query_service import STAGE_MAP
+
+    stage = params.get("stage")
+    want_stage = STAGE_MAP.get(str(stage).lower()) if stage is not None else None
+    type_filter = params.get("type")
+    type_lower = str(type_filter).lower() if type_filter is not None else None
+    binding = params.get("binding")
+    bind_lower = str(binding).lower() if binding is not None else None
+    return want_stage, type_lower, bind_lower
+
+
 def _handle_descriptors(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -27,23 +89,44 @@ def _handle_descriptors(
     if not hasattr(pipe_state, "GetAllUsedDescriptors"):
         return _error_response(request_id, -32002, "GetAllUsedDescriptors not available"), True
     used = pipe_state.GetAllUsedDescriptors(True)
+    refl_map = _reflection_resources(pipe_state)
+    want_stage, type_lower, bind_lower = _descriptor_filters(params)
     desc_rows: list[dict[str, Any]] = []
     for ud in used:
         acc = ud.access
+        if want_stage is not None and int(acc.stage) != want_stage:
+            continue
         desc = ud.descriptor
         stage_name = _enum_name(acc.stage)
         type_name = _enum_name(acc.type)
+        if type_lower is not None and type_name.lower() != type_lower:
+            continue
         fmt = getattr(desc, "format", None)
         fmt_name = fmt.Name() if fmt and hasattr(fmt, "Name") else str(fmt) if fmt else ""
+        res_id = int(desc.resource)
         d_row: dict[str, Any] = {
             "stage": stage_name,
             "type": type_name,
             "index": acc.index,
             "array_element": acc.arrayElement,
-            "resource_id": int(desc.resource),
+            "resource_id": res_id,
             "format": fmt_name,
             "byte_size": getattr(desc, "byteSize", 0),
         }
+        name, bset, bnum = _resolve_binding(refl_map, acc, type_name)
+        d_row["binding"] = name
+        d_row["set"] = bset if bset is not None else "-"
+        if bind_lower is not None:
+            candidates = {name.lower()}
+            if bnum is not None:
+                candidates.add(str(bnum).lower())
+            if bind_lower not in candidates:
+                continue
+        d_row["resource_name"] = state.res_names.get(res_id, "")
+        tex = state.tex_map.get(res_id)
+        if tex is not None:
+            d_row["width"] = tex.width
+            d_row["height"] = tex.height
         if type_name in ("Sampler", "ImageSampler"):
             s = getattr(ud, "sampler", None)
             if s is not None:

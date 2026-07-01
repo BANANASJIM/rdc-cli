@@ -99,9 +99,11 @@ _EXTRACTORS: dict[str, Callable[..., str]] = {
         )
     ),
     "descriptors": lambda r: (
-        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\n"
+        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\tBINDING\tSET\tRES_NAME\tWIDTH\tHEIGHT\n"
         + "\n".join(
-            f"{d['stage']}\t{d['type']}\t{d['index']}\t{d['array_element']}\t{d['resource_id']}\t{d['format']}\t{d['byte_size']}"
+            f"{d['stage']}\t{d['type']}\t{d['index']}\t{d['array_element']}\t{d['resource_id']}\t"
+            f"{d['format']}\t{d['byte_size']}\t{d.get('binding', '')}\t{d.get('set', '')}\t"
+            f"{d.get('resource_name', '')}\t{d.get('width', '')}\t{d.get('height', '')}"
             for d in r.get("descriptors", [])
         )
     ),

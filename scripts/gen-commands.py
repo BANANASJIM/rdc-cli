@@ -28,7 +28,7 @@ CATEGORIES: list[tuple[str, str, str | None, list[str]]] = [
         "info", "stats", "events", "draws", "event", "draw", "log", "counters",
     ]),
     ("Draw Analysis", "draw-analysis", None, [
-        "pipeline", "bindings",
+        "pipeline", "bindings", "descriptors",
     ]),
     ("Resources", "resources-section", None, [
         "resources", "resource", "usage", "shader", "shaders", "shader-map",

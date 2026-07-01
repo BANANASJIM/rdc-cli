@@ -132,8 +132,20 @@ def resources_cmd(  # noqa: PLR0913
     rows: list[dict[str, Any]] = result.get("rows", [])
 
     def _table() -> None:
-        tsv_rows = [[r.get("id", "-"), r.get("type", "-"), r.get("name", "-")] for r in rows]
-        write_tsv(tsv_rows, header=["ID", "TYPE", "NAME"], no_header=no_header)
+        tsv_rows = [
+            [
+                r.get("id", "-"),
+                r.get("type", "-"),
+                r.get("name", "-"),
+                r.get("width", "-"),
+                r.get("height", "-"),
+                r.get("format", "-"),
+                r.get("size", "-"),
+            ]
+            for r in rows
+        ]
+        header = ["ID", "TYPE", "NAME", "WIDTH", "HEIGHT", "FORMAT", "SIZE"]
+        write_tsv(tsv_rows, header=header, no_header=no_header)
 
     render_list(
         rows,

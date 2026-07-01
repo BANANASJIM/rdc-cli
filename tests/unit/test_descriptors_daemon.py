@@ -15,6 +15,8 @@ from mock_renderdoc import (
     MockPipeState,
     ResourceId,
     SamplerDescriptor,
+    ShaderReflection,
+    ShaderResource,
     ShaderStage,
     UsedDescriptor,
 )
@@ -191,3 +193,139 @@ def test_descriptors_eid_out_of_range() -> None:
     state = _make_state_with_pipe(pipe, max_eid=10)
     resp = _call(state, "descriptors", eid=999)
     assert resp["error"]["code"] == -32002
+
+
+def _ps_with_textures_binding() -> MockPipeState:
+    pipe = MockPipeState()
+    pipe._reflections[ShaderStage.Pixel] = ShaderReflection(
+        readOnlyResources=[
+            ShaderResource(name="g_textures", fixedBindNumber=0, fixedBindSetOrSpace=0)
+        ],
+    )
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel,
+                type=DescriptorType.Image,
+                index=0,
+                arrayElement=46,
+            ),
+            descriptor=Descriptor(resource=ResourceId(371), byteSize=0),
+        ),
+    ]
+    return pipe
+
+
+def test_descriptors_binding_name_correlation() -> None:
+    """A used image element is correlated to its reflection binding name and resource."""
+    pipe = _ps_with_textures_binding()
+    state = _make_state_with_pipe(pipe)
+    state.res_names = {371: "2D Image 371"}
+    state.tex_map = {
+        371: SimpleNamespace(
+            width=512, height=512, format=SimpleNamespace(Name=lambda: "BC1_SRGB"), byteSize=174776
+        )
+    }
+    d = _call(state, "descriptors", eid=16)["result"]["descriptors"][0]
+    assert d["binding"] == "g_textures"
+    assert d["set"] == 0
+    assert d["array_element"] == 46
+    assert d["resource_id"] == 371
+    assert d["resource_name"] == "2D Image 371"
+    assert d["width"] == 512
+    assert d["height"] == 512
+
+
+def test_descriptors_binding_empty_without_reflection() -> None:
+    """With no shader reflection the binding is empty but the row is intact."""
+    pipe = MockPipeState()
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=46
+            ),
+            descriptor=Descriptor(resource=ResourceId(371)),
+        ),
+    ]
+    state = _make_state_with_pipe(pipe)
+    d = _call(state, "descriptors", eid=16)["result"]["descriptors"][0]
+    assert d["binding"] == ""
+    assert d["set"] == "-"
+    assert d["resource_id"] == 371
+
+
+def test_descriptors_no_cross_set_collision() -> None:
+    """Bindings sharing a bind number across sets resolve to distinct names.
+
+    Correlation is by reflection index (DescriptorAccess.index), so set=1/binding=0 and
+    set=2/binding=0 never collapse onto one another.
+    """
+    pipe = MockPipeState()
+    pipe._reflections[ShaderStage.Pixel] = ShaderReflection(
+        readOnlyResources=[
+            ShaderResource(name="g_textures", fixedBindNumber=0, fixedBindSetOrSpace=1),
+            ShaderResource(name="materialTex", fixedBindNumber=0, fixedBindSetOrSpace=2),
+        ],
+    )
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=46
+            ),
+            descriptor=Descriptor(resource=ResourceId(371)),
+        ),
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=1, arrayElement=0
+            ),
+            descriptor=Descriptor(resource=ResourceId(500)),
+        ),
+    ]
+    state = _make_state_with_pipe(pipe)
+    rows = _call(state, "descriptors", eid=0)["result"]["descriptors"]
+    by_res = {d["resource_id"]: (d["binding"], d["set"]) for d in rows}
+    assert by_res[371] == ("g_textures", 1)
+    assert by_res[500] == ("materialTex", 2)
+
+
+def test_descriptors_filters() -> None:
+    """stage/type/binding filters narrow the returned descriptors."""
+    pipe = MockPipeState()
+    pipe._reflections[ShaderStage.Pixel] = ShaderReflection(
+        readOnlyResources=[ShaderResource(name="g_textures", fixedBindNumber=0)],
+    )
+    pipe._used_descriptors = [
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Vertex, type=DescriptorType.ConstantBuffer, index=0
+            ),
+            descriptor=Descriptor(resource=ResourceId(1)),
+        ),
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=46
+            ),
+            descriptor=Descriptor(resource=ResourceId(371)),
+        ),
+        UsedDescriptor(
+            access=DescriptorAccess(
+                stage=ShaderStage.Pixel, type=DescriptorType.Image, index=0, arrayElement=47
+            ),
+            descriptor=Descriptor(resource=ResourceId(379)),
+        ),
+    ]
+    state = _make_state_with_pipe(pipe)
+
+    by_stage = _call(state, "descriptors", eid=0, stage="ps")["result"]["descriptors"]
+    assert len(by_stage) == 2
+    assert all(d["stage"] == "Pixel" for d in by_stage)
+
+    by_type = _call(state, "descriptors", eid=0, type="image")["result"]["descriptors"]
+    assert len(by_type) == 2
+    assert all(d["type"] == "Image" for d in by_type)
+
+    by_name = _call(state, "descriptors", eid=0, binding="g_textures")["result"]["descriptors"]
+    assert len(by_name) == 2
+
+    by_number = _call(state, "descriptors", eid=0, binding="0")["result"]["descriptors"]
+    assert len(by_number) == 2

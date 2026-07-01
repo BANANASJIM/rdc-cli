@@ -360,21 +360,29 @@ def test_cat_descriptors(monkeypatch) -> None:
                 "descriptors": [
                     {
                         "stage": "Vertex",
+                        "binding": "g_push",
                         "type": "ConstantBuffer",
+                        "set": 0,
                         "index": 0,
                         "array_element": 0,
                         "resource_id": 42,
+                        "resource_name": "",
                         "format": "",
                         "byte_size": 256,
                     },
                     {
                         "stage": "Pixel",
-                        "type": "ConstantBuffer",
+                        "binding": "g_textures",
+                        "type": "Image",
+                        "set": 0,
                         "index": 0,
-                        "array_element": 0,
-                        "resource_id": 43,
-                        "format": "",
-                        "byte_size": 128,
+                        "array_element": 46,
+                        "resource_id": 371,
+                        "resource_name": "2D Image 371",
+                        "format": "BC1_SRGB",
+                        "byte_size": 0,
+                        "width": 512,
+                        "height": 512,
                     },
                 ],
             },
@@ -388,9 +396,14 @@ def test_cat_descriptors(monkeypatch) -> None:
     result = CliRunner().invoke(cat_cmd, ["/draws/5/descriptors"])
     assert result.exit_code == 0
     lines = result.output.strip().split("\n")
-    assert lines[0] == "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE"
+    # Original columns kept in place (cut -f compatible); new columns appended on the right.
+    assert lines[0] == (
+        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\tBINDING\tSET\tRES_NAME\tWIDTH\tHEIGHT"
+    )
     assert len(lines) == 3
-    assert "Vertex\tConstantBuffer\t0\t0\t42\t\t256" in lines[1]
+    assert lines[1].startswith("Vertex\tConstantBuffer\t0\t0\t42\t\t256\tg_push")
+    assert "g_textures" in lines[2]
+    assert "512" in lines[2]
 
 
 def test_cat_descriptors_empty(monkeypatch) -> None:
@@ -409,7 +422,9 @@ def test_cat_descriptors_empty(monkeypatch) -> None:
     result = CliRunner().invoke(cat_cmd, ["/draws/0/descriptors"])
     assert result.exit_code == 0
     lines = result.output.strip().split("\n")
-    assert lines[0] == "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE"
+    assert lines[0] == (
+        "STAGE\tTYPE\tINDEX\tARRAY_EL\tRESOURCE\tFORMAT\tBYTE_SIZE\tBINDING\tSET\tRES_NAME\tWIDTH\tHEIGHT"
+    )
     assert len(lines) == 1
 
 
