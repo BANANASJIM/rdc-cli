@@ -478,34 +478,166 @@ def _decode_position_rows(
     return vertices
 
 
-def _position_input(inputs: list[Any]) -> Any | None:
-    for vi in inputs:
-        name = str(getattr(vi, "name", "") or getattr(vi, "semanticName", "")).lower()
+def _input_display_name(vi: Any) -> str:
+    return str(getattr(vi, "name", "") or getattr(vi, "semanticName", "") or "<unnamed>")
+
+
+def _input_names(vi: Any) -> list[str]:
+    return [
+        str(name)
+        for name in (getattr(vi, "name", ""), getattr(vi, "semanticName", ""))
+        if str(name)
+    ]
+
+
+def _is_position_semantic(vi: Any) -> bool:
+    for raw_name in _input_names(vi):
+        name = raw_name.lower()
         if "position" in name or name.startswith("pos"):
-            return vi
-    return None
+            return True
+    return False
 
 
-def _mesh_data_from_ia(controller: Any, pipe_state: Any, action: Any | None) -> dict[str, Any]:
+def _is_instance_input(vi: Any) -> bool:
+    return bool(
+        getattr(vi, "perInstance", False)
+        or int(getattr(vi, "instanceRate", 0) or 0) > 0
+        or getattr(vi, "instanced", False)
+        or int(getattr(vi, "instStepRate", 0) or 0) > 0
+    )
+
+
+def _format_name(fmt: Any) -> str:
+    if fmt is None:
+        return ""
+    name_fn = getattr(fmt, "Name", None)
+    if callable(name_fn):
+        return str(name_fn())
+    return str(getattr(fmt, "name", ""))
+
+
+def _is_float_vector_input(vi: Any) -> bool:
+    fmt = getattr(vi, "format", None)
+    if fmt is None:
+        return False
+    comp_width = int(getattr(fmt, "compByteWidth", 0) or 0)
+    comp_count = int(getattr(fmt, "compCount", 0) or 0)
+    fmt_name = _format_name(fmt).lower()
+    return comp_width in (2, 4) and 2 <= comp_count <= 4 and "float" in fmt_name
+
+
+def _validate_position_input(vi: Any) -> None:
+    if not _is_float_vector_input(vi):
+        name = _input_display_name(vi)
+        fmt_name = _format_name(getattr(vi, "format", None)) or "<unknown>"
+        raise ValueError(f"vertex input {name!r} format {fmt_name!r} cannot be decoded as position")
+
+
+def _select_position_input(
+    inputs: list[Any], params: dict[str, Any]
+) -> tuple[Any, str, int, str | None]:
+    attr_override = params.get("position_attribute")
+    index_override = params.get("position_index")
+    slot_override = params.get("position_slot")
+    offset_override = params.get("position_offset")
+    has_slot_override = slot_override is not None or offset_override is not None
+    if has_slot_override and (slot_override is None or offset_override is None):
+        raise ValueError("position slot override requires both position_slot and position_offset")
+
+    override_count = sum(
+        1
+        for active in (attr_override is not None, index_override is not None, has_slot_override)
+        if active
+    )
+    if override_count > 1:
+        raise ValueError("use only one position override selector")
+
+    if attr_override is not None:
+        wanted = str(attr_override).lower()
+        for index, vi in enumerate(inputs):
+            if any(name.lower() == wanted for name in _input_names(vi)):
+                _validate_position_input(vi)
+                return vi, "user", index, None
+        raise ValueError(f"no vertex input matching position attribute {attr_override!r}")
+
+    if index_override is not None:
+        index = int(index_override)
+        if 0 <= index < len(inputs):
+            vi = inputs[index]
+            _validate_position_input(vi)
+            return vi, "user", index, None
+        raise ValueError(f"no vertex input at position index {index}")
+
+    if has_slot_override:
+        assert slot_override is not None
+        assert offset_override is not None
+        slot = int(slot_override)
+        offset = int(offset_override)
+        for index, vi in enumerate(inputs):
+            if (
+                int(getattr(vi, "vertexBuffer", 0) or 0) == slot
+                and int(getattr(vi, "byteOffset", 0) or 0) == offset
+            ):
+                _validate_position_input(vi)
+                return vi, "user", index, None
+        raise ValueError(f"no vertex input at position slot {slot} offset {offset}")
+
+    for index, vi in enumerate(inputs):
+        if _is_position_semantic(vi) and not _is_instance_input(vi):
+            _validate_position_input(vi)
+            return vi, "semantic", index, None
+
+    candidates = [
+        (index, vi)
+        for index, vi in enumerate(inputs)
+        if not _is_instance_input(vi) and _is_float_vector_input(vi)
+    ]
+    if not candidates:
+        raise ValueError("no vertex-rate float/vector position candidate at this event")
+
+    def sort_key(item: tuple[int, Any]) -> tuple[int, int, int, int, int]:
+        index, vi = item
+        fmt = getattr(vi, "format", None)
+        comp_count = int(getattr(fmt, "compCount", 0) or 0)
+        comp_rank = {3: 0, 4: 1, 2: 2}.get(comp_count, 3)
+        slot = int(getattr(vi, "vertexBuffer", 0) or 0)
+        offset = int(getattr(vi, "byteOffset", 0) or 0)
+        return (comp_rank, 0 if slot == 0 else 1, slot, offset, index)
+
+    index, vi = min(candidates, key=sort_key)
+    warning = None
+    if len(candidates) > 1:
+        warning = (
+            f"heuristic position selection chose {_input_display_name(vi)!r} "
+            f"from {len(candidates)} candidates; use a position override if this is wrong"
+        )
+    return vi, "heuristic", index, warning
+
+
+def _mesh_data_from_ia(
+    controller: Any, pipe_state: Any, action: Any | None, params: dict[str, Any]
+) -> dict[str, Any]:
     if action is None:
         raise ValueError("no draw action found for eid")
     inputs = pipe_state.GetVertexInputs()
-    pos_input = _position_input(inputs)
-    if pos_input is None:
-        raise ValueError("no vertex input POSITION at this event")
+    pos_input, position_source, position_index, position_warning = _select_position_input(
+        inputs, params
+    )
     vbuffers = pipe_state.GetVBuffers()
     slot = getattr(pos_input, "vertexBuffer", 0)
+    input_name = _input_display_name(pos_input)
     if slot >= len(vbuffers):
-        raise ValueError(f"vertex buffer slot {slot} is not bound")
+        raise ValueError(f"vertex buffer for {input_name!r} (slot {slot}) is not bound")
     vb = vbuffers[slot]
     vrid = getattr(vb, "resourceId", None)
     stride = getattr(vb, "byteStride", 0)
     if vrid is None or int(vrid) == 0 or stride == 0:
-        raise ValueError("POSITION vertex buffer is not bound")
+        raise ValueError(f"vertex buffer for {input_name!r} (slot {slot}) is not bound")
 
     fmt = getattr(pos_input, "format", None)
     comp_width = getattr(fmt, "compByteWidth", 4) if fmt else 4
     comp_count = getattr(fmt, "compCount", 3) if fmt else 3
+    fmt_name = _format_name(fmt)
     vb_offset = getattr(vb, "byteOffset", 0)
     action_count = int(getattr(action, "numIndices", 0) or 0)
 
@@ -552,7 +684,7 @@ def _mesh_data_from_ia(controller: Any, pipe_state: Any, action: Any | None) -> 
     )
     vertices = _decode_position_rows(raw, num_verts, stride, pos_offset, comp_width, comp_count)
 
-    return {
+    result = {
         "topology": _enum_name(pipe_state.GetPrimitiveTopology()),
         "vertex_count": len(vertices),
         "comp_count": comp_count,
@@ -560,7 +692,17 @@ def _mesh_data_from_ia(controller: Any, pipe_state: Any, action: Any | None) -> 
         "vertices": vertices,
         "index_count": len(local_indices),
         "indices": local_indices,
+        "position_attribute": _input_display_name(pos_input),
+        "position_source": position_source,
+        "position_index": position_index,
+        "position_slot": int(slot),
+        "position_byte_offset": int(pos_offset),
+        "position_format": fmt_name,
+        "position_comp_count": int(comp_count),
     }
+    if position_warning:
+        result["position_warning"] = position_warning
+    return result
 
 
 def _handle_mesh_data(
@@ -589,7 +731,7 @@ def _handle_mesh_data(
             if use_ia:
                 pipe_state = state.adapter.get_pipeline_state()
                 action = _find_action(state.adapter.get_root_actions(), eid)
-                decoded = _mesh_data_from_ia(controller, pipe_state, action)
+                decoded = _mesh_data_from_ia(controller, pipe_state, action, params)
             else:
                 decoded = _decode_mesh_postvs(controller, mesh)
         else:

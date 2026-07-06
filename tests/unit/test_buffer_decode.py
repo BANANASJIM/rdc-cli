@@ -675,6 +675,11 @@ class TestMeshVsInFallback:
         assert r["stage"] == "vs-in"
         assert r["vertex_count"] == 3
         assert r["comp_count"] == 3
+        assert r["position_attribute"] == "POSITION"
+        assert r["position_source"] == "semantic"
+        assert r["position_slot"] == 0
+        assert r["position_byte_offset"] == 0
+        assert r["position_format"] == "R32G32B32_FLOAT"
         assert r["vertices"][0] == pytest.approx([-1.0, -1.0, 0.0])
         assert r["vertices"][1] == pytest.approx([1.0, -1.0, 0.0])
         assert r["vertices"][2] == pytest.approx([0.0, 1.0, 0.0])
@@ -741,7 +746,9 @@ class TestMeshVsInFallback:
         )
         assert resp["result"]["vertices"][0] == pytest.approx([-1.0, -1.0, 0.0])
 
-    def test_fallback_requires_position_semantic(self, state: DaemonState) -> None:
+    def test_fallback_rejects_when_no_plausible_position_candidate(
+        self, state: DaemonState
+    ) -> None:
         pipe = state.adapter.controller.GetPipelineState()
         pipe._vertex_inputs = [
             VertexInputAttribute(
@@ -749,7 +756,7 @@ class TestMeshVsInFallback:
                 vertexBuffer=0,
                 byteOffset=12,
                 format=ResourceFormat(
-                    name="R32G32_FLOAT",
+                    name="R32G32_UINT",
                     compByteWidth=4,
                     compCount=2,
                 ),
@@ -762,7 +769,357 @@ class TestMeshVsInFallback:
             state,
         )
         assert resp["error"]["code"] == -32001
-        assert resp["error"]["message"] == "no vertex input POSITION at this event"
+        assert (
+            resp["error"]["message"]
+            == "no vertex-rate float/vector position candidate at this event"
+        )
+
+    def test_fallback_selects_d3d12_attribute0_over_instance_uint(self, state: DaemonState) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._vertex_inputs = [
+            VertexInputAttribute(
+                name="ATTRIBUTE0",
+                vertexBuffer=0,
+                byteOffset=0,
+                format=ResourceFormat(
+                    name="R32G32B32_FLOAT",
+                    compByteWidth=4,
+                    compCount=3,
+                ),
+            ),
+            VertexInputAttribute(
+                name="ATTRIBUTE1",
+                vertexBuffer=1,
+                byteOffset=0,
+                perInstance=True,
+                instanceRate=1,
+                format=ResourceFormat(
+                    name="R32G32B32_FLOAT",
+                    compByteWidth=4,
+                    compCount=3,
+                ),
+            ),
+            VertexInputAttribute(
+                name="ATTRIBUTE13",
+                vertexBuffer=2,
+                byteOffset=0,
+                perInstance=True,
+                instanceRate=1,
+                format=ResourceFormat(
+                    name="R32_UINT",
+                    compByteWidth=4,
+                    compCount=1,
+                ),
+            ),
+        ]
+        pipe._vbuffers = [
+            BoundVBuffer(
+                resourceId=ResourceId(42),
+                byteOffset=0,
+                byteSize=36,
+                byteStride=12,
+            ),
+            BoundVBuffer(
+                resourceId=ResourceId(44),
+                byteOffset=0,
+                byteSize=12,
+                byteStride=12,
+            ),
+            BoundVBuffer(
+                resourceId=ResourceId(45),
+                byteOffset=0,
+                byteSize=4,
+                byteStride=4,
+            ),
+        ]
+        pos_data = struct.pack("<9f", -1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 0.0, 1.0, 0.0)
+
+        def _get(rid: Any, offset: int, length: int) -> bytes:
+            assert int(rid) == 42
+            return pos_data[offset : offset + length]
+
+        state.adapter.controller.GetBufferData = _get
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            state,
+        )
+        r = resp["result"]
+        assert r["position_attribute"] == "ATTRIBUTE0"
+        assert r["position_source"] == "heuristic"
+        assert r["position_index"] == 0
+        assert r["vertices"][0] == pytest.approx([-1.0, -1.0, 0.0])
+        assert r["vertices"][2] == pytest.approx([0.0, 1.0, 0.0])
+
+    def test_fallback_skips_instance_position_semantic(self, state: DaemonState) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._vertex_inputs = [
+            VertexInputAttribute(
+                name="POSITION",
+                vertexBuffer=1,
+                byteOffset=0,
+                perInstance=True,
+                instanceRate=1,
+                format=ResourceFormat(
+                    name="R32G32B32_FLOAT",
+                    compByteWidth=4,
+                    compCount=3,
+                ),
+            ),
+            VertexInputAttribute(
+                name="ATTRIBUTE0",
+                vertexBuffer=0,
+                byteOffset=0,
+                format=ResourceFormat(
+                    name="R32G32B32_FLOAT",
+                    compByteWidth=4,
+                    compCount=3,
+                ),
+            ),
+        ]
+        pipe._vbuffers = [
+            BoundVBuffer(
+                resourceId=ResourceId(42),
+                byteOffset=0,
+                byteSize=36,
+                byteStride=12,
+            ),
+            BoundVBuffer(
+                resourceId=ResourceId(44),
+                byteOffset=0,
+                byteSize=12,
+                byteStride=12,
+            ),
+        ]
+        pos_data = struct.pack("<9f", -1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 0.0, 1.0, 0.0)
+
+        def _get(rid: Any, offset: int, length: int) -> bytes:
+            assert int(rid) == 42
+            return pos_data[offset : offset + length]
+
+        state.adapter.controller.GetBufferData = _get
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            state,
+        )
+        r = resp["result"]
+        assert r["position_attribute"] == "ATTRIBUTE0"
+        assert r["position_source"] == "heuristic"
+        assert r["vertices"][1] == pytest.approx([1.0, -1.0, 0.0])
+
+    def test_fallback_warns_when_multiple_heuristic_candidates(self, state: DaemonState) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._vertex_inputs = [
+            VertexInputAttribute(
+                name="ATTRIBUTE0",
+                vertexBuffer=0,
+                byteOffset=0,
+                format=ResourceFormat(
+                    name="R32G32B32_FLOAT",
+                    compByteWidth=4,
+                    compCount=3,
+                ),
+            ),
+            VertexInputAttribute(
+                name="ATTRIBUTE1",
+                vertexBuffer=0,
+                byteOffset=12,
+                format=ResourceFormat(
+                    name="R32G32B32A32_FLOAT",
+                    compByteWidth=4,
+                    compCount=4,
+                ),
+            ),
+        ]
+        verts = [
+            (-1.0, -1.0, 0.0, 9.0, 9.0, 9.0, 1.0),
+            (1.0, -1.0, 0.0, 8.0, 8.0, 8.0, 1.0),
+            (0.0, 1.0, 0.0, 7.0, 7.0, 7.0, 1.0),
+        ]
+        vdata = b"".join(struct.pack("<7f", *v) for v in verts)
+        pipe._vbuffers = [
+            BoundVBuffer(
+                resourceId=ResourceId(42),
+                byteOffset=0,
+                byteSize=len(vdata),
+                byteStride=28,
+            )
+        ]
+
+        def _get(rid: Any, offset: int, length: int) -> bytes:
+            assert int(rid) == 42
+            return vdata[offset : offset + length]
+
+        state.adapter.controller.GetBufferData = _get
+        resp, _ = _handle_request(
+            rpc_request("mesh_data", {"eid": 10, "stage": "vs-in"}, token="abcdef1234567890"),
+            state,
+        )
+        r = resp["result"]
+        assert r["position_attribute"] == "ATTRIBUTE0"
+        assert r["position_source"] == "heuristic"
+        assert r["position_warning"] == (
+            "heuristic position selection chose 'ATTRIBUTE0' from 2 candidates; "
+            "use a position override if this is wrong"
+        )
+        assert r["vertices"][0] == pytest.approx([-1.0, -1.0, 0.0])
+
+    def test_position_attribute_override_selects_named_input(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(
+            rpc_request(
+                "mesh_data",
+                {"eid": 10, "stage": "vs-in", "position_attribute": "TEXCOORD"},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["position_attribute"] == "TEXCOORD"
+        assert r["position_source"] == "user"
+        assert r["position_index"] == 1
+        assert r["position_byte_offset"] == 12
+        assert r["comp_count"] == 2
+        assert r["vertices"][0] == pytest.approx([0.0, 0.0])
+        assert r["vertices"][1] == pytest.approx([1.0, 0.0])
+
+    def test_position_index_override_selects_input_by_index(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(
+            rpc_request(
+                "mesh_data",
+                {"eid": 10, "stage": "vs-in", "position_index": 1},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["position_attribute"] == "TEXCOORD"
+        assert r["position_source"] == "user"
+        assert r["vertices"][2] == pytest.approx([0.5, 1.0])
+
+    def test_position_slot_offset_override_selects_input(self, state: DaemonState) -> None:
+        resp, _ = _handle_request(
+            rpc_request(
+                "mesh_data",
+                {"eid": 10, "stage": "vs-in", "position_slot": 0, "position_offset": 12},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["position_attribute"] == "TEXCOORD"
+        assert r["position_source"] == "user"
+        assert r["vertices"][0] == pytest.approx([0.0, 0.0])
+
+    def test_position_override_rejects_non_float_format(self, state: DaemonState) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._vertex_inputs.append(
+            VertexInputAttribute(
+                name="ATTRIBUTE13",
+                vertexBuffer=0,
+                byteOffset=0,
+                format=ResourceFormat(name="R32_UINT", compByteWidth=4, compCount=1),
+            )
+        )
+        state.adapter.controller.GetBufferData = pytest.fail
+
+        resp, _ = _handle_request(
+            rpc_request(
+                "mesh_data",
+                {"eid": 10, "stage": "vs-in", "position_attribute": "ATTRIBUTE13"},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+        assert (
+            resp["error"]["message"]
+            == "vertex input 'ATTRIBUTE13' format 'R32_UINT' cannot be decoded as position"
+        )
+
+    def test_position_override_reports_selected_input_for_invalid_vbuffer(
+        self, state: DaemonState
+    ) -> None:
+        pipe = state.adapter.controller.GetPipelineState()
+        pipe._vertex_inputs = [
+            VertexInputAttribute(
+                name="POSITION",
+                vertexBuffer=0,
+                byteOffset=0,
+                format=ResourceFormat(
+                    name="R32G32B32_FLOAT",
+                    compByteWidth=4,
+                    compCount=3,
+                ),
+            ),
+            VertexInputAttribute(
+                name="TEXCOORD",
+                vertexBuffer=1,
+                byteOffset=0,
+                format=ResourceFormat(
+                    name="R32G32_FLOAT",
+                    compByteWidth=4,
+                    compCount=2,
+                ),
+            ),
+        ]
+        pipe._vbuffers = [
+            BoundVBuffer(
+                resourceId=ResourceId(42),
+                byteOffset=0,
+                byteSize=36,
+                byteStride=12,
+            ),
+            BoundVBuffer(
+                resourceId=ResourceId(0),
+                byteOffset=0,
+                byteSize=0,
+                byteStride=0,
+            ),
+        ]
+        state.adapter.controller.GetBufferData = pytest.fail
+
+        resp, _ = _handle_request(
+            rpc_request(
+                "mesh_data",
+                {"eid": 10, "stage": "vs-in", "position_attribute": "TEXCOORD"},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+        assert resp["error"]["message"] == "vertex buffer for 'TEXCOORD' (slot 1) is not bound"
+
+    @pytest.mark.parametrize(
+        ("params", "expected"),
+        [
+            (
+                {"position_slot": 0},
+                "position slot override requires both position_slot and position_offset",
+            ),
+            (
+                {"position_attribute": "POSITION", "position_index": 0},
+                "use only one position override selector",
+            ),
+            ({"position_index": 99}, "no vertex input at position index 99"),
+            (
+                {"position_slot": 9, "position_offset": 4},
+                "no vertex input at position slot 9 offset 4",
+            ),
+        ],
+    )
+    def test_position_override_validation_errors(
+        self, state: DaemonState, params: dict[str, Any], expected: str
+    ) -> None:
+        state.adapter.controller.GetBufferData = pytest.fail
+        resp, _ = _handle_request(
+            rpc_request(
+                "mesh_data",
+                {"eid": 10, "stage": "vs-in", **params},
+                token="abcdef1234567890",
+            ),
+            state,
+        )
+        assert resp["error"]["code"] == -32001
+        assert resp["error"]["message"] == expected
 
     def test_fallback_requires_draw_action(self, state: DaemonState) -> None:
         state.adapter.controller.GetRootActions().clear()
@@ -1193,7 +1550,7 @@ class TestMeshDataVsIn:
         assert r["vertices"][2] == pytest.approx([7.0, 8.0, 9.0])
 
     def test_vs_in_without_postvs_or_ia_returns_error(self, state: DaemonState) -> None:
-        """stage=vs-in fails only when neither PostVS nor IA POSITION can provide data."""
+        """stage=vs-in fails only when neither PostVS nor IA has a position candidate."""
         empty = SimpleNamespace(vertexResourceId=ResourceId(0), vertexByteStride=0)
         orig_postvs = state.adapter.controller.GetPostVSData
         state.adapter.controller.GetPostVSData = lambda inst, view, stage: empty
@@ -1203,7 +1560,10 @@ class TestMeshDataVsIn:
             state,
         )
         assert resp["error"]["code"] == -32001
-        assert resp["error"]["message"] == "no vertex input POSITION at this event"
+        assert (
+            resp["error"]["message"]
+            == "no vertex-rate float/vector position candidate at this event"
+        )
         state.adapter.controller.GetPostVSData = orig_postvs
 
     def test_invalid_stage_lists_vs_in(self, state: DaemonState) -> None:

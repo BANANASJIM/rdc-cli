@@ -68,6 +68,21 @@ class TestMeshCmd:
         assert not any(ln.startswith("#") for ln in lines)
         assert lines[0].startswith("v ")
 
+    def test_mesh_obj_warns_on_position_warning(self, monkeypatch: Any) -> None:
+        warning = (
+            "heuristic position selection chose 'ATTRIBUTE0' from 2 candidates; "
+            "use a position override if this is wrong"
+        )
+        monkeypatch.setattr(
+            "rdc.commands.mesh.call",
+            lambda m, p: {**_MESH_RESPONSE, "position_warning": warning},
+        )
+        runner = CliRunner()
+        result = runner.invoke(mesh_cmd, [])
+        assert result.exit_code == 0
+        assert f"mesh: warning: {warning}" in result.output
+        assert "v 0.000000 0.500000 0.000000" in result.output
+
     def test_mesh_stage_forwarded(self, monkeypatch: Any) -> None:
         calls: list[tuple[str, dict[str, Any]]] = []
 
@@ -94,6 +109,49 @@ class TestMeshCmd:
         assert result.exit_code == 0
         assert calls[0][1]["stage"] == "vs-in"
 
+    def test_mesh_position_attribute_forwarded(self, monkeypatch: Any) -> None:
+        calls: list[tuple[str, dict[str, Any]]] = []
+
+        def mock_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+            calls.append((method, params))
+            return _MESH_RESPONSE
+
+        monkeypatch.setattr("rdc.commands.mesh.call", mock_call)
+        runner = CliRunner()
+        result = runner.invoke(mesh_cmd, ["--stage", "vs-in", "--position-attribute", "TEXCOORD"])
+        assert result.exit_code == 0
+        assert calls[0][1]["position_attribute"] == "TEXCOORD"
+
+    def test_mesh_position_index_forwarded(self, monkeypatch: Any) -> None:
+        calls: list[tuple[str, dict[str, Any]]] = []
+
+        def mock_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+            calls.append((method, params))
+            return _MESH_RESPONSE
+
+        monkeypatch.setattr("rdc.commands.mesh.call", mock_call)
+        runner = CliRunner()
+        result = runner.invoke(mesh_cmd, ["--stage", "vs-in", "--position-index", "1"])
+        assert result.exit_code == 0
+        assert calls[0][1]["position_index"] == 1
+
+    def test_mesh_position_slot_offset_forwarded(self, monkeypatch: Any) -> None:
+        calls: list[tuple[str, dict[str, Any]]] = []
+
+        def mock_call(method: str, params: dict[str, Any]) -> dict[str, Any]:
+            calls.append((method, params))
+            return _MESH_RESPONSE
+
+        monkeypatch.setattr("rdc.commands.mesh.call", mock_call)
+        runner = CliRunner()
+        result = runner.invoke(
+            mesh_cmd,
+            ["--stage", "vs-in", "--position-slot", "0", "--position-offset", "12"],
+        )
+        assert result.exit_code == 0
+        assert calls[0][1]["position_slot"] == 0
+        assert calls[0][1]["position_offset"] == 12
+
     def test_mesh_unknown_stage_rejected(self, monkeypatch: Any) -> None:
         called: list[Any] = []
         monkeypatch.setattr("rdc.commands.mesh.call", lambda m, p: called.append((m, p)))
@@ -108,6 +166,7 @@ class TestMeshCmd:
         assert result.exit_code == 0
         assert "EID" in result.output
         assert "--stage" in result.output
+        assert "--position-attribute" in result.output
         assert "-o" in result.output
 
     def test_mesh_in_main_help(self) -> None:

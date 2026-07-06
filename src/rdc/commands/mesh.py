@@ -22,17 +22,33 @@ from rdc.formatters.json_fmt import write_json
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option("--json", "use_json", is_flag=True, help="JSON output")
 @click.option("--no-header", is_flag=True, help="Suppress OBJ header comment")
+@click.option("--position-attribute", default=None, help="VS-IN position input name/semantic")
+@click.option("--position-index", type=int, default=None, help="VS-IN position input list index")
+@click.option("--position-slot", type=int, default=None, help="VS-IN position vertex buffer slot")
+@click.option("--position-offset", type=int, default=None, help="VS-IN position byte offset")
 def mesh_cmd(
     eid: int | None,
     stage: str,
     output: str | None,
     use_json: bool,
     no_header: bool,
+    position_attribute: str | None,
+    position_index: int | None,
+    position_slot: int | None,
+    position_offset: int | None,
 ) -> None:
     """Export post-transform mesh as OBJ."""
     params: dict[str, Any] = {"stage": stage}
     if eid is not None:
         params["eid"] = eid
+    if position_attribute is not None:
+        params["position_attribute"] = position_attribute
+    if position_index is not None:
+        params["position_index"] = position_index
+    if position_slot is not None:
+        params["position_slot"] = position_slot
+    if position_offset is not None:
+        params["position_offset"] = position_offset
 
     result = call("mesh_data", params)
 
@@ -47,6 +63,8 @@ def mesh_cmd(
     positions = _extract_positions(result["vertices"])
     faces = _generate_faces(result["vertex_count"], result["indices"], result["topology"])
     _warn_if_no_faces(result["topology"], len(positions), faces)
+    if result.get("position_warning"):
+        click.echo(f"mesh: warning: {result['position_warning']}", err=True)
     obj_text = _format_obj(
         positions,
         faces,
@@ -54,6 +72,7 @@ def mesh_cmd(
         stage=result["stage"],
         topology=result["topology"],
         no_header=no_header,
+        position_metadata=result,
     )
 
     if output:
@@ -116,15 +135,22 @@ def _format_obj(
     stage: str,
     topology: str,
     no_header: bool = False,
+    position_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Format vertex positions and faces as OBJ text."""
     lines: list[str] = []
     if not no_header:
-        lines.append(
+        header = (
             f"# rdc mesh export: eid={eid} stage={stage} "
             f"vertices={len(positions)} faces={len(faces)} "
             f"topology={topology}"
         )
+        if position_metadata and position_metadata.get("position_attribute"):
+            header += (
+                f" position={position_metadata['position_attribute']}"
+                f" position_source={position_metadata.get('position_source', 'unknown')}"
+            )
+        lines.append(header)
     for x, y, z in positions:
         lines.append(f"v {x:.6f} {y:.6f} {z:.6f}")
     for face in faces:
