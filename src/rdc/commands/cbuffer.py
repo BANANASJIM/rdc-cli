@@ -50,7 +50,7 @@ def cbuffer_cmd(
             raise click.UsageError("-o/--output is required with --raw")
         if eid is None:
             raise click.UsageError("EID is required with --raw")
-        _export_vfs_path(f"/draws/{eid}/cbuffer/{cb_set}/{binding}/data", output, raw)
+        _export_vfs_path(f"/draws/{eid}/cbuffer/{stage}/{cb_set}/{binding}/data", output, raw)
         return
 
     del use_json

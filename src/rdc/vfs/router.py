@@ -103,6 +103,30 @@ _r(
 _r(r"/draws/(?P<eid>\d+)/postvs", "leaf", "postvs", [("eid", int)])
 _r(r"/draws/(?P<eid>\d+)/cbuffer", "dir", None, [("eid", int)])
 _r(
+    rf"/draws/(?P<eid>\d+)/cbuffer/(?P<stage>{_STAGES})",
+    "dir",
+    None,
+    [("eid", int)],
+)
+_r(
+    rf"/draws/(?P<eid>\d+)/cbuffer/(?P<stage>{_STAGES})/(?P<set>\d+)",
+    "dir",
+    None,
+    [("eid", int), ("set", int)],
+)
+_r(
+    rf"/draws/(?P<eid>\d+)/cbuffer/(?P<stage>{_STAGES})/(?P<set>\d+)/(?P<binding>\d+)",
+    "leaf",
+    "cbuffer_decode",
+    [("eid", int), ("set", int), ("binding", int)],
+)
+_r(
+    rf"/draws/(?P<eid>\d+)/cbuffer/(?P<stage>{_STAGES})/(?P<set>\d+)/(?P<binding>\d+)/data",
+    "leaf_bin",
+    "cbuffer_raw",
+    [("eid", int), ("set", int), ("binding", int)],
+)
+_r(
     r"/draws/(?P<eid>\d+)/cbuffer/(?P<set>\d+)/(?P<binding>\d+)",
     "leaf",
     "cbuffer_decode",

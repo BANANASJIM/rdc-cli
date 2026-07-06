@@ -650,6 +650,7 @@ class ActionDescription:
     numIndices: int = 0
     numInstances: int = 1
     indexOffset: int = 0
+    vertexOffset: int = 0
     baseVertex: int = 0
     instanceOffset: int = 0
     children: list[ActionDescription] = field(default_factory=list)

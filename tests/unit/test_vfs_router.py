@@ -264,12 +264,26 @@ class TestBufferDecodeRoutes:
         assert m.handler == "cbuffer_decode"
         assert m.args == {"eid": 42, "set": 0, "binding": 3}
 
+    def test_cbuffer_stageful_decode(self) -> None:
+        m = resolve_path("/draws/42/cbuffer/vs/0/3")
+        assert m is not None
+        assert m.kind == "leaf"
+        assert m.handler == "cbuffer_decode"
+        assert m.args == {"eid": 42, "stage": "vs", "set": 0, "binding": 3}
+
     def test_cbuffer_raw(self) -> None:
         m = resolve_path("/draws/42/cbuffer/0/3/data")
         assert m is not None
         assert m.kind == "leaf_bin"
         assert m.handler == "cbuffer_raw"
         assert m.args == {"eid": 42, "set": 0, "binding": 3}
+
+    def test_cbuffer_stageful_raw(self) -> None:
+        m = resolve_path("/draws/42/cbuffer/ps/0/3/data")
+        assert m is not None
+        assert m.kind == "leaf_bin"
+        assert m.handler == "cbuffer_raw"
+        assert m.args == {"eid": 42, "stage": "ps", "set": 0, "binding": 3}
 
     def test_vbuffer_decode(self) -> None:
         m = resolve_path("/draws/42/vbuffer")
