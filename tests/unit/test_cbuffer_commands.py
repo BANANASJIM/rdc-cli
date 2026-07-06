@@ -65,7 +65,23 @@ class TestCbufferCmd:
         result = runner.invoke(cbuffer_cmd, ["10", "--raw", "-o", str(out)])
         assert result.exit_code == 0
         assert out.read_bytes() == bytes(range(16))
-        assert captured["vfs_path"] == "/draws/10/cbuffer/0/0/data"
+        assert captured["vfs_path"] == "/draws/10/cbuffer/ps/0/0/data"
+
+    def test_raw_output_uses_requested_stage(self, monkeypatch: Any, tmp_path: Path) -> None:
+        out = tmp_path / "cb.bin"
+        captured: dict[str, Any] = {}
+
+        def mock_export(vfs_path: str, output: str | None, raw: bool) -> None:
+            captured["vfs_path"] = vfs_path
+            captured["output"] = output
+            Path(output).write_bytes(b"VS")
+
+        monkeypatch.setattr("rdc.commands.cbuffer._export_vfs_path", mock_export)
+        runner = CliRunner()
+        result = runner.invoke(cbuffer_cmd, ["10", "--stage", "vs", "--raw", "-o", str(out)])
+        assert result.exit_code == 0
+        assert out.read_bytes() == b"VS"
+        assert captured["vfs_path"] == "/draws/10/cbuffer/vs/0/0/data"
 
     def test_raw_without_output(self, monkeypatch: Any) -> None:
         monkeypatch.setattr(

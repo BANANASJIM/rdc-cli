@@ -44,6 +44,56 @@ def _decode_index_buffer(data: bytes, stride: int) -> list[int]:
     return [struct.unpack_from(fmt, data, i)[0] for i in range(0, len(data), item_size)]
 
 
+def _shader_variable_value_kind(var_type: Any) -> str:
+    """Return the ShaderValue lane name for a reflected variable type."""
+    if isinstance(var_type, int):
+        if var_type == 4:
+            return "u32v"
+        if var_type == 5:
+            return "s32v"
+        return "f32v"
+
+    type_name = getattr(var_type, "name", var_type)
+    type_str = str(type_name).lower()
+    if "uint" in type_str or type_str in {"u32", "uint32"}:
+        return "u32v"
+    if "sint" in type_str or "int" in type_str or type_str in {"s32", "int32"}:
+        return "s32v"
+    return "f32v"
+
+
+def _shader_variable_values(var: Any) -> Any:
+    """Extract a scalar or row-major vector/matrix value from ShaderValue."""
+    val = getattr(var, "value", None)
+    if val is None:
+        return None
+    r = getattr(var, "rows", 1) or 1
+    c = getattr(var, "columns", 1) or 1
+    lane = getattr(val, _shader_variable_value_kind(getattr(var, "type", "")), None)
+    if lane is None:
+        return val
+    values = [lane[ri * c + ci] for ri in range(r) for ci in range(c)]
+    return values if len(values) > 1 else values[0]
+
+
+def _shader_stage_param(params: dict[str, Any], default: str = "ps") -> tuple[str, int]:
+    stage_name = str(params.get("stage", default)).lower()
+    if stage_name not in STAGE_MAP:
+        allowed = ", ".join(STAGE_MAP)
+        raise ValueError(f"invalid stage {stage_name!r}; use {allowed}")
+    return stage_name, STAGE_MAP[stage_name]
+
+
+def _find_action(actions: list[Any], eid: int) -> Any | None:
+    for action in actions:
+        if getattr(action, "eventId", None) == eid:
+            return action
+        found = _find_action(getattr(action, "children", []), eid)
+        if found is not None:
+            return found
+    return None
+
+
 def _handle_buf_info(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -110,8 +160,10 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
 ) -> tuple[dict[str, Any], bool]:
     cb_set = int(params.get("set", 0))
     cb_binding = int(params.get("binding", 0))
-    stage_name = str(params.get("stage", "ps"))
-    stage_val = STAGE_MAP.get(stage_name, 4)
+    try:
+        stage_name, stage_val = _shader_stage_param(params)
+    except ValueError as exc:
+        return _error_response(request_id, -32602, str(exc)), True
     try:
         eid, pipe_state = require_pipe(params, state, request_id)
     except PipeError as exc:
@@ -160,18 +212,6 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
         cb_size,
     )
 
-    def _extract_value(v: Any) -> Any:
-        val = getattr(v, "value", None)
-        if val is None:
-            return None
-        f32v = getattr(val, "f32v", None)
-        if f32v is not None:
-            r = getattr(v, "rows", 1) or 1
-            c = getattr(v, "columns", 1) or 1
-            values = [f32v[ri * c + ci] for ri in range(r) for ci in range(c)]
-            return values if len(values) > 1 else values[0]
-        return val
-
     def _flatten_vars(
         vs: list[Any],
         prefix: str = "",
@@ -187,7 +227,9 @@ def _handle_cbuffer_decode(  # noqa: PLR0912
                 cb_rows.extend(_flatten_vars(members, f"{name}.", depth + 1))
             else:
                 vtype = getattr(v, "type", "")
-                cb_rows.append({"name": name, "type": str(vtype), "value": _extract_value(v)})
+                cb_rows.append(
+                    {"name": name, "type": str(vtype), "value": _shader_variable_values(v)}
+                )
         return cb_rows
 
     flat = _flatten_vars(variables)
@@ -201,8 +243,10 @@ def _handle_cbuffer_raw(
 ) -> tuple[dict[str, Any], bool]:
     cb_set = int(params.get("set", 0))
     cb_binding = int(params.get("binding", 0))
-    stage_name = str(params.get("stage", "ps"))
-    stage_val = STAGE_MAP.get(stage_name, 4)
+    try:
+        stage_name, stage_val = _shader_stage_param(params)
+    except ValueError as exc:
+        return _error_response(request_id, -32602, str(exc)), True
     if state.temp_dir is None:
         return _error_response(request_id, -32002, "temp directory not available"), True
     try:
@@ -257,7 +301,7 @@ def _handle_cbuffer_raw(
             "cbuffer size is unknown (descriptor and reflection both report 0)",
         ), True
     raw_data = controller.GetBufferData(cb_resource, cb_offset, cb_size)
-    temp_path = state.temp_dir / f"cbuffer_{eid}_{cb_set}_{cb_binding}.bin"
+    temp_path = state.temp_dir / f"cbuffer_{eid}_{stage_name}_{cb_set}_{cb_binding}.bin"
     temp_path.write_bytes(raw_data)
     return _result_response(
         request_id,
@@ -338,6 +382,185 @@ def _handle_vbuffer_decode(  # noqa: PLR0912
 
 
 _MESH_STAGE_MAP: dict[str, int] = {"vs-in": 0, "vs-out": 1, "gs-out": 2}
+_ACTION_INDEXED = 0x10000
+_UINT64_MAX = (1 << 64) - 1
+
+
+def _known_byte_size(value: Any) -> int:
+    size = int(value or 0)
+    return 0 if size < 0 or size >= _UINT64_MAX else size
+
+
+def _mesh_data_usable(mesh: Any) -> bool:
+    return (
+        int(getattr(mesh, "vertexResourceId", 0)) != 0 and getattr(mesh, "vertexByteStride", 0) > 0
+    )
+
+
+def _same_postvs_source(a: Any, b: Any) -> bool:
+    keys = (
+        "vertexResourceId",
+        "vertexByteStride",
+        "vertexByteOffset",
+        "vertexByteSize",
+        "indexResourceId",
+        "indexByteOffset",
+        "indexByteSize",
+        "indexByteStride",
+    )
+    return all(getattr(a, key, None) == getattr(b, key, None) for key in keys)
+
+
+def _decode_mesh_postvs(controller: Any, mesh: Any) -> dict[str, Any]:
+    vrid = int(getattr(mesh, "vertexResourceId", 0))
+    stride = getattr(mesh, "vertexByteStride", 0)
+    if vrid == 0 or stride == 0:
+        raise ValueError("no PostVS data at this event")
+    fmt = getattr(mesh, "format", None)
+    comp_width = getattr(fmt, "compByteWidth", 4) if fmt else 4
+    comp_count = getattr(fmt, "compCount", 4) if fmt else 4
+    pos_offset = getattr(mesh, "vertexByteOffset", 0)
+    v_size = _known_byte_size(getattr(mesh, "vertexByteSize", 0))
+    if v_size == 0:
+        raise ValueError("PostVS vertex buffer size is unknown")
+    raw = controller.GetBufferData(mesh.vertexResourceId, 0, v_size)
+    num_verts = len(raw) // stride if stride > 0 else 0
+    num_indices = getattr(mesh, "numIndices", 0)
+    if num_indices > 0:
+        irid = getattr(mesh, "indexResourceId", None)
+        if irid is None or int(irid) == 0:
+            num_verts = min(num_verts, num_indices)
+    vertices = _decode_position_rows(raw, num_verts, stride, pos_offset, comp_width, comp_count)
+
+    irid = int(getattr(mesh, "indexResourceId", 0))
+    base_vertex = getattr(mesh, "baseVertex", 0)
+    indices: list[int] = []
+    if irid != 0:
+        i_offset = getattr(mesh, "indexByteOffset", 0)
+        i_size = getattr(mesh, "indexByteSize", 0)
+        i_stride = getattr(mesh, "indexByteStride", 0)
+        if i_stride in (2, 4) and i_size > 0:
+            iraw = controller.GetBufferData(mesh.indexResourceId, i_offset, i_size)
+            indices = [i + base_vertex for i in _decode_index_buffer(iraw, i_stride)]
+    return {
+        "topology": _enum_name(getattr(mesh, "topology", "")),
+        "vertex_count": num_verts,
+        "comp_count": comp_count,
+        "stride": stride,
+        "vertices": vertices,
+        "index_count": len(indices),
+        "indices": indices,
+    }
+
+
+def _decode_position_rows(
+    raw: bytes,
+    num_verts: int,
+    stride: int,
+    pos_offset: int,
+    comp_width: int,
+    comp_count: int,
+) -> list[list[float]]:
+    vertices: list[list[float]] = []
+    for i in range(num_verts):
+        base = i * stride + pos_offset
+        if base + comp_width * comp_count <= len(raw) and comp_width in (1, 2, 4):
+            vertices.append(_decode_float_components(raw, base, comp_width, comp_count))
+        else:
+            comps: list[float] = []
+            for c in range(comp_count):
+                off = base + c * comp_width
+                if off + comp_width <= len(raw) and comp_width in (1, 2, 4):
+                    comps.extend(_decode_float_components(raw, off, comp_width, 1))
+                else:
+                    comps.append(0.0)
+            vertices.append(comps)
+    return vertices
+
+
+def _position_input(inputs: list[Any]) -> Any | None:
+    for vi in inputs:
+        name = str(getattr(vi, "name", "") or getattr(vi, "semanticName", "")).lower()
+        if "position" in name or name.startswith("pos"):
+            return vi
+    return None
+
+
+def _mesh_data_from_ia(controller: Any, pipe_state: Any, action: Any | None) -> dict[str, Any]:
+    if action is None:
+        raise ValueError("no draw action found for eid")
+    inputs = pipe_state.GetVertexInputs()
+    pos_input = _position_input(inputs)
+    if pos_input is None:
+        raise ValueError("no vertex input POSITION at this event")
+    vbuffers = pipe_state.GetVBuffers()
+    slot = getattr(pos_input, "vertexBuffer", 0)
+    if slot >= len(vbuffers):
+        raise ValueError(f"vertex buffer slot {slot} is not bound")
+    vb = vbuffers[slot]
+    vrid = getattr(vb, "resourceId", None)
+    stride = getattr(vb, "byteStride", 0)
+    if vrid is None or int(vrid) == 0 or stride == 0:
+        raise ValueError("POSITION vertex buffer is not bound")
+
+    fmt = getattr(pos_input, "format", None)
+    comp_width = getattr(fmt, "compByteWidth", 4) if fmt else 4
+    comp_count = getattr(fmt, "compCount", 3) if fmt else 3
+    vb_offset = getattr(vb, "byteOffset", 0)
+    action_count = int(getattr(action, "numIndices", 0) or 0)
+
+    first_vertex = 0
+    local_indices: list[int] = []
+    ib = pipe_state.GetIBuffer()
+    irid = getattr(ib, "resourceId", None)
+    i_stride = getattr(ib, "byteStride", 0)
+    is_indexed = bool(int(getattr(action, "flags", 0)) & _ACTION_INDEXED)
+    if action_count <= 0:
+        num_verts = 0
+    elif is_indexed and irid is not None and int(irid) != 0 and i_stride in (1, 2, 4):
+        i_offset = getattr(ib, "byteOffset", 0)
+        i_offset += int(getattr(action, "indexOffset", 0) or 0) * i_stride
+        i_size = action_count * i_stride
+        if i_size > 0:
+            iraw = controller.GetBufferData(irid, i_offset, i_size)
+            base_vertex = int(getattr(action, "baseVertex", 0) or 0)
+            referenced = [i + base_vertex for i in _decode_index_buffer(iraw, i_stride)]
+            if referenced:
+                first_vertex = min(referenced)
+                if first_vertex < 0:
+                    raise ValueError("indexed draw references a negative vertex")
+                local_indices = [i - first_vertex for i in referenced]
+        num_verts = max(local_indices) + 1 if local_indices else 0
+    elif is_indexed:
+        raise ValueError("indexed draw index buffer is not bound")
+    else:
+        first_vertex = int(getattr(action, "vertexOffset", 0) or 0)
+        num_verts = action_count
+
+    known_vb_size = _known_byte_size(getattr(vb, "byteSize", 0))
+    if known_vb_size > 0:
+        remaining = max(known_vb_size - first_vertex * stride, 0)
+        num_verts = min(num_verts, remaining // stride)
+        if local_indices and any(i >= num_verts for i in local_indices):
+            raise ValueError("indexed draw references vertices outside the bound vertex buffer")
+    pos_offset = getattr(pos_input, "byteOffset", 0)
+    read_size = num_verts * stride
+    raw = (
+        controller.GetBufferData(vrid, vb_offset + first_vertex * stride, read_size)
+        if read_size
+        else b""
+    )
+    vertices = _decode_position_rows(raw, num_verts, stride, pos_offset, comp_width, comp_count)
+
+    return {
+        "topology": _enum_name(pipe_state.GetPrimitiveTopology()),
+        "vertex_count": len(vertices),
+        "comp_count": comp_count,
+        "stride": stride,
+        "vertices": vertices,
+        "index_count": len(local_indices),
+        "indices": local_indices,
+    }
 
 
 def _handle_mesh_data(
@@ -357,64 +580,28 @@ def _handle_mesh_data(
         return _error_response(request_id, -32002, err), True
     controller = state.adapter.controller
     mesh = controller.GetPostVSData(0, 0, stage_val)
-    vrid = int(getattr(mesh, "vertexResourceId", 0))
-    stride = getattr(mesh, "vertexByteStride", 0)
-    if vrid == 0 or stride == 0:
-        return _error_response(request_id, -32001, "no PostVS data at this event"), True
-    fmt = getattr(mesh, "format", None)
-    comp_width = getattr(fmt, "compByteWidth", 4) if fmt else 4
-    comp_count = getattr(fmt, "compCount", 4) if fmt else 4
-    # RenderDoc's decode_mesh reads each vertex buffer from the start of the
-    # bound region and locates the position attribute at vertexByteOffset
-    # within the interleaved vertex stride.
-    pos_offset = getattr(mesh, "vertexByteOffset", 0)
-    v_size = getattr(mesh, "vertexByteSize", 0)
-    raw = controller.GetBufferData(mesh.vertexResourceId, 0, v_size)
-    num_verts = len(raw) // stride if stride > 0 else 0
-    num_indices = getattr(mesh, "numIndices", 0)
-    if num_indices > 0:
-        irid = getattr(mesh, "indexResourceId", None)
-        if irid is None or int(irid) == 0:
-            num_verts = min(num_verts, num_indices)
-    vertices: list[list[float]] = []
-    for i in range(num_verts):
-        base = i * stride + pos_offset
-        if base + comp_width * comp_count <= len(raw) and comp_width in (1, 2, 4):
-            vertices.append(_decode_float_components(raw, base, comp_width, comp_count))
+    try:
+        if stage_name == "vs-in":
+            use_ia = not _mesh_data_usable(mesh)
+            if not use_ia:
+                vs_out = controller.GetPostVSData(0, 0, _MESH_STAGE_MAP["vs-out"])
+                use_ia = _mesh_data_usable(vs_out) and _same_postvs_source(mesh, vs_out)
+            if use_ia:
+                pipe_state = state.adapter.get_pipeline_state()
+                action = _find_action(state.adapter.get_root_actions(), eid)
+                decoded = _mesh_data_from_ia(controller, pipe_state, action)
+            else:
+                decoded = _decode_mesh_postvs(controller, mesh)
         else:
-            comps: list[float] = []
-            for c in range(comp_count):
-                off = base + c * comp_width
-                if off + comp_width <= len(raw) and comp_width in (1, 2, 4):
-                    comps.extend(_decode_float_components(raw, off, comp_width, 1))
-                else:
-                    comps.append(0.0)
-            vertices.append(comps)
-    # Decode index buffer. RenderDoc's decode_mesh adds mesh.baseVertex to
-    # every index (0 for vs-out/gs-out, non-zero for vs-in base-vertex draws).
-    irid = int(getattr(mesh, "indexResourceId", 0))
-    base_vertex = getattr(mesh, "baseVertex", 0)
-    indices: list[int] = []
-    if irid != 0:
-        i_offset = getattr(mesh, "indexByteOffset", 0)
-        i_size = getattr(mesh, "indexByteSize", 0)
-        i_stride = getattr(mesh, "indexByteStride", 0)
-        if i_stride in (2, 4) and i_size > 0:
-            iraw = controller.GetBufferData(mesh.indexResourceId, i_offset, i_size)
-            indices = [i + base_vertex for i in _decode_index_buffer(iraw, i_stride)]
-    topology = _enum_name(getattr(mesh, "topology", ""))
+            decoded = _decode_mesh_postvs(controller, mesh)
+    except ValueError as exc:
+        return _error_response(request_id, -32001, str(exc)), True
     return _result_response(
         request_id,
         {
             "eid": eid,
             "stage": stage_name,
-            "topology": topology,
-            "vertex_count": num_verts,
-            "comp_count": comp_count,
-            "stride": stride,
-            "vertices": vertices,
-            "index_count": len(indices),
-            "indices": indices,
+            **decoded,
         },
     ), True
 

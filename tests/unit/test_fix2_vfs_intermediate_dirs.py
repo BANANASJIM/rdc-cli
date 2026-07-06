@@ -90,6 +90,13 @@ class TestRouterIntermediateDirs:
         assert m.handler == "cbuffer_decode"
         assert m.args == {"eid": 11, "set": 0, "binding": 3}
 
+    def test_cbuffer_stageful_raw_leaf(self) -> None:
+        m = resolve_path("/draws/11/cbuffer/vs/0/3/data")
+        assert m is not None
+        assert m.kind == "leaf_bin"
+        assert m.handler == "cbuffer_raw"
+        assert m.args == {"eid": 11, "stage": "vs", "set": 0, "binding": 3}
+
     def test_bindings_dir_still_works(self) -> None:
         m = resolve_path("/draws/11/bindings")
         assert m is not None
@@ -137,6 +144,20 @@ class TestPopulateBindings:
         populate_draw_subtree(skel, 11, pipe)
         leaf = skel.static["/draws/11/cbuffer/0/0"]
         assert leaf.kind == "leaf"
+
+    def test_cbuffer_stage_nodes_and_data_leaf_created(self) -> None:
+        skel = build_vfs_skeleton(_make_actions(), _make_resources())
+        pipe = _make_pipe_with_bindings()
+        populate_draw_subtree(skel, 11, pipe)
+        cbuffer = skel.static["/draws/11/cbuffer"]
+        assert "vs" in cbuffer.children
+        assert "ps" in cbuffer.children
+        stage_set = skel.static["/draws/11/cbuffer/vs/0"]
+        assert "0" in stage_set.children
+        binding = skel.static["/draws/11/cbuffer/vs/0/0"]
+        assert binding.kind == "leaf"
+        assert "data" in binding.children
+        assert skel.static["/draws/11/cbuffer/vs/0/0/data"].kind == "leaf_bin"
 
     def test_no_reflections_empty(self) -> None:
         skel = build_vfs_skeleton(_make_actions(), _make_resources())

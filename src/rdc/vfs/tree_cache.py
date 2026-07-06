@@ -335,6 +335,7 @@ def populate_draw_subtree(
 
     # Populate cbuffer/ subtree
     cbuffer_sets: dict[int, set[int]] = {}
+    cbuffer_stage_sets: dict[str, dict[int, set[int]]] = {}
     for stage_name in stages:
         stage_idx = STAGE_MAP[stage_name]
         refl = pipe_state.GetShaderReflection(stage_idx)
@@ -344,11 +345,30 @@ def populate_draw_subtree(
             s = getattr(cb, "fixedBindSetOrSpace", 0)
             b = getattr(cb, "fixedBindNumber", 0)
             cbuffer_sets.setdefault(s, set()).add(b)
+            cbuffer_stage_sets.setdefault(stage_name, {}).setdefault(s, set()).add(b)
 
     cbuffer_path = f"{prefix}/cbuffer"
+    cbuffer_stage_names = [stage for stage in stages if stage in cbuffer_stage_sets]
     cbuffer_set_names = sorted(str(s) for s in cbuffer_sets)
-    tree.static[cbuffer_path].children = list(cbuffer_set_names)
-    subtree[cbuffer_path] = list(cbuffer_set_names)
+    cbuffer_children = cbuffer_stage_names + cbuffer_set_names
+    tree.static[cbuffer_path].children = list(cbuffer_children)
+    subtree[cbuffer_path] = list(cbuffer_children)
+    for stage in cbuffer_stage_names:
+        stage_path = f"{cbuffer_path}/{stage}"
+        stage_sets = cbuffer_stage_sets[stage]
+        stage_set_names = sorted(str(s) for s in stage_sets)
+        tree.static[stage_path] = VfsNode(stage, "dir", list(stage_set_names))
+        subtree[stage_path] = list(stage_set_names)
+        for s in sorted(stage_sets):
+            set_path = f"{stage_path}/{s}"
+            binding_names = sorted(str(b) for b in stage_sets[s])
+            tree.static[set_path] = VfsNode(str(s), "dir", list(binding_names))
+            subtree[set_path] = list(binding_names)
+            for b in stage_sets[s]:
+                leaf_path = f"{set_path}/{b}"
+                tree.static[leaf_path] = VfsNode(str(b), "leaf", ["data"])
+                subtree[leaf_path] = ["data"]
+                tree.static[f"{leaf_path}/data"] = VfsNode("data", "leaf_bin")
     for s, bindings in cbuffer_sets.items():
         set_path = f"{cbuffer_path}/{s}"
         binding_names = sorted(str(b) for b in bindings)
