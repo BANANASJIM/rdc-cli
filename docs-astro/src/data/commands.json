@@ -223,7 +223,7 @@
           "name": "mesh",
           "id": "mesh",
           "help": "Export post-transform mesh as OBJ.",
-          "usage": "rdc mesh [EID] [--stage CHOICE] [-o PATH] [--json] [--no-header]"
+          "usage": "rdc mesh [EID] [--stage CHOICE] [-o PATH] [--json] [--no-header] [--position-attribute TEXT] [--position-index INTEGER] [--position-slot INTEGER] [--position-offset INTEGER]"
         },
         {
           "name": "snapshot",

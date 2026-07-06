@@ -642,6 +642,10 @@ Export post-transform mesh as OBJ.
 | `-o, --output` | Write to file | path |  |
 | `--json` | JSON output | flag |  |
 | `--no-header` | Suppress OBJ header comment | flag |  |
+| `--position-attribute` | VS-IN position input name/semantic | text |  |
+| `--position-index` | VS-IN position input list index | integer |  |
+| `--position-slot` | VS-IN position vertex buffer slot | integer |  |
+| `--position-offset` | VS-IN position byte offset | integer |  |
 
 ## `rdc open`
 
