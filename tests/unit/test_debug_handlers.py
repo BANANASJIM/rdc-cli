@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import mock_renderdoc as rd
 from conftest import make_daemon_state, rpc_request
 
@@ -10,15 +12,19 @@ from rdc.daemon_server import DaemonState, _handle_request
 
 def _make_var(
     name: str = "x",
-    var_type: str = "float",
+    var_type: object = "float",
     rows: int = 1,
     columns: int = 4,
     f32v: list[float] | None = None,
+    f64v: list[float] | None = None,
+    u64v: list[int] | None = None,
     u32v: list[int] | None = None,
     s32v: list[int] | None = None,
 ) -> rd.ShaderVariable:
     val = rd.ShaderValue(
         f32v=(f32v or [0.0] * 16),
+        f64v=(f64v or [0.0] * 16),
+        u64v=(u64v or [0] * 16),
         u32v=(u32v or [0] * 16),
         s32v=(s32v or [0] * 16),
     )
@@ -321,6 +327,51 @@ def test_format_var_value_sint() -> None:
     var = _make_var("i", "sint", rows=1, columns=1, s32v=[-7] + [0] * 15)
     result = _format_var_value(var)
     assert result == [-7]
+
+
+def test_format_var_value_double() -> None:
+    """Double scalar extracts from f64v."""
+    from rdc.handlers.debug import _format_var_type, _format_var_value
+
+    var = _make_var("d", "double", rows=1, columns=1, f64v=[6.25] + [0.0] * 15)
+    assert _format_var_value(var) == [6.25]
+    assert _format_var_type(var) == "double"
+
+
+def test_format_var_value_numeric_double() -> None:
+    """Numeric RenderDoc double type extracts from f64v."""
+    from rdc.handlers.debug import _format_var_type, _format_var_value
+
+    var = _make_var("d", 1, rows=1, columns=1, f64v=[7.5] + [0.0] * 15)
+    assert _format_var_value(var) == [7.5]
+    assert _format_var_type(var) == "double"
+
+
+def test_format_var_value_numeric_u64() -> None:
+    """Numeric RenderDoc unsigned 64-bit type extracts from u64v."""
+    from rdc.handlers.debug import _format_var_type, _format_var_value
+
+    var = _make_var("u64", 8, rows=1, columns=1, u64v=[18_000_000_000] + [0] * 15)
+    assert _format_var_value(var) == [18_000_000_000]
+    assert _format_var_type(var) == "uint"
+
+
+def test_format_var_value_missing_integer_lane_uses_int_fallback() -> None:
+    """Missing integer lanes keep integer zero values in debug output."""
+    from rdc.handlers.debug import _format_var_value
+
+    var = rd.ShaderVariable(
+        name="u",
+        type=4,
+        rows=1,
+        columns=2,
+        value=SimpleNamespace(),
+    )
+
+    result = _format_var_value(var)
+
+    assert result == [0, 0]
+    assert all(type(value) is int for value in result)
 
 
 def test_format_var_value_none() -> None:

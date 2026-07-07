@@ -508,6 +508,58 @@ def get_default_disasm_target(controller: Any) -> str:
     return str(targets[0]) if targets else "SPIR-V"
 
 
+def _shader_value_lane_name(var_type: Any) -> str:
+    """Return the ShaderValue lane name for a reflected variable type."""
+    if isinstance(var_type, int):
+        return {
+            0: "f32v",
+            1: "f64v",
+            2: "f16v",
+            3: "s32v",
+            4: "u32v",
+            5: "s16v",
+            6: "u16v",
+            7: "s64v",
+            8: "u64v",
+            9: "s8v",
+            10: "u8v",
+            11: "u32v",
+        }.get(var_type, "f32v")
+
+    type_name = getattr(var_type, "name", var_type)
+    type_str = str(type_name).lower()
+    if "double" in type_str or type_str in {"f64", "float64"}:
+        return "f64v"
+    if "half" in type_str or type_str in {"f16", "float16"}:
+        return "f16v"
+    if "uint64" in type_str or "ulong" in type_str or type_str == "u64":
+        return "u64v"
+    if "uint16" in type_str or "ushort" in type_str or type_str == "u16":
+        return "u16v"
+    if "uint8" in type_str or "ubyte" in type_str or type_str == "u8":
+        return "u8v"
+    if "uint" in type_str or type_str in {"u32", "uint32"}:
+        return "u32v"
+    if "int64" in type_str or "slong" in type_str or type_str in {"s64", "long"}:
+        return "s64v"
+    if "int16" in type_str or "sshort" in type_str or type_str in {"s16", "short"}:
+        return "s16v"
+    if "int8" in type_str or "sbyte" in type_str or type_str == "s8":
+        return "s8v"
+    if "sint" in type_str or "int" in type_str or type_str in {"s32", "int32"}:
+        return "s32v"
+    if "bool" in type_str:
+        return "u32v"
+    return "f32v"
+
+
+def _shader_value_lane_fallback(lane_name: str) -> list[float | int]:
+    """Return a type-stable fallback for a missing ShaderValue lane."""
+    if lane_name.startswith(("u", "s")):
+        return [0] * 16
+    return [0.0] * 16
+
+
 def _flatten_shader_var(var: Any) -> dict[str, Any]:
     """Recursively convert a ShaderVariable to a dict."""
     members = getattr(var, "members", [])
@@ -529,13 +581,8 @@ def _flatten_shader_var(var: Any) -> dict[str, Any]:
     if val is None:
         values: list[Any] = []
     else:
-        type_str = str(getattr(var, "type", "")).lower()
-        if "uint" in type_str:
-            values = list(getattr(val, "u32v", [0.0] * 16)[:count])
-        elif "int" in type_str or "sint" in type_str:
-            values = list(getattr(val, "s32v", [0] * 16)[:count])
-        else:
-            values = list(getattr(val, "f32v", [0.0] * 16)[:count])
+        lane_name = _shader_value_lane_name(getattr(var, "type", ""))
+        values = list(getattr(val, lane_name, _shader_value_lane_fallback(lane_name))[:count])
 
     return {
         "name": var.name,

@@ -12,6 +12,8 @@ from rdc.handlers._helpers import (
     _error_response,
     _result_response,
     _set_frame_event,
+    _shader_value_lane_fallback,
+    _shader_value_lane_name,
     get_pipeline_for_stage,
     require_pipe,
 )
@@ -46,20 +48,7 @@ def _decode_index_buffer(data: bytes, stride: int) -> list[int]:
 
 def _shader_variable_value_kind(var_type: Any) -> str:
     """Return the ShaderValue lane name for a reflected variable type."""
-    if isinstance(var_type, int):
-        if var_type == 4:
-            return "u32v"
-        if var_type == 5:
-            return "s32v"
-        return "f32v"
-
-    type_name = getattr(var_type, "name", var_type)
-    type_str = str(type_name).lower()
-    if "uint" in type_str or type_str in {"u32", "uint32"}:
-        return "u32v"
-    if "sint" in type_str or "int" in type_str or type_str in {"s32", "int32"}:
-        return "s32v"
-    return "f32v"
+    return _shader_value_lane_name(var_type)
 
 
 def _shader_variable_values(var: Any) -> Any:
@@ -69,9 +58,8 @@ def _shader_variable_values(var: Any) -> Any:
         return None
     r = getattr(var, "rows", 1) or 1
     c = getattr(var, "columns", 1) or 1
-    lane = getattr(val, _shader_variable_value_kind(getattr(var, "type", "")), None)
-    if lane is None:
-        return val
+    lane_name = _shader_variable_value_kind(getattr(var, "type", ""))
+    lane = getattr(val, lane_name, _shader_value_lane_fallback(lane_name))
     values = [lane[ri * c + ci] for ri in range(r) for ci in range(c)]
     return values if len(values) > 1 else values[0]
 

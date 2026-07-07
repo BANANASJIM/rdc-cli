@@ -1000,11 +1000,19 @@ class MeshFormat:
 
 @dataclass
 class ShaderValue:
-    """Mock for ShaderValue union (real API has f32v, u32v, s32v, f64v)."""
+    """Mock for ShaderValue union lanes used by RenderDoc."""
 
+    f16v: list[float] = field(default_factory=lambda: [0.0] * 16)
     f32v: list[float] = field(default_factory=lambda: [0.0] * 16)
+    f64v: list[float] = field(default_factory=lambda: [0.0] * 16)
+    u8v: list[int] = field(default_factory=lambda: [0] * 16)
+    s8v: list[int] = field(default_factory=lambda: [0] * 16)
+    u16v: list[int] = field(default_factory=lambda: [0] * 16)
+    s16v: list[int] = field(default_factory=lambda: [0] * 16)
     u32v: list[int] = field(default_factory=lambda: [0] * 16)
     s32v: list[int] = field(default_factory=lambda: [0] * 16)
+    u64v: list[int] = field(default_factory=lambda: [0] * 16)
+    s64v: list[int] = field(default_factory=lambda: [0] * 16)
 
 
 @dataclass

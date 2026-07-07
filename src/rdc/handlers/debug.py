@@ -11,6 +11,8 @@ from rdc.handlers._helpers import (
     _get_flat_actions,
     _result_response,
     _set_frame_event,
+    _shader_value_lane_fallback,
+    _shader_value_lane_name,
 )
 from rdc.handlers._types import Handler
 
@@ -29,21 +31,19 @@ def _format_var_value(var: Any) -> list[float | int]:
     val = var.value
     if val is None:
         return [0.0] * count
-    var_type = str(getattr(var, "type", "float")).lower()
-    if "uint" in var_type or "u32" in var_type:
-        return list(val.u32v[:count])
-    if "int" in var_type or "s32" in var_type or "sint" in var_type:
-        return list(val.s32v[:count])
-    return list(val.f32v[:count])
+    lane_name = _shader_value_lane_name(getattr(var, "type", "float"))
+    return list(getattr(val, lane_name, _shader_value_lane_fallback(lane_name))[:count])
 
 
 def _format_var_type(var: Any) -> str:
     """Return a human-readable type string for a ShaderVariable."""
-    t = str(getattr(var, "type", "float")).lower()
-    if "uint" in t or "u32" in t:
+    lane_name = _shader_value_lane_name(getattr(var, "type", "float"))
+    if lane_name.startswith("u"):
         return "uint"
-    if "int" in t or "s32" in t or "sint" in t:
+    if lane_name.startswith("s"):
         return "int"
+    if lane_name == "f64v":
+        return "double"
     return "float"
 
 

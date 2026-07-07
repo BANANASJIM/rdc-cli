@@ -321,6 +321,114 @@ class TestCbufferDecode:
         assert r["variables"][0]["type"] == "4"
         assert r["variables"][0]["value"] == [13, 17, 19, 23]
 
+    def test_uint_missing_lane_uses_int_fallback(self, state: DaemonState) -> None:
+        """Missing integer lanes return integer zeros, not raw value objects."""
+        state.adapter.controller.GetCBufferVariableContents = lambda *args: [
+            ShaderVariable(
+                name="missingUint",
+                type=4,
+                rows=1,
+                columns=2,
+                value=SimpleNamespace(),
+            )
+        ]
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        value = resp["result"]["variables"][0]["value"]
+        assert value == [0, 0]
+        assert all(type(item) is int for item in value)
+
+    def test_64_bit_integer_numeric_types_use_64_bit_lanes(self, state: DaemonState) -> None:
+        """RenderDoc exposes signed/unsigned 64-bit ints as numeric types 7 and 8."""
+        state.adapter.controller.GetCBufferVariableContents = lambda *args: [
+            ShaderVariable(
+                name="signedLong",
+                type=7,
+                rows=1,
+                columns=1,
+                value=ShaderValue(s64v=[-9_000_000_000] + [0] * 15),
+            ),
+            ShaderVariable(
+                name="unsignedLong",
+                type=8,
+                rows=1,
+                columns=1,
+                value=ShaderValue(u64v=[18_000_000_000] + [0] * 15),
+            ),
+        ]
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        variables = resp["result"]["variables"]
+        assert variables[0]["value"] == -9_000_000_000
+        assert variables[1]["value"] == 18_000_000_000
+
+    @pytest.mark.parametrize(
+        ("var_type", "lane_name"),
+        [
+            (9, "s8v"),
+            (10, "u8v"),
+            ("sbyte", "s8v"),
+            ("ubyte", "u8v"),
+        ],
+    )
+    def test_byte_integer_types_use_byte_lanes(self, var_type: object, lane_name: str) -> None:
+        """Byte-sized reflected variables map to byte ShaderValue lanes."""
+        from rdc.handlers._helpers import _shader_value_lane_name
+
+        assert _shader_value_lane_name(var_type) == lane_name
+
+    def test_double_numeric_type_extracts_f64v(self, state: DaemonState) -> None:
+        """RenderDoc exposes double cbuffer variables as numeric type 1."""
+        double_val = ShaderValue(f32v=[0.0] * 16, f64v=[1.25, 2.5] + [0.0] * 14)
+        state.adapter.controller.GetCBufferVariableContents = lambda *args: [
+            ShaderVariable(
+                name="clipRange",
+                type=1,
+                rows=1,
+                columns=2,
+                value=double_val,
+            )
+        ]
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["variables"][0]["type"] == "1"
+        assert r["variables"][0]["value"] == [1.25, 2.5]
+
+    def test_double_named_type_extracts_f64v(self, state: DaemonState) -> None:
+        """Mocks and adapters may expose reflected double types by name."""
+        double_val = ShaderValue(f32v=[0.0] * 16, f64v=[3.5] + [0.0] * 15)
+        state.adapter.controller.GetCBufferVariableContents = lambda *args: [
+            ShaderVariable(
+                name="exposure",
+                type="double",
+                rows=1,
+                columns=1,
+                value=double_val,
+            )
+        ]
+        resp, _ = _handle_request(
+            rpc_request(
+                "cbuffer_decode", {"eid": 10, "set": 0, "binding": 0}, token="abcdef1234567890"
+            ),
+            state,
+        )
+        r = resp["result"]
+        assert r["variables"][0]["type"] == "double"
+        assert r["variables"][0]["value"] == 3.5
+
 
 class TestCbufferRaw:
     def test_stageful_raw_data_node_visible_to_vfs_ls(self, state: DaemonState) -> None:
