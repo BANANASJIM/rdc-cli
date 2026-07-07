@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import mock_renderdoc as rd
 from conftest import make_daemon_state, rpc_request
 
@@ -234,6 +236,61 @@ def test_shader_constants_returns_structured_variables() -> None:
     assert v["type"] == "float4"
     assert v["value"] == [1.0, 0.5, 0.0, 1.0]
     assert "data" not in r["constants"][0]
+
+
+def test_shader_constants_double_variable_uses_f64v() -> None:
+    """Double ShaderVariable values are flattened from f64v."""
+    ctrl = rd.MockReplayController()
+    ps_id = rd.ResourceId(101)
+    ctrl._pipe_state._shaders[rd.ShaderStage.Pixel] = ps_id
+    ctrl._pipe_state._entry_points[rd.ShaderStage.Pixel] = "main_ps"
+    ctrl._pipe_state._reflections[rd.ShaderStage.Pixel] = rd.ShaderReflection(
+        resourceId=ps_id,
+        entryPoint="main_ps",
+        constantBlocks=[rd.ConstantBlock(name="Globals", fixedBindNumber=0)],
+    )
+    ctrl._pipe_state._cbuffer_descriptors[(rd.ShaderStage.Pixel, 0)] = rd.Descriptor(
+        resource=rd.ResourceId(500),
+    )
+    ctrl._cbuffer_variables[(rd.ShaderStage.Pixel, 0)] = [
+        rd.ShaderVariable(
+            name="g_Exposure",
+            type=1,
+            rows=1,
+            columns=1,
+            value=rd.ShaderValue(f32v=[0.0] * 16, f64v=[4.25] + [0.0] * 15),
+        ),
+    ]
+    ctrl._actions = [rd.ActionDescription(eventId=10, flags=rd.ActionFlags.Drawcall)]
+
+    state = DaemonState(capture="x.rdc", current_eid=0, token="tok")
+    state.adapter = RenderDocAdapter(controller=ctrl, version=(1, 41))
+    state.max_eid = 100
+
+    resp, _ = _handle_request(rpc_request("shader_constants", {"eid": 10, "stage": "ps"}), state)
+    r = resp["result"]
+    v = r["constants"][0]["variables"][0]
+    assert v["name"] == "g_Exposure"
+    assert v["type"] == "1"
+    assert v["value"] == [4.25]
+
+
+def test_flatten_shader_var_integer_missing_lane_uses_int_fallback() -> None:
+    """Missing integer lanes keep integer zero values in flattened output."""
+    from rdc.handlers._helpers import _flatten_shader_var
+
+    var = SimpleNamespace(
+        name="missing_uint",
+        type=4,
+        rows=1,
+        columns=2,
+        value=SimpleNamespace(),
+    )
+
+    result = _flatten_shader_var(var)
+
+    assert result["value"] == [0, 0]
+    assert all(type(value) is int for value in result["value"])
 
 
 def test_shader_constants_struct_variable_recurses() -> None:
