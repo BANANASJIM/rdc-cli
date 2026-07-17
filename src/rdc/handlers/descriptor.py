@@ -127,6 +127,9 @@ def _handle_descriptors(
         if tex is not None:
             d_row["width"] = tex.width
             d_row["height"] = tex.height
+            d_row["depth"] = getattr(tex, "depth", 1)
+            d_row["dimension"] = getattr(tex, "dimension", 0)
+            d_row["texture_type"] = _enum_name(getattr(tex, "type", ""))
         if type_name in ("Sampler", "ImageSampler"):
             s = getattr(ud, "sampler", None)
             if s is not None:

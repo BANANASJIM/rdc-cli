@@ -139,12 +139,13 @@ def resources_cmd(  # noqa: PLR0913
                 r.get("name", "-"),
                 r.get("width", "-"),
                 r.get("height", "-"),
+                r.get("depth", "-"),
                 r.get("format", "-"),
                 r.get("size", "-"),
             ]
             for r in rows
         ]
-        header = ["ID", "TYPE", "NAME", "WIDTH", "HEIGHT", "FORMAT", "SIZE"]
+        header = ["ID", "TYPE", "NAME", "WIDTH", "HEIGHT", "DEPTH", "FORMAT", "SIZE"]
         write_tsv(tsv_rows, header=header, no_header=no_header)
 
     render_list(

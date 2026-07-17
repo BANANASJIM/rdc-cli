@@ -35,6 +35,9 @@ def test_resources_enriched_columns(monkeypatch) -> None:
                     "name": "2D Image 371",
                     "width": 512,
                     "height": 512,
+                    "depth": 4,
+                    "dimension": 3,
+                    "texture_type": "Texture3D",
                     "format": "BC1_SRGB",
                     "size": 174776,
                 }
@@ -43,7 +46,8 @@ def test_resources_enriched_columns(monkeypatch) -> None:
     )
     result = CliRunner().invoke(resources_cmd, [])
     assert result.exit_code == 0
-    assert "ID\tTYPE\tNAME\tWIDTH\tHEIGHT\tFORMAT\tSIZE" in result.output
+    assert "ID\tTYPE\tNAME\tWIDTH\tHEIGHT\tDEPTH\tFORMAT\tSIZE" in result.output
+    assert "\t4\tBC1_SRGB\t" in result.output
     assert "512" in result.output
     assert "BC1_SRGB" in result.output
 

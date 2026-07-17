@@ -25,6 +25,9 @@ def _result() -> dict[str, Any]:
                 "format": "BC1_SRGB",
                 "width": 512,
                 "height": 512,
+                "depth": 4,
+                "dimension": 3,
+                "texture_type": "Texture3D",
             }
         ],
     }
@@ -38,6 +41,8 @@ def test_descriptors_table(monkeypatch) -> None:
     assert "g_textures" in res.output
     assert "BC1_SRGB" in res.output
     assert "512" in res.output
+    assert "DEPTH" in res.output
+    assert "\t4\n" in res.output
 
 
 def test_descriptors_binding_filter_forwarded(monkeypatch) -> None:

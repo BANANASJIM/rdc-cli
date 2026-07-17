@@ -68,6 +68,7 @@ def descriptors_cmd(  # noqa: PLR0913
                 r.get("format", "-"),
                 r.get("width", "-"),
                 r.get("height", "-"),
+                r.get("depth", "-"),
             ]
             for r in rows
         ]
@@ -85,6 +86,7 @@ def descriptors_cmd(  # noqa: PLR0913
                 "FORMAT",
                 "WIDTH",
                 "HEIGHT",
+                "DEPTH",
             ],
             no_header=no_header,
         )

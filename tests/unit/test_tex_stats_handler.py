@@ -268,6 +268,52 @@ def test_tex_stats_valid_mip0_slice0() -> None:
     assert resp["result"]["slice"] == 0
 
 
+def _make_texture3d_state() -> DaemonState:
+    ctrl = rd.MockReplayController()
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(42),
+        type=rd.TextureType.Texture3D,
+        dimension=3,
+        width=64,
+        height=64,
+        depth=4,
+        mips=7,
+        arraysize=1,
+    )
+    ctrl._textures = [tex]
+    ctrl._actions = [
+        rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
+    ]
+    return make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tex_map={42: tex},
+    )
+
+
+def test_tex_stats_texture3d_accepts_depth_slices_for_requested_mip() -> None:
+    state = _make_texture3d_state()
+
+    for mip, array_slice in ((0, 3), (1, 1), (2, 0)):
+        resp, _ = _handle_request(
+            rpc_request("tex_stats", {"id": 42, "mip": mip, "slice": array_slice}), state
+        )
+        assert resp["result"]["mip"] == mip
+        assert resp["result"]["slice"] == array_slice
+
+
+def test_tex_stats_texture3d_rejects_slice_after_mip_depth_reduction() -> None:
+    state = _make_texture3d_state()
+
+    resp, _ = _handle_request(rpc_request("tex_stats", {"id": 42, "mip": 1, "slice": 2}), state)
+    assert resp["error"]["code"] == -32001
+    assert resp["error"]["message"] == "slice 2 out of range (max: 1)"
+
+    resp, _ = _handle_request(rpc_request("tex_stats", {"id": 42, "mip": 2, "slice": 1}), state)
+    assert resp["error"]["message"] == "slice 1 out of range (max: 0)"
+
+
 # ---------------------------------------------------------------------------
 # B54: histogram channel length mismatch guard
 # ---------------------------------------------------------------------------
