@@ -303,9 +303,9 @@ class TestListGoldenParity:
         result = CliRunner().invoke(main, ["resources"])
         assert result.exit_code == 0
         assert result.output == (
-            "ID\tTYPE\tNAME\tWIDTH\tHEIGHT\tFORMAT\tSIZE\n"
-            "10\tTexture\talbedo\t-\t-\t-\t-\n"
-            "20\tBuffer\tverts\t-\t-\t-\t-\n"
+            "ID\tTYPE\tNAME\tWIDTH\tHEIGHT\tDEPTH\tFORMAT\tSIZE\n"
+            "10\tTexture\talbedo\t-\t-\t-\t-\t-\n"
+            "20\tBuffer\tverts\t-\t-\t-\t-\t-\n"
         )
 
     def test_counters_quiet(self, monkeypatch) -> None:

@@ -223,7 +223,13 @@ def test_descriptors_binding_name_correlation() -> None:
     state.res_names = {371: "2D Image 371"}
     state.tex_map = {
         371: SimpleNamespace(
-            width=512, height=512, format=SimpleNamespace(Name=lambda: "BC1_SRGB"), byteSize=174776
+            width=64,
+            height=64,
+            depth=4,
+            dimension=3,
+            type=rd.TextureType.Texture3D,
+            format=SimpleNamespace(Name=lambda: "BC1_SRGB"),
+            byteSize=174776,
         )
     }
     d = _call(state, "descriptors", eid=16)["result"]["descriptors"][0]
@@ -232,8 +238,11 @@ def test_descriptors_binding_name_correlation() -> None:
     assert d["array_element"] == 46
     assert d["resource_id"] == 371
     assert d["resource_name"] == "2D Image 371"
-    assert d["width"] == 512
-    assert d["height"] == 512
+    assert d["width"] == 64
+    assert d["height"] == 64
+    assert d["depth"] == 4
+    assert d["dimension"] == 3
+    assert d["texture_type"] == "Texture3D"
 
 
 def test_descriptors_binding_empty_without_reflection() -> None:

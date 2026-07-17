@@ -166,6 +166,9 @@ def enrich_resource_row(row: dict[str, Any], state: DaemonState) -> dict[str, An
         fmt = getattr(tex, "format", None)
         row["width"] = tex.width
         row["height"] = tex.height
+        row["depth"] = getattr(tex, "depth", 1)
+        row["dimension"] = getattr(tex, "dimension", 0)
+        row["texture_type"] = _enum_name(getattr(tex, "type", ""))
         row["format"] = fmt.Name() if fmt is not None and hasattr(fmt, "Name") else ""
         row["size"] = getattr(tex, "byteSize", 0)
         return row

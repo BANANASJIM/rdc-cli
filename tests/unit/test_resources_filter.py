@@ -377,6 +377,24 @@ class TestResourceEnrichment:
         assert row["format"] == "BC1_SRGB"
         assert row["size"] == 174776
 
+    def test_texture3d_metadata_is_exposed(self) -> None:
+        state = _state_with_resources([_make_res(8413, "RainDropSplash01.dds", "Texture")])
+        state.tex_map = {
+            8413: rd.TextureDescription(
+                resourceId=rd.ResourceId(8413),
+                type=rd.TextureType.Texture3D,
+                dimension=3,
+                width=64,
+                height=64,
+                depth=4,
+            )
+        }
+        resp, _ = _handle_request(rpc_request("resource", {"id": 8413}), state)
+        resource = resp["result"]["resource"]
+        assert resource["depth"] == 4
+        assert resource["dimension"] == 3
+        assert resource["texture_type"] == "Texture3D"
+
     def test_buffer_resource_gets_size(self) -> None:
         state = _state_with_resources([_make_res(99, "vtx buffer", "Buffer")])
         state.buf_map = {99: SimpleNamespace(length=4096)}

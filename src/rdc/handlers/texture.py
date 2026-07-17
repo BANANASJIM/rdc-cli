@@ -332,9 +332,12 @@ def _handle_tex_stats(
         return _error_response(
             request_id, -32001, f"mip {mip} out of range (max: {tex.mips - 1})"
         ), True
-    if array_slice < 0 or array_slice >= tex.arraysize:
+    slice_count = tex.arraysize
+    if tex.type == rd.TextureType.Texture3D:
+        slice_count = max(1, tex.depth >> mip)
+    if array_slice < 0 or array_slice >= slice_count:
         return _error_response(
-            request_id, -32001, f"slice {array_slice} out of range (max: {tex.arraysize - 1})"
+            request_id, -32001, f"slice {array_slice} out of range (max: {slice_count - 1})"
         ), True
 
     sub = rd.Subresource()
