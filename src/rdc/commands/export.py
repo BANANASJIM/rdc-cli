@@ -119,10 +119,20 @@ def _complete_rt_target(
 @click.argument("id", type=int, shell_complete=_complete_texture_id)
 @click.option("-o", "--output", type=click.Path(), default=None, help="Write to file")
 @click.option("--mip", default=0, type=int, help="Mip level (default 0)")
+@click.option(
+    "--slice",
+    "array_slice",
+    default=0,
+    type=click.IntRange(min=0),
+    help="Texture array or 3D depth slice (default 0)",
+)
 @click.option("--raw", is_flag=True, help="Force raw output even on TTY")
-def texture_cmd(id: int, output: str | None, mip: int, raw: bool) -> None:
+def texture_cmd(id: int, output: str | None, mip: int, array_slice: int, raw: bool) -> None:
     """Export texture as PNG."""
-    vfs_path = f"/textures/{id}/mips/{mip}.png" if mip > 0 else f"/textures/{id}/image.png"
+    if array_slice > 0:
+        vfs_path = f"/textures/{id}/mips/{mip}/slices/{array_slice}.png"
+    else:
+        vfs_path = f"/textures/{id}/mips/{mip}.png" if mip > 0 else f"/textures/{id}/image.png"
     _export_vfs_path(vfs_path, output, raw)
 
 

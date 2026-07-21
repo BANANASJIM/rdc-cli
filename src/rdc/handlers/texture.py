@@ -33,6 +33,26 @@ _OVERLAY_MAP: dict[str, int] = {
 }
 
 
+def _select_3d_slice(tex: Any, raw: bytes, mip: int, array_slice: int, rd: Any) -> bytes:
+    """Return one depth slice when remote GetTextureData returns a whole 3D mip."""
+    depth = max(1, tex.depth >> mip)
+    if depth == 1:
+        return raw
+    width = max(1, tex.width >> mip)
+    height = max(1, tex.height >> mip)
+    fmt = tex.format
+    if fmt.type == rd.ResourceFormatType.Regular:
+        slice_size = width * height * fmt.compCount * fmt.compByteWidth
+    elif fmt.type in (rd.ResourceFormatType.R11G11B10, rd.ResourceFormatType.R9G9B9E5):
+        slice_size = width * height * 4
+    else:
+        return raw
+    if len(raw) != slice_size * depth:
+        return raw
+    start = array_slice * slice_size
+    return raw[start : start + slice_size]
+
+
 def _handle_tex_info(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
@@ -70,19 +90,25 @@ def _export_remote(
     resource_id: Any,
     temp_path: Path,
     mip: int,
+    array_slice: int = 0,
     *,
     is_depth: bool = False,
 ) -> tuple[dict[str, Any], bool]:
     """Fetch raw pixels over the wire and decode them locally to a PNG."""
     controller = state.adapter.controller  # type: ignore[union-attr]
-    sub = _make_subresource(state.rd, mip)
+    sub = _make_subresource(state.rd, mip, array_slice)
     try:
         raw = controller.GetTextureData(resource_id, sub)
     except Exception as exc:  # noqa: BLE001
         return _error_response(request_id, -32002, f"GetTextureData failed: {exc}"), True
     if not raw:
         return _error_response(request_id, -32002, "no texture data returned"), True
-    png = _decode_texture_png(state.rd, tex, raw, mip, is_depth=is_depth)
+    if tex.type == state.rd.TextureType.Texture3D:
+        raw = _select_3d_slice(tex, raw, mip, array_slice, state.rd)
+    depth_override = 1 if tex.type == state.rd.TextureType.Texture3D else None
+    png = _decode_texture_png(
+        state.rd, tex, raw, mip, is_depth=is_depth, depth_override=depth_override
+    )
     if png is None:
         fmt_name = tex.format.Name() if hasattr(tex.format, "Name") else ""
         return _error_response(
@@ -107,6 +133,7 @@ def _handle_tex_export(
         return _error_response(request_id, -32002, "temp directory not available"), True
     res_id = int(params.get("id", 0))
     mip = int(params.get("mip", 0))
+    array_slice = int(params.get("slice", 0))
     tex = state.tex_map.get(res_id)
     if tex is None:
         return _error_response(request_id, -32001, f"texture {res_id} not found"), True
@@ -114,15 +141,22 @@ def _handle_tex_export(
         return _error_response(
             request_id, -32001, f"mip {mip} out of range (max: {tex.mips - 1})"
         ), True
+    slice_count = tex.arraysize
+    if tex.type == state.rd.TextureType.Texture3D:
+        slice_count = max(1, tex.depth >> mip)
+    if array_slice < 0 or array_slice >= slice_count:
+        return _error_response(
+            request_id, -32001, f"slice {array_slice} out of range (max: {slice_count - 1})"
+        ), True
     eid = int(params.get("eid", state.current_eid))
     err = _set_frame_event(state, eid)
     if err:
         return _error_response(request_id, -32002, err), True
-    temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}.png"
+    temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}_slice{array_slice}.png"
     if state.is_remote:
-        return _export_remote(request_id, state, tex, tex.resourceId, temp_path, mip)
+        return _export_remote(request_id, state, tex, tex.resourceId, temp_path, mip, array_slice)
     controller = state.adapter.controller
-    texsave = _make_texsave(state.rd, tex.resourceId, mip)
+    texsave = _make_texsave(state.rd, tex.resourceId, mip, array_slice)
     success = controller.SaveTexture(texsave, str(temp_path))
     if not success or not temp_path.exists():
         return _error_response(request_id, -32002, "SaveTexture failed"), True

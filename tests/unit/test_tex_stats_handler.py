@@ -736,23 +736,67 @@ def test_tex_export_remote_no_data_rejected(tmp_path: object) -> None:
     assert "no texture data" in resp["error"]["message"]
 
 
-def test_tex_export_remote_3d_tiles_depth_slices(tmp_path: object) -> None:
-    # 3D RGBA8 depth=2: GetTextureData returns the whole w*h*depth mip.
-    # Slices are tiled vertically into one (depth*height, width) image.
+def test_tex_export_remote_3d_defaults_to_slice_zero(tmp_path: object) -> None:
+    # Remote GetTextureData returns the whole 3D mip, but the export API returns one slice.
     fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
     tex = rd.TextureDescription(
-        resourceId=rd.ResourceId(70), width=2, height=2, depth=2, format=fmt
+        resourceId=rd.ResourceId(70),
+        type=rd.TextureType.Texture3D,
+        width=2,
+        height=2,
+        depth=2,
+        format=fmt,
     )
     raw = bytes(range(2 * 2 * 2 * 4))  # depth*height*width*cc
     state = _remote_state(tex, raw, tmp_path)
     resp, running = _handle_request(rpc_request("tex_export", {"id": 70}), state)
     assert running
     img = _read_png(resp["result"]["path"])
-    assert img.size == (2, 4)  # width=2, height=depth*height=4
+    assert img.size == (2, 2)
     assert img.mode == "RGBA"
-    # First pixel of slice 0 and first pixel of slice 1 differ.
     assert img.getpixel((0, 0)) == (0, 1, 2, 3)
-    assert img.getpixel((0, 2)) == (16, 17, 18, 19)
+
+
+def test_tex_export_remote_texture3d_exports_requested_slice(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(170),
+        type=rd.TextureType.Texture3D,
+        width=2,
+        height=2,
+        depth=2,
+        format=fmt,
+    )
+    state = _remote_state(tex, b"", tmp_path)
+    ctrl = state.adapter.controller  # type: ignore[union-attr]
+    slices = [bytes(range(16)), bytes(range(16, 32))]
+
+    def _get_texture_data(resource_id: object, sub: object) -> bytes:
+        del resource_id, sub
+        return b"".join(slices)
+
+    ctrl.GetTextureData = _get_texture_data  # type: ignore[method-assign]
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 170, "slice": 1}), state)
+    img = _read_png(resp["result"]["path"])
+    assert img.size == (2, 2)
+    assert img.getpixel((0, 0)) == (16, 17, 18, 19)
+
+
+def test_tex_export_texture3d_rejects_invalid_slice_for_mip(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(171),
+        type=rd.TextureType.Texture3D,
+        width=2,
+        height=2,
+        depth=4,
+        mips=2,
+        format=fmt,
+    )
+    state = _remote_state(tex, bytes(16), tmp_path)
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 171, "mip": 1, "slice": 2}), state)
+    assert resp["error"]["code"] == -32001
+    assert resp["error"]["message"] == "slice 2 out of range (max: 1)"
 
 
 def test_tex_export_remote_float_nan_renders_black(tmp_path: object, recwarn: object) -> None:
@@ -1001,3 +1045,43 @@ def test_tex_export_local_uses_savetexture(tmp_path: object) -> None:
     resp, _ = _handle_request(rpc_request("tex_export", {"id": 42}), state)
     assert "result" in resp
     assert len(save_calls) == 1
+
+
+def test_tex_export_local_texture3d_sets_requested_slice(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="R8G8B8A8_UNORM", compByteWidth=1, compCount=4, compType=2)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(172),
+        type=rd.TextureType.Texture3D,
+        width=2,
+        height=2,
+        depth=2,
+        format=fmt,
+    )
+    ctrl = rd.MockReplayController()
+    ctrl._textures = [tex]
+    ctrl._actions = [
+        rd.ActionDescription(eventId=100, flags=rd.ActionFlags.Drawcall, _name="vkCmdDraw"),
+    ]
+    slice_indices: list[int] = []
+    orig_save = ctrl.SaveTexture
+
+    def _spy(texsave: object, path: str) -> bool:
+        slice_indices.append(texsave.slice.sliceIndex)
+        return orig_save(texsave, path)
+
+    ctrl.SaveTexture = _spy  # type: ignore[method-assign]
+    state = make_daemon_state(
+        ctrl=ctrl,
+        current_eid=100,
+        rd=rd,
+        tmp_path=tmp_path,
+        tex_map={172: tex},
+        is_remote=False,
+    )
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 172, "slice": 1}), state)
+    assert "result" in resp
+
+    resp0, _ = _handle_request(rpc_request("tex_export", {"id": 172, "slice": 0}), state)
+    assert "result" in resp0
+
+    assert slice_indices == [1, 0]

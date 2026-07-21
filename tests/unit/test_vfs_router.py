@@ -364,6 +364,13 @@ def test_textures_id_mips_png(mip: int) -> None:
     assert m == PathMatch(kind="leaf_bin", handler="tex_export", args={"id": 42, "mip": mip})
 
 
+def test_textures_id_mips_slice_png() -> None:
+    m = resolve_path("/textures/42/mips/2/slices/3.png")
+    assert m == PathMatch(
+        kind="leaf_bin", handler="tex_export", args={"id": 42, "mip": 2, "slice": 3}
+    )
+
+
 def test_textures_id_data() -> None:
     m = resolve_path("/textures/42/data")
     assert m == PathMatch(kind="leaf_bin", handler="tex_raw", args={"id": 42})

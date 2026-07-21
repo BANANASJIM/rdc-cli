@@ -206,6 +206,12 @@ _r(
     "tex_export",
     [("id", int), ("mip", int)],
 )
+_r(
+    r"/textures/(?P<id>\d+)/mips/(?P<mip>\d+)/slices/(?P<slice>\d+)\.png",
+    "leaf_bin",
+    "tex_export",
+    [("id", int), ("mip", int), ("slice", int)],
+)
 _r(r"/textures/(?P<id>\d+)/data", "leaf_bin", "tex_raw", [("id", int)])
 
 _r("/buffers", "dir")
