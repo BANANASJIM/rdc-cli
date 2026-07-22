@@ -332,7 +332,13 @@ class TestTextureBufferSkeleton:
             resourceId=ResourceId(30), type=TextureType.Texture3D, depth=4, mips=2
         )
         tree = build_vfs_skeleton(_make_actions(), _make_typed_resources(), textures=[texture])
+
+        assert "0" in tree.static["/textures/30/mips"].children
+        assert tree.static["/textures/30/mips/0"].children == ["slices"]
+        assert tree.static["/textures/30/mips/0/slices"].children == ["1.png", "2.png", "3.png"]
         assert tree.static["/textures/30/mips/0/slices/1.png"].kind == "leaf_bin"
+        assert tree.static["/textures/30/mips/1"].children == ["slices"]
+        assert tree.static["/textures/30/mips/1/slices"].children == ["1.png"]
         assert tree.static["/textures/30/mips/1/slices/1.png"].kind == "leaf_bin"
 
     def test_buffers_children(self, typed_skeleton: VfsTree) -> None:

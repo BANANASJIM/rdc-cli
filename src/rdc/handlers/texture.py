@@ -33,6 +33,13 @@ _OVERLAY_MAP: dict[str, int] = {
 }
 
 
+def _is_block_compressed(fmt: Any) -> bool:
+    """Return whether RenderDoc identifies a format as block-compressed."""
+    block_format = getattr(fmt, "BlockFormat", None)
+    renderdoc_result = bool(block_format()) if callable(block_format) else False
+    return renderdoc_result or fmt.Name().upper().startswith(("ASTC", "BC", "EAC", "ETC", "PVRTC"))
+
+
 def _select_3d_slice(tex: Any, raw: bytes, mip: int, array_slice: int, rd: Any) -> bytes:
     """Return one depth slice when remote GetTextureData returns a whole 3D mip."""
     depth = max(1, tex.depth >> mip)
@@ -93,6 +100,7 @@ def _export_remote(
     array_slice: int = 0,
     *,
     is_depth: bool = False,
+    allow_save_fallback: bool = False,
 ) -> tuple[dict[str, Any], bool]:
     """Fetch raw pixels over the wire and decode them locally to a PNG."""
     controller = state.adapter.controller  # type: ignore[union-attr]
@@ -110,6 +118,15 @@ def _export_remote(
         state.rd, tex, raw, mip, is_depth=is_depth, depth_override=depth_override
     )
     if png is None:
+        if allow_save_fallback and _is_block_compressed(tex.format):
+            texsave = _make_texsave(state.rd, resource_id, mip, array_slice)
+            success = controller.SaveTexture(texsave, str(temp_path))
+            if success and temp_path.exists():
+                return _result_response(
+                    request_id,
+                    {"path": str(temp_path), "size": temp_path.stat().st_size},
+                ), True
+            return _error_response(request_id, -32002, "SaveTexture fallback failed"), True
         fmt_name = tex.format.Name() if hasattr(tex.format, "Name") else ""
         return _error_response(
             request_id, -32002, f"format {fmt_name} not supported for remote decode"
@@ -154,7 +171,16 @@ def _handle_tex_export(
         return _error_response(request_id, -32002, err), True
     temp_path = state.temp_dir / f"tex_{res_id}_mip{mip}_slice{array_slice}.png"
     if state.is_remote:
-        return _export_remote(request_id, state, tex, tex.resourceId, temp_path, mip, array_slice)
+        return _export_remote(
+            request_id,
+            state,
+            tex,
+            tex.resourceId,
+            temp_path,
+            mip,
+            array_slice,
+            allow_save_fallback=True,
+        )
     controller = state.adapter.controller
     texsave = _make_texsave(state.rd, tex.resourceId, mip, array_slice)
     success = controller.SaveTexture(texsave, str(temp_path))

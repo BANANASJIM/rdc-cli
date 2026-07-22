@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import struct
+from pathlib import Path
 
 import mock_renderdoc as rd
 import numpy as np
@@ -432,8 +433,10 @@ def test_tex_export_remote_length_mismatch_errors(tmp_path: object) -> None:
     assert resp["error"]["code"] == -32002
 
 
-def test_tex_export_remote_special_format_rejected(tmp_path: object) -> None:
-    fmt = rd.ResourceFormat(name="BC1_UNORM", compByteWidth=0, compCount=4, compType=2, type=2)
+def test_tex_export_remote_non_block_special_format_rejected(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(
+        name="R10G10B10A2_UNORM", compByteWidth=4, compCount=4, compType=2, type=12
+    )
     tex = rd.TextureDescription(resourceId=rd.ResourceId(96), width=4, height=4, format=fmt)
     state = _remote_state(tex, b"\x00" * 8, tmp_path)
     resp, _ = _handle_request(rpc_request("tex_export", {"id": 96}), state)
@@ -780,6 +783,56 @@ def test_tex_export_remote_texture3d_exports_requested_slice(tmp_path: object) -
     img = _read_png(resp["result"]["path"])
     assert img.size == (2, 2)
     assert img.getpixel((0, 0)) == (16, 17, 18, 19)
+
+
+def test_tex_export_remote_astc3d_falls_back_to_savetexture(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="ASTC6x6_UNORM", type=99)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(173),
+        type=rd.TextureType.Texture3D,
+        width=64,
+        height=64,
+        depth=4,
+        mips=7,
+        format=fmt,
+    )
+    state = _remote_state(tex, b"\x00" * 256, tmp_path)
+    save_calls: list[tuple[int, int, str]] = []
+    controller = state.adapter.controller  # type: ignore[union-attr]
+    original_save = controller.SaveTexture
+
+    def _spy(texsave: object, path: str) -> bool:
+        save_calls.append((texsave.mip, texsave.slice.sliceIndex, path))
+        return original_save(texsave, path)
+
+    controller.SaveTexture = _spy  # type: ignore[method-assign]
+    resp, running = _handle_request(
+        rpc_request("tex_export", {"id": 173, "mip": 1, "slice": 1}), state
+    )
+
+    assert running
+    assert "result" in resp
+    assert save_calls == [(1, 1, resp["result"]["path"])]
+    assert Path(resp["result"]["path"]).read_bytes().startswith(b"\x89PNG")
+
+
+def test_tex_export_remote_astc3d_reports_savetexture_fallback_failure(tmp_path: object) -> None:
+    fmt = rd.ResourceFormat(name="ASTC6x6_UNORM", type=99)
+    tex = rd.TextureDescription(
+        resourceId=rd.ResourceId(174),
+        type=rd.TextureType.Texture3D,
+        width=64,
+        height=64,
+        depth=4,
+        format=fmt,
+    )
+    state = _remote_state(tex, b"\x00" * 256, tmp_path)
+    state.adapter.controller._save_texture_fails = True  # type: ignore[union-attr]
+
+    resp, _ = _handle_request(rpc_request("tex_export", {"id": 174, "slice": 1}), state)
+
+    assert resp["error"]["code"] == -32002
+    assert resp["error"]["message"] == "SaveTexture fallback failed"
 
 
 def test_tex_export_texture3d_rejects_invalid_slice_for_mip(tmp_path: object) -> None:
