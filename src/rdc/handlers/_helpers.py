@@ -235,14 +235,24 @@ def _build_shader_cache(state: DaemonState) -> None:
         populate_shaders_subtree(state.vfs_tree, state.shader_meta)
 
 
-def _make_texsave(rd: Any, resource_id: Any, mip: int = 0, array_slice: int = 0) -> Any:
-    """Create a TextureSave object using the renderdoc module."""
+def _make_texsave(
+    rd: Any,
+    resource_id: Any,
+    mip: int = 0,
+    array_slice: int = 0,
+    dest_type: Any | None = None,
+) -> Any:
+    """Create a TextureSave object using the renderdoc module.
+
+    PNG remains the command-level default. ``dest_type`` is retained here so
+    future CLI format selection reaches RenderDoc's own exporter unchanged.
+    """
     ts = rd.TextureSave()
     ts.resourceId = resource_id
     ts.mip = mip
     ts.slice = rd.TextureSliceMapping()
     ts.slice.sliceIndex = array_slice
-    ts.destType = rd.FileType.PNG
+    ts.destType = rd.FileType.PNG if dest_type is None else dest_type
     return ts
 
 

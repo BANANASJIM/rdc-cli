@@ -33,13 +33,6 @@ _OVERLAY_MAP: dict[str, int] = {
 }
 
 
-def _is_block_compressed(fmt: Any) -> bool:
-    """Return whether RenderDoc identifies a format as block-compressed."""
-    block_format = getattr(fmt, "BlockFormat", None)
-    renderdoc_result = bool(block_format()) if callable(block_format) else False
-    return renderdoc_result or fmt.Name().upper().startswith(("ASTC", "BC", "EAC", "ETC", "PVRTC"))
-
-
 def _select_3d_slice(tex: Any, raw: bytes, mip: int, array_slice: int, rd: Any) -> bytes:
     """Return one depth slice when remote GetTextureData returns a whole 3D mip."""
     depth = max(1, tex.depth >> mip)
@@ -90,7 +83,7 @@ def _handle_tex_info(
     ), True
 
 
-def _export_remote(
+def _export_decoded(
     request_id: int,
     state: DaemonState,
     tex: Any,
@@ -100,9 +93,8 @@ def _export_remote(
     array_slice: int = 0,
     *,
     is_depth: bool = False,
-    allow_save_fallback: bool = False,
 ) -> tuple[dict[str, Any], bool]:
-    """Fetch raw pixels over the wire and decode them locally to a PNG."""
+    """Fetch raw pixels and decode them locally for the local depth-export path."""
     controller = state.adapter.controller  # type: ignore[union-attr]
     sub = _make_subresource(state.rd, mip, array_slice)
     try:
@@ -118,18 +110,9 @@ def _export_remote(
         state.rd, tex, raw, mip, is_depth=is_depth, depth_override=depth_override
     )
     if png is None:
-        if allow_save_fallback and _is_block_compressed(tex.format):
-            texsave = _make_texsave(state.rd, resource_id, mip, array_slice)
-            success = controller.SaveTexture(texsave, str(temp_path))
-            if success and temp_path.exists():
-                return _result_response(
-                    request_id,
-                    {"path": str(temp_path), "size": temp_path.stat().st_size},
-                ), True
-            return _error_response(request_id, -32002, "SaveTexture fallback failed"), True
         fmt_name = tex.format.Name() if hasattr(tex.format, "Name") else ""
         return _error_response(
-            request_id, -32002, f"format {fmt_name} not supported for remote decode"
+            request_id, -32002, f"format {fmt_name} not supported for local depth decode"
         ), True
     try:
         temp_path.write_bytes(png)
@@ -137,6 +120,52 @@ def _export_remote(
     except OSError as exc:
         return _error_response(request_id, -32002, f"failed to write export: {exc}"), True
     return _result_response(request_id, {"path": str(temp_path), "size": size}), True
+
+
+def _save_result_ok(result: Any) -> bool:
+    """Accept current ResultDetails and older bool SaveTexture bindings."""
+    ok = getattr(result, "OK", None)
+    return bool(ok()) if callable(ok) else bool(result)
+
+
+def _save_result_message(result: Any) -> str:
+    """Return a RenderDoc failure message when the binding provides one."""
+    message = getattr(result, "Message", None)
+    return str(message()) if callable(message) else "SaveTexture failed"
+
+
+def _export_remote(
+    request_id: int,
+    state: DaemonState,
+    resource_id: Any,
+    temp_path: Path,
+    mip: int,
+    array_slice: int = 0,
+    *,
+    dest_type: Any | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Export through RenderDoc's local SaveTexture implementation.
+
+    In remote replay, the controller lives locally and fetches image data via
+    the replay proxy. This is the same path used by qrenderdoc and preserves
+    RenderDoc's handling of compressed, HDR, 3D, and special formats.
+    """
+    controller = state.adapter.controller  # type: ignore[union-attr]
+    texsave = _make_texsave(state.rd, resource_id, mip, array_slice, dest_type)
+    try:
+        result = controller.SaveTexture(texsave, str(temp_path))
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(request_id, -32002, f"SaveTexture failed: {exc}"), True
+    if not _save_result_ok(result):
+        return _error_response(request_id, -32002, _save_result_message(result)), True
+    if not temp_path.exists():
+        return _error_response(
+            request_id, -32002, "SaveTexture did not create an output file"
+        ), True
+    return _result_response(
+        request_id,
+        {"path": str(temp_path), "size": temp_path.stat().st_size},
+    ), True
 
 
 def _handle_tex_export(
@@ -174,12 +203,10 @@ def _handle_tex_export(
         return _export_remote(
             request_id,
             state,
-            tex,
             tex.resourceId,
             temp_path,
             mip,
             array_slice,
-            allow_save_fallback=True,
         )
     controller = state.adapter.controller
     texsave = _make_texsave(state.rd, tex.resourceId, mip, array_slice)
@@ -247,10 +274,7 @@ def _handle_rt_export(
     resource = match[0].resource
     temp_path = state.temp_dir / f"rt_{eid}_color{target_idx}.png"
     if state.is_remote:
-        tex = state.tex_map.get(int(resource))
-        if tex is None:
-            return _error_response(request_id, -32001, f"target {int(resource)} not found"), True
-        return _export_remote(request_id, state, tex, resource, temp_path, 0)
+        return _export_remote(request_id, state, resource, temp_path, 0)
     texsave = _make_texsave(state.rd, resource)
     success = state.adapter.controller.SaveTexture(texsave, str(temp_path))  # type: ignore[union-attr]
     if not success or not temp_path.exists():
@@ -281,7 +305,9 @@ def _handle_rt_depth(
         return _error_response(
             request_id, -32001, f"depth target {int(depth.resource)} not found"
         ), True
-    resp, running = _export_remote(
+    if state.is_remote:
+        return _export_remote(request_id, state, depth.resource, temp_path, 0)
+    resp, running = _export_decoded(
         request_id, state, tex, depth.resource, temp_path, 0, is_depth=True
     )
     # Combined depth-stencil and MSAA formats decode to None (-32002). Locally,
