@@ -221,6 +221,19 @@ def build_vfs_skeleton(
         tree.static[f"{prefix}/mips"] = VfsNode("mips", "dir", list(mip_children))
         for i in range(mip_count):
             tree.static[f"{prefix}/mips/{i}.png"] = VfsNode(f"{i}.png", "leaf_bin")
+            if getattr(getattr(t, "type", None), "name", "") == "Texture3D":
+                slice_count = max(1, getattr(t, "depth", 1) >> i)
+            else:
+                slice_count = getattr(t, "arraysize", 1)
+            if slice_count > 1:
+                mip_path = f"{prefix}/mips/{i}"
+                tree.static[f"{prefix}/mips"].children.append(str(i))
+                tree.static[mip_path] = VfsNode(str(i), "dir", ["slices"])
+                slices_path = f"{prefix}/mips/{i}/slices"
+                slice_children = [f"{j}.png" for j in range(1, slice_count)]
+                tree.static[slices_path] = VfsNode("slices", "dir", slice_children)
+                for j in range(1, slice_count):
+                    tree.static[f"{slices_path}/{j}.png"] = VfsNode(f"{j}.png", "leaf_bin")
 
     # /buffers
     buf_ids = [str(int(getattr(b, "resourceId", 0))) for b in _buffers]

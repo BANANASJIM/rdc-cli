@@ -235,21 +235,22 @@ def _build_shader_cache(state: DaemonState) -> None:
         populate_shaders_subtree(state.vfs_tree, state.shader_meta)
 
 
-def _make_texsave(rd: Any, resource_id: Any, mip: int = 0) -> Any:
+def _make_texsave(rd: Any, resource_id: Any, mip: int = 0, array_slice: int = 0) -> Any:
     """Create a TextureSave object using the renderdoc module."""
     ts = rd.TextureSave()
     ts.resourceId = resource_id
     ts.mip = mip
     ts.slice = rd.TextureSliceMapping()
+    ts.slice.sliceIndex = array_slice
     ts.destType = rd.FileType.PNG
     return ts
 
 
-def _make_subresource(rd: Any, mip: int = 0) -> Any:
+def _make_subresource(rd: Any, mip: int = 0, array_slice: int = 0) -> Any:
     """Create a Subresource object using the renderdoc module."""
     sub = rd.Subresource()
     sub.mip = mip
-    sub.slice = 0
+    sub.slice = array_slice
     sub.sample = 0
     return sub
 
@@ -340,7 +341,15 @@ def _unpack_r9g9b9e5(words: Any) -> Any:
     return np.stack([rm * scale, gm * scale, bm * scale], axis=-1).astype(np.float32)
 
 
-def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bool) -> bytes | None:
+def _decode_texture_png(
+    rd: Any,
+    tex: Any,
+    raw: bytes,
+    mip: int,
+    *,
+    is_depth: bool,
+    depth_override: int | None = None,
+) -> bytes | None:
     """Decode tightly packed GetTextureData bytes into PNG bytes.
 
     Handles the full ``ResourceFormatType.Regular`` space deliberately: every
@@ -384,7 +393,7 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
             return None
         width = max(1, tex.width >> mip)
         height = max(1, tex.height >> mip)
-        depth_lvl = max(1, getattr(tex, "depth", 1) >> mip)
+        depth_lvl = depth_override or max(1, getattr(tex, "depth", 1) >> mip)
         if len(raw) != width * height * depth_lvl * 4:
             return None
         words = np.frombuffer(raw, dtype=np.dtype("<u4")).reshape((depth_lvl * height, width))
@@ -410,7 +419,7 @@ def _decode_texture_png(rd: Any, tex: Any, raw: bytes, mip: int, *, is_depth: bo
 
     width = max(1, tex.width >> mip)
     height = max(1, tex.height >> mip)
-    depth_lvl = max(1, getattr(tex, "depth", 1) >> mip)
+    depth_lvl = depth_override or max(1, getattr(tex, "depth", 1) >> mip)
     cc = fmt.compCount
     cbw = fmt.compByteWidth
     if cc <= 0 or len(raw) != width * height * depth_lvl * cc * cbw:

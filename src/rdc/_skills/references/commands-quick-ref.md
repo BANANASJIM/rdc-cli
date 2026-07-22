@@ -1206,6 +1206,7 @@ Export texture as PNG.
 |------|------|------|---------|
 | `-o, --output` | Write to file | path |  |
 | `--mip` | Mip level (default 0) | integer | 0 |
+| `--slice` | Texture array or 3D depth slice (default 0) | integer range | 0 |
 | `--raw` | Force raw output even on TTY | flag |  |
 
 ## `rdc thumbnail`

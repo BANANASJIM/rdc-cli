@@ -199,7 +199,7 @@
           "name": "texture",
           "id": "texture",
           "help": "Export texture as PNG.",
-          "usage": "rdc texture <ID> [-o PATH] [--mip INTEGER] [--raw]"
+          "usage": "rdc texture <ID> [-o PATH] [--mip INTEGER] [--slice INTEGER RANGE] [--raw]"
         },
         {
           "name": "buffer",
