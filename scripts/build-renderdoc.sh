@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # DEPRECATED: use scripts/build_renderdoc.py instead.
 # Kept for curl-pipe users on systems without Python 3.10+.
-# Build renderdoc v1.41 Python module from source.
+# Build renderdoc v1.46 Python module from source.
 # Usage: bash <(curl -fsSL https://raw.githubusercontent.com/BANANASJIM/rdc-cli/master/scripts/build-renderdoc.sh) [INSTALL_DIR]
 # Output: INSTALL_DIR/renderdoc.so + librenderdoc.so (default: ~/.local/renderdoc/)
 set -euo pipefail
 
-RDOC_TAG="v1.41"
+RDOC_TAG="v1.46"
 SWIG_URL="https://github.com/baldurk/swig/archive/renderdoc-modified-7.zip"
 SWIG_SHA256="9d7e5013ada6c42ec95ab167a34db52c1cc8c09b89c8e9373631b1f10596c648"
 OUT_DIR="${1:-${HOME}/.local/renderdoc}"
