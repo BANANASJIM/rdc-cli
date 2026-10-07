@@ -89,12 +89,18 @@ def _check_replay_support(module: Any | None) -> CheckResult:
 
 
 def _check_renderdoccmd() -> CheckResult:
+    from rdc import _platform
+
     cmd_path = find_renderdoccmd()
     if cmd_path is None:
         return CheckResult("renderdoccmd", False, "not found in PATH or known paths")
     try:
         out = subprocess.run(
-            [str(cmd_path), "--version"], capture_output=True, text=True, timeout=3
+            [str(cmd_path), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            **_platform.hidden_kwargs(),
         )
         version = out.stdout.strip() or out.stderr.strip() or "unknown"
     except Exception:  # noqa: BLE001
@@ -170,6 +176,8 @@ def _check_win_vs_build_tools() -> CheckResult:
     if sys.platform != "win32":
         return CheckResult("win-vs-build-tools", True, "n/a")
 
+    from rdc import _platform
+
     vswhere = Path(r"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe")
     if not vswhere.exists():
         found = shutil.which("vswhere")
@@ -196,6 +204,7 @@ def _check_win_vs_build_tools() -> CheckResult:
             capture_output=True,
             text=True,
             timeout=5,
+            **_platform.hidden_kwargs(),
         )
         installs: list[dict[str, Any]] = json.loads(proc.stdout or "[]")
     except subprocess.TimeoutExpired:

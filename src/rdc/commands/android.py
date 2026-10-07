@@ -14,6 +14,7 @@ from typing import Any
 
 import click
 
+from rdc import _platform
 from rdc.capture_core import run_target_control_loop
 from rdc.discover import find_renderdoc
 from rdc.remote_core import connect_remote_server
@@ -62,6 +63,7 @@ def _get_forwarded_port(serial: str | None, url: str) -> int | None:
             timeout=3,
             capture_output=True,
             text=True,
+            **_platform.hidden_kwargs(),
         )
     except (subprocess.TimeoutExpired, OSError):
         return None
@@ -92,6 +94,7 @@ def _is_mali_device(ctrl: Any, url: str, serial: str | None) -> bool:
             timeout=3,
             capture_output=True,
             text=True,
+            **_platform.hidden_kwargs(),
         )
         prop = proc.stdout.strip().lower()
         return any(prop.startswith(p) for p in _MALI_PLATFORMS)
@@ -124,7 +127,9 @@ def _adb(serial: str, *args: str, timeout: int = 10) -> subprocess.CompletedProc
     cmd = ["adb", "-s", serial, *args]
     log.debug("adb: %s", " ".join(cmd))
     try:
-        return subprocess.run(cmd, timeout=timeout, capture_output=True, text=True)
+        return subprocess.run(
+            cmd, timeout=timeout, capture_output=True, text=True, **_platform.hidden_kwargs()
+        )
     except subprocess.TimeoutExpired as exc:
         msg = f"adb command timed out: {' '.join(cmd)}"
         raise RuntimeError(msg) from exc
@@ -242,6 +247,7 @@ def _resolve_serial(serial: str | None) -> str:
         timeout=5,
         capture_output=True,
         text=True,
+        **_platform.hidden_kwargs(),
     )
     serials = []
     for line in proc.stdout.strip().splitlines()[1:]:

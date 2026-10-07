@@ -44,6 +44,7 @@ def _adb_forwarded_port(serial: str) -> int | None:
             capture_output=True,
             text=True,
             timeout=5,
+            **_platform.hidden_kwargs(),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return None

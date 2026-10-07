@@ -14,6 +14,7 @@ import pytest
 from rdc._platform import (
     data_dir,
     find_pid_by_port,
+    hidden_kwargs,
     install_shutdown_signal,
     is_pid_alive,
     join_cmdline,
@@ -338,16 +339,19 @@ class TestPopenFlagsWindows:
         monkeypatch.setattr("rdc._platform._WIN", True)
         result = popen_flags()
         flags = result["creationflags"]
-        assert flags & 0x00000008  # DETACHED_PROCESS
+        assert flags & 0x08000000  # CREATE_NO_WINDOW (own hidden console)
         assert flags & 0x00000200  # CREATE_NEW_PROCESS_GROUP
         assert flags & 0x01000000  # CREATE_BREAKAWAY_FROM_JOB
 
-    def test_windows_no_create_no_window(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """DS-02: CREATE_NO_WINDOW must NOT be set (mutually exclusive with DETACHED_PROCESS)."""
+    def test_windows_not_detached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """DS-02: DETACHED_PROCESS must NOT be set (console children would flash windows)."""
         monkeypatch.setattr("rdc._platform._WIN", True)
-        result = popen_flags()
-        flags = result["creationflags"]
-        assert not (flags & 0x08000000)  # CREATE_NO_WINDOW must NOT be set
+        assert not (popen_flags()["creationflags"] & 0x00000008)
+
+    def test_hidden_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert hidden_kwargs() == {}
+        monkeypatch.setattr("rdc._platform._WIN", True)
+        assert hidden_kwargs() == {"creationflags": 0x08000000}
 
 
 # ── Group H: renderdoc_search_paths() ────────────────────────────────

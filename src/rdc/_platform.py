@@ -72,7 +72,7 @@ def terminate_process_tree(pid: int) -> bool:
     """Kill a process and all its children (Windows: taskkill /T, Unix: SIGTERM).
 
     On Windows, .venv trampoline scripts spawn a child python process.
-    DETACHED_PROCESS prevents kill cascading, so we use taskkill /F /T
+    Detached daemons are not killed with their parent, so we use taskkill /F /T
     to terminate the entire process tree.
     """
     if pid <= 0:
@@ -83,6 +83,7 @@ def terminate_process_tree(pid: int) -> bool:
                 ["taskkill", "/F", "/T", "/PID", str(pid)],
                 capture_output=True,
                 timeout=5,
+                **hidden_kwargs(),
             )
             return result.returncode == 0
         except Exception:  # noqa: BLE001
@@ -179,10 +180,19 @@ def secure_dir_permissions(path: Path) -> None:
 def popen_flags() -> dict[str, Any]:
     """Return extra kwargs for subprocess.Popen on this platform."""
     if _WIN:  # pragma: no cover
-        # DETACHED_PROCESS (0x8): detach from parent console
+        # CREATE_NO_WINDOW (0x08000000): hidden console that grandchildren inherit.
+        #   Not DETACHED_PROCESS: a console-less daemon makes every console child
+        #   (probe, taskkill) allocate its own visible window.
         # CREATE_NEW_PROCESS_GROUP (0x200): isolate signal handling
         # CREATE_BREAKAWAY_FROM_JOB (0x01000000): escape sshd job object
-        return {"creationflags": 0x00000008 | 0x00000200 | 0x01000000}
+        return {"creationflags": 0x08000000 | 0x00000200 | 0x01000000}
+    return {}
+
+
+def hidden_kwargs() -> dict[str, Any]:
+    """Return subprocess kwargs that stop console children opening a window on Windows."""
+    if _WIN:  # pragma: no cover
+        return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW
     return {}
 
 
@@ -196,6 +206,7 @@ def find_pid_by_port(port: int) -> int:
             capture_output=True,
             text=True,
             timeout=5,
+            **hidden_kwargs(),
         )
         for line in result.stdout.splitlines():
             # Match: TCP  127.0.0.1:PORT  0.0.0.0:0  LISTENING  PID

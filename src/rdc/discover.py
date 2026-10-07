@@ -119,6 +119,7 @@ except Exception as e:
             capture_output=True,
             text=True,
             timeout=timeout,
+            **_platform.hidden_kwargs(),
         )
     except subprocess.TimeoutExpired:
         return ProbeOutcome(ProbeResult.TIMEOUT, directory)
