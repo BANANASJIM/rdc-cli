@@ -362,6 +362,21 @@ def _make_log_state(messages=None):
 
 
 class TestPassHandler:
+    def test_pass_list_built_once_and_cache_not_polluted(self, monkeypatch):
+        import rdc.services.query_service as qs
+
+        calls = []
+        real = qs._pass_list_with_fallback
+        monkeypatch.setattr(
+            qs, "_pass_list_with_fallback", lambda *a, **k: calls.append(1) or real(*a, **k)
+        )
+        state = _make_pass_state()
+        for _ in range(3):
+            _handle_request(rpc_request("pass", {"index": 0}), state)
+        _handle_request(rpc_request("passes"), state)
+        assert len(calls) == 1
+        assert "color_targets" not in state._pass_list_cache[0]
+
     def test_pass_by_index(self):
         resp, _ = _handle_request(rpc_request("pass", {"index": 0}), _make_pass_state())
         result = resp["result"]
