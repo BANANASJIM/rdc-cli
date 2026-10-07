@@ -30,7 +30,7 @@ import zipfile
 from pathlib import Path
 from urllib.request import urlretrieve
 
-RDOC_TAG = "v1.41"
+RDOC_TAG = "v1.46"
 RDOC_REPO = "https://github.com/baldurk/renderdoc.git"
 SWIG_URL = "https://github.com/baldurk/swig/archive/renderdoc-modified-7.zip"
 SWIG_SHA256 = "9d7e5013ada6c42ec95ab167a34db52c1cc8c09b89c8e9373631b1f10596c648"
@@ -258,7 +258,8 @@ def _run_msbuild(build_dir: Path, python_prefix: Path, jobs: int | None = None) 
     msbuild = _find_msbuild()
     n = jobs or os.cpu_count() or 4
     env = dict(os.environ)
-    env["RENDERDOC_PYTHON_PREFIX64"] = str(python_prefix)
+    env["RENDERDOC_PYTHON_PREFIX64"] = str(python_prefix)  # RenderDoc <= v1.41
+    env["VSPythonOverridePath"] = str(python_prefix)  # RenderDoc >= v1.46
     env["CL"] = (env.get("CL", "") + " /wd4996").strip()
     cmd = [
         msbuild,
