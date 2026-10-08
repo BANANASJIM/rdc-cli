@@ -277,6 +277,33 @@ def test_open_session_all_retries_fail(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert "rdc doctor" in msg
 
 
+def test_open_session_timeout_reports_timeout_first_and_does_not_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A startup timeout leads the message, keeps the log as context, and is not retried."""
+    monkeypatch.delenv("RDC_SESSION", raising=False)
+    monkeypatch.setattr(session_service, "load_session", lambda: None)
+    monkeypatch.setattr(session_service, "_renderdoc_available", lambda: False)
+
+    log = tmp_path / "daemon.stderr"
+    log.write_text("GPU match fallback: choosing NVIDIA\n")
+    mock_proc = MagicMock()
+    mock_proc.pid = 999
+    mock_proc._rdc_stderr_path = str(log)
+    starts: list[int] = []
+    monkeypatch.setattr(
+        session_service, "start_daemon", lambda *a, **kw: starts.append(1) or mock_proc
+    )
+    monkeypatch.setattr(session_service, "wait_for_ping", lambda *a, **kw: (False, "timeout (15s)"))
+
+    ok, msg = session_service.open_session(Path("test.rdc"))
+    assert ok is False
+    assert len(starts) == 1
+    assert msg.startswith("error: daemon failed to start (timeout (15s);")
+    assert "--timeout" in msg
+    assert msg.index("timeout (15s)") < msg.index("GPU match fallback")
+
+
 def test_close_session_fallback_kill_on_shutdown_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
