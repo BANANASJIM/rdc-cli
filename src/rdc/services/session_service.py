@@ -174,7 +174,7 @@ def _resolve_timeout(timeout: float | None, *, remote: bool) -> float:
     env = os.environ.get("RDC_OPEN_TIMEOUT")
     if env is not None:
         return float(env)
-    return 300.0 if remote else 15.0
+    return 300.0 if remote else 120.0
 
 
 def open_session(
