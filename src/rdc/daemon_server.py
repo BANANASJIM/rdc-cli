@@ -139,6 +139,7 @@ class DaemonState:
     replay_output: Any = None
     replay_output_dims: tuple[int, int] | None = None
     _shader_cache_built: bool = field(default=False, repr=False)
+    _pass_list_cache: list[dict[str, Any]] | None = field(default=None, repr=False)
     _debug_messages_cache: list[Any] | None = None
     remote: Any = None
     remote_url: str = ""

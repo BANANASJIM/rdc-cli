@@ -801,9 +801,14 @@ def get_pass_detail(
     actions: list[Any],
     sf: Any = None,
     identifier: int | str = 0,
+    passes: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
-    """Get detail for a single pass by index (int) or name (str)."""
-    passes = _pass_list_with_fallback(actions, sf)
+    """Get detail for a single pass by index (int) or name (str).
+
+    Pass a precomputed *passes* list to skip rebuilding it from the action tree.
+    """
+    if passes is None:
+        passes = _pass_list_with_fallback(actions, sf)
     if isinstance(identifier, int):
         return passes[identifier] if 0 <= identifier < len(passes) else None
     lower = identifier.lower()

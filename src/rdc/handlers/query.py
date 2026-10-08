@@ -212,16 +212,23 @@ def _handle_resource(
     return _result_response(request_id, {"resource": enrich_resource_row(detail, state)}), True
 
 
+def _pass_list(state: DaemonState) -> list[dict[str, Any]]:
+    """Return the pass list, building it once per session (the action tree is immutable)."""
+    if state._pass_list_cache is None:
+        from rdc.services.query_service import _pass_list_with_fallback
+
+        assert state.adapter is not None
+        state._pass_list_cache = _pass_list_with_fallback(
+            state.adapter.get_root_actions(), state.structured_file
+        )
+    return state._pass_list_cache
+
+
 def _handle_passes(
     request_id: int, params: dict[str, Any], state: DaemonState
 ) -> tuple[dict[str, Any], bool]:
     assert state.adapter is not None
-    from rdc.services.query_service import get_pass_hierarchy
-
-    actions = state.adapter.get_root_actions()
-    tree = get_pass_hierarchy(actions, state.structured_file)
-
-    return _result_response(request_id, {"tree": tree}), True
+    return _result_response(request_id, {"tree": {"passes": _pass_list(state)}}), True
 
 
 def _handle_pass(
@@ -243,10 +250,10 @@ def _handle_pass(
         identifier = name
     else:
         return _error_response(request_id, -32602, "missing index or name"), True
-    actions = state.adapter.get_root_actions()
-    detail = get_pass_detail(actions, state.structured_file, identifier)
+    detail = get_pass_detail([], None, identifier, passes=_pass_list(state))
     if detail is None:
         return _error_response(request_id, -32001, "pass not found"), True
+    detail = dict(detail)  # the cached entry must not pick up per-call target info
     err = _seek_replay(state, detail["begin_eid"])
     if err is None:
         pipe = state.adapter.get_pipeline_state()
@@ -698,8 +705,7 @@ def _handle_pass_attachment(
     if state.vfs_tree and name in state.vfs_tree.pass_name_map:
         name = state.vfs_tree.pass_name_map[name]
 
-    actions = state.adapter.get_root_actions()
-    detail = get_pass_detail(actions, state.structured_file, name)
+    detail = get_pass_detail([], None, name, passes=_pass_list(state))
     if detail is None:
         return _error_response(request_id, -32001, f"pass not found: {name}"), True
 
