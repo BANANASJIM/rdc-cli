@@ -174,7 +174,7 @@ def _resolve_timeout(timeout: float | None, *, remote: bool) -> float:
     env = os.environ.get("RDC_OPEN_TIMEOUT")
     if env is not None:
         return float(env)
-    return 300.0 if remote else 15.0
+    return 300.0 if remote else 120.0
 
 
 def open_session(
@@ -192,6 +192,7 @@ def open_session(
     max_attempts = 1 if remote_url is not None else 3
     host = "127.0.0.1"
     detail = "unknown error"
+    started = False
     for _attempt in range(max_attempts):
         port = pick_port()
         token = secrets.token_hex(16)
@@ -199,6 +200,7 @@ def open_session(
 
         ok, detail = wait_for_ping(host, port, token, timeout_s=resolved_timeout, proc=proc)
         if ok:
+            started = True
             break
         proc.terminate()
         try:
@@ -207,9 +209,14 @@ def open_session(
             proc.kill()
             proc.wait()
         stderr = _read_daemon_stderr(proc)
+        timed_out = detail.startswith("timeout")
         if stderr:
-            detail = stderr
-    else:
+            # Keep the real reason (timeout, exit code) first; the log tail is context.
+            detail = f"{detail}; daemon log: {stderr}"
+        if timed_out:
+            detail += "; large captures may need a longer --timeout (or RDC_OPEN_TIMEOUT)"
+            break
+    if not started:
         return False, f"error: daemon failed to start ({detail}) -- hint: run 'rdc doctor'"
 
     _discard_daemon_stderr(proc)
