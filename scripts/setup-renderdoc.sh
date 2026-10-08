@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # DEPRECATED: use scripts/build_renderdoc.py instead.
 # Kept for curl-pipe users on systems without Python 3.10+.
-# Build renderdoc v1.41 Python module for the pixi dev environment.
+# Build renderdoc v1.46 Python module for the pixi dev environment.
 # Usage: pixi run setup-renderdoc
 # Output: .local/renderdoc/renderdoc.so + librenderdoc.so
 # Only needs to run once (or after Python version change).
 set -euo pipefail
 
-RDOC_TAG="v1.41"
+RDOC_TAG="v1.46"
 SWIG_URL="https://github.com/baldurk/swig/archive/renderdoc-modified-7.zip"
 BUILD_DIR=".local/renderdoc-build"
 OUT_DIR=".local/renderdoc"
