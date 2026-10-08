@@ -13,7 +13,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 _WIN: bool = sys.platform == "win32"
 _MAC: bool = sys.platform == "darwin"
@@ -177,7 +177,11 @@ def secure_dir_permissions(path: Path) -> None:
         path.chmod(0o700)
 
 
-def popen_flags() -> dict[str, Any]:
+class _SubprocessKwargs(TypedDict, total=False):
+    creationflags: int
+
+
+def popen_flags() -> _SubprocessKwargs:
     """Return extra kwargs for subprocess.Popen on this platform."""
     if _WIN:  # pragma: no cover
         # CREATE_NO_WINDOW (0x08000000): hidden console that grandchildren inherit.
@@ -189,7 +193,7 @@ def popen_flags() -> dict[str, Any]:
     return {}
 
 
-def hidden_kwargs() -> dict[str, Any]:
+def hidden_kwargs() -> _SubprocessKwargs:
     """Return subprocess kwargs that stop console children opening a window on Windows."""
     if _WIN:  # pragma: no cover
         return {"creationflags": 0x08000000}  # CREATE_NO_WINDOW

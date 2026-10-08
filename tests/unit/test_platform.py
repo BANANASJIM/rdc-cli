@@ -349,6 +349,7 @@ class TestPopenFlagsWindows:
         assert not (popen_flags()["creationflags"] & 0x00000008)
 
     def test_hidden_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("rdc._platform._WIN", False)
         assert hidden_kwargs() == {}
         monkeypatch.setattr("rdc._platform._WIN", True)
         assert hidden_kwargs() == {"creationflags": 0x08000000}
