@@ -37,7 +37,7 @@ def test_build_renderdoc_script_syntax() -> None:
 def test_build_renderdoc_script_constants() -> None:
     text = Path("scripts/build-renderdoc.sh").read_text()
     assert "set -euo pipefail" in text
-    assert "v1.41" in text
+    assert "v1.46" in text
     assert "9d7e5013" in text
     assert "RENDERDOC_PYTHON_PATH" in text
     assert "DRENDERDOC_SWIG_PACKAGE" in text

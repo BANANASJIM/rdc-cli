@@ -149,7 +149,7 @@ def test_clone_renderdoc_fresh(tmp_path: Path) -> None:
     assert "--depth" in args
     assert "1" in args
     assert "--branch" in args
-    assert "v1.41" in args
+    assert "v1.46" in args
 
 
 def test_clone_renderdoc_idempotent(tmp_path: Path) -> None:

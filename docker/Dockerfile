@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build renderdoc from source with Python module enabled
-ARG RENDERDOC_VERSION=v1.41
+ARG RENDERDOC_VERSION=v1.46
 RUN git clone --depth 1 --branch ${RENDERDOC_VERSION} \
         https://github.com/baldurk/renderdoc.git /renderdoc \
     && cd /renderdoc \
