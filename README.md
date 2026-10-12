@@ -254,6 +254,39 @@ rdc completion zsh  > ~/.zfunc/_rdc
 rdc completion fish > ~/.config/fish/completions/rdc.fish
 ```
 
+## Diagnosing RPC connection resets
+
+For an intermittent RPC error, set `RDC_DAEMON_LOG` before starting a new daemon.
+The file is appended to and retained after startup or failure. It records request
+methods, IDs, handler/send timings, connection errors, the daemon PID, and the
+loaded RenderDoc version/module path. It also enables Python's `faulthandler` to
+write native-fault tracebacks to that file where supported. For locally launched
+daemons, native stderr is retained separately at `<RDC_DAEMON_LOG>.stderr` to
+avoid competing file writers on Windows.
+
+For example, in Windows PowerShell:
+
+```powershell
+$env:RDC_DAEMON_LOG = Join-Path $PWD "rdc-rpc.log"
+rdc --session rpc-debug open .\capture.rdc --timeout 120
+rdc --session rpc-debug script .\pick_once.py *> .\rdc-client.txt
+rdc --session rpc-debug status *>> .\rdc-client.txt
+rdc --session rpc-debug close
+Remove-Item Env:RDC_DAEMON_LOG
+```
+
+Use a separate log file for each daemon, with an existing parent directory. For
+Split sessions, configure the variable on the server before launching its daemon;
+setting it on a client connected to an existing daemon has no effect. Request
+parameters and session tokens are not included in the request-stage logs, but
+native stderr and tracebacks may contain application details.
+
+Run the reproducing script once, then check `status` separately: scripts can have
+side effects and are not automatically retried. Include the client output, daemon
+log and its `.stderr` companion, exact commands, and rdc-cli version/commit in the
+bug report. Diagnostics do not guarantee a traceback for every native termination
+and do not establish the cause of a `PickPixel` failure by themselves.
+
 ## Development
 
 ```bash

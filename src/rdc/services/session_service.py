@@ -74,8 +74,16 @@ def start_daemon(
     # replay the daemon's verbose upload logging would fill the OS pipe buffer
     # and block before serving its first ping if no one drains it, which deadlocks
     # wait_for_ping. A file has no buffer limit and we read its tail on failure.
-    stderr_file = tempfile.NamedTemporaryFile(  # noqa: SIM115
-        mode="w+", prefix="rdc-daemon-", suffix=".stderr", delete=False
+    diagnostic_path = os.environ.get("RDC_DAEMON_LOG")
+    # Keep native stderr separate from the diagnostic FileHandler. On Windows,
+    # subprocesses inherit the handle's position but not the CRT append flag;
+    # a second writer to the same file could overwrite newer log records.
+    stderr_file = (
+        Path(f"{diagnostic_path}.stderr").expanduser().open("a", encoding="utf-8")
+        if diagnostic_path
+        else tempfile.NamedTemporaryFile(  # noqa: SIM115
+            mode="w+", prefix="rdc-daemon-", suffix=".stderr", delete=False
+        )
     )
     proc = subprocess.Popen(
         cmd,
@@ -85,12 +93,13 @@ def start_daemon(
         **_platform.popen_flags(),
     )
     proc._rdc_stderr_path = stderr_file.name  # type: ignore[attr-defined]
+    proc._rdc_preserve_stderr = bool(diagnostic_path)  # type: ignore[attr-defined]
     stderr_file.close()
     return proc
 
 
 def _read_daemon_stderr(proc: subprocess.Popen[str]) -> str:
-    """Return the tail of the daemon's redirected stderr, then remove the file."""
+    """Read the stderr tail, removing only automatically-created temporary logs."""
     path = getattr(proc, "_rdc_stderr_path", None)
     if not path:
         return ""
@@ -99,22 +108,22 @@ def _read_daemon_stderr(proc: subprocess.Popen[str]) -> str:
     except OSError:
         return ""
     finally:
-        try:
-            Path(path).unlink()
-        except OSError:
-            pass
+        if getattr(proc, "_rdc_preserve_stderr", False) is not True:
+            try:
+                Path(path).unlink()
+            except OSError:
+                pass
     return "\n".join(text.splitlines()[-20:]).strip()
 
 
 def _discard_daemon_stderr(proc: subprocess.Popen[str]) -> None:
     """Best-effort removal of the daemon's stderr temp file after a successful start.
 
-    On POSIX the daemon keeps writing to the now-unlinked inode; on Windows the
-    file is still open so unlink may fail and is silently ignored (the OS reclaims
-    it on process exit).
+    Explicit diagnostic logs are retained. Otherwise, on POSIX the daemon keeps
+    writing to the now-unlinked inode; on Windows an open file may prevent unlink.
     """
     path = getattr(proc, "_rdc_stderr_path", None)
-    if path:
+    if path and getattr(proc, "_rdc_preserve_stderr", False) is not True:
         try:
             Path(path).unlink()
         except OSError:
