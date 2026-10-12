@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import faulthandler
 import json
 import logging
+import os
 import secrets
 import shutil
 import socket
@@ -168,6 +170,20 @@ def _cleanup_temp(state: DaemonState) -> None:
 
 
 _log = logging.getLogger("rdc.daemon")
+
+
+def _configure_diagnostics() -> logging.FileHandler | None:
+    """Enable persistent request and native-fault logs when explicitly requested."""
+    path = os.environ.get("RDC_DAEMON_LOG")
+    if not path:
+        return None
+    handler = logging.FileHandler(Path(path).expanduser(), encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s pid=%(process)d %(message)s"))
+    _log.addHandler(handler)
+    _log.setLevel(logging.INFO)
+    faulthandler.enable(file=handler.stream, all_threads=True)
+    _log.info("daemon diagnostics enabled: python=%s platform=%s", sys.version, sys.platform)
+    return handler
 
 
 class AdapterMatch(NamedTuple):
@@ -755,7 +771,8 @@ def run_server(  # pragma: no cover
                 conn.settimeout(10.0)
                 try:
                     line = _recv_line(conn)
-                except (ValueError, TimeoutError):
+                except (ValueError, OSError) as exc:
+                    _log.warning("RPC receive failed from %s: %s", _addr, exc)
                     continue
                 if not line:
                     continue
@@ -769,10 +786,20 @@ def run_server(  # pragma: no cover
                     }
                     try:
                         conn.sendall((json.dumps(error_resp) + "\n").encode("utf-8"))
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        _log.warning("RPC send failed: stage=parse error: %s", exc)
                     continue
+                method = request.get("method", "")
+                request_id = request.get("id")
+                started = time.perf_counter()
+                _log.info("RPC request started: method=%s id=%s", method, request_id)
                 response, running = _process_request(request, state)
+                _log.info(
+                    "RPC handler completed: method=%s id=%s elapsed_ms=%.1f",
+                    method,
+                    request_id,
+                    (time.perf_counter() - started) * 1000,
+                )
                 binary_path = response.get("result", {}).pop("_binary_path", None)
                 try:
                     payload = json.dumps(response) + "\n"
@@ -785,17 +812,29 @@ def run_server(  # pragma: no cover
                     }
                     payload = json.dumps(err_resp) + "\n"
                     binary_path = None
+                stage = "response"
                 try:
                     conn.sendall(payload.encode("utf-8"))
                     if binary_path:
-                        try:
-                            with Path(binary_path).open("rb") as bf:
-                                while chunk := bf.read(65536):
-                                    conn.sendall(chunk)
-                        except OSError:
-                            _log.warning("failed to send binary payload: %s", binary_path)
-                except OSError:
-                    pass
+                        stage = "binary payload"
+                        with Path(binary_path).open("rb") as bf:
+                            while chunk := bf.read(65536):
+                                conn.sendall(chunk)
+                except OSError as exc:
+                    _log.warning(
+                        "RPC send failed: method=%s id=%s stage=%s: %s",
+                        method,
+                        request_id,
+                        stage,
+                        exc,
+                    )
+                else:
+                    _log.info(
+                        "RPC response sent: method=%s id=%s elapsed_ms=%.1f",
+                        method,
+                        request_id,
+                        (time.perf_counter() - started) * 1000,
+                    )
                 last_activity = time.time()
 
     # The shutdown RPC runs cleanup via _handle_shutdown before exiting the
@@ -818,6 +857,7 @@ def main() -> None:  # pragma: no cover
     parser.add_argument("--remote-url", default=None)
     parser.add_argument("--gpu", default=None)
     args = parser.parse_args()
+    _configure_diagnostics()
 
     state = DaemonState(
         capture=args.capture, current_eid=0, token=args.token, gpu_pref=args.gpu or ""
@@ -832,6 +872,14 @@ def main() -> None:  # pragma: no cover
             sys.stderr.write(f"error: {err}\n")
             sys.exit(1)
 
+    if _log.isEnabledFor(logging.INFO):
+        _log.info(
+            "replay ready: renderdoc=%s module=%s api=%s remote=%s",
+            _detect_version(state.rd) if state.rd is not None else None,
+            getattr(state.rd, "__file__", None),
+            state.api_name,
+            state.is_remote,
+        )
     run_server(
         host=args.host,
         port=args.port,
