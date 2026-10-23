@@ -3,6 +3,11 @@ import Docs from '../../layouts/Docs.astro';
 ---
 
 <Docs title="Installation">
+  <p>
+    Requires Python 3.11 or newer. Starting with 0.7.0, rdc-cli requires
+    Pillow 13 for its security fixes. Python 3.10 users must upgrade Python
+    and rebuild the RenderDoc Python module for the new Python minor version.
+  </p>
   <h2>PyPI (Recommended)</h2>
   <pre><code>uv tool install rdc-cli    # or: pipx install rdc-cli</code></pre>
   <p>

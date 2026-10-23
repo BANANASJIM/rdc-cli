@@ -30,6 +30,10 @@ rdc close
 
 ## Install
 
+Requires Python 3.11 or newer. Starting with 0.7.0, rdc-cli requires Pillow 13
+for its security fixes. Python 3.10 users must upgrade Python; rebuild the
+RenderDoc Python module when changing Python minor versions.
+
 **PyPI — Linux** (recommended)
 
 ```bash
