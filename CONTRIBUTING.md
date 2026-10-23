@@ -83,7 +83,7 @@ Enforced by CI — just follow the tooling:
 ### CI checks on PRs
 
 - Lint (ruff) + type check (mypy)
-- Unit tests — Python 3.10 / 3.12 / 3.14 on Linux + Windows
+- Unit tests — Python 3.11 / 3.12 / 3.14 on Linux + Windows
 - Commitlint — conventional commit format
 - Dependency audit (pip-audit)
 

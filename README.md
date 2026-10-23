@@ -8,7 +8,7 @@
 ```
 
 [![PyPI](https://img.shields.io/pypi/v/rdc-cli)](https://pypi.org/project/rdc-cli/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/rdc-cli/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/rdc-cli/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Commands](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/commands.json)](https://bananasjim.github.io/rdc-cli/)
 [![Tests](https://img.shields.io/endpoint?url=https://bananasjim.github.io/rdc-cli/badges/tests.json)](https://bananasjim.github.io/rdc-cli/)
@@ -29,6 +29,10 @@ rdc close
 ```
 
 ## Install
+
+Requires Python 3.11 or newer. Starting with 0.7.0, rdc-cli requires Pillow 13
+for its security fixes. Python 3.10 users must upgrade Python; rebuild the
+RenderDoc Python module when changing Python minor versions.
 
 **PyPI — Linux** (recommended)
 

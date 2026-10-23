@@ -798,6 +798,43 @@ class TestProcessRequest:
     def _state(self) -> DaemonState:
         return DaemonState(capture="capture.rdc", current_eid=0, token="tok")
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            None,
+            False,
+            1,
+            "shutdown",
+            [],
+            [{"method": "shutdown"}],
+            {"method": "shutdown", "params": 1},
+            {"method": "shutdown", "params": [1]},
+            {"method": "shutdown", "params": "token"},
+            {"method": "shutdown", "params": {"_token": "错误"}},
+            {"method": "shutdown", "params": {"_token": "\ud800"}},
+            {"method": [], "params": {"_token": "tok"}},
+            {"method": {}, "params": {"_token": "tok"}},
+            {"method": "shutdown", "id": [[]], "params": {"_token": "tok"}},
+        ],
+    )
+    def test_malformed_request_never_stops_daemon(self, payload: Any) -> None:
+        response, running = _process_request(payload, self._state())
+        assert running is True
+        assert response["error"]["code"] in (-32600, -32602)
+
+    def test_invalid_shutdown_token_does_not_call_handler(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def unexpected_shutdown(*_args: Any) -> Any:
+            pytest.fail("unauthenticated shutdown reached its handler")
+
+        monkeypatch.setitem(_DISPATCH, "shutdown", unexpected_shutdown)
+        response, running = _process_request(
+            {"method": "shutdown", "params": {"_token": "wrong"}}, self._state()
+        )
+        assert running is True
+        assert response["error"]["message"] == "invalid token"
+
     def test_exception_is_logged(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Handler raising RuntimeError logs via logger.exception with method name."""
         from rdc.daemon_server import _DISPATCH, _process_request
