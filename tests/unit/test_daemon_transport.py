@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import socket
+import struct
 import subprocess
 import sys
 import time
@@ -137,6 +138,24 @@ def test_daemon_survives_malformed_requests(payload: bytes) -> None:
             response = json.loads(recv_line(sock))
         assert response["error"]["code"] in (-32600, -32602, -32700)
         assert proc.poll() is None
+        assert send_request("127.0.0.1", port, ping_request(token, 2))["result"]["ok"]
+        send_request("127.0.0.1", port, shutdown_request(token, 3))
+        assert proc.wait(timeout=3) == 0
+    finally:
+        if proc.poll() is None:
+            _force_kill(proc)
+
+
+def test_daemon_survives_connection_reset() -> None:
+    port = _pick_port()
+    token = secrets.token_hex(8)
+    proc = _start_daemon(port, token)
+    try:
+        _wait_ready(port, token)
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as sock:
+            sock.sendall(b'{"method":"shutdown",')
+            linger_format = "hh" if sys.platform == "win32" else "ii"
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack(linger_format, 1, 0))
         assert send_request("127.0.0.1", port, ping_request(token, 2))["result"]["ok"]
         send_request("127.0.0.1", port, shutdown_request(token, 3))
         assert proc.wait(timeout=3) == 0

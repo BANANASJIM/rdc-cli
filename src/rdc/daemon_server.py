@@ -775,7 +775,7 @@ def run_server(  # pragma: no cover
                 conn.settimeout(10.0)
                 try:
                     line = _recv_line(conn)
-                except (ValueError, TimeoutError):
+                except (ValueError, OSError):
                     continue
                 if not line:
                     continue
