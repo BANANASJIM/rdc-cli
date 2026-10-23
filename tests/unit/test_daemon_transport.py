@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import secrets
 import socket
 import subprocess
@@ -113,6 +114,35 @@ def test_daemon_rejects_invalid_token() -> None:
         assert bad["error"]["code"] == -32600
     finally:
         _force_kill(proc)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"null\n",
+        b"[]\n",
+        b'{"method":"shutdown","params":1}\n',
+        b'{"method":"shutdown","params":{"_token":"\\u9519"}}\n',
+        pytest.param(b"[" * 2000 + b"0" + b"]" * 2000 + b"\n", id="deep-json"),
+    ],
+)
+def test_daemon_survives_malformed_requests(payload: bytes) -> None:
+    port = _pick_port()
+    token = secrets.token_hex(8)
+    proc = _start_daemon(port, token)
+    try:
+        _wait_ready(port, token)
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as sock:
+            sock.sendall(payload)
+            response = json.loads(recv_line(sock))
+        assert response["error"]["code"] in (-32600, -32602, -32700)
+        assert proc.poll() is None
+        assert send_request("127.0.0.1", port, ping_request(token, 2))["result"]["ok"]
+        send_request("127.0.0.1", port, shutdown_request(token, 3))
+        assert proc.wait(timeout=3) == 0
+    finally:
+        if proc.poll() is None:
+            _force_kill(proc)
 
 
 # ---------------------------------------------------------------------------

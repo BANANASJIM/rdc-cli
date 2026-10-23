@@ -690,40 +690,60 @@ def _load_remote_replay(state: DaemonState, remote_url: str) -> str | None:
     return None
 
 
-def _handle_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[str, Any], bool]:
+def _handle_request(request: Any, state: DaemonState) -> tuple[dict[str, Any], bool]:
+    if not isinstance(request, dict):
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32600, "message": "invalid request"},
+        }, True
     request_id = request.get("id", 0)
-    params = request.get("params") or {}
+    if type(request_id) not in (str, int, float, type(None)):
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32600, "message": "invalid request id"},
+        }, True
+    params = request.get("params", {})
+    if not isinstance(params, dict):
+        return _error_response(request_id, -32602, "params must be an object"), True
     token = params.get("_token")
-    if (
-        token is None
-        or not isinstance(token, str)
-        or not secrets.compare_digest(token, state.token)
+    if not isinstance(token, str) or not secrets.compare_digest(
+        token.encode("utf-8", errors="surrogatepass"),
+        state.token.encode("utf-8", errors="surrogatepass"),
     ):
         return _error_response(request_id, -32600, "invalid token"), True
 
     method = request.get("method", "")
+    if not isinstance(method, str):
+        return _error_response(request_id, -32600, "method must be a string"), True
     handler = _DISPATCH.get(method)
     if handler is None:
         return _error_response(request_id, -32601, "method not found"), True
     if method not in _NO_REPLAY_METHODS and state.adapter is None:
         return _error_response(request_id, -32002, "no replay loaded"), True
-    result: tuple[dict[str, Any], bool] = handler(request_id, params, state)
-    return result
+    try:
+        result: tuple[dict[str, Any], bool] = handler(request_id, params, state)
+        return result
+    except Exception:  # noqa: BLE001
+        _log.exception("unhandled exception in handler: %s", method)
+        # Only an authenticated shutdown may stop the daemon, even when its
+        # resource cleanup raises. Input/authentication errors must keep it alive.
+        return _error_response(request_id, -32603, "internal error"), method != "shutdown"
 
 
-def _process_request(request: dict[str, Any], state: DaemonState) -> tuple[dict[str, Any], bool]:
-    """Dispatch a parsed JSON-RPC request, catching and logging handler exceptions."""
+def _process_request(request: Any, state: DaemonState) -> tuple[dict[str, Any], bool]:
+    """Dispatch parsed JSON without allowing validation errors to stop the server."""
     try:
         return _handle_request(request, state)
     except Exception:  # noqa: BLE001
-        _log.exception("unhandled exception in handler: %s", request.get("method", ""))
+        _log.exception("unhandled exception while validating request")
         response: dict[str, Any] = {
             "jsonrpc": "2.0",
             "error": {"code": -32603, "message": "internal error"},
-            "id": request.get("id"),
+            "id": request.get("id") if isinstance(request, dict) else None,
         }
-        running = request.get("method") != "shutdown"
-        return response, running
+        return response, True
 
 
 def run_server(  # pragma: no cover
@@ -761,7 +781,7 @@ def run_server(  # pragma: no cover
                     continue
                 try:
                     request = json.loads(line)
-                except (json.JSONDecodeError, ValueError):
+                except (ValueError, RecursionError):
                     error_resp = {
                         "jsonrpc": "2.0",
                         "error": {"code": -32700, "message": "parse error"},
