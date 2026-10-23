@@ -1,0 +1,1 @@
+import{n as e,t}from"./ScrollTrigger.CHfANB6y.js";e.registerPlugin(t);var n=e.timeline({scrollTrigger:{trigger:`.demo-container`,start:`top 80%`}});n.fromTo(`.demo-container`,{opacity:0,y:40},{opacity:1,y:0,duration:.8,ease:`power3.out`}),n.fromTo(`.demo-line`,{opacity:0,x:-15},{opacity:1,x:0,duration:.4,stagger:.15,ease:`power2.out`},`-=0.3`);
